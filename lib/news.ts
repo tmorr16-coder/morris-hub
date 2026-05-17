@@ -49,17 +49,32 @@ Pick at most 2 per topic. Prefer reputable sources (AP, Reuters, WSJ, NYT, offic
   try {
     const response = await client.messages.create({
       model: "claude-haiku-4-5",
-      max_tokens: 1500,
+      max_tokens: 2048,
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 6 }],
       messages: [{ role: "user", content: prompt }],
     });
 
-    // Extract the JSON block from the final text content
-    const textBlock = response.content.find((b) => b.type === "text");
-    if (!textBlock || textBlock.type !== "text") return [];
+    // Pull all text blocks (the model may emit multiple after tool use)
+    const fullText = response.content
+      .filter((b) => b.type === "text")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((b) => (b as any).text as string)
+      .join("\n");
 
-    const match = textBlock.text.match(/```json\s*([\s\S]*?)\s*```/);
-    const jsonStr = match ? match[1] : textBlock.text;
+    if (!fullText) {
+      console.error("[news] no text content; stop_reason=", response.stop_reason);
+      return [];
+    }
+
+    // Extract the JSON block — may be in markdown fences or bare
+    const fencedMatch = fullText.match(/```(?:json)?\s*({[\s\S]*?})\s*```/);
+    const bareMatch = fullText.match(/{[\s\S]*"items"[\s\S]*}/);
+    const jsonStr = fencedMatch?.[1] ?? bareMatch?.[0];
+
+    if (!jsonStr) {
+      console.error("[news] no JSON found in response", fullText.slice(0, 300));
+      return [];
+    }
 
     const parsed = JSON.parse(jsonStr);
     return (parsed.items ?? []) as NewsItem[];

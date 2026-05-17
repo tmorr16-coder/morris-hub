@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import type { Recurrence, Category, SourceApp } from "@/lib/reminders";
 
 export type Priority = "low" | "medium" | "high";
 
@@ -131,6 +132,91 @@ export async function savePreferences(data: {
   if (error) return { error: error.message };
   revalidatePath("/home");
   revalidatePath("/home/settings");
+  return {};
+}
+
+// ── Reminders ───────────────────────────────────────────────────────────
+
+export async function addReminder(data: {
+  title: string;
+  notes?: string | null;
+  due_at: string;                      // ISO timestamp
+  recurrence?: Recurrence;
+  category?: Category;
+  source_app?: SourceApp;
+}): Promise<{ error?: string }> {
+  const userId = await getUserId();
+  if (!userId) return { error: "Not authenticated" };
+  if (!data.title.trim()) return { error: "Title required" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const { error } = await service.schema("hub").from("reminders").insert({
+    user_id: userId,
+    title: data.title.trim(),
+    notes: data.notes ?? null,
+    due_at: data.due_at,
+    recurrence: data.recurrence ?? "once",
+    category: data.category ?? "general",
+    source_app: data.source_app ?? "hub",
+  });
+
+  if (error) return { error: error.message };
+  revalidatePath("/home");
+  return {};
+}
+
+export async function completeReminder(id: string): Promise<{ error?: string }> {
+  const userId = await getUserId();
+  if (!userId) return { error: "Not authenticated" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const { error } = await service
+    .schema("hub")
+    .from("reminders")
+    .update({ completed_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/home");
+  return {};
+}
+
+export async function snoozeReminder(id: string, until: string): Promise<{ error?: string }> {
+  const userId = await getUserId();
+  if (!userId) return { error: "Not authenticated" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const { error } = await service
+    .schema("hub")
+    .from("reminders")
+    .update({ due_at: until, snooze_until: until })
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/home");
+  return {};
+}
+
+export async function deleteReminder(id: string): Promise<{ error?: string }> {
+  const userId = await getUserId();
+  if (!userId) return { error: "Not authenticated" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const { error } = await service
+    .schema("hub")
+    .from("reminders")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/home");
   return {};
 }
 

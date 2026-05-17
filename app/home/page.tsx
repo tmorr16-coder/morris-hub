@@ -8,6 +8,8 @@ import PlatformMenu from "@/components/PlatformMenu";
 import SignOutButton from "./_components/SignOutButton";
 import HubChat from "./_components/HubChat";
 import WeatherWidget from "./_components/WeatherWidget";
+import RemindersWidget from "./_components/RemindersWidget";
+import { getUpcomingReminders } from "@/lib/reminders";
 import StocksWidget from "./_components/StocksWidget";
 import TodosWidget from "./_components/TodosWidget";
 import NewsWidget from "./_components/NewsWidget";
@@ -34,15 +36,31 @@ export default async function HomePage() {
     .limit(100);
   const todos = (todoRows ?? []) as Todo[];
 
+  const reminders = await getUpcomingReminders(user.id);
+
   const name = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email ?? "there";
   const firstName = name.split(" ")[0];
+  // Use the user's location timezone (default to Indianapolis if not resolvable).
+  // Vercel functions run in UTC by default, so we must pass timeZone explicitly.
+  const userTz = "America/Indiana/Indianapolis";
   const today = new Date();
+  const localHour = parseInt(
+    today.toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: userTz }),
+    10
+  );
   const greeting = (() => {
-    const h = today.getHours();
-    if (h < 12) return "Good morning";
-    if (h < 17) return "Good afternoon";
+    if (localHour < 5) return "Good evening";
+    if (localHour < 12) return "Good morning";
+    if (localHour < 17) return "Good afternoon";
     return "Good evening";
   })();
+  const todayDisplay = today.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: userTz,
+  });
 
   const menuUser = {
     name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
@@ -79,23 +97,13 @@ export default async function HomePage() {
         {/* Greeting */}
         <section style={{ marginBottom: 32 }}>
           <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 10 }}>
-            {today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+            {todayDisplay}
           </div>
           <h1 className="serif" style={{ fontSize: 44, lineHeight: 1.05 }}>
             {greeting},
             <br />
             <span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>{firstName}.</span>
           </h1>
-        </section>
-
-        {/* App tiles */}
-        <section style={{ marginBottom: 28 }}>
-          <SectionHeader label="Apps" />
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
-            <AppTile href="https://health.morrisai.family" icon="◐" accent="#4D6B3A" title="Health" description="Workouts, sleep, nutrition, AI coach" />
-            <AppTile href="https://finance.morrisai.family" icon="◑" accent="#8B6A47" title="Finance" description="Accounts, transactions, insights" />
-            <AppTile href="#" icon="◒" accent="var(--color-ink-3)" title="Coming soon" description="More apps as you build them" disabled />
-          </div>
         </section>
 
         {/* Ask Claude — main interaction surface */}
@@ -115,6 +123,7 @@ export default async function HomePage() {
           {prefs.latitude != null && prefs.longitude != null && (
             <WeatherWidget lat={prefs.latitude} lon={prefs.longitude} locationName={prefs.location_name ?? ""} />
           )}
+          <RemindersWidget initialReminders={reminders} tz={userTz} />
           <TodosWidget initialTodos={todos} />
           <StocksWidget tickers={prefs.stock_tickers} />
         </div>
@@ -129,55 +138,3 @@ export default async function HomePage() {
   );
 }
 
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 12 }}>
-      {label}
-    </div>
-  );
-}
-
-function AppTile({ href, icon, accent, title, description, disabled }: { href: string; icon: string; accent: string; title: string; description: string; disabled?: boolean }) {
-  const inner = (
-    <div
-      style={{
-        background: "var(--color-bg-card)",
-        border: "1px solid var(--color-rule)",
-        borderRadius: 14,
-        padding: "20px 22px",
-        boxShadow: "var(--shadow-card)",
-        display: "flex",
-        gap: 14,
-        alignItems: "center",
-        opacity: disabled ? 0.5 : 1,
-        cursor: disabled ? "default" : "pointer",
-      }}
-    >
-      <div
-        style={{
-          width: 48,
-          height: 48,
-          borderRadius: 12,
-          background: "var(--color-bg-deep)",
-          color: accent,
-          fontSize: 24,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        {icon}
-      </div>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div className="serif" style={{ fontSize: 20 }}>{title}</div>
-        <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 2 }}>{description}</div>
-      </div>
-      {!disabled && <div style={{ color: "var(--color-ink-3)", fontSize: 18, flexShrink: 0 }}>→</div>}
-    </div>
-  );
-  if (disabled) return inner;
-  return (
-    <a href={href} style={{ textDecoration: "none" }}>{inner}</a>
-  );
-}
