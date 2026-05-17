@@ -1,10 +1,12 @@
 export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getPreferences } from "@/lib/prefs";
 import PlatformMenu from "@/components/PlatformMenu";
 import SignOutButton from "./_components/SignOutButton";
+import HubChat from "./_components/HubChat";
 import WeatherWidget from "./_components/WeatherWidget";
 import StocksWidget from "./_components/StocksWidget";
 import TodosWidget from "./_components/TodosWidget";
@@ -25,11 +27,11 @@ export default async function HomePage() {
   const { data: todoRows } = await service
     .schema("hub")
     .from("todos")
-    .select("id, title, completed, notes, due_date, created_at")
+    .select("id, title, completed, notes, due_date, priority, created_at")
     .eq("user_id", user.id)
     .order("completed", { ascending: true })
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(100);
   const todos = (todoRows ?? []) as Todo[];
 
   const name = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email ?? "there";
@@ -53,8 +55,25 @@ export default async function HomePage() {
       <PlatformMenu currentApp="hub" user={menuUser} />
 
       <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 28px 80px" }}>
-        {/* App-level sign-out */}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+        {/* App-level controls */}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 8 }}>
+          <Link
+            href="/home/settings"
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              border: "1px solid var(--color-rule)",
+              background: "transparent",
+              color: "var(--color-ink-2)",
+              fontSize: 12,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            ⚙ Settings
+          </Link>
           <SignOutButton />
         </div>
         {/* Greeting */}
@@ -77,6 +96,11 @@ export default async function HomePage() {
             <AppTile href="https://finance.morrisai.family" icon="◑" accent="#8B6A47" title="Finance" description="Accounts, transactions, insights" />
             <AppTile href="#" icon="◒" accent="var(--color-ink-3)" title="Coming soon" description="More apps as you build them" disabled />
           </div>
+        </section>
+
+        {/* Ask Claude — main interaction surface */}
+        <section style={{ marginBottom: 14 }}>
+          <HubChat firstName={firstName} />
         </section>
 
         {/* Three-column widget grid */}
