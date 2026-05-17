@@ -6,6 +6,7 @@ function fmt(n: number): string {
 
 export default async function StocksWidget({ tickers }: { tickers: string[] }) {
   const quotes = await fetchQuotes(tickers);
+  const missing = tickers.filter((t) => !quotes.some((q) => q.symbol.toUpperCase() === t.toUpperCase()));
 
   return (
     <div style={card}>
@@ -16,10 +17,20 @@ export default async function StocksWidget({ tickers }: { tickers: string[] }) {
         </span>
       </div>
 
-      {quotes.length === 0 ? (
+      {tickers.length === 0 ? (
         <p style={{ fontSize: 13, color: "var(--color-ink-4)", padding: "20px 0", textAlign: "center" }}>
-          Quotes unavailable
+          No tickers set. Add some in <a href="/home/settings" style={{ color: "var(--color-accent-dark)" }}>Settings</a>.
         </p>
+      ) : quotes.length === 0 ? (
+        <div style={{ padding: "16px 0", textAlign: "center" }}>
+          <p style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 8 }}>
+            Quote provider unreachable (Yahoo rate-limited Vercel).
+          </p>
+          <p style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
+            Tickers: {tickers.join(" · ")}<br />
+            Refresh in a few minutes — cache will retry.
+          </p>
+        </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column" }}>
           {quotes.map((q, idx) => {
@@ -62,6 +73,12 @@ export default async function StocksWidget({ tickers }: { tickers: string[] }) {
             );
           })}
         </div>
+      )}
+
+      {quotes.length > 0 && missing.length > 0 && (
+        <p style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 10, textAlign: "center" }}>
+          Unavailable: {missing.join(", ")}
+        </p>
       )}
     </div>
   );

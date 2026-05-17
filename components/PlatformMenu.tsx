@@ -2,6 +2,7 @@
 // Sits above each app's in-app header. Provides cross-app navigation.
 
 import Image from "next/image";
+import QuickAddReminder from "./QuickAddReminder";
 
 const APPS = [
   { key: "hub",     label: "Hub",     href: "https://morrisai.family",                   dot: "#3B5C7F" },
@@ -103,6 +104,7 @@ export default function PlatformMenu({
         {/* User */}
         {user && (
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <QuickAddReminder sourceApp={currentApp} />
             {user.isAdmin && (
               <a
                 href="https://morrisai.family/home/admin"
