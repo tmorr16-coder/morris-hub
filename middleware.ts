@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+const COOKIE_DOMAIN = process.env.NEXT_PUBLIC_COOKIE_DOMAIN;
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -16,7 +18,10 @@ export async function middleware(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
+            response.cookies.set(name, value, {
+              ...options,
+              ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
+            })
           );
         },
       },
