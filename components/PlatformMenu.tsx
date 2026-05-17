@@ -13,6 +13,7 @@ export interface MenuUser {
   email?: string | null;
   name?: string | null;
   avatarUrl?: string | null;
+  isAdmin?: boolean;
 }
 
 export default function PlatformMenu({
@@ -101,7 +102,25 @@ export default function PlatformMenu({
 
         {/* User */}
         {user && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {user.isAdmin && (
+              <a
+                href="https://morrisai.family/home/admin"
+                style={{
+                  fontSize: 11,
+                  color: "#6B6258",
+                  textDecoration: "none",
+                  padding: "4px 9px",
+                  borderRadius: 12,
+                  border: "1px solid rgba(0,0,0,0.08)",
+                  background: "rgba(0,0,0,0.03)",
+                  fontFamily: "var(--font-geist, system-ui), sans-serif",
+                }}
+                title="Platform admin"
+              >
+                ⚙ Admin
+              </a>
+            )}
             {user.avatarUrl ? (
               <Image
                 src={user.avatarUrl}

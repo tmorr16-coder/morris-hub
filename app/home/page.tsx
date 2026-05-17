@@ -38,6 +38,14 @@ export default async function HomePage() {
 
   const reminders = await getUpcomingReminders(user.id);
 
+  // Admin role check (for PlatformMenu admin link)
+  const { data: profile } = await service
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  const isAdmin = (profile as { role?: string } | null)?.role === "admin";
+
   const name = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email ?? "there";
   const firstName = name.split(" ")[0];
   // Use the user's location timezone (default to Indianapolis if not resolvable).
@@ -66,6 +74,7 @@ export default async function HomePage() {
     name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
     email: user.email,
     avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
+    isAdmin,
   };
 
   return (

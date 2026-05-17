@@ -1,0 +1,211 @@
+export const dynamic = "force-dynamic";
+
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
+import PlatformMenu from "@/components/PlatformMenu";
+import AdminClient, {
+  type AdminUser,
+  type Invitation,
+  type IntegrationRequest,
+  type PendingUser,
+  type SupportTicket,
+} from "./_components/AdminClient";
+
+export default async function AdminPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createServiceClient() as any;
+
+  // Admin gate
+  const { data: currentProfile } = await db
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  if ((currentProfile as { role: string } | null)?.role !== "admin") {
+    redirect("/home");
+  }
+
+  // Fetch all auth users
+  const { data: { users: authUsers } } = await db.auth.admin.listUsers({ perPage: 200 });
+
+  // Fetch all profiles
+  const { data: profileRows } = await db
+    .from("profiles")
+    .select("id, email, full_name, role, app_access, created_at");
+
+  type ProfileRow = {
+    id: string;
+    email: string | null;
+    full_name: string | null;
+    role: string;
+    app_access: string[] | null;
+    created_at: string;
+  };
+  const profileMap = new Map<string, ProfileRow>(
+    ((profileRows as ProfileRow[]) ?? []).map((p) => [p.id, p])
+  );
+
+  type AuthUser = {
+    id: string;
+    email: string;
+    created_at: string;
+    last_sign_in_at: string | null;
+    user_metadata: Record<string, string>;
+  };
+  const users: AdminUser[] = ((authUsers as AuthUser[]) ?? [])
+    .filter((u) => u.last_sign_in_at || profileMap.has(u.id))
+    .map((u) => {
+      const p = profileMap.get(u.id);
+      return {
+        id: u.id,
+        email: u.email ?? p?.email ?? "",
+        name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? p?.full_name ?? "",
+        avatarUrl: u.user_metadata?.avatar_url ?? u.user_metadata?.picture ?? null,
+        role: (p?.role as "admin" | "standard") ?? "standard",
+        appAccess: (p?.app_access ?? []) as ("hub" | "health" | "finance")[],
+        createdAt: u.created_at,
+        isCurrentUser: u.id === user.id,
+      };
+    });
+
+  // Pending invitations
+  const { data: inviteRows } = await db
+    .from("invitations")
+    .select("id, email, role, invited_at, accepted_at")
+    .is("accepted_at", null)
+    .order("invited_at", { ascending: false });
+  type InviteRow = { id: string; email: string; role: string; invited_at: string; accepted_at: string | null };
+  const invitations: Invitation[] = ((inviteRows as InviteRow[]) ?? []).map((r) => ({
+    id: r.id,
+    email: r.email,
+    role: r.role as "standard" | "admin",
+    invitedAt: r.invited_at,
+  }));
+
+  // Pending users
+  type PendingRow = { id: string; email: string | null; full_name: string | null; created_at: string };
+  let pendingUsers: PendingUser[] = [];
+  try {
+    const { data: pendingRows } = await db
+      .from("profiles")
+      .select("id, email, full_name, created_at")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true });
+    const authUserMap = new Map<string, AuthUser>(((authUsers as AuthUser[]) ?? []).map((u) => [u.id, u]));
+    pendingUsers = ((pendingRows as PendingRow[]) ?? []).map((p) => {
+      const au = authUserMap.get(p.id);
+      return {
+        id: p.id,
+        email: au?.email ?? p.email ?? "",
+        name: au?.user_metadata?.full_name ?? au?.user_metadata?.name ?? p.full_name ?? "",
+        avatarUrl: au?.user_metadata?.avatar_url ?? au?.user_metadata?.picture ?? null,
+        createdAt: p.created_at,
+      };
+    });
+  } catch { /* ignore */ }
+
+  // Support tickets
+  type TicketRow = { id: string; user_name: string | null; user_email: string | null; type: string; subject: string; description: string; status: string; created_at: string };
+  let supportTickets: SupportTicket[] = [];
+  try {
+    const { data: ticketRows } = await db
+      .from("support_tickets")
+      .select("id, user_name, user_email, type, subject, description, status, created_at")
+      .in("status", ["open", "in_progress"])
+      .order("created_at", { ascending: false });
+    supportTickets = ((ticketRows as TicketRow[]) ?? []).map((t) => ({
+      id: t.id,
+      userName: t.user_name ?? "",
+      userEmail: t.user_email ?? "",
+      type: t.type as SupportTicket["type"],
+      subject: t.subject,
+      description: t.description,
+      status: t.status as SupportTicket["status"],
+      createdAt: t.created_at,
+    }));
+  } catch { /* ignore */ }
+
+  // Integration requests
+  type ReqRow = { id: string; user_name: string | null; user_email: string | null; integration: string; description: string | null; status: string; created_at: string };
+  let integrationRequests: IntegrationRequest[] = [];
+  try {
+    const { data: reqRows } = await db
+      .from("integration_requests")
+      .select("id, user_name, user_email, integration, description, status, created_at")
+      .in("status", ["pending", "planned"])
+      .order("created_at", { ascending: false });
+    integrationRequests = ((reqRows as ReqRow[]) ?? []).map((r) => ({
+      id: r.id,
+      userName: r.user_name ?? "",
+      userEmail: r.user_email ?? "",
+      integration: r.integration,
+      description: r.description ?? "",
+      status: r.status as IntegrationRequest["status"],
+      createdAt: r.created_at,
+    }));
+  } catch { /* ignore */ }
+
+  const menuUser = {
+    name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
+    email: user.email,
+    avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
+  };
+
+  return (
+    <div>
+      <PlatformMenu currentApp="hub" user={menuUser} />
+
+      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 28px 80px" }}>
+        <Link
+          href="/home"
+          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--color-ink-3)", textDecoration: "none", marginBottom: 16 }}
+        >
+          ← Home
+        </Link>
+
+        <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>
+          Platform
+        </div>
+        <h1 className="serif" style={{ fontSize: 40, lineHeight: 1.05, marginBottom: 6 }}>
+          Admin<span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>.</span>
+        </h1>
+        <p style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 18 }}>
+          Manage users, per-app access, support tickets, and integration requests.
+        </p>
+
+        <Link
+          href="/home/admin/analytics"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 13,
+            fontWeight: 500,
+            color: "var(--color-ink-2)",
+            textDecoration: "none",
+            background: "var(--color-bg-card)",
+            border: "1px solid var(--color-rule)",
+            borderRadius: 10,
+            padding: "8px 14px",
+            marginBottom: 24,
+          }}
+        >
+          Usage &amp; costs →
+        </Link>
+
+        <AdminClient
+          users={users}
+          invitations={invitations}
+          integrationRequests={integrationRequests}
+          pendingUsers={pendingUsers}
+          supportTickets={supportTickets}
+        />
+      </main>
+    </div>
+  );
+}
