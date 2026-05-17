@@ -100,3 +100,87 @@ export async function fetchNews(topics: string[]): Promise<NewsItem[]> {
   const sorted = [...topics].sort();
   return cachedFetchNews(sorted);
 }
+
+// ── Ticker-focused news ─────────────────────────────────────────────
+// Curated news about a single public company / ticker. Cached 1h —
+// pharma + biotech news doesn't move minute-to-minute.
+export interface TickerNewsItem extends NewsItem {
+  publishedAt?: string;
+}
+
+async function fetchTickerNewsRaw(
+  ticker: string,
+  companyName: string
+): Promise<TickerNewsItem[]> {
+  const prompt = `Find the 5 most important recent news stories about ${companyName} (ticker: ${ticker}). Use web search to get current results.
+
+Prioritize, in order:
+1. Earnings, guidance changes, analyst rating moves
+2. FDA approvals / clinical trial results / drug pipeline updates
+3. Major partnerships, M&A, or executive changes
+4. Stock-moving events from the last 1-2 weeks
+
+Return JSON in this exact format inside a single \`\`\`json ... \`\`\` block:
+{
+  "items": [
+    {
+      "headline": "...",
+      "source": "...",
+      "url": "...",
+      "summary": "1-2 sentence summary of what happened and why it matters",
+      "topic": "${ticker}",
+      "publishedAt": "YYYY-MM-DD or null"
+    }
+  ]
+}
+
+Prefer reputable sources (Reuters, Bloomberg, WSJ, FT, BioPharma Dive, Fierce Pharma, the company's own press releases). Skip rumor / speculation pieces. Do not invent URLs — only include URLs returned by web search.`;
+
+  try {
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 2048,
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const fullText = response.content
+      .filter((b) => b.type === "text")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((b) => (b as any).text as string)
+      .join("\n");
+
+    if (!fullText) {
+      console.error(`[ticker-news] ${ticker} no text; stop_reason=`, response.stop_reason);
+      return [];
+    }
+
+    const fencedMatch = fullText.match(/```(?:json)?\s*({[\s\S]*?})\s*```/);
+    const bareMatch = fullText.match(/{[\s\S]*"items"[\s\S]*}/);
+    const jsonStr = fencedMatch?.[1] ?? bareMatch?.[0];
+
+    if (!jsonStr) {
+      console.error(`[ticker-news] ${ticker} no JSON in response`, fullText.slice(0, 300));
+      return [];
+    }
+
+    const parsed = JSON.parse(jsonStr);
+    return (parsed.items ?? []) as TickerNewsItem[];
+  } catch (e) {
+    console.error(`[ticker-news] ${ticker} fetch failed`, e);
+    return [];
+  }
+}
+
+const cachedTickerNews = unstable_cache(
+  fetchTickerNewsRaw,
+  ["ticker-news"],
+  { tags: ["ticker-news"], revalidate: 3600 }
+);
+
+export async function fetchTickerNews(
+  ticker: string,
+  companyName: string
+): Promise<TickerNewsItem[]> {
+  return cachedTickerNews(ticker, companyName);
+}

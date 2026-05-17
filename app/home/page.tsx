@@ -11,6 +11,7 @@ import WeatherWidget from "./_components/WeatherWidget";
 import RemindersWidget from "./_components/RemindersWidget";
 import { getUpcomingReminders } from "@/lib/reminders";
 import StocksWidget from "./_components/StocksWidget";
+import LLYNewsWidget from "./_components/LLYNewsWidget";
 import TodosWidget from "./_components/TodosWidget";
 import NewsWidget from "./_components/NewsWidget";
 import ClaudeTipCard from "./_components/ClaudeTipCard";
@@ -136,6 +137,7 @@ export default async function HomePage() {
           <RemindersWidget initialReminders={reminders} tz={userTz} />
           <TodosWidget initialTodos={todos} />
           <StocksWidget tickers={prefs.stock_tickers} />
+          <LLYNewsWidget />
         </div>
 
         {/* News + Claude tip */}
