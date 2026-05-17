@@ -21,30 +21,31 @@ export default async function HomePage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
-  const prefs = await getPreferences(user.id);
-
-  // Fetch todos
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
-  const { data: todoRows } = await service
-    .schema("hub")
-    .from("todos")
-    .select("id, title, completed, notes, due_date, priority, created_at")
-    .eq("user_id", user.id)
-    .order("completed", { ascending: true })
-    .order("created_at", { ascending: false })
-    .limit(100);
-  const todos = (todoRows ?? []) as Todo[];
 
-  const reminders = await getUpcomingReminders(user.id);
+  // Parallelize the 4 independent reads — was previously sequential.
+  // Total time drops from sum-of-roundtrips to max-of-roundtrips (~150ms).
+  const [prefs, todoResult, reminders, profileResult] = await Promise.all([
+    getPreferences(user.id),
+    service
+      .schema("hub")
+      .from("todos")
+      .select("id, title, completed, notes, due_date, priority, created_at")
+      .eq("user_id", user.id)
+      .order("completed", { ascending: true })
+      .order("created_at", { ascending: false })
+      .limit(100),
+    getUpcomingReminders(user.id),
+    service
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle(),
+  ]);
 
-  // Admin role check (for PlatformMenu admin link)
-  const { data: profile } = await service
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-  const isAdmin = (profile as { role?: string } | null)?.role === "admin";
+  const todos = (todoResult.data ?? []) as Todo[];
+  const isAdmin = (profileResult.data as { role?: string } | null)?.role === "admin";
 
   const name = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email ?? "there";
   const firstName = name.split(" ")[0];

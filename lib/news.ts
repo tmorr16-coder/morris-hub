@@ -1,7 +1,9 @@
 // Claude-curated news using the web_search server tool.
-// One call per refresh — cached for 4 hours by Next.js fetch cache.
+// The Anthropic SDK doesn't go through Next's fetch cache, so we wrap
+// the fetcher in unstable_cache for a real TTL keyed by the topic set.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { unstable_cache } from "next/cache";
 
 const client = new Anthropic();
 
@@ -19,7 +21,7 @@ const TOPIC_QUERIES: Record<string, string> = {
   claude: "Anthropic Claude news, updates, or announcements this week",
 };
 
-export async function fetchNews(topics: string[]): Promise<NewsItem[]> {
+async function fetchNewsRaw(topics: string[]): Promise<NewsItem[]> {
   if (topics.length === 0) return [];
 
   const queries = topics
@@ -82,4 +84,19 @@ Pick at most 2 per topic. Prefer reputable sources (AP, Reuters, WSJ, NYT, offic
     console.error("[news] fetch failed", e);
     return [];
   }
+}
+
+// Cache the Claude+web_search call for 30 minutes per sorted-topic key.
+// First load takes ~5-10s; subsequent loads from any user with the same
+// topic set are served instantly until revalidation.
+const cachedFetchNews = unstable_cache(
+  fetchNewsRaw,
+  ["news"],
+  { tags: ["news"], revalidate: 1800 }
+);
+
+export async function fetchNews(topics: string[]): Promise<NewsItem[]> {
+  // Sort the topic list so different orderings share the same cache entry.
+  const sorted = [...topics].sort();
+  return cachedFetchNews(sorted);
 }
