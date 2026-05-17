@@ -1,26 +1,57 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Paper */
+  --color-bg:           #F7F4EE;
+  --color-bg-card:      #FFFDF8;
+  --color-bg-deep:      #ECE6D7;
+
+  /* Ink */
+  --color-ink:          #1A1814;
+  --color-ink-2:        #423E37;
+  --color-ink-3:        #8A8278;
+  --color-ink-4:        #B8AF9F;
+
+  /* Rule */
+  --color-rule:         #E0D9C7;
+  --color-rule-soft:    #EFE9D9;
+
+  /* Accent — deep indigo/slate, distinct from health green & finance bronze */
+  --color-accent:       #3B5C7F;
+  --color-accent-dark:  #29415A;
+  --color-accent-soft:  #DDE5EE;
+
+  /* Status */
+  --color-green:        #4A6B3A;
+  --color-red:          #9A3B2A;
+  --color-amber:        #B88A2E;
+
+  --shadow-card:        0 1px 0 rgba(26,24,20,0.04), 0 0 0 1px rgba(26,24,20,0.04);
+
+  --font-sans:          var(--font-geist), system-ui, sans-serif;
+  --font-display:       var(--font-instrument-serif), serif;
+  --font-mono:          var(--font-jetbrains-mono), monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+html, body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* { box-sizing: border-box; }
+
+.serif {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum" on, "lnum" on;
 }
