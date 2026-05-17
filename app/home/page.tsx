@@ -1,5 +1,10 @@
 export const dynamic = "force-dynamic";
+// Allow up to 60s so a cold news+web_search fetch can complete on
+// cache miss without timing out. The Suspense boundaries below let
+// the rest of the page stream first regardless.
+export const maxDuration = 60;
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -136,16 +141,60 @@ export default async function HomePage() {
           )}
           <RemindersWidget initialReminders={reminders} tz={userTz} />
           <TodosWidget initialTodos={todos} />
-          <StocksWidget tickers={prefs.stock_tickers} />
-          <LLYNewsWidget />
+          <Suspense fallback={<WidgetSkeleton title="Stocks" />}>
+            <StocksWidget tickers={prefs.stock_tickers} />
+          </Suspense>
+          <Suspense fallback={<WidgetSkeleton title="LLY news" />}>
+            <LLYNewsWidget />
+          </Suspense>
         </div>
 
         {/* News + Claude tip */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 14 }}>
-          <NewsWidget topics={prefs.news_topics} />
-          <ClaudeTipCard />
+          <Suspense fallback={<WidgetSkeleton title="News" lines={4} />}>
+            <NewsWidget topics={prefs.news_topics} />
+          </Suspense>
+          <Suspense fallback={<WidgetSkeleton title="Claude tips" lines={3} />}>
+            <ClaudeTipCard />
+          </Suspense>
         </div>
       </main>
+    </div>
+  );
+}
+
+function WidgetSkeleton({ title, lines = 2 }: { title: string; lines?: number }) {
+  return (
+    <div
+      style={{
+        background: "var(--color-bg-card)",
+        border: "1px solid var(--color-rule)",
+        borderRadius: 12,
+        padding: "20px 24px",
+        boxShadow: "var(--shadow-card)",
+        minHeight: 180,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
+        <h2 className="serif" style={{ fontSize: 20, color: "var(--color-ink)" }}>{title}</h2>
+        <span style={{ fontSize: 10, color: "var(--color-ink-4)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          loading…
+        </span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {Array.from({ length: lines }).map((_, i) => (
+          <div
+            key={i}
+            style={{
+              height: 14,
+              background: "var(--color-paper-deep)",
+              borderRadius: 4,
+              opacity: 0.4 + (lines - i) * 0.1,
+              width: `${100 - i * 12}%`,
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
