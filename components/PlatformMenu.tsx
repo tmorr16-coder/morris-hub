@@ -4,8 +4,8 @@
 import Image from "next/image";
 
 const APPS = [
-  { key: "hub",     label: "Home",    href: "https://morrisai.family/home",            dot: "#3B5C7F" },
-  { key: "health",  label: "Health",  href: "https://health.morrisai.family/dashboard", dot: "#4D6B3A" },
+  { key: "hub",     label: "Hub",     href: "https://morrisai.family",                   dot: "#3B5C7F" },
+  { key: "health",  label: "Health",  href: "https://health.morrisai.family/dashboard",  dot: "#4D6B3A" },
   { key: "finance", label: "Finance", href: "https://finance.morrisai.family/dashboard", dot: "#8B6A47" },
 ];
 
