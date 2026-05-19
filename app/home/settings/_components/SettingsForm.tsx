@@ -18,6 +18,7 @@ const AVAILABLE_TOPICS = [
 ];
 
 const WIDGET_LABELS: Record<WidgetId, string> = {
+  health:    "Health Summary",
   weather:   "Weather",
   reminders: "Reminders",
   todos:     "To-dos",

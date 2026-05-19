@@ -17,6 +17,7 @@ import RemindersWidget from "./_components/RemindersWidget";
 import { getUpcomingReminders } from "@/lib/reminders";
 import StocksWidget from "./_components/StocksWidget";
 import LLYNewsWidget from "./_components/LLYNewsWidget";
+import HealthSummaryWidget from "./_components/HealthSummaryWidget";
 import TodosWidget from "./_components/TodosWidget";
 import NewsWidget from "./_components/NewsWidget";
 import ClaudeTipCard from "./_components/ClaudeTipCard";
@@ -133,6 +134,11 @@ export default async function HomePage() {
           return (
             <>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14, marginBottom: 14 }}>
+                {v.has("health") && (
+                  <Suspense fallback={<WidgetSkeleton title="Health" lines={3} />}>
+                    <HealthSummaryWidget userId={user.id} />
+                  </Suspense>
+                )}
                 {v.has("weather") && prefs.latitude != null && prefs.longitude != null && (
                   <Suspense fallback={<WidgetSkeleton title="Weather" />}>
                     <WeatherWidget lat={prefs.latitude} lon={prefs.longitude} locationName={prefs.location_name ?? ""} />
