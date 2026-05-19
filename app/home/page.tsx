@@ -128,52 +128,55 @@ export default async function HomePage() {
           <HubChat firstName={firstName} />
         </section>
 
-        {/* Widget grid — filtered by user's visible_widgets preference */}
-        {(() => {
-          const v = new Set(prefs.visible_widgets);
-          return (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14, marginBottom: 14 }}>
-                {v.has("health") && (
-                  <Suspense fallback={<WidgetSkeleton title="Health" lines={3} />}>
+        {/* Single widget grid — respects visible_widgets order from preferences */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14, alignItems: "stretch" }}>
+          {prefs.visible_widgets.map((widgetId) => {
+            switch (widgetId) {
+              case "health":
+                return (
+                  <Suspense key="health" fallback={<WidgetSkeleton title="Health" lines={3} />}>
                     <HealthSummaryWidget userId={user.id} />
                   </Suspense>
-                )}
-                {v.has("weather") && prefs.latitude != null && prefs.longitude != null && (
-                  <Suspense fallback={<WidgetSkeleton title="Weather" />}>
+                );
+              case "weather":
+                return prefs.latitude != null && prefs.longitude != null ? (
+                  <Suspense key="weather" fallback={<WidgetSkeleton title="Weather" />}>
                     <WeatherWidget lat={prefs.latitude} lon={prefs.longitude} locationName={prefs.location_name ?? ""} />
                   </Suspense>
-                )}
-                {v.has("reminders") && <RemindersWidget initialReminders={reminders} tz={userTz} categories={prefs.reminder_categories} />}
-                {v.has("todos") && <TodosWidget initialTodos={todos} />}
-                {v.has("stocks") && (
-                  <Suspense fallback={<WidgetSkeleton title="Stocks" />}>
+                ) : null;
+              case "reminders":
+                return <RemindersWidget key="reminders" initialReminders={reminders} tz={userTz} categories={prefs.reminder_categories} />;
+              case "todos":
+                return <TodosWidget key="todos" initialTodos={todos} />;
+              case "stocks":
+                return (
+                  <Suspense key="stocks" fallback={<WidgetSkeleton title="Stocks" />}>
                     <StocksWidget tickers={prefs.stock_tickers} />
                   </Suspense>
-                )}
-                {v.has("lly_news") && (
-                  <Suspense fallback={<WidgetSkeleton title="LLY news" />}>
+                );
+              case "lly_news":
+                return (
+                  <Suspense key="lly_news" fallback={<WidgetSkeleton title="LLY news" />}>
                     <LLYNewsWidget />
                   </Suspense>
-                )}
-              </div>
-              {(v.has("news") || v.has("tips")) && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 14, alignItems: "stretch" }}>
-                  {v.has("news") && (
-                    <Suspense fallback={<WidgetSkeleton title="News" lines={4} />}>
-                      <NewsWidget topics={prefs.news_topics} />
-                    </Suspense>
-                  )}
-                  {v.has("tips") && (
-                    <Suspense fallback={<WidgetSkeleton title="Claude tips" lines={3} />}>
-                      <ClaudeTipCard />
-                    </Suspense>
-                  )}
-                </div>
-              )}
-            </>
-          );
-        })()}
+                );
+              case "news":
+                return (
+                  <Suspense key="news" fallback={<WidgetSkeleton title="News" lines={4} />}>
+                    <NewsWidget topics={prefs.news_topics} />
+                  </Suspense>
+                );
+              case "tips":
+                return (
+                  <Suspense key="tips" fallback={<WidgetSkeleton title="Claude tips" lines={3} />}>
+                    <ClaudeTipCard />
+                  </Suspense>
+                );
+              default:
+                return null;
+            }
+          })}
+        </div>
       </main>
     </div>
   );

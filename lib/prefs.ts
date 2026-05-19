@@ -25,7 +25,13 @@ export async function getPreferences(userId: string): Promise<Preferences> {
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (data) return data as Preferences;
+  if (data) {
+    const p = data as Preferences;
+    // New columns default to NULL for existing rows — fall back to defaults.
+    if (!p.visible_widgets?.length) p.visible_widgets = [...ALL_WIDGETS];
+    if (!p.reminder_categories?.length) p.reminder_categories = [...DEFAULT_REMINDER_CATEGORIES];
+    return p;
+  }
 
   // Fallback to env defaults if no row yet
   return {
