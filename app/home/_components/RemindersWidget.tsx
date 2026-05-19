@@ -113,9 +113,11 @@ function fromLocalDatetimeInput(value: string, tz: string): string {
 export default function RemindersWidget({
   initialReminders,
   tz,
+  categories,
 }: {
   initialReminders: Reminder[];
   tz: string;
+  categories?: string[];
 }) {
   const [reminders, setReminders] = useState<Reminder[]>(initialReminders);
   const [showAdd, setShowAdd] = useState(false);
@@ -169,6 +171,7 @@ export default function RemindersWidget({
       {showAdd && (
         <AddReminderForm
           tz={tz}
+          categories={categories}
           onAdded={(r) => {
             setReminders((prev) =>
               [...prev, r].sort((a, b) => (a.due_at < b.due_at ? -1 : 1))
@@ -254,11 +257,15 @@ export default function RemindersWidget({
   );
 }
 
+const DEFAULT_CATS = ["bill","medication","workout","appointment","personal","general"];
+
 function AddReminderForm({
   tz,
+  categories,
   onAdded,
 }: {
   tz: string;
+  categories?: string[];
   onAdded: (r: Reminder) => void;
 }) {
   const [title, setTitle] = useState("");
@@ -332,12 +339,9 @@ function AddReminderForm({
           style={{ ...miniInput, width: 180 }}
         />
         <select value={category} onChange={(e) => setCategory(e.target.value as Category)} style={miniInput}>
-          <option value="general">General</option>
-          <option value="bill">Bill</option>
-          <option value="medication">Medication</option>
-          <option value="workout">Workout</option>
-          <option value="appointment">Appointment</option>
-          <option value="personal">Personal</option>
+          {(categories ?? DEFAULT_CATS).map((c) => (
+            <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+          ))}
         </select>
         <select value={recurrence} onChange={(e) => setRecurrence(e.target.value as Recurrence)} style={miniInput}>
           <option value="once">Once</option>

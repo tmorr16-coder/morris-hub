@@ -127,37 +127,47 @@ export default async function HomePage() {
           <HubChat firstName={firstName} />
         </section>
 
-        {/* Three-column widget grid */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-            gap: 14,
-            marginBottom: 14,
-          }}
-        >
-          {prefs.latitude != null && prefs.longitude != null && (
-            <WeatherWidget lat={prefs.latitude} lon={prefs.longitude} locationName={prefs.location_name ?? ""} />
-          )}
-          <RemindersWidget initialReminders={reminders} tz={userTz} />
-          <TodosWidget initialTodos={todos} />
-          <Suspense fallback={<WidgetSkeleton title="Stocks" />}>
-            <StocksWidget tickers={prefs.stock_tickers} />
-          </Suspense>
-          <Suspense fallback={<WidgetSkeleton title="LLY news" />}>
-            <LLYNewsWidget />
-          </Suspense>
-        </div>
-
-        {/* News + Claude tip — align-items: stretch keeps equal heights */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 14, alignItems: "stretch" }}>
-          <Suspense fallback={<WidgetSkeleton title="News" lines={4} />}>
-            <NewsWidget topics={prefs.news_topics} />
-          </Suspense>
-          <Suspense fallback={<WidgetSkeleton title="Claude tips" lines={3} />}>
-            <ClaudeTipCard />
-          </Suspense>
-        </div>
+        {/* Widget grid — filtered by user's visible_widgets preference */}
+        {(() => {
+          const v = new Set(prefs.visible_widgets);
+          return (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14, marginBottom: 14 }}>
+                {v.has("weather") && prefs.latitude != null && prefs.longitude != null && (
+                  <Suspense fallback={<WidgetSkeleton title="Weather" />}>
+                    <WeatherWidget lat={prefs.latitude} lon={prefs.longitude} locationName={prefs.location_name ?? ""} />
+                  </Suspense>
+                )}
+                {v.has("reminders") && <RemindersWidget initialReminders={reminders} tz={userTz} categories={prefs.reminder_categories} />}
+                {v.has("todos") && <TodosWidget initialTodos={todos} />}
+                {v.has("stocks") && (
+                  <Suspense fallback={<WidgetSkeleton title="Stocks" />}>
+                    <StocksWidget tickers={prefs.stock_tickers} />
+                  </Suspense>
+                )}
+                {v.has("lly_news") && (
+                  <Suspense fallback={<WidgetSkeleton title="LLY news" />}>
+                    <LLYNewsWidget />
+                  </Suspense>
+                )}
+              </div>
+              {(v.has("news") || v.has("tips")) && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 14, alignItems: "stretch" }}>
+                  {v.has("news") && (
+                    <Suspense fallback={<WidgetSkeleton title="News" lines={4} />}>
+                      <NewsWidget topics={prefs.news_topics} />
+                    </Suspense>
+                  )}
+                  {v.has("tips") && (
+                    <Suspense fallback={<WidgetSkeleton title="Claude tips" lines={3} />}>
+                      <ClaudeTipCard />
+                    </Suspense>
+                  )}
+                </div>
+              )}
+            </>
+          );
+        })()}
       </main>
     </div>
   );

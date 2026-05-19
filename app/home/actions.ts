@@ -118,6 +118,8 @@ export async function savePreferences(data: {
   longitude?: number;
   stock_tickers?: string[];
   news_topics?: string[];
+  visible_widgets?: string[];
+  reminder_categories?: string[];
 }): Promise<{ error?: string }> {
   const userId = await getUserId();
   if (!userId) return { error: "Not authenticated" };
