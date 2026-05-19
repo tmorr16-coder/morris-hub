@@ -29,11 +29,11 @@ async function fetchNewsRaw(topics: string[]): Promise<NewsItem[]> {
     .map((t) => `**${t.toUpperCase()}:** ${TOPIC_QUERIES[t]}`)
     .join("\n");
 
-  const prompt = `Find 5 top news stories for the following topics. Use web search to get current results.
+  const prompt = `Find the top news stories for the following topics. Use web search to get current results.
 
 ${queries}
 
-For each story, return JSON in this exact format inside a single \`\`\`json ... \`\`\` block:
+Return up to 5 stories per topic (so up to ${topics.length * 5} total). Return JSON in this exact format inside a single \`\`\`json ... \`\`\` block:
 {
   "items": [
     {
@@ -46,7 +46,7 @@ For each story, return JSON in this exact format inside a single \`\`\`json ... 
   ]
 }
 
-Pick at most 2 per topic. Prefer reputable sources (AP, Reuters, WSJ, NYT, official company blogs for AI/Claude topics). Skip paywalled stories where possible. Do not invent URLs — only include URLs returned by web search.`;
+Sort each topic's stories with the most important first. Prefer reputable sources (AP, Reuters, WSJ, NYT, official company blogs). Skip paywalled stories. Do not invent URLs. Do NOT include <cite> tags or any HTML in your response.`;
 
   try {
     const response = await client.messages.create({
@@ -79,7 +79,14 @@ Pick at most 2 per topic. Prefer reputable sources (AP, Reuters, WSJ, NYT, offic
     }
 
     const parsed = JSON.parse(jsonStr);
-    return (parsed.items ?? []) as NewsItem[];
+    // Strip <cite index="N"> and </cite> tags injected by web_search tool
+    const clean = (s: string) => (s ?? "").replace(/<\/?cite[^>]*>/gi, "").trim();
+    return ((parsed.items ?? []) as NewsItem[]).map((it) => ({
+      ...it,
+      headline: clean(it.headline),
+      summary: clean(it.summary),
+      source: clean(it.source),
+    }));
   } catch (e) {
     console.error("[news] fetch failed", e);
     return [];
@@ -112,13 +119,14 @@ async function fetchTickerNewsRaw(
   ticker: string,
   companyName: string
 ): Promise<TickerNewsItem[]> {
-  const prompt = `Find the 5 most important recent news stories about ${companyName} (ticker: ${ticker}). Use web search to get current results.
+  const today = new Date().toISOString().slice(0, 10);
+  const prompt = `Find the 5 most important news stories about ${companyName} (ticker: ${ticker}) published TODAY (${today}) or in the last 48 hours. Use web search to get current results.
 
-Prioritize, in order:
+Prioritize stories published TODAY first, then:
 1. Earnings, guidance changes, analyst rating moves
 2. FDA approvals / clinical trial results / drug pipeline updates
 3. Major partnerships, M&A, or executive changes
-4. Stock-moving events from the last 1-2 weeks
+4. Stock-moving events
 
 Return JSON in this exact format inside a single \`\`\`json ... \`\`\` block:
 {
@@ -134,7 +142,7 @@ Return JSON in this exact format inside a single \`\`\`json ... \`\`\` block:
   ]
 }
 
-Prefer reputable sources (Reuters, Bloomberg, WSJ, FT, BioPharma Dive, Fierce Pharma, the company's own press releases). Skip rumor / speculation pieces. Do not invent URLs — only include URLs returned by web search.`;
+Prefer reputable sources (Reuters, Bloomberg, WSJ, FT, BioPharma Dive, Fierce Pharma, the company's own press releases). Skip rumor / speculation pieces. Do not invent URLs. Do NOT include <cite> tags or any HTML.`;
 
   try {
     const response = await client.messages.create({
@@ -165,7 +173,13 @@ Prefer reputable sources (Reuters, Bloomberg, WSJ, FT, BioPharma Dive, Fierce Ph
     }
 
     const parsed = JSON.parse(jsonStr);
-    return (parsed.items ?? []) as TickerNewsItem[];
+    const cleanStr = (s: string) => (s ?? "").replace(/<\/?cite[^>]*>/gi, "").trim();
+    return ((parsed.items ?? []) as TickerNewsItem[]).map((it) => ({
+      ...it,
+      headline: cleanStr(it.headline),
+      summary: cleanStr(it.summary),
+      source: cleanStr(it.source),
+    }));
   } catch (e) {
     console.error(`[ticker-news] ${ticker} fetch failed`, e);
     return [];
@@ -175,7 +189,7 @@ Prefer reputable sources (Reuters, Bloomberg, WSJ, FT, BioPharma Dive, Fierce Ph
 const cachedTickerNews = unstable_cache(
   fetchTickerNewsRaw,
   ["ticker-news"],
-  { tags: ["ticker-news"], revalidate: 3600 }
+  { tags: ["ticker-news"], revalidate: 1800 } // 30 min — today's news changes
 );
 
 export async function fetchTickerNews(

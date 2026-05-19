@@ -149,8 +149,8 @@ export default async function HomePage() {
           </Suspense>
         </div>
 
-        {/* News + Claude tip */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 14 }}>
+        {/* News + Claude tip — align-items: stretch keeps equal heights */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 14, alignItems: "stretch" }}>
           <Suspense fallback={<WidgetSkeleton title="News" lines={4} />}>
             <NewsWidget topics={prefs.news_topics} />
           </Suspense>
