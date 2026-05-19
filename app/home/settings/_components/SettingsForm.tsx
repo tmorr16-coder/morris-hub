@@ -45,6 +45,18 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
   const [visibleWidgets, setVisibleWidgets] = useState<WidgetId[]>(
     initialPrefs.visible_widgets ?? [...ALL_WIDGETS]
   );
+
+  function moveWidget(id: WidgetId, dir: -1 | 1) {
+    setVisibleWidgets((prev) => {
+      const idx = prev.indexOf(id);
+      if (idx === -1) return prev;
+      const next = [...prev];
+      const swap = idx + dir;
+      if (swap < 0 || swap >= next.length) return prev;
+      [next[idx], next[swap]] = [next[swap], next[idx]];
+      return next;
+    });
+  }
   const [reminderCats, setReminderCats] = useState<string[]>(
     initialPrefs.reminder_categories ?? [...DEFAULT_REMINDER_CATEGORIES]
   );
@@ -119,32 +131,42 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
-      {/* Widgets on/off */}
+      {/* Widgets — toggle + reorder */}
       <section style={card}>
-        <SectionHeader title="Widgets" subtitle="Choose which boxes appear on your home page" />
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {ALL_WIDGETS.map((w) => {
-            const on = visibleWidgets.includes(w);
-            return (
+        <SectionHeader title="Widgets" subtitle="Toggle which boxes appear and drag them into order" />
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {visibleWidgets.map((w, i) => (
+            <div key={w} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "var(--color-bg)", border: "1px solid var(--color-rule)", borderRadius: 10 }}>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "var(--color-ink)" }}>{WIDGET_LABELS[w]}</span>
               <button
-                key={w}
+                onClick={() => moveWidget(w, -1)}
+                disabled={i === 0}
+                style={{ ...reorderBtn, opacity: i === 0 ? 0.3 : 1 }}
+                title="Move up"
+              >↑</button>
+              <button
+                onClick={() => moveWidget(w, 1)}
+                disabled={i === visibleWidgets.length - 1}
+                style={{ ...reorderBtn, opacity: i === visibleWidgets.length - 1 ? 0.3 : 1 }}
+                title="Move down"
+              >↓</button>
+              <button
                 onClick={() => toggleWidget(w)}
-                style={{
-                  padding: "6px 14px",
-                  borderRadius: 18,
-                  border: `1px solid ${on ? "var(--color-accent)" : "var(--color-rule)"}`,
-                  background: on ? "var(--color-accent)" : "transparent",
-                  color: on ? "#FFFDF8" : "var(--color-ink-2)",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                {WIDGET_LABELS[w]}
-              </button>
-            );
-          })}
+                style={{ fontSize: 11, padding: "3px 9px", borderRadius: 12, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-red)", cursor: "pointer", fontFamily: "inherit" }}
+                title="Hide this widget"
+              >Hide</button>
+            </div>
+          ))}
+          {/* Hidden widgets — add back */}
+          {ALL_WIDGETS.filter((w) => !visibleWidgets.includes(w)).map((w) => (
+            <div key={w} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "transparent", border: "1px dashed var(--color-rule)", borderRadius: 10, opacity: 0.6 }}>
+              <span style={{ flex: 1, fontSize: 13, color: "var(--color-ink-3)" }}>{WIDGET_LABELS[w]}</span>
+              <button
+                onClick={() => toggleWidget(w)}
+                style={{ fontSize: 11, padding: "3px 9px", borderRadius: 12, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-accent)", cursor: "pointer", fontFamily: "inherit" }}
+              >Show</button>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -323,6 +345,22 @@ const input: React.CSSProperties = {
   fontFamily: "inherit",
   outline: "none",
   boxSizing: "border-box",
+};
+
+const reorderBtn: React.CSSProperties = {
+  background: "transparent",
+  border: "1px solid var(--color-rule)",
+  borderRadius: 6,
+  width: 26,
+  height: 26,
+  fontSize: 12,
+  cursor: "pointer",
+  color: "var(--color-ink-3)",
+  padding: 0,
+  fontFamily: "inherit",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
 
 const secondaryBtn: React.CSSProperties = {

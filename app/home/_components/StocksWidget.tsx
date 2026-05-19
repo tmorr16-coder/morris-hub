@@ -90,5 +90,7 @@ const card: React.CSSProperties = {
   borderRadius: 12,
   padding: "18px 20px",
   boxShadow: "var(--shadow-card)",
-  minHeight: 180,
+  minHeight: 320,
+  height: "100%",
+  boxSizing: "border-box" as const,
 };
