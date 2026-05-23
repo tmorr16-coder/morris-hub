@@ -264,9 +264,9 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
       <section style={card}>
         <SectionHeader title="Local news cities" subtitle="Cities to fetch local news from" />
         <Label>Cities</Label>
-        <input type="text" value={citiesInput} onChange={(e) => setCitiesInput(e.target.value)} placeholder="Indianapolis, IN; Tallahassee, FL" style={input} />
+        <input type="text" value={citiesInput} onChange={(e) => setCitiesInput(e.target.value)} placeholder="Indianapolis, IN, Tallahassee, FL" style={input} />
         <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 6 }}>
-          Format: City, State (separated by semicolons or commas). Examples: Indianapolis, IN · Fishers, IN · Tallahassee, FL · Perry, FL
+          Format: City, State (separated by commas). Examples: Indianapolis, IN · Fishers, IN · Tallahassee, FL · Perry, FL
         </p>
       </section>
 
