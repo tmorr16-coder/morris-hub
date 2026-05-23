@@ -11,6 +11,7 @@ export interface Preferences {
   longitude: number | null;
   stock_tickers: string[];
   news_topics: string[];
+  city_names: string[];
   visible_widgets: WidgetId[];
   reminder_categories: string[];
 }
@@ -41,6 +42,12 @@ export async function getPreferences(userId: string): Promise<Preferences> {
     longitude: parseFloat(process.env.DEFAULT_LON ?? "-85.9601"),
     stock_tickers: ["LLY", "GOOGL", "AMZN", "NVDA", "MSFT"],
     news_topics: ["politics", "ai", "claude"],
+    city_names: process.env.DEFAULT_CITY_NAMES?.split(",") ?? [
+      "Indianapolis, IN",
+      "Fishers, IN",
+      "Tallahassee, FL",
+      "Perry, FL",
+    ],
     visible_widgets: [...ALL_WIDGETS],
     reminder_categories: [...DEFAULT_REMINDER_CATEGORIES],
   };

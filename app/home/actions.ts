@@ -118,6 +118,7 @@ export async function savePreferences(data: {
   longitude?: number;
   stock_tickers?: string[];
   news_topics?: string[];
+  city_names?: string[];
   visible_widgets?: string[];
   reminder_categories?: string[];
 }): Promise<{ error?: string }> {

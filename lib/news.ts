@@ -198,3 +198,87 @@ export async function fetchTickerNews(
 ): Promise<TickerNewsItem[]> {
   return cachedTickerNews(ticker, companyName);
 }
+
+// ── City-specific local news ─────────────────────────────────────────────
+// News from specific cities (e.g., Indianapolis, Tallahassee). Cached 30 min.
+export async function fetchCityNewsRaw(
+  cities: string[]
+): Promise<NewsItem[]> {
+  if (cities.length === 0) return [];
+
+  const queries = cities
+    .map((c) => `**${c.toUpperCase()}:** Breaking local news in ${c} today`)
+    .join("\n");
+
+  const prompt = `Find the top local news stories from the following cities. Use web search to get current results.
+
+${queries}
+
+Return up to 5 stories per city (so up to ${cities.length * 5} total). Return JSON in this exact format inside a single \`\`\`json ... \`\`\` block:
+{
+  "items": [
+    {
+      "headline": "...",
+      "source": "...",
+      "url": "...",
+      "summary": "1-2 sentence summary",
+      "topic": "City, State"
+    }
+  ]
+}
+
+Sort each city's stories with the most important first. Prefer local news sources, local government websites, and regional news outlets. Skip paywalled stories. Do not invent URLs. Do NOT include <cite> tags or any HTML in your response.`;
+
+  try {
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 2048,
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 6 }],
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const fullText = response.content
+      .filter((b) => b.type === "text")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((b) => (b as any).text as string)
+      .join("\n");
+
+    if (!fullText) {
+      console.error("[city-news] no text content; stop_reason=", response.stop_reason);
+      return [];
+    }
+
+    const fencedMatch = fullText.match(/```(?:json)?\s*({[\s\S]*?})\s*```/);
+    const bareMatch = fullText.match(/{[\s\S]*"items"[\s\S]*}/);
+    const jsonStr = fencedMatch?.[1] ?? bareMatch?.[0];
+
+    if (!jsonStr) {
+      console.error("[city-news] no JSON found in response", fullText.slice(0, 300));
+      return [];
+    }
+
+    const parsed = JSON.parse(jsonStr);
+    const clean = (s: string) => (s ?? "").replace(/<\/?cite[^>]*>/gi, "").trim();
+    return ((parsed.items ?? []) as NewsItem[]).map((it) => ({
+      ...it,
+      headline: clean(it.headline),
+      summary: clean(it.summary),
+      source: clean(it.source),
+    }));
+  } catch (e) {
+    console.error("[city-news] fetch failed", e);
+    return [];
+  }
+}
+
+const cachedFetchCityNews = unstable_cache(
+  fetchCityNewsRaw,
+  ["city-news"],
+  { tags: ["city-news"], revalidate: 1800 } // 30 min — local news changes frequently
+);
+
+export async function fetchCityNews(cities: string[]): Promise<NewsItem[]> {
+  // Sort the city list so different orderings share the same cache entry.
+  const sorted = [...cities].sort();
+  return cachedFetchCityNews(sorted);
+}

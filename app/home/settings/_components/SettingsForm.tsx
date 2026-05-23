@@ -25,6 +25,7 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
   stocks:    "Stocks",
   lly_news:  "LLY News",
   news:      "News",
+  city_news: "Local News",
   tips:      "Claude Tips",
 };
 
@@ -42,6 +43,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
 
   const [tickersInput, setTickersInput] = useState(initialPrefs.stock_tickers.join(", "));
   const [topics, setTopics] = useState<string[]>(initialPrefs.news_topics);
+  const [citiesInput, setCitiesInput] = useState(initialPrefs.city_names.join(", "));
   const [visibleWidgets, setVisibleWidgets] = useState<WidgetId[]>(
     initialPrefs.visible_widgets ?? [...ALL_WIDGETS]
   );
@@ -109,6 +111,10 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
       setError("Tickers must be uppercase letters, numbers, dots, or dashes (e.g. LLY, BRK.B)");
       return;
     }
+    const cities = citiesInput
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
     startTransition(async () => {
       const res = await savePreferences({
         location_name: locationName,
@@ -116,6 +122,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         longitude,
         stock_tickers: tickers,
         news_topics: topics,
+        city_names: cities,
         visible_widgets: visibleWidgets,
         reminder_categories: reminderCats,
       });
@@ -250,6 +257,16 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         <input type="text" value={tickersInput} onChange={(e) => setTickersInput(e.target.value)} placeholder="LLY, GOOGL, AMZN, NVDA, MSFT" style={input} />
         <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 6 }}>
           Examples: LLY · GOOGL · MSFT · NVDA · AAPL · AMZN · META · TSLA · BRK.B
+        </p>
+      </section>
+
+      {/* Cities for local news */}
+      <section style={card}>
+        <SectionHeader title="Local news cities" subtitle="Cities to fetch local news from" />
+        <Label>Cities</Label>
+        <input type="text" value={citiesInput} onChange={(e) => setCitiesInput(e.target.value)} placeholder="Indianapolis, IN; Tallahassee, FL" style={input} />
+        <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 6 }}>
+          Format: City, State (separated by semicolons or commas). Examples: Indianapolis, IN · Fishers, IN · Tallahassee, FL · Perry, FL
         </p>
       </section>
 

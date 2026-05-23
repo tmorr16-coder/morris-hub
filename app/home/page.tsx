@@ -20,6 +20,7 @@ import LLYNewsWidget from "./_components/LLYNewsWidget";
 import HealthSummaryWidget from "./_components/HealthSummaryWidget";
 import TodosWidget from "./_components/TodosWidget";
 import NewsWidget from "./_components/NewsWidget";
+import CityNewsWidget from "./_components/CityNewsWidget";
 import ClaudeTipCard from "./_components/ClaudeTipCard";
 import type { Todo } from "./actions";
 
@@ -164,6 +165,12 @@ export default async function HomePage() {
                 return (
                   <Suspense key="news" fallback={<WidgetSkeleton title="News" lines={4} />}>
                     <NewsWidget topics={prefs.news_topics} />
+                  </Suspense>
+                );
+              case "city_news":
+                return (
+                  <Suspense key="city_news" fallback={<WidgetSkeleton title="Local News" lines={4} />}>
+                    <CityNewsWidget cities={prefs.city_names} />
                   </Suspense>
                 );
               case "tips":
