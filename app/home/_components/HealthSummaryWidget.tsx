@@ -68,15 +68,15 @@ export default async function HealthSummaryWidget({ userId }: { userId: string }
   ] = await Promise.all([
     db.from("apple_health_metrics").select("timestamp, value")
       .eq("user_id", userId)
-      .in("metric_name", ["weight", "bodyMass", "Body Mass", "HKQuantityTypeIdentifierBodyMass"])
+      .eq("metric_name", "weight")
       .gte("timestamp", thirtyAgo).order("timestamp", { ascending: true }),
     db.from("apple_health_metrics").select("timestamp, value")
       .eq("user_id", userId)
-      .in("metric_name", ["hrv", "HRV", "heart_rate_variability", "HeartRateVariabilitySDNN"])
+      .eq("metric_name", "hrv")
       .gte("timestamp", thirtyAgo).order("timestamp", { ascending: true }),
     db.from("apple_health_metrics").select("timestamp, value")
       .eq("user_id", userId)
-      .in("metric_name", ["resting_heart_rate", "Resting Heart Rate", "RestingHeartRate"])
+      .eq("metric_name", "resting_heart_rate")
       .gte("timestamp", thirtyAgo).order("timestamp", { ascending: true }),
     db.from("workout_sessions").select("date").eq("user_id", userId)
       .gte("date", mondayOfThisWeek),
