@@ -21,6 +21,7 @@ import HealthSummaryWidget from "./_components/HealthSummaryWidget";
 import TodosWidget from "./_components/TodosWidget";
 import NewsWidget from "./_components/NewsWidget";
 import CityNewsWidget from "./_components/CityNewsWidget";
+import SportsWidget from "./_components/SportsWidget";
 import ClaudeTipCard from "./_components/ClaudeTipCard";
 import type { Todo } from "./actions";
 
@@ -153,6 +154,12 @@ export default async function HomePage() {
                 return (
                   <Suspense key="stocks" fallback={<WidgetSkeleton title="Stocks" />}>
                     <StocksWidget tickers={prefs.stock_tickers} />
+                  </Suspense>
+                );
+              case "sports":
+                return (
+                  <Suspense key="sports" fallback={<WidgetSkeleton title="Sports" lines={3} />}>
+                    <SportsWidget teams={prefs.sports_enabled_teams} />
                   </Suspense>
                 );
               case "lly_news":

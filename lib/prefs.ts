@@ -12,6 +12,7 @@ export interface Preferences {
   stock_tickers: string[];
   news_topics: string[];
   city_names: string[];
+  sports_enabled_teams: string[];
   visible_widgets: WidgetId[];
   reminder_categories: string[];
 }
@@ -37,6 +38,15 @@ export async function getPreferences(userId: string): Promise<Preferences> {
       "Tallahassee, FL",
       "Perry, FL",
     ];
+    if (!p.sports_enabled_teams?.length) p.sports_enabled_teams = [
+      "MLB:ATL",
+      "NFL:IND",
+      "NBA:IND",
+      "WNBA:IND",
+      "COLLEGE:FAMU-FB",
+      "COLLEGE:FAMU-BB",
+      "COLLEGE:FAMU-BK",
+    ];
     return p;
   }
 
@@ -53,6 +63,15 @@ export async function getPreferences(userId: string): Promise<Preferences> {
       "Fishers, IN",
       "Tallahassee, FL",
       "Perry, FL",
+    ],
+    sports_enabled_teams: [
+      "MLB:ATL",
+      "NFL:IND",
+      "NBA:IND",
+      "WNBA:IND",
+      "COLLEGE:FAMU-FB",
+      "COLLEGE:FAMU-BB",
+      "COLLEGE:FAMU-BK",
     ],
     visible_widgets: [...ALL_WIDGETS],
     reminder_categories: [...DEFAULT_REMINDER_CATEGORIES],

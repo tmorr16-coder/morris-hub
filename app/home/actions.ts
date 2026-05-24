@@ -119,6 +119,7 @@ export async function savePreferences(data: {
   stock_tickers?: string[];
   news_topics?: string[];
   city_names?: string[];
+  sports_enabled_teams?: string[];
   visible_widgets?: string[];
   reminder_categories?: string[];
 }): Promise<{ error?: string }> {

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { savePreferences, lookupZip } from "../../actions";
 import { ALL_WIDGETS, DEFAULT_REMINDER_CATEGORIES } from "@/lib/prefs-shared";
+import { AVAILABLE_SPORTS_TEAMS } from "@/lib/sports-teams";
 import type { WidgetId } from "@/lib/prefs-shared";
 import type { Preferences } from "@/lib/prefs";
 
@@ -23,6 +24,7 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
   reminders: "Reminders",
   todos:     "To-dos",
   stocks:    "Stocks",
+  sports:    "Sports Scores",
   lly_news:  "LLY News",
   news:      "News",
   city_news: "Local News",
@@ -44,6 +46,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
   const [tickersInput, setTickersInput] = useState(initialPrefs.stock_tickers.join(", "));
   const [topics, setTopics] = useState<string[]>(initialPrefs.news_topics);
   const [citiesInput, setCitiesInput] = useState(initialPrefs.city_names.join(", "));
+  const [sportsTeams, setSportsTeams] = useState<string[]>(initialPrefs.sports_enabled_teams);
   const [visibleWidgets, setVisibleWidgets] = useState<WidgetId[]>(
     initialPrefs.visible_widgets ?? [...ALL_WIDGETS]
   );
@@ -89,6 +92,12 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
     );
   }
 
+  function toggleSportsTeam(teamId: string) {
+    setSportsTeams((prev) =>
+      prev.includes(teamId) ? prev.filter((t) => t !== teamId) : [...prev, teamId]
+    );
+  }
+
   function addCat() {
     const c = newCat.trim().toLowerCase();
     if (!c || reminderCats.includes(c)) return;
@@ -123,6 +132,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         stock_tickers: tickers,
         news_topics: topics,
         city_names: cities,
+        sports_enabled_teams: sportsTeams,
         visible_widgets: visibleWidgets,
         reminder_categories: reminderCats,
       });
@@ -268,6 +278,37 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 6 }}>
           Format: City, State (separated by commas). Examples: Indianapolis, IN · Fishers, IN · Tallahassee, FL · Perry, FL
         </p>
+      </section>
+
+      {/* Sports teams */}
+      <section style={card}>
+        <SectionHeader title="Sports teams" subtitle="Select teams to track scores and standings" />
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {Object.entries(AVAILABLE_SPORTS_TEAMS).map(([league, teams]) => (
+            <div key={league}>
+              <h3 style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", color: "var(--color-ink-2)", marginBottom: 8, letterSpacing: "0.05em" }}>
+                {league}
+              </h3>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {teams.map((team) => {
+                  const teamId = `${league}:${team.code}`;
+                  const isChecked = sportsTeams.includes(teamId);
+                  return (
+                    <label key={teamId} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleSportsTeam(teamId)}
+                        style={{ cursor: "pointer" }}
+                      />
+                      <span style={{ fontSize: 12, color: "var(--color-ink-2)" }}>{team.fullName}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
 
       {/* News topics */}
