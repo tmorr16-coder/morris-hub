@@ -47,6 +47,13 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
   const [topics, setTopics] = useState<string[]>(initialPrefs.news_topics);
   const [citiesInput, setCitiesInput] = useState(initialPrefs.city_names.join(", "));
   const [sportsTeams, setSportsTeams] = useState<string[]>(initialPrefs.sports_enabled_teams);
+  const [sportsInputs, setSportsInputs] = useState<Record<string, string>>({
+    MLB: "",
+    NFL: "",
+    NBA: "",
+    WNBA: "",
+    COLLEGE: "",
+  });
   const [visibleWidgets, setVisibleWidgets] = useState<WidgetId[]>(
     initialPrefs.visible_widgets ?? [...ALL_WIDGETS]
   );
@@ -96,6 +103,23 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
     setSportsTeams((prev) =>
       prev.includes(teamId) ? prev.filter((t) => t !== teamId) : [...prev, teamId]
     );
+  }
+
+  function addSportsTeam(league: string) {
+    const input = sportsInputs[league]?.trim().toUpperCase();
+    if (!input) return;
+
+    // Handle both "TEAM_CODE" and "LEAGUE:TEAM_CODE" formats
+    const teamId = input.includes(":") ? input : `${league}:${input}`;
+
+    if (sportsTeams.includes(teamId)) return;
+
+    setSportsTeams((prev) => [...prev, teamId]);
+    setSportsInputs((prev) => ({ ...prev, [league]: "" }));
+  }
+
+  function removeSportsTeam(teamId: string) {
+    setSportsTeams((prev) => prev.filter((t) => t !== teamId));
   }
 
   function addCat() {
@@ -282,33 +306,103 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
 
       {/* Sports teams */}
       <section style={card}>
-        <SectionHeader title="Sports teams" subtitle="Select teams to track scores and standings" />
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <SectionHeader title="Sports teams" subtitle="Search and add teams to track scores" />
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {Object.entries(AVAILABLE_SPORTS_TEAMS).map(([league, teams]) => (
             <div key={league}>
-              <h3 style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", color: "var(--color-ink-2)", marginBottom: 8, letterSpacing: "0.05em" }}>
-                {league}
-              </h3>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {teams.map((team) => {
-                  const teamId = `${league}:${team.code}`;
-                  const isChecked = sportsTeams.includes(teamId);
-                  return (
-                    <label key={teamId} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => toggleSportsTeam(teamId)}
-                        style={{ cursor: "pointer" }}
-                      />
-                      <span style={{ fontSize: 12, color: "var(--color-ink-2)" }}>{team.fullName}</span>
-                    </label>
-                  );
-                })}
+              <Label>{league}</Label>
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 8 }}>
+                <input
+                  type="text"
+                  value={sportsInputs[league] || ""}
+                  onChange={(e) => setSportsInputs((prev) => ({ ...prev, [league]: e.target.value }))}
+                  onKeyDown={(e) => e.key === "Enter" && addSportsTeam(league)}
+                  placeholder={`e.g., ${teams[0]?.code || "ATL"}`}
+                  style={{ ...input, flex: 1 }}
+                />
+                <button onClick={() => addSportsTeam(league)} disabled={!sportsInputs[league]?.trim()} style={secondaryBtn}>
+                  Add
+                </button>
               </div>
+              {/* Show suggested teams */}
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginBottom: 4, textTransform: "uppercase" }}>
+                  Suggested
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {teams.slice(0, 5).map((team) => (
+                    <button
+                      key={team.code}
+                      onClick={() => {
+                        const teamId = `${league}:${team.code}`;
+                        if (!sportsTeams.includes(teamId)) {
+                          setSportsTeams((prev) => [...prev, teamId]);
+                        }
+                      }}
+                      style={{
+                        fontSize: 10,
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        border: "1px solid var(--color-rule)",
+                        background: "transparent",
+                        color: "var(--color-ink-3)",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                      title={`Add ${team.fullName}`}
+                    >
+                      {team.code}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Show added teams */}
+              {sportsTeams.filter((t) => t.startsWith(`${league}:`)).length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {sportsTeams
+                    .filter((t) => t.startsWith(`${league}:`))
+                    .map((teamId) => (
+                      <span
+                        key={teamId}
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: 12,
+                          background: "var(--color-accent)",
+                          color: "#FFFDF8",
+                          fontSize: 11,
+                          fontWeight: 500,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        {teamId.split(":")[1]}
+                        <button
+                          onClick={() => removeSportsTeam(teamId)}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            color: "#FFFDF8",
+                            padding: 0,
+                            fontSize: 12,
+                            lineHeight: 1,
+                            fontFamily: "inherit",
+                          }}
+                          title="Remove"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
+        <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 12 }}>
+          Enter team codes (e.g., ATL for Braves, IND for Colts) or click suggested teams to add them.
+        </p>
       </section>
 
       {/* News topics */}
