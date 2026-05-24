@@ -225,6 +225,27 @@ export async function deleteReminder(id: string): Promise<{ error?: string }> {
   return {};
 }
 
+export async function updateReminder(
+  id: string,
+  updates: { next_steps?: string[] }
+): Promise<{ error?: string }> {
+  const userId = await getUserId();
+  if (!userId) return { error: "Not authenticated" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const { error } = await service
+    .schema("hub")
+    .from("reminders")
+    .update(updates)
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/home");
+  return {};
+}
+
 /**
  * Resolve a US ZIP code to lat/lon via api.zippopotam.us (free, no key).
  */

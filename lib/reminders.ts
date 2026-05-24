@@ -19,6 +19,7 @@ export interface Reminder {
   source_app: SourceApp;
   completed_at: string | null;
   snooze_until: string | null;
+  next_steps?: string[] | null;
 }
 
 const RECURRENCE_DAYS: Record<Recurrence, number | null> = {

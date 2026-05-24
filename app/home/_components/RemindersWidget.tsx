@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { Reminder, Recurrence, Category } from "@/lib/reminders";
-import { addReminder, completeReminder, snoozeReminder, deleteReminder } from "../actions";
+import { addReminder, completeReminder, snoozeReminder, deleteReminder, updateReminder } from "../actions";
 
 const CATEGORY_ICON: Record<Category, string> = {
   bill: "💸",
@@ -121,6 +121,7 @@ export default function RemindersWidget({
 }) {
   const [reminders, setReminders] = useState<Reminder[]>(initialReminders);
   const [showAdd, setShowAdd] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function handleComplete(id: string) {
@@ -144,6 +145,15 @@ export default function RemindersWidget({
     setReminders((prev) => prev.filter((r) => r.id !== id));
     startTransition(async () => {
       await deleteReminder(id);
+    });
+  }
+
+  function handleUpdateNextSteps(id: string, nextSteps: string[]) {
+    setReminders((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, next_steps: nextSteps } : r))
+    );
+    startTransition(async () => {
+      await updateReminder(id, { next_steps: nextSteps });
     });
   }
 
@@ -189,65 +199,82 @@ export default function RemindersWidget({
         <div style={{ display: "flex", flexDirection: "column", maxHeight: 280, overflowY: "auto" }}>
           {reminders.map((r, idx) => {
             const due = formatDue(r.due_at, tz);
+            const isExpanded = expandedId === r.id;
             return (
-              <div
-                key={r.id}
-                style={{
-                  padding: "9px 0",
-                  borderTop: idx === 0 ? undefined : "1px solid var(--color-rule-soft)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                }}
-              >
-                <span style={{ fontSize: 14, color: CATEGORY_COLOR[r.category], flexShrink: 0, width: 18, textAlign: "center" }}>
-                  {CATEGORY_ICON[r.category]}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: "var(--color-ink)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {r.title}
+              <div key={r.id}>
+                <div
+                  style={{
+                    padding: "9px 0",
+                    borderTop: idx === 0 ? undefined : "1px solid var(--color-rule-soft)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 14, color: CATEGORY_COLOR[r.category], flexShrink: 0, width: 18, textAlign: "center" }}>
+                    {CATEGORY_ICON[r.category]}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: "var(--color-ink)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {r.title}
+                    </div>
+                    <div style={{ fontSize: 10, color: due.color, marginTop: 1 }}>
+                      {due.text}
+                      {r.recurrence !== "once" && (
+                        <span style={{ color: "var(--color-ink-4)" }}> · {RECURRENCE_LABEL[r.recurrence]}</span>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 10, color: due.color, marginTop: 1 }}>
-                    {due.text}
-                    {r.recurrence !== "once" && (
-                      <span style={{ color: "var(--color-ink-4)" }}> · {RECURRENCE_LABEL[r.recurrence]}</span>
-                    )}
+                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                    <button
+                      onClick={() => setExpandedId(isExpanded ? null : r.id)}
+                      disabled={pending}
+                      title="Show details"
+                      style={iconBtn}
+                    >
+                      {isExpanded ? "▼" : "▶"}
+                    </button>
+                    <button
+                      onClick={() => handleComplete(r.id)}
+                      disabled={pending}
+                      title="Done"
+                      style={iconBtn}
+                    >
+                      ✓
+                    </button>
+                    <button
+                      onClick={() => handleSnooze(r.id, 24)}
+                      disabled={pending}
+                      title="Snooze 1 day"
+                      style={iconBtn}
+                    >
+                      ⏰
+                    </button>
+                    <button
+                      onClick={() => handleDelete(r.id)}
+                      disabled={pending}
+                      title="Delete"
+                      style={{ ...iconBtn, color: "var(--color-ink-4)" }}
+                    >
+                      ×
+                    </button>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                  <button
-                    onClick={() => handleComplete(r.id)}
-                    disabled={pending}
-                    title="Done"
-                    style={iconBtn}
-                  >
-                    ✓
-                  </button>
-                  <button
-                    onClick={() => handleSnooze(r.id, 24)}
-                    disabled={pending}
-                    title="Snooze 1 day"
-                    style={iconBtn}
-                  >
-                    ⏰
-                  </button>
-                  <button
-                    onClick={() => handleDelete(r.id)}
-                    disabled={pending}
-                    title="Delete"
-                    style={{ ...iconBtn, color: "var(--color-ink-4)" }}
-                  >
-                    ×
-                  </button>
-                </div>
+                {isExpanded && (
+                  <ReminderDetails
+                    reminder={r}
+                    onUpdateNextSteps={handleUpdateNextSteps}
+                    pending={pending}
+                  />
+                )}
               </div>
             );
           })}
@@ -407,3 +434,129 @@ const iconBtn: React.CSSProperties = {
   padding: "2px 5px",
   borderRadius: 4,
 };
+
+function ReminderDetails({
+  reminder,
+  onUpdateNextSteps,
+  pending,
+}: {
+  reminder: Reminder;
+  onUpdateNextSteps: (id: string, steps: string[]) => void;
+  pending: boolean;
+}) {
+  const [nextSteps, setNextSteps] = useState<string[]>(reminder.next_steps ?? []);
+  const [newStep, setNewStep] = useState("");
+
+  function handleAddStep() {
+    const step = newStep.trim();
+    if (step) {
+      const updated = [...nextSteps, step];
+      setNextSteps(updated);
+      onUpdateNextSteps(reminder.id, updated);
+      setNewStep("");
+    }
+  }
+
+  function handleRemoveStep(idx: number) {
+    const updated = nextSteps.filter((_, i) => i !== idx);
+    setNextSteps(updated);
+    onUpdateNextSteps(reminder.id, updated);
+  }
+
+  return (
+    <div
+      style={{
+        padding: "8px 0 12px 28px",
+        borderBottom: "1px solid var(--color-rule-soft)",
+        fontSize: 12,
+        color: "var(--color-ink-2)",
+      }}
+    >
+      {reminder.notes && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "var(--color-ink-3)", marginBottom: 2 }}>
+            NOTES
+          </div>
+          <div style={{ fontSize: 11, whiteSpace: "pre-wrap" }}>{reminder.notes}</div>
+        </div>
+      )}
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 600, color: "var(--color-ink-3)", marginBottom: 4 }}>
+          RESEARCH NEXT STEPS
+        </div>
+        {nextSteps.length > 0 && (
+          <ul style={{ margin: "0 0 6px 16px", padding: 0 }}>
+            {nextSteps.map((step, idx) => (
+              <li
+                key={idx}
+                style={{
+                  marginBottom: 4,
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 6,
+                  fontSize: 11,
+                }}
+              >
+                <span style={{ flexShrink: 0 }}>{step}</span>
+                <button
+                  onClick={() => handleRemoveStep(idx)}
+                  disabled={pending}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--color-ink-4)",
+                    fontSize: 10,
+                    cursor: "pointer",
+                    padding: 0,
+                    marginLeft: "auto",
+                    flexShrink: 0,
+                  }}
+                  title="Remove"
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div style={{ display: "flex", gap: 4 }}>
+          <input
+            value={newStep}
+            onChange={(e) => setNewStep(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleAddStep();
+              }
+            }}
+            placeholder="Add a next step…"
+            disabled={pending}
+            style={{
+              ...miniInput,
+              flex: 1,
+              fontSize: 11,
+              padding: "4px 8px",
+            }}
+          />
+          <button
+            onClick={handleAddStep}
+            disabled={pending || !newStep.trim()}
+            style={{
+              padding: "4px 8px",
+              borderRadius: 4,
+              border: "1px solid var(--color-rule)",
+              background: newStep.trim() ? "var(--color-accent)" : "transparent",
+              color: newStep.trim() ? "#FFFDF8" : "var(--color-ink-4)",
+              fontSize: 10,
+              fontWeight: 500,
+              cursor: newStep.trim() ? "pointer" : "not-allowed",
+              fontFamily: "inherit",
+            }}
+          >
+            Add
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

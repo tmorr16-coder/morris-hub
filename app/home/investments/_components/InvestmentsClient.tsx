@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { InvestmentIdea } from "@/lib/investment-ideas-constants";
 import { CATEGORY_LABELS, STATUS_LABELS } from "@/lib/investment-ideas-constants";
 import IdeaCard from "./IdeaCard";
@@ -25,6 +25,39 @@ export default function InvestmentsClient({
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [viewMode, setViewMode] = useState<"all" | "saved" | "ai">("all");
+  const [mounted, setMounted] = useState(false);
+
+  // Load filters from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("investmentFilters");
+    if (saved) {
+      try {
+        const filters = JSON.parse(saved);
+        if (filters.category) setSelectedCategory(filters.category);
+        if (filters.status) setSelectedStatus(filters.status);
+        if (filters.showFavoritesOnly !== undefined) setShowFavoritesOnly(filters.showFavoritesOnly);
+        if (filters.viewMode) setViewMode(filters.viewMode);
+      } catch (e) {
+        console.error("Failed to load investment filters:", e);
+      }
+    }
+    setMounted(true);
+  }, []);
+
+  // Save filters to localStorage whenever they change
+  useEffect(() => {
+    if (mounted) {
+      localStorage.setItem(
+        "investmentFilters",
+        JSON.stringify({
+          category: selectedCategory,
+          status: selectedStatus,
+          showFavoritesOnly,
+          viewMode,
+        })
+      );
+    }
+  }, [selectedCategory, selectedStatus, showFavoritesOnly, viewMode, mounted]);
 
   // Filter ideas based on selections
   const filterIdeas = (ideas: InvestmentIdea[]) => {

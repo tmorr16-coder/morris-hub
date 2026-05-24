@@ -100,7 +100,7 @@ export default function PlatformMenu({
             })}
             {currentApp === "hub" && (
               <a
-                href="https://morrisai.family/home/investments"
+                href="/home/investments"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
