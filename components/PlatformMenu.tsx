@@ -98,6 +98,36 @@ export default function PlatformMenu({
                 </a>
               );
             })}
+            {currentApp === "hub" && (
+              <a
+                href="https://morrisai.family/home/investments"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "5px 11px",
+                  fontSize: 12,
+                  fontFamily: "var(--font-geist, system-ui), sans-serif",
+                  fontWeight: 500,
+                  color: "#6B6258",
+                  textDecoration: "none",
+                  borderRadius: 7,
+                  background: "transparent",
+                  transition: "background 100ms, color 100ms",
+                }}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: "#C97B36",
+                    display: "inline-block",
+                  }}
+                />
+                Investments
+              </a>
+            )}
           </div>
         </div>
 
