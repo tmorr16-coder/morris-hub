@@ -20,9 +20,10 @@ import {
 interface IdeaCardProps {
   idea: InvestmentIdea;
   isAiGenerated: boolean;
+  onFavoriteToggle?: (ideaId: string, newStatus: boolean) => void;
 }
 
-export default function IdeaCard({ idea, isAiGenerated }: IdeaCardProps) {
+export default function IdeaCard({ idea, isAiGenerated, onFavoriteToggle }: IdeaCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [localStatus, setLocalStatus] = useState(idea.status);
   const [localRating, setLocalRating] = useState(idea.rating ?? 0);
@@ -46,10 +47,13 @@ export default function IdeaCard({ idea, isAiGenerated }: IdeaCardProps) {
   };
 
   const handleToggleFavorite = async () => {
-    setLocalFavorite(!localFavorite);
+    const newStatus = !localFavorite;
+    setLocalFavorite(newStatus);
     setIsSaving(true);
     await toggleFavorite(idea.id);
     setIsSaving(false);
+    // Notify parent component of favorite status change
+    onFavoriteToggle?.(idea.id, newStatus);
   };
 
   const handleSaveNotes = async () => {

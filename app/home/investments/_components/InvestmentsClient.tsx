@@ -112,13 +112,26 @@ export default function InvestmentsClient({
     });
   };
 
-  const allIdeas = [...aiIdeas, ...savedIdeas];
+  const [allIdeas, setAllIdeas] = useState(() => [...aiIdeas, ...savedIdeas]);
+
+  // Update local ideas when favorites change
+  const handleFavoriteToggle = (ideaId: string, newFavoriteStatus: boolean) => {
+    setAllIdeas((prev) =>
+      prev.map((idea) =>
+        idea.id === ideaId ? { ...idea, isFavorite: newFavoriteStatus } : idea
+      )
+    );
+  };
 
   const displayedIdeas =
     viewMode === "saved"
-      ? filterIdeas(savedIdeas)
+      ? filterIdeas(savedIdeas.map((idea) =>
+          allIdeas.find((ai) => ai.id === idea.id) || idea
+        ))
       : viewMode === "ai"
-        ? filterIdeas(aiIdeas)
+        ? filterIdeas(aiIdeas.map((idea) =>
+            allIdeas.find((ai) => ai.id === idea.id) || idea
+          ))
         : filterIdeas(allIdeas);
 
   const favoriteCount = savedIdeas.filter((i) => i.isFavorite).length;
@@ -283,7 +296,12 @@ export default function InvestmentsClient({
           }}
         >
           {displayedIdeas.map((idea) => (
-            <IdeaCard key={idea.id} idea={idea} isAiGenerated={idea.isAiGenerated} />
+            <IdeaCard
+              key={idea.id}
+              idea={idea}
+              isAiGenerated={idea.isAiGenerated}
+              onFavoriteToggle={handleFavoriteToggle}
+            />
           ))}
         </div>
       )}
