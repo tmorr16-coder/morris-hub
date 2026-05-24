@@ -64,6 +64,28 @@ export default function InvestmentsClient({
   });
 
   const [showAddForm, setShowAddForm] = useState(false);
+  const [generatedAiIdeas, setGeneratedAiIdeas] = useState<InvestmentIdea[]>(aiIdeas);
+  const [generatingIdeas, setGeneratingIdeas] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+
+  const handleGenerateIdeas = async () => {
+    setGeneratingIdeas(true);
+    setGenerateError(null);
+    try {
+      const response = await fetch("/api/investments/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categories: enabledCategories }),
+      });
+      if (!response.ok) throw new Error("Failed to generate ideas");
+      const ideas = await response.json();
+      setGeneratedAiIdeas(ideas);
+    } catch (error) {
+      setGenerateError(error instanceof Error ? error.message : "Error generating ideas");
+    } finally {
+      setGeneratingIdeas(false);
+    }
+  };
 
   const [viewMode, setViewMode] = useState<"all" | "saved" | "ai">(() => {
     if (typeof window === "undefined") return "all";
@@ -112,7 +134,9 @@ export default function InvestmentsClient({
     });
   };
 
-  const [allIdeas, setAllIdeas] = useState(() => [...aiIdeas, ...savedIdeas]);
+  // Use generated ideas if available, otherwise use prop (which is empty on initial load)
+  const activeAiIdeas = generatedAiIdeas.length > 0 ? generatedAiIdeas : aiIdeas;
+  const [allIdeas, setAllIdeas] = useState(() => [...activeAiIdeas, ...savedIdeas]);
 
   // Update local ideas when favorites change
   const handleFavoriteToggle = (ideaId: string, newFavoriteStatus: boolean) => {
@@ -129,7 +153,7 @@ export default function InvestmentsClient({
           allIdeas.find((ai) => ai.id === idea.id) || idea
         ))
       : viewMode === "ai"
-        ? filterIdeas(aiIdeas.map((idea) =>
+        ? filterIdeas(activeAiIdeas.map((idea) =>
             allIdeas.find((ai) => ai.id === idea.id) || idea
           ))
         : filterIdeas(allIdeas);
@@ -249,6 +273,27 @@ export default function InvestmentsClient({
         {/* Spacer */}
         <div style={{ flex: 1 }} />
 
+        {/* Generate AI Ideas Button */}
+        <button
+          onClick={handleGenerateIdeas}
+          disabled={generatingIdeas}
+          title="Generate AI investment ideas (uses API credits)"
+          style={{
+            padding: "8px 16px",
+            borderRadius: 8,
+            border: "1px solid var(--color-rule)",
+            background: generatingIdeas ? "var(--color-bg)" : "transparent",
+            color: generatingIdeas ? "var(--color-ink-3)" : "var(--color-ink-2)",
+            fontSize: 12,
+            fontWeight: 500,
+            cursor: generatingIdeas ? "not-allowed" : "pointer",
+            fontFamily: "inherit",
+            opacity: generatingIdeas ? 0.6 : 1,
+          }}
+        >
+          {generatingIdeas ? "Generating..." : "✨ Generate AI Ideas"}
+        </button>
+
         {/* Add New Idea Button */}
         <button
           onClick={() => setShowAddForm(true)}
@@ -267,6 +312,22 @@ export default function InvestmentsClient({
           + Add New Idea
         </button>
       </div>
+
+      {/* Error Message */}
+      {generateError && (
+        <div
+          style={{
+            padding: "12px 16px",
+            borderRadius: 8,
+            background: "rgba(220, 38, 38, 0.1)",
+            border: "1px solid rgba(220, 38, 38, 0.3)",
+            color: "var(--color-red)",
+            fontSize: 12,
+          }}
+        >
+          Failed to generate ideas: {generateError}
+        </div>
+      )}
 
       {/* Ideas Grid */}
       {displayedIdeas.length === 0 ? (

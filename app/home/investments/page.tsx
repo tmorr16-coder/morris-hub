@@ -14,11 +14,14 @@ export default async function InvestmentsPage() {
   if (!user) redirect("/");
 
   // Load preferences and ideas in parallel
-  const [prefs, savedIdeas, aiIdeas] = await Promise.all([
+  // NOTE: AI ideas are now generated on-demand via button click, not on page load
+  const [prefs, savedIdeas] = await Promise.all([
     getPreferences(user.id),
     getUserInvestmentIdeas(user.id),
-    generateInvestmentIdeas(["stocks", "real_estate", "transportation", "tech", "other"]),
   ]);
+
+  // Empty array - AI ideas generated on-demand
+  const aiIdeas: typeof savedIdeas = [];
 
   const menuUser = {
     name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,

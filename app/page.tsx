@@ -23,6 +23,19 @@ async function signInWithGoogle() {
   });
 }
 
+async function signInWithTestUser() {
+  const supabase = createClient();
+  const { error } = await supabase.auth.signInWithPassword({
+    email: "test@morrisai.family",
+    password: "Test123456!",
+  });
+  if (!error) {
+    window.location.href = "/home";
+  } else {
+    alert("Test user not found. Please use Google login or create a test user in Supabase first.");
+  }
+}
+
 export default function LandingPage() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
@@ -104,6 +117,35 @@ export default function LandingPage() {
         <GoogleIcon />
         Continue with Google
       </button>
+
+      {/* Test login button for localhost development */}
+      {typeof window !== "undefined" && window.location.hostname === "localhost" && (
+        <button
+          onClick={signInWithTestUser}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            padding: "13px 22px",
+            borderRadius: 10,
+            border: "1px solid var(--color-rule)",
+            background: "var(--color-bg-card)",
+            color: "var(--color-ink-3)",
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            minWidth: 240,
+            boxShadow: "var(--shadow-card)",
+            marginTop: 10,
+            opacity: 0.7,
+          }}
+          title="Test login (localhost only)"
+        >
+          Test Login (localhost)
+        </button>
+      )}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 40, maxWidth: 420 }}>
         {["Health", "Finance", "Todos", "Weather", "News", "Stocks", "Claude tips"].map((label) => (
