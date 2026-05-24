@@ -13,6 +13,7 @@ export interface Preferences {
   news_topics: string[];
   city_names: string[];
   sports_enabled_teams: string[];
+  investment_categories: string[];
   visible_widgets: WidgetId[];
   reminder_categories: string[];
 }
@@ -47,6 +48,13 @@ export async function getPreferences(userId: string): Promise<Preferences> {
       "COLLEGE:FAMU-BB",
       "COLLEGE:FAMU-BK",
     ];
+    if (!p.investment_categories?.length) p.investment_categories = [
+      "stocks",
+      "real_estate",
+      "transportation",
+      "tech",
+      "other",
+    ];
     return p;
   }
 
@@ -73,6 +81,7 @@ export async function getPreferences(userId: string): Promise<Preferences> {
       "COLLEGE:FAMU-BB",
       "COLLEGE:FAMU-BK",
     ],
+    investment_categories: ["stocks", "real_estate", "transportation", "tech", "other"],
     visible_widgets: [...ALL_WIDGETS],
     reminder_categories: [...DEFAULT_REMINDER_CATEGORIES],
   };

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { savePreferences, lookupZip } from "../../actions";
 import { ALL_WIDGETS, DEFAULT_REMINDER_CATEGORIES } from "@/lib/prefs-shared";
 import { AVAILABLE_SPORTS_TEAMS } from "@/lib/sports-teams";
+import { CATEGORY_LABELS } from "@/lib/investment-ideas-constants";
 import type { WidgetId } from "@/lib/prefs-shared";
 import type { Preferences } from "@/lib/prefs";
 
@@ -28,6 +29,7 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
   lly_news:  "LLY News",
   news:      "News",
   city_news: "Local News",
+  investment_ideas_summary: "Investment Ideas",
   tips:      "Claude Tips",
 };
 
@@ -54,6 +56,9 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
     WNBA: "",
     COLLEGE: "",
   });
+  const [investmentCategories, setInvestmentCategories] = useState<string[]>(
+    initialPrefs.investment_categories ?? ["stocks", "real_estate", "transportation", "tech", "other"]
+  );
   const [visibleWidgets, setVisibleWidgets] = useState<WidgetId[]>(
     initialPrefs.visible_widgets ?? [...ALL_WIDGETS]
   );
@@ -169,6 +174,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         news_topics: topics,
         city_names: cities,
         sports_enabled_teams: sportsTeams,
+        investment_categories: investmentCategories,
         visible_widgets: visibleWidgets,
         reminder_categories: reminderCats,
       });
@@ -454,6 +460,39 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 12 }}>
           Enter team codes (e.g., ATL for Braves, IND for Colts) or click suggested teams to add them.
         </p>
+      </section>
+
+      {/* Investment categories */}
+      <section style={card}>
+        <SectionHeader title="Investment categories" subtitle="Which investment categories to explore" />
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          {Object.entries(CATEGORY_LABELS).map(([cat, label]) => {
+            const active = investmentCategories.includes(cat);
+            return (
+              <button
+                key={cat}
+                onClick={() =>
+                  setInvestmentCategories((prev) =>
+                    prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+                  )
+                }
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: 18,
+                  border: `1px solid ${active ? "var(--color-accent)" : "var(--color-rule)"}`,
+                  background: active ? "var(--color-accent)" : "transparent",
+                  color: active ? "#FFFDF8" : "var(--color-ink-2)",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </section>
 
       {/* News topics */}

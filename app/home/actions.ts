@@ -120,6 +120,7 @@ export async function savePreferences(data: {
   news_topics?: string[];
   city_names?: string[];
   sports_enabled_teams?: string[];
+  investment_categories?: string[];
   visible_widgets?: string[];
   reminder_categories?: string[];
 }): Promise<{ error?: string }> {
@@ -250,4 +251,187 @@ export async function lookupZip(zip: string): Promise<{
   } catch {
     return { error: "Lookup failed" };
   }
+}
+
+// ── Investment Ideas ────────────────────────────────────────────────
+
+export interface InvestmentIdeaInsert {
+  category: string;
+  title: string;
+  rationale?: string | null;
+  risk_level?: string | null;
+  time_horizon?: string | null;
+  capital_required?: string | null;
+  expected_returns?: string | null;
+  related_assets?: string[] | null;
+  action_items?: string[] | null;
+  is_ai_generated?: boolean;
+  source?: string;
+  rating?: number | null;
+  status?: string;
+  is_favorite?: boolean;
+  user_notes?: string | null;
+}
+
+export async function addInvestmentIdea(data: InvestmentIdeaInsert): Promise<{
+  error?: string;
+  idea?: InvestmentIdeaInsert & { id: string };
+}> {
+  const userId = await getUserId();
+  if (!userId) return { error: "Not authenticated" };
+  if (!data.title?.trim()) return { error: "Title required" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const { data: row, error } = await service
+    .schema("hub")
+    .from("investment_ideas")
+    .insert({
+      user_id: userId,
+      category: data.category,
+      title: data.title.trim(),
+      rationale: data.rationale ?? null,
+      risk_level: data.risk_level ?? null,
+      time_horizon: data.time_horizon ?? null,
+      capital_required: data.capital_required ?? null,
+      expected_returns: data.expected_returns ?? null,
+      related_assets: data.related_assets ?? null,
+      action_items: data.action_items ?? null,
+      is_ai_generated: data.is_ai_generated ?? false,
+      source: data.source ?? "user",
+      rating: data.rating ?? null,
+      status: data.status ?? "new",
+      is_favorite: data.is_favorite ?? false,
+      user_notes: data.user_notes ?? null,
+    })
+    .select("*")
+    .single();
+
+  if (error) return { error: error.message };
+  revalidatePath("/home/investments");
+  return { idea: row };
+}
+
+export async function updateInvestmentIdea(
+  id: string,
+  data: Partial<InvestmentIdeaInsert>
+): Promise<{ error?: string }> {
+  const userId = await getUserId();
+  if (!userId) return { error: "Not authenticated" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const { error } = await service
+    .schema("hub")
+    .from("investment_ideas")
+    .update(data)
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/home/investments");
+  return {};
+}
+
+export async function deleteInvestmentIdea(id: string): Promise<{ error?: string }> {
+  const userId = await getUserId();
+  if (!userId) return { error: "Not authenticated" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const { error } = await service
+    .schema("hub")
+    .from("investment_ideas")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/home/investments");
+  return {};
+}
+
+export async function updateIdeaStatus(id: string, status: string): Promise<{ error?: string }> {
+  const userId = await getUserId();
+  if (!userId) return { error: "Not authenticated" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const { error } = await service
+    .schema("hub")
+    .from("investment_ideas")
+    .update({ status })
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/home/investments");
+  return {};
+}
+
+export async function rateIdea(id: string, rating: number): Promise<{ error?: string }> {
+  const userId = await getUserId();
+  if (!userId) return { error: "Not authenticated" };
+  if (rating < 0 || rating > 5) return { error: "Rating must be between 0 and 5" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const { error } = await service
+    .schema("hub")
+    .from("investment_ideas")
+    .update({ rating })
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/home/investments");
+  return {};
+}
+
+export async function toggleFavorite(id: string): Promise<{ error?: string }> {
+  const userId = await getUserId();
+  if (!userId) return { error: "Not authenticated" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+
+  // Get current favorite status
+  const { data: idea, error: fetchError } = await service
+    .schema("hub")
+    .from("investment_ideas")
+    .select("is_favorite")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .single();
+
+  if (fetchError) return { error: fetchError.message };
+
+  const { error: updateError } = await service
+    .schema("hub")
+    .from("investment_ideas")
+    .update({ is_favorite: !idea.is_favorite })
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (updateError) return { error: updateError.message };
+  revalidatePath("/home/investments");
+  return {};
+}
+
+export async function updateIdeaNotes(id: string, notes: string): Promise<{ error?: string }> {
+  const userId = await getUserId();
+  if (!userId) return { error: "Not authenticated" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const { error } = await service
+    .schema("hub")
+    .from("investment_ideas")
+    .update({ user_notes: notes || null })
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/home/investments");
+  return {};
 }
