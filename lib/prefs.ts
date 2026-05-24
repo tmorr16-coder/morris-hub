@@ -31,6 +31,12 @@ export async function getPreferences(userId: string): Promise<Preferences> {
     // New columns default to NULL for existing rows — fall back to defaults.
     if (!p.visible_widgets?.length) p.visible_widgets = [...ALL_WIDGETS];
     if (!p.reminder_categories?.length) p.reminder_categories = [...DEFAULT_REMINDER_CATEGORIES];
+    if (!p.city_names?.length) p.city_names = [
+      "Indianapolis, IN",
+      "Fishers, IN",
+      "Tallahassee, FL",
+      "Perry, FL",
+    ];
     return p;
   }
 
