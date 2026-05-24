@@ -67,6 +67,7 @@ export default function InvestmentsClient({
   const [generatedAiIdeas, setGeneratedAiIdeas] = useState<InvestmentIdea[]>(aiIdeas);
   const [generatingIdeas, setGeneratingIdeas] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [allIdeas, setAllIdeas] = useState<InvestmentIdea[]>([]);
 
   const handleGenerateIdeas = async () => {
     setGeneratingIdeas(true);
@@ -87,19 +88,6 @@ export default function InvestmentsClient({
     }
   };
 
-  const [viewMode, setViewMode] = useState<"all" | "saved" | "ai">(() => {
-    if (typeof window === "undefined") return "all";
-    try {
-      const saved = localStorage.getItem("investmentFilters");
-      if (saved) {
-        const filters = JSON.parse(saved);
-        return filters.viewMode || "all";
-      }
-    } catch (e) {
-      console.error("Failed to load investment view mode:", e);
-    }
-    return "all";
-  });
 
   // Save filters to localStorage whenever they change
   useEffect(() => {
@@ -110,14 +98,13 @@ export default function InvestmentsClient({
           category: selectedCategory,
           status: selectedStatus,
           showFavoritesOnly: showFavoritesOnly,
-          viewMode: viewMode,
         })
       );
-      console.log("Investment filters saved:", { selectedCategory, selectedStatus, showFavoritesOnly, viewMode });
+      console.log("Investment filters saved:", { selectedCategory, selectedStatus, showFavoritesOnly });
     } catch (e) {
       console.error("Failed to save investment filters:", e);
     }
-  }, [selectedCategory, selectedStatus, showFavoritesOnly, viewMode]);
+  }, [selectedCategory, selectedStatus, showFavoritesOnly]);
 
   // Filter ideas based on selections
   const filterIdeas = (ideas: InvestmentIdea[]) => {
@@ -136,7 +123,11 @@ export default function InvestmentsClient({
 
   // Use generated ideas if available, otherwise use prop (which is empty on initial load)
   const activeAiIdeas = generatedAiIdeas.length > 0 ? generatedAiIdeas : aiIdeas;
-  const [allIdeas, setAllIdeas] = useState(() => [...activeAiIdeas, ...savedIdeas]);
+
+  // Update allIdeas when savedIdeas or activeAiIdeas change
+  useEffect(() => {
+    setAllIdeas([...activeAiIdeas, ...savedIdeas]);
+  }, [activeAiIdeas, savedIdeas]);
 
   // Update local ideas when favorites change
   const handleFavoriteToggle = (ideaId: string, newFavoriteStatus: boolean) => {
@@ -147,16 +138,8 @@ export default function InvestmentsClient({
     );
   };
 
-  const displayedIdeas =
-    viewMode === "saved"
-      ? filterIdeas(savedIdeas.map((idea) =>
-          allIdeas.find((ai) => ai.id === idea.id) || idea
-        ))
-      : viewMode === "ai"
-        ? filterIdeas(activeAiIdeas.map((idea) =>
-            allIdeas.find((ai) => ai.id === idea.id) || idea
-          ))
-        : filterIdeas(allIdeas);
+  // Simple filter: show all ideas, optionally filtered by favorites
+  const displayedIdeas = filterIdeas(allIdeas);
 
   const favoriteCount = savedIdeas.filter((i) => i.isFavorite).length;
 
@@ -227,29 +210,6 @@ export default function InvestmentsClient({
               </option>
             ))}
           </select>
-        </div>
-
-        {/* View Mode Toggle */}
-        <div style={{ display: "flex", gap: 4 }}>
-          {(["all", "saved", "ai"] as const).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => setViewMode(mode)}
-              style={{
-                padding: "6px 12px",
-                borderRadius: 6,
-                border: `1px solid ${viewMode === mode ? "var(--color-accent)" : "var(--color-rule)"}`,
-                background: viewMode === mode ? "var(--color-accent)" : "transparent",
-                color: viewMode === mode ? "#FFFDF8" : "var(--color-ink-2)",
-                fontSize: 11,
-                fontWeight: 500,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              {mode === "all" ? "All" : mode === "saved" ? "Saved" : "AI Ideas"}
-            </button>
-          ))}
         </div>
 
         {/* Favorites Toggle */}
@@ -340,11 +300,9 @@ export default function InvestmentsClient({
         >
           <p style={{ fontSize: 14 }}>No ideas match your filters.</p>
           <p style={{ fontSize: 12, marginTop: 8 }}>
-            {viewMode === "saved"
-              ? "Add a new idea to get started."
-              : viewMode === "ai"
-                ? "AI ideas will appear here when generated."
-                : "Browse both AI suggestions and your saved ideas."}
+            {showFavoritesOnly
+              ? "Mark ideas as favorites to see them here."
+              : "Add a new idea or generate AI suggestions to get started."}
           </p>
         </div>
       ) : (
