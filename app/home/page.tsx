@@ -96,6 +96,23 @@ export default async function HomePage() {
         {/* App-level controls */}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 8 }}>
           <Link
+            href="/home/investments"
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              border: "1px solid var(--color-rule)",
+              background: "transparent",
+              color: "var(--color-ink-2)",
+              fontSize: 12,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            💡 Investments
+          </Link>
+          <Link
             href="/home/settings"
             style={{
               padding: "6px 14px",
