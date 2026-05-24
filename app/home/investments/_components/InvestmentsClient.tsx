@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { InvestmentIdea } from "@/lib/investment-ideas-constants";
 import { CATEGORY_LABELS, STATUS_LABELS } from "@/lib/investment-ideas-constants";
 import IdeaCard from "./IdeaCard";
@@ -25,39 +25,41 @@ export default function InvestmentsClient({
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [viewMode, setViewMode] = useState<"all" | "saved" | "ai">("all");
-  const [mounted, setMounted] = useState(false);
+  const isInitialMount = useRef(true);
 
-  // Load filters from localStorage on mount
+  // Load filters from localStorage on first mount
   useEffect(() => {
-    const saved = localStorage.getItem("investmentFilters");
-    if (saved) {
-      try {
-        const filters = JSON.parse(saved);
-        if (filters.category) setSelectedCategory(filters.category);
-        if (filters.status) setSelectedStatus(filters.status);
-        if (filters.showFavoritesOnly !== undefined) setShowFavoritesOnly(filters.showFavoritesOnly);
-        if (filters.viewMode) setViewMode(filters.viewMode);
-      } catch (e) {
-        console.error("Failed to load investment filters:", e);
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      const saved = localStorage.getItem("investmentFilters");
+      if (saved) {
+        try {
+          const filters = JSON.parse(saved);
+          if (filters.category) setSelectedCategory(filters.category);
+          if (filters.status) setSelectedStatus(filters.status);
+          setShowFavoritesOnly(filters.showFavoritesOnly === true); // Explicitly check for true
+          if (filters.viewMode) setViewMode(filters.viewMode);
+        } catch (e) {
+          console.error("Failed to load investment filters:", e);
+        }
       }
     }
-    setMounted(true);
   }, []);
 
-  // Save filters to localStorage whenever they change
+  // Save filters to localStorage whenever they change (after initial mount)
   useEffect(() => {
-    if (mounted) {
+    if (!isInitialMount.current) {
       localStorage.setItem(
         "investmentFilters",
         JSON.stringify({
           category: selectedCategory,
           status: selectedStatus,
-          showFavoritesOnly,
-          viewMode,
+          showFavoritesOnly: showFavoritesOnly,
+          viewMode: viewMode,
         })
       );
     }
-  }, [selectedCategory, selectedStatus, showFavoritesOnly, viewMode, mounted]);
+  }, [selectedCategory, selectedStatus, showFavoritesOnly, viewMode]);
 
   // Filter ideas based on selections
   const filterIdeas = (ideas: InvestmentIdea[]) => {

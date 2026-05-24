@@ -14,6 +14,7 @@ import {
   toggleFavorite,
   updateIdeaNotes,
   deleteInvestmentIdea,
+  addReminder,
 } from "@/app/home/actions";
 
 interface IdeaCardProps {
@@ -62,6 +63,22 @@ export default function IdeaCard({ idea, isAiGenerated }: IdeaCardProps) {
     if (confirm("Delete this idea?")) {
       await deleteInvestmentIdea(idea.id);
     }
+  };
+
+  const handleCreateReminderFromAction = async (actionItem: string) => {
+    setIsSaving(true);
+    const reminderTitle = `Research: ${idea.title} - ${actionItem}`;
+    const tomorrow = new Date(Date.now() + 86_400_000);
+    await addReminder({
+      title: reminderTitle,
+      notes: `Investment idea: ${idea.title}\n\nAction: ${actionItem}\n\nCategory: ${idea.category}`,
+      due_at: tomorrow.toISOString(),
+      recurrence: "once",
+      category: "general",
+      source_app: "hub",
+    });
+    setIsSaving(false);
+    alert(`Reminder created: "${reminderTitle}"`);
   };
 
   const card: React.CSSProperties = {
@@ -247,13 +264,45 @@ export default function IdeaCard({ idea, isAiGenerated }: IdeaCardProps) {
               <ul
                 style={{
                   margin: 0,
-                  paddingLeft: 16,
+                  paddingLeft: 0,
                   fontSize: 11,
                   color: "var(--color-ink-2)",
+                  listStyle: "none",
                 }}
               >
                 {idea.actionItems.map((item, i) => (
-                  <li key={i}>{item}</li>
+                  <li
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 6,
+                      marginBottom: 6,
+                      paddingLeft: 16,
+                      position: "relative",
+                    }}
+                  >
+                    <span style={{ position: "absolute", left: 0 }}>•</span>
+                    <span style={{ flex: 1 }}>{item}</span>
+                    <button
+                      onClick={() => handleCreateReminderFromAction(item)}
+                      disabled={isSaving}
+                      title="Create research reminder"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--color-accent)",
+                        fontSize: 10,
+                        cursor: isSaving ? "not-allowed" : "pointer",
+                        padding: "2px 4px",
+                        whiteSpace: "nowrap",
+                        fontWeight: 500,
+                        opacity: isSaving ? 0.5 : 1,
+                      }}
+                    >
+                      📋 Remind
+                    </button>
+                  </li>
                 ))}
               </ul>
             </div>
