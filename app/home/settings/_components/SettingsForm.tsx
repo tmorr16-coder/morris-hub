@@ -29,7 +29,6 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
   lly_news:  "LLY News",
   news:      "News",
   city_news: "Local News",
-  investment_ideas_summary: "Investment Ideas",
   tips:      "Claude Tips",
 };
 

@@ -2,7 +2,7 @@
 // server components and client components. No server-only imports here.
 
 export const ALL_WIDGETS = [
-  "health", "weather", "reminders", "todos", "stocks", "sports", "lly_news", "news", "city_news", "investment_ideas_summary", "tips",
+  "health", "weather", "reminders", "todos", "stocks", "sports", "lly_news", "news", "city_news", "tips",
 ] as const;
 
 export type WidgetId = typeof ALL_WIDGETS[number];
