@@ -122,6 +122,18 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
     setSportsTeams((prev) => prev.filter((t) => t !== teamId));
   }
 
+  function moveSportsTeam(teamId: string, dir: -1 | 1) {
+    setSportsTeams((prev) => {
+      const idx = prev.indexOf(teamId);
+      if (idx === -1) return prev;
+      const next = [...prev];
+      const swap = idx + dir;
+      if (swap < 0 || swap >= next.length) return prev;
+      [next[idx], next[swap]] = [next[swap], next[idx]];
+      return next;
+    });
+  }
+
   function addCat() {
     const c = newCat.trim().toLowerCase();
     if (!c || reminderCats.includes(c)) return;
@@ -356,45 +368,84 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
                   ))}
                 </div>
               </div>
-              {/* Show added teams */}
+              {/* Show added teams with reorder options */}
               {sportsTeams.filter((t) => t.startsWith(`${league}:`)).length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   {sportsTeams
                     .filter((t) => t.startsWith(`${league}:`))
-                    .map((teamId) => (
-                      <span
-                        key={teamId}
-                        style={{
-                          padding: "4px 10px",
-                          borderRadius: 12,
-                          background: "var(--color-accent)",
-                          color: "#FFFDF8",
-                          fontSize: 11,
-                          fontWeight: 500,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                        }}
-                      >
-                        {teamId.split(":")[1]}
-                        <button
-                          onClick={() => removeSportsTeam(teamId)}
+                    .map((teamId, idx) => {
+                      const leagueTeams = sportsTeams.filter((t) => t.startsWith(`${league}:`));
+                      return (
+                        <div
+                          key={teamId}
                           style={{
-                            background: "transparent",
-                            border: "none",
-                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "6px 8px",
+                            background: "var(--color-accent)",
+                            borderRadius: 8,
                             color: "#FFFDF8",
-                            padding: 0,
                             fontSize: 12,
-                            lineHeight: 1,
-                            fontFamily: "inherit",
+                            fontWeight: 500,
                           }}
-                          title="Remove"
                         >
-                          ×
-                        </button>
-                      </span>
-                    ))}
+                          <span style={{ flex: 1 }}>{teamId.split(":")[1]}</span>
+                          <button
+                            onClick={() => moveSportsTeam(teamId, -1)}
+                            disabled={idx === 0}
+                            style={{
+                              ...reorderBtn,
+                              opacity: idx === 0 ? 0.3 : 1,
+                              background: "rgba(255,255,255,0.2)",
+                              color: "#FFFDF8",
+                              border: "1px solid rgba(255,255,255,0.3)",
+                              width: 20,
+                              height: 20,
+                              padding: 0,
+                              fontSize: 10,
+                            }}
+                            title="Move up"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            onClick={() => moveSportsTeam(teamId, 1)}
+                            disabled={idx === leagueTeams.length - 1}
+                            style={{
+                              ...reorderBtn,
+                              opacity: idx === leagueTeams.length - 1 ? 0.3 : 1,
+                              background: "rgba(255,255,255,0.2)",
+                              color: "#FFFDF8",
+                              border: "1px solid rgba(255,255,255,0.3)",
+                              width: 20,
+                              height: 20,
+                              padding: 0,
+                              fontSize: 10,
+                            }}
+                            title="Move down"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            onClick={() => removeSportsTeam(teamId)}
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              cursor: "pointer",
+                              color: "#FFFDF8",
+                              padding: 0,
+                              fontSize: 14,
+                              lineHeight: 1,
+                              fontFamily: "inherit",
+                            }}
+                            title="Remove"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      );
+                    })}
                 </div>
               )}
             </div>
