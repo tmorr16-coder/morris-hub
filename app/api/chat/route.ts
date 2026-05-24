@@ -15,8 +15,22 @@ interface ChatMessage {
   content: string;
 }
 
+interface InvestmentContext {
+  ideasCount: number;
+  ideas: Array<{ title: string; category: string; status: string }>;
+  filters: {
+    category: string;
+    status: string;
+    favorites: boolean;
+    capitalRange: [number, number];
+    returnsRange: [number, number];
+  };
+}
+
 interface ChatRequest {
   messages: ChatMessage[];
+  investmentContext?: InvestmentContext;
+  systemPrompt?: string;
 }
 
 const rateLimiter = new Map<string, { count: number; resetAt: number }>();
@@ -114,9 +128,36 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Too many requests — wait a moment." }, { status: 429 });
   }
 
-  const { messages } = (await req.json()) as ChatRequest;
+  const { messages, investmentContext, systemPrompt } = (await req.json()) as ChatRequest;
   if (!messages?.length) {
     return NextResponse.json({ error: "No messages provided" }, { status: 400 });
+  }
+
+  const trimmed = messages.slice(-8);
+
+  // If investment context is provided, use simpler investment-focused chat
+  if (investmentContext && systemPrompt) {
+    try {
+      const response = await client.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: trimmed.map((m) => ({ role: m.role, content: m.content })),
+      });
+
+      const reply = response.content[0].type === "text" ? response.content[0].text : "";
+      return NextResponse.json({ reply });
+    } catch (err: unknown) {
+      if (err instanceof Anthropic.RateLimitError) {
+        return NextResponse.json({ error: "Anthropic rate limit — try again." }, { status: 429 });
+      }
+      if (err instanceof Anthropic.APIError) {
+        console.error("[investment-chat]", err.status, err.message);
+        return NextResponse.json({ error: "AI service error" }, { status: 502 });
+      }
+      console.error("[investment-chat] unexpected", err);
+      return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
+    }
   }
 
   // Fetch all context in parallel
@@ -168,8 +209,6 @@ export async function POST(req: NextRequest) {
     newsTopics: prefs.news_topics,
     todayIso: new Date().toISOString().slice(0, 10),
   });
-
-  const trimmed = messages.slice(-8);
 
   let response;
   try {

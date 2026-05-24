@@ -5,6 +5,7 @@ import type { InvestmentIdea } from "@/lib/investment-ideas-constants";
 import { CATEGORY_LABELS, STATUS_LABELS } from "@/lib/investment-ideas-constants";
 import IdeaCard from "./IdeaCard";
 import IdeaForm from "./IdeaForm";
+import InvestmentChat from "./InvestmentChat";
 
 interface InvestmentsClientProps {
   savedIdeas: InvestmentIdea[];
@@ -63,7 +64,40 @@ export default function InvestmentsClient({
     return false;
   });
 
+  const [capitalRange, setCapitalRange] = useState<[number, number]>(() => {
+    if (typeof window === "undefined") return [0, 1000000];
+    try {
+      const saved = localStorage.getItem("investmentFilters");
+      if (saved) {
+        const filters = JSON.parse(saved);
+        if (filters.capitalRange && Array.isArray(filters.capitalRange)) {
+          return filters.capitalRange as [number, number];
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load investment capital filter:", e);
+    }
+    return [0, 1000000];
+  });
+
+  const [returnsRange, setReturnsRange] = useState<[number, number]>(() => {
+    if (typeof window === "undefined") return [0, 100];
+    try {
+      const saved = localStorage.getItem("investmentFilters");
+      if (saved) {
+        const filters = JSON.parse(saved);
+        if (filters.returnsRange && Array.isArray(filters.returnsRange)) {
+          return filters.returnsRange as [number, number];
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load investment returns filter:", e);
+    }
+    return [0, 100];
+  });
+
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const [generatedAiIdeas, setGeneratedAiIdeas] = useState<InvestmentIdea[]>(aiIdeas);
   const [generatingIdeas, setGeneratingIdeas] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
@@ -98,13 +132,26 @@ export default function InvestmentsClient({
           category: selectedCategory,
           status: selectedStatus,
           showFavoritesOnly: showFavoritesOnly,
+          capitalRange,
+          returnsRange,
         })
       );
-      console.log("Investment filters saved:", { selectedCategory, selectedStatus, showFavoritesOnly });
+      console.log("Investment filters saved:", { selectedCategory, selectedStatus, showFavoritesOnly, capitalRange, returnsRange });
     } catch (e) {
       console.error("Failed to save investment filters:", e);
     }
-  }, [selectedCategory, selectedStatus, showFavoritesOnly]);
+  }, [selectedCategory, selectedStatus, showFavoritesOnly, capitalRange, returnsRange]);
+
+  // Helper functions to parse currency and percentage values
+  const parseCapital = (str: string | undefined): number => {
+    if (!str) return 0;
+    return parseFloat(str.replace(/[\$,]/g, '')) || 0;
+  };
+
+  const parseReturns = (str: string | undefined): number => {
+    if (!str) return 0;
+    return parseFloat(str.replace(/%/g, '')) || 0;
+  };
 
   // Filter ideas based on selections
   const filterIdeas = (ideas: InvestmentIdea[]) => {
@@ -117,6 +164,19 @@ export default function InvestmentsClient({
       if (selectedStatus !== "all" && idea.status !== selectedStatus)
         return false;
       if (showFavoritesOnly && !idea.isFavorite) return false;
+
+      // Capital required range filter
+      if (idea.capitalRequired) {
+        const amount = parseCapital(idea.capitalRequired);
+        if (amount < capitalRange[0] || amount > capitalRange[1]) return false;
+      }
+
+      // Expected returns range filter
+      if (idea.expectedReturns) {
+        const percent = parseReturns(idea.expectedReturns);
+        if (percent < returnsRange[0] || percent > returnsRange[1]) return false;
+      }
+
       return true;
     });
   };
@@ -230,6 +290,98 @@ export default function InvestmentsClient({
           ⭐ Favorites {favoriteCount > 0 && `(${favoriteCount})`}
         </button>
 
+        {/* Capital Required Range Slider */}
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: "var(--color-ink-3)", fontWeight: 600 }}>
+            CAPITAL
+          </span>
+          <input
+            type="range"
+            min="0"
+            max="1000000"
+            step="50000"
+            value={capitalRange[0]}
+            onChange={(e) => {
+              const newMin = parseInt(e.target.value);
+              if (newMin <= capitalRange[1]) {
+                setCapitalRange([newMin, capitalRange[1]]);
+              }
+            }}
+            style={{
+              width: "100px",
+              cursor: "pointer",
+            }}
+            title="Min capital required"
+          />
+          <input
+            type="range"
+            min="0"
+            max="1000000"
+            step="50000"
+            value={capitalRange[1]}
+            onChange={(e) => {
+              const newMax = parseInt(e.target.value);
+              if (newMax >= capitalRange[0]) {
+                setCapitalRange([capitalRange[0], newMax]);
+              }
+            }}
+            style={{
+              width: "100px",
+              cursor: "pointer",
+            }}
+            title="Max capital required"
+          />
+          <span style={{ fontSize: 10, color: "var(--color-ink-2)", minWidth: "80px" }}>
+            ${(capitalRange[0] / 1000).toFixed(0)}k - ${(capitalRange[1] / 1000).toFixed(0)}k
+          </span>
+        </div>
+
+        {/* Expected Returns Range Slider */}
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: "var(--color-ink-3)", fontWeight: 600 }}>
+            RETURNS
+          </span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="5"
+            value={returnsRange[0]}
+            onChange={(e) => {
+              const newMin = parseInt(e.target.value);
+              if (newMin <= returnsRange[1]) {
+                setReturnsRange([newMin, returnsRange[1]]);
+              }
+            }}
+            style={{
+              width: "80px",
+              cursor: "pointer",
+            }}
+            title="Min expected returns"
+          />
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="5"
+            value={returnsRange[1]}
+            onChange={(e) => {
+              const newMax = parseInt(e.target.value);
+              if (newMax >= returnsRange[0]) {
+                setReturnsRange([returnsRange[0], newMax]);
+              }
+            }}
+            style={{
+              width: "80px",
+              cursor: "pointer",
+            }}
+            title="Max expected returns"
+          />
+          <span style={{ fontSize: 10, color: "var(--color-ink-2)", minWidth: "60px" }}>
+            {returnsRange[0]}% - {returnsRange[1]}%
+          </span>
+        </div>
+
         {/* Spacer */}
         <div style={{ flex: 1 }} />
 
@@ -324,6 +476,42 @@ export default function InvestmentsClient({
           ))}
         </div>
       )}
+
+      {/* Research Chat Section */}
+      <div style={{ borderTop: "1px solid var(--color-rule)", paddingTop: 12 }}>
+        <button
+          onClick={() => setShowChat(!showChat)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: "transparent",
+            border: "none",
+            padding: "8px 0",
+            cursor: "pointer",
+            fontSize: 14,
+            fontWeight: 600,
+            color: "var(--color-ink)",
+            fontFamily: "inherit",
+          }}
+        >
+          <span>{showChat ? "▼" : "▶"}</span>
+          <span>💬 Research Chat</span>
+        </button>
+
+        {showChat && (
+          <div style={{ marginTop: 12 }}>
+            <InvestmentChat
+              displayedIdeas={displayedIdeas}
+              selectedCategory={selectedCategory}
+              selectedStatus={selectedStatus}
+              showFavoritesOnly={showFavoritesOnly}
+              capitalRange={capitalRange}
+              returnsRange={returnsRange}
+            />
+          </div>
+        )}
+      </div>
 
       {/* Add Idea Form Modal */}
       {showAddForm && (
