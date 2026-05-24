@@ -20,35 +20,68 @@ export default function InvestmentsClient({
   aiIdeas,
   enabledCategories,
 }: InvestmentsClientProps) {
-  const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>("all");
-  const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("all");
-  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [viewMode, setViewMode] = useState<"all" | "saved" | "ai">("all");
-  const isInitialMount = useRef(true);
-
-  // Load filters from localStorage on first mount
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
+  // Initialize state with localStorage values on mount
+  const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>(() => {
+    if (typeof window === "undefined") return "all";
+    try {
       const saved = localStorage.getItem("investmentFilters");
       if (saved) {
-        try {
-          const filters = JSON.parse(saved);
-          if (filters.category) setSelectedCategory(filters.category);
-          if (filters.status) setSelectedStatus(filters.status);
-          setShowFavoritesOnly(filters.showFavoritesOnly === true); // Explicitly check for true
-          if (filters.viewMode) setViewMode(filters.viewMode);
-        } catch (e) {
-          console.error("Failed to load investment filters:", e);
-        }
+        const filters = JSON.parse(saved);
+        return filters.category || "all";
       }
+    } catch (e) {
+      console.error("Failed to load investment category filter:", e);
     }
-  }, []);
+    return "all";
+  });
 
-  // Save filters to localStorage whenever they change (after initial mount)
+  const [selectedStatus, setSelectedStatus] = useState<StatusFilter>(() => {
+    if (typeof window === "undefined") return "all";
+    try {
+      const saved = localStorage.getItem("investmentFilters");
+      if (saved) {
+        const filters = JSON.parse(saved);
+        return filters.status || "all";
+      }
+    } catch (e) {
+      console.error("Failed to load investment status filter:", e);
+    }
+    return "all";
+  });
+
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const saved = localStorage.getItem("investmentFilters");
+      if (saved) {
+        const filters = JSON.parse(saved);
+        return filters.showFavoritesOnly === true;
+      }
+    } catch (e) {
+      console.error("Failed to load investment favorites filter:", e);
+    }
+    return false;
+  });
+
+  const [showAddForm, setShowAddForm] = useState(false);
+
+  const [viewMode, setViewMode] = useState<"all" | "saved" | "ai">(() => {
+    if (typeof window === "undefined") return "all";
+    try {
+      const saved = localStorage.getItem("investmentFilters");
+      if (saved) {
+        const filters = JSON.parse(saved);
+        return filters.viewMode || "all";
+      }
+    } catch (e) {
+      console.error("Failed to load investment view mode:", e);
+    }
+    return "all";
+  });
+
+  // Save filters to localStorage whenever they change
   useEffect(() => {
-    if (!isInitialMount.current) {
+    try {
       localStorage.setItem(
         "investmentFilters",
         JSON.stringify({
@@ -58,6 +91,9 @@ export default function InvestmentsClient({
           viewMode: viewMode,
         })
       );
+      console.log("Investment filters saved:", { selectedCategory, selectedStatus, showFavoritesOnly, viewMode });
+    } catch (e) {
+      console.error("Failed to save investment filters:", e);
     }
   }, [selectedCategory, selectedStatus, showFavoritesOnly, viewMode]);
 
