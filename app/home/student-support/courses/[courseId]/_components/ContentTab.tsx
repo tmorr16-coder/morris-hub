@@ -12,6 +12,9 @@ interface Content {
   title: string;
   description: string | null;
   content_url: string | null;
+  file_path?: string | null;
+  is_uploaded?: boolean;
+  file_size_kb?: number | null;
 }
 
 interface ContentTabProps {
@@ -44,6 +47,7 @@ export default function ContentTab({
     description: "",
     content_url: "",
   });
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
 
@@ -52,23 +56,48 @@ export default function ContentTab({
     setLoading(true);
 
     try {
-      const response = await fetch("/api/student-support/content", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          courseId,
-          ...formData,
-        }),
-      });
+      let response;
 
-      if (!response.ok) throw new Error("Failed to add content");
+      if (uploadFile) {
+        // File upload path
+        const formDataToSend = new FormData();
+        formDataToSend.append("file", uploadFile);
+        formDataToSend.append("courseId", courseId);
+        formDataToSend.append("type", formData.type);
+        formDataToSend.append("title", formData.title || uploadFile.name);
+        formDataToSend.append("description", formData.description);
+
+        response = await fetch("/api/student-support/content/upload", {
+          method: "POST",
+          body: formDataToSend,
+        });
+      } else if (formData.content_url) {
+        // URL link path
+        response = await fetch("/api/student-support/content", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            courseId,
+            ...formData,
+          }),
+        });
+      } else {
+        throw new Error("Please provide either a file or URL");
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to add content");
+      }
 
       const newContent = await response.json();
       onContentAdded(newContent);
       setFormData({ type: "resource", title: "", description: "", content_url: "" });
+      setUploadFile(null);
       setShowAddForm(false);
     } catch (err) {
       console.error("Error adding content:", err);
+      alert(err instanceof Error ? err.message : "Failed to add content");
     } finally {
       setLoading(false);
     }
@@ -149,14 +178,50 @@ export default function ContentTab({
 
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
-                Title *
+                Upload File
+              </label>
+              <input
+                type="file"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setUploadFile(file);
+                    // Auto-fill title if not set
+                    if (!formData.title) {
+                      setFormData({ ...formData, title: file.name });
+                    }
+                  }
+                }}
+                accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "1px solid var(--color-rule)",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  boxSizing: "border-box",
+                }}
+              />
+              {uploadFile && (
+                <p style={{ fontSize: 11, color: "var(--color-ink-3)", margin: "6px 0 0 0" }}>
+                  Selected: {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
+                </p>
+              )}
+              <p style={{ fontSize: 11, color: "var(--color-ink-4)", margin: "6px 0 0 0" }}>
+                or
+              </p>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
+                Title {uploadFile ? "" : "*"}
               </label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                required
-                placeholder="e.g., Lecture Notes Week 1"
+                required={!uploadFile}
+                placeholder={uploadFile ? uploadFile.name : "e.g., Lecture Notes Week 1"}
                 style={{
                   width: "100%",
                   padding: "8px 12px",
@@ -227,18 +292,18 @@ export default function ContentTab({
               </button>
               <button
                 type="submit"
-                disabled={loading || !formData.title}
+                disabled={loading || !formData.title || (!uploadFile && !formData.content_url)}
                 style={{
                   flex: 1,
                   padding: "8px 12px",
                   borderRadius: 6,
                   border: "none",
-                  background: loading || !formData.title ? "var(--color-paper-deep)" : course.color_tag,
+                  background: loading || !formData.title || (!uploadFile && !formData.content_url) ? "var(--color-paper-deep)" : course.color_tag,
                   color: "white",
-                  cursor: loading || !formData.title ? "default" : "pointer",
+                  cursor: loading || !formData.title || (!uploadFile && !formData.content_url) ? "default" : "pointer",
                   fontSize: 12,
                   fontWeight: 500,
-                  opacity: loading || !formData.title ? 0.6 : 1,
+                  opacity: loading || !formData.title || (!uploadFile && !formData.content_url) ? 0.6 : 1,
                 }}
               >
                 {loading ? "Adding..." : "Add"}
@@ -291,6 +356,16 @@ export default function ContentTab({
                       {item.description}
                     </p>
                   )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 11, color: "var(--color-ink-4)" }}>
+                    {item.is_uploaded ? (
+                      <>
+                        <span>📄 Uploaded file</span>
+                        {item.file_size_kb && <span>• {item.file_size_kb} KB</span>}
+                      </>
+                    ) : (
+                      <span>🔗 External link</span>
+                    )}
+                  </div>
                   {item.content_url && (
                     <a
                       href={item.content_url}

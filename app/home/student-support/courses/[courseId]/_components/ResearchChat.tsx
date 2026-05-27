@@ -9,18 +9,16 @@ interface Message {
 
 interface ResearchChatProps {
   courseName: string;
+  courseId: string;
   courseContext: string;
 }
 
-export default function ResearchChat({ courseName, courseContext }: ResearchChatProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content: `Hi! I'm your research assistant for ${courseName}. I can help you understand concepts, research topics, and prepare for your studies. What would you like to learn about?`,
-    },
-  ]);
+export default function ResearchChat({ courseName, courseId, courseContext }: ResearchChatProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [initializing, setInitializing] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -31,9 +29,47 @@ export default function ResearchChat({ courseName, courseContext }: ResearchChat
     scrollToBottom();
   }, [messages]);
 
+  // Load conversation history on mount
+  useEffect(() => {
+    const loadConversation = async () => {
+      try {
+        const response = await fetch(
+          `/api/student-support/research-chat?courseId=${courseId}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setSessionId(data.sessionId);
+          if (data.messages && data.messages.length > 0) {
+            setMessages(data.messages);
+          } else {
+            // No conversation history, start with greeting
+            setMessages([
+              {
+                role: "assistant",
+                content: `Hi! I'm your research assistant for ${courseName}. I can help you understand concepts, research topics, and prepare for your studies. What would you like to learn about?`,
+              },
+            ]);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading conversation:", err);
+        setMessages([
+          {
+            role: "assistant",
+            content: `Hi! I'm your research assistant for ${courseName}. I can help you understand concepts, research topics, and prepare for your studies. What would you like to learn about?`,
+          },
+        ]);
+      } finally {
+        setInitializing(false);
+      }
+    };
+
+    loadConversation();
+  }, [courseId, courseName]);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || loading) return;
+    if (!input.trim() || loading || initializing) return;
 
     const userMessage = input.trim();
     setInput("");
@@ -46,13 +82,19 @@ export default function ResearchChat({ courseName, courseContext }: ResearchChat
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userMessage,
+          courseId,
           courseContext,
+          sessionId,
         }),
       });
 
       if (!response.ok) throw new Error("Failed to get response");
 
       const data = await response.json();
+      // Update sessionId if it wasn't set before
+      if (!sessionId && data.sessionId) {
+        setSessionId(data.sessionId);
+      }
       setMessages((prev) => [...prev, { role: "assistant", content: data.message }]);
     } catch (err) {
       console.error("Error:", err);

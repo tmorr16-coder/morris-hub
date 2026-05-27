@@ -10,6 +10,8 @@ interface Reminder {
   due_date: string;
   due_time?: string;
   is_completed: boolean;
+  reminder_sent?: boolean;
+  sent_at?: string | null;
 }
 
 interface RemindersTabProps {
@@ -43,6 +45,8 @@ export default function RemindersTab({
   });
   const [loading, setLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [smsLoading, setSmsLoading] = useState<string | null>(null);
+  const [smsMessage, setSmsMessage] = useState<string | null>(null);
 
   const handleAddReminder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,6 +96,31 @@ export default function RemindersTab({
       console.error("Error deleting reminder:", err);
     } finally {
       setDeleteLoading(null);
+    }
+  };
+
+  const handleSendSMS = async (reminderId: string) => {
+    setSmsLoading(reminderId);
+    setSmsMessage(null);
+
+    try {
+      const response = await fetch(`/api/student-support/reminders/${reminderId}/send-sms`, {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setSmsMessage(`Error: ${data.error}`);
+      } else {
+        setSmsMessage("✓ SMS sent successfully!");
+        setTimeout(() => setSmsMessage(null), 3000);
+      }
+    } catch (err) {
+      console.error("Error sending SMS:", err);
+      setSmsMessage("Error: Failed to send SMS");
+    } finally {
+      setSmsLoading(null);
     }
   };
 
@@ -330,23 +359,43 @@ export default function RemindersTab({
                     {daysUntil === 0 ? "Today" : daysUntil === 1 ? "Tomorrow" : `${daysUntil} days away`}
                   </p>
                 </div>
-                <button
-                  onClick={() => handleDeleteReminder(reminder.id)}
-                  disabled={deleteLoading === reminder.id}
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 4,
-                    border: "1px solid #fecaca",
-                    background: "#fee2e2",
-                    color: "#991b1b",
-                    fontSize: 11,
-                    cursor: deleteLoading === reminder.id ? "default" : "pointer",
-                    fontWeight: 500,
-                    opacity: deleteLoading === reminder.id ? 0.6 : 1,
-                  }}
-                >
-                  Delete
-                </button>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    onClick={() => handleSendSMS(reminder.id)}
+                    disabled={smsLoading === reminder.id}
+                    title="Send SMS reminder"
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: 4,
+                      border: "1px solid #bfdbfe",
+                      background: "#dbeafe",
+                      color: "#1e40af",
+                      fontSize: 11,
+                      cursor: smsLoading === reminder.id ? "default" : "pointer",
+                      fontWeight: 500,
+                      opacity: smsLoading === reminder.id ? 0.6 : 1,
+                    }}
+                  >
+                    {smsLoading === reminder.id ? "Sending…" : "📱 SMS"}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteReminder(reminder.id)}
+                    disabled={deleteLoading === reminder.id}
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: 4,
+                      border: "1px solid #fecaca",
+                      background: "#fee2e2",
+                      color: "#991b1b",
+                      fontSize: 11,
+                      cursor: deleteLoading === reminder.id ? "default" : "pointer",
+                      fontWeight: 500,
+                      opacity: deleteLoading === reminder.id ? 0.6 : 1,
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             );
           })}
