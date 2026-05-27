@@ -1,7 +1,7 @@
 "use client";
 
 // Cross-platform reminder quick-add. Drops into PlatformMenu so a user
-// can capture a reminder from any subdomain (hub/health/finance) with
+// can capture a reminder from any app (hub/health/finance/investments/student-success) with
 // title + date + optional time/recurrence/category. Inserts directly
 // into hub.reminders via the user's Supabase session — RLS scopes the
 // insert to auth.uid().
@@ -47,7 +47,7 @@ function nextWeekISO(): string {
 export default function QuickAddReminder({
   sourceApp,
 }: {
-  sourceApp: "hub" | "health" | "finance";
+  sourceApp: "hub" | "health" | "finance" | "investments" | "student-success";
 }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");

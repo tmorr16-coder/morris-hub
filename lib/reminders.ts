@@ -6,7 +6,7 @@ import { createServiceClient } from "./supabase/server";
 
 export type Recurrence = "once" | "daily" | "weekly" | "biweekly" | "monthly" | "quarterly" | "yearly";
 export type Category = "bill" | "medication" | "workout" | "appointment" | "personal" | "general";
-export type SourceApp = "hub" | "health" | "finance";
+export type SourceApp = "hub" | "health" | "finance" | "investments" | "student-success";
 
 export interface Reminder {
   id: string;
