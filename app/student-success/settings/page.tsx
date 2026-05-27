@@ -22,6 +22,16 @@ export default async function StudentSuccessSettingsPage() {
     redirect("/home");
   }
 
+  // Fetch student-specific settings
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const { data: studentSettings } = await service
+    .schema("student_support")
+    .from("student_settings")
+    .select("phone_number, sms_notifications_enabled, reminder_lead_days")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
   const menuUser = {
     name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
     email: user.email,

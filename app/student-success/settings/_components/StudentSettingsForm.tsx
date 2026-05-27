@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { getPreferences } from "@/lib/prefs";
 import { saveStudentSettings } from "../actions";
 
 interface StudentSettings {
@@ -10,32 +9,16 @@ interface StudentSettings {
   reminder_lead_days?: number;
 }
 
-export default function StudentSettingsForm() {
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [smsEnabled, setSmsEnabled] = useState(true);
-  const [reminderLeadDays, setReminderLeadDays] = useState(3);
+interface StudentSettingsFormProps {
+  initialSettings: StudentSettings;
+}
+
+export default function StudentSettingsForm({ initialSettings }: StudentSettingsFormProps) {
+  const [phoneNumber, setPhoneNumber] = useState(initialSettings.phone_number ?? "");
+  const [smsEnabled, setSmsEnabled] = useState(initialSettings.sms_notifications_enabled ?? true);
+  const [reminderLeadDays, setReminderLeadDays] = useState(initialSettings.reminder_lead_days ?? 3);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Load settings on mount
-  useState(() => {
-    (async () => {
-      try {
-        const prefs = await getPreferences();
-        const settings = prefs as StudentSettings;
-
-        setPhoneNumber(settings.phone_number || "");
-        setSmsEnabled(settings.sms_notifications_enabled ?? true);
-        setReminderLeadDays(settings.reminder_lead_days ?? 3);
-      } catch (err) {
-        console.error("Failed to load settings:", err);
-        setMessage({ type: "error", text: "Failed to load settings" });
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  }, []);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,10 +44,6 @@ export default function StudentSettingsForm() {
       setIsSaving(false);
     }
   };
-
-  if (isLoading) {
-    return <div style={{ color: "var(--color-ink-3)" }}>Loading settings...</div>;
-  }
 
   return (
     <form onSubmit={handleSave} style={{ maxWidth: 600, margin: "0 auto" }}>
