@@ -1,8 +1,9 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 function GoogleIcon() {
   return (
@@ -38,16 +39,15 @@ async function signInWithTestUser() {
 
 export default function LandingPage() {
   const router = useRouter();
-  const [checking, setChecking] = useState(true);
+  const { user, loading } = useCurrentUser();
 
   useEffect(() => {
-    createClient().auth.getUser().then(({ data: { user } }) => {
-      if (user) router.replace("/home");
-      else setChecking(false);
-    });
-  }, [router]);
+    if (!loading && user) {
+      router.replace("/home");
+    }
+  }, [user, loading, router]);
 
-  if (checking) {
+  if (loading) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <span style={{ fontSize: 13, color: "var(--color-ink-3)" }}>Loading…</span>

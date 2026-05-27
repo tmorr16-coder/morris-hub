@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
+import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 import type { Recurrence, Category, SourceApp } from "@/lib/reminders";
 
 export type Priority = "low" | "medium" | "high";
@@ -16,18 +17,12 @@ export interface Todo {
   created_at: string;
 }
 
-async function getUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user?.id ?? null;
-}
-
 export async function addTodo(data: {
   title: string;
   priority?: Priority | null;
   due_date?: string | null;
 }): Promise<{ error?: string; todo?: Todo }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
   if (!data.title.trim()) return { error: "Title required" };
 
@@ -51,7 +46,7 @@ export async function addTodo(data: {
 }
 
 export async function toggleTodo(id: string, completed: boolean): Promise<{ error?: string }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -75,7 +70,7 @@ export async function updateTodo(
   id: string,
   data: { priority?: Priority | null; due_date?: string | null; title?: string }
 ): Promise<{ error?: string }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -93,7 +88,7 @@ export async function updateTodo(
 }
 
 export async function deleteTodo(id: string): Promise<{ error?: string }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -127,7 +122,7 @@ export async function savePreferences(data: {
   sms_notifications_enabled?: boolean;
   reminder_lead_days?: number;
 }): Promise<{ error?: string }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -153,7 +148,7 @@ export async function addReminder(data: {
   category?: Category;
   source_app?: SourceApp;
 }): Promise<{ error?: string }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
   if (!data.title.trim()) return { error: "Title required" };
 
@@ -175,7 +170,7 @@ export async function addReminder(data: {
 }
 
 export async function completeReminder(id: string): Promise<{ error?: string }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -193,7 +188,7 @@ export async function completeReminder(id: string): Promise<{ error?: string }> 
 }
 
 export async function snoozeReminder(id: string, until: string): Promise<{ error?: string }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -211,7 +206,7 @@ export async function snoozeReminder(id: string, until: string): Promise<{ error
 }
 
 export async function deleteReminder(id: string): Promise<{ error?: string }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -232,7 +227,7 @@ export async function updateReminder(
   id: string,
   updates: { next_steps?: string[] }
 ): Promise<{ error?: string }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -301,7 +296,7 @@ export async function addInvestmentIdea(data: InvestmentIdeaInsert): Promise<{
   error?: string;
   idea?: InvestmentIdeaInsert & { id: string };
 }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
   if (!data.title?.trim()) return { error: "Title required" };
 
@@ -340,7 +335,7 @@ export async function updateInvestmentIdea(
   id: string,
   data: Partial<InvestmentIdeaInsert>
 ): Promise<{ error?: string }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -358,7 +353,7 @@ export async function updateInvestmentIdea(
 }
 
 export async function deleteInvestmentIdea(id: string): Promise<{ error?: string }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -376,7 +371,7 @@ export async function deleteInvestmentIdea(id: string): Promise<{ error?: string
 }
 
 export async function updateIdeaStatus(id: string, status: string): Promise<{ error?: string }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -394,7 +389,7 @@ export async function updateIdeaStatus(id: string, status: string): Promise<{ er
 }
 
 export async function rateIdea(id: string, rating: number): Promise<{ error?: string }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
   if (rating < 0 || rating > 5) return { error: "Rating must be between 0 and 5" };
 
@@ -413,7 +408,7 @@ export async function rateIdea(id: string, rating: number): Promise<{ error?: st
 }
 
 export async function toggleFavorite(id: string): Promise<{ error?: string }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -443,7 +438,7 @@ export async function toggleFavorite(id: string): Promise<{ error?: string }> {
 }
 
 export async function updateIdeaNotes(id: string, notes: string): Promise<{ error?: string }> {
-  const userId = await getUserId();
+  const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

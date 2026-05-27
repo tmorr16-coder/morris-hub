@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { Resend } from "resend";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/supabase/auth-utils";
 import { logEvent } from "@/lib/usage";
 
 export type AppKey = "hub" | "health" | "finance" | "student-success" | "investments";
@@ -17,24 +17,12 @@ async function sendUserEmail(to: string, subject: string, html: string, userId?:
   } catch { /* non-fatal */ }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function requireAdmin(): Promise<{ db: any; currentUserId: string }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = createServiceClient() as any;
-  const { data } = await db.from("profiles").select("role").eq("id", user.id).maybeSingle();
-  if ((data as { role: string } | null)?.role !== "admin") redirect("/home");
-  return { db, currentUserId: user.id };
-}
-
 export async function inviteUser(
   email: string,
   role: "standard" | "admin",
   appAccess: AppKey[] = ["hub"]
 ): Promise<{ error?: string }> {
-  const { db, currentUserId } = await requireAdmin();
+  const { db, id: currentUserId } = await requireAdmin();
 
   const { error: inviteError } = await db.auth.admin.inviteUserByEmail(email.toLowerCase().trim(), {
     data: { intended_role: role, intended_app_access: appAccess },
@@ -61,7 +49,7 @@ export async function updateUserRole(
   userId: string,
   role: "standard" | "admin"
 ): Promise<{ error?: string }> {
-  const { db, currentUserId } = await requireAdmin();
+  const { db, id: currentUserId } = await requireAdmin();
   if (userId === currentUserId && role !== "admin") {
     return { error: "You cannot remove your own admin role." };
   }
@@ -87,7 +75,7 @@ export async function updateAppAccess(
 }
 
 export async function removeUser(userId: string): Promise<{ error?: string }> {
-  const { db, currentUserId } = await requireAdmin();
+  const { db, id: currentUserId } = await requireAdmin();
   if (userId === currentUserId) return { error: "You cannot remove your own account here." };
   const { error } = await db.auth.admin.deleteUser(userId);
   if (error) return { error: error.message };

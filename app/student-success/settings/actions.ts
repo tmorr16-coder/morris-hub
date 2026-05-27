@@ -1,7 +1,7 @@
 "use server";
 
 import { createServiceClient } from "@/lib/supabase/server";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 
 export async function saveStudentSettings({
   phoneNumber,
@@ -13,12 +13,8 @@ export async function saveStudentSettings({
   reminderLeadDays: number;
 }): Promise<{ error?: string }> {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
+    const userId = await getCurrentUserId();
+    if (!userId) {
       return { error: "Not authenticated" };
     }
 
@@ -39,7 +35,7 @@ export async function saveStudentSettings({
       .from("student_settings")
       .upsert(
         {
-          user_id: user.id,
+          user_id: userId,
           phone_number: phoneNumber,
           sms_notifications_enabled: smsEnabled,
           reminder_lead_days: reminderLeadDays,
