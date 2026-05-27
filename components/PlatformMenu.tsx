@@ -98,9 +98,10 @@ export default function PlatformMenu({
                 </a>
               );
             })}
-            {currentApp === "hub" && (
-              <a
-                href="/home/investments"
+{currentApp === "hub" && (
+  <>
+    <a
+      href="/home/investments"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
