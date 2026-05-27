@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { withAuthRetry } from "@/lib/supabase/auth-retry";
 
 const COOKIE_DOMAIN = process.env.NEXT_PUBLIC_COOKIE_DOMAIN;
 
@@ -30,7 +31,24 @@ export async function proxy(request: NextRequest) {
 
   if (process.env.NEXT_PUBLIC_AUTH_BYPASS === "true") return response;
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // Fetch user with retry logic for rate limit resilience
+  const user = await withAuthRetry(
+    async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      return user;
+    },
+    { maxAttempts: 3, initialDelayMs: 100 }
+  ).catch(() => null);
+
+  // Cache user info in response headers for downstream handlers
+  // This avoids redundant getUser() calls in protected routes
+  if (user) {
+    response.headers.set("x-user-id", user.id);
+    if (user.email) {
+      response.headers.set("x-user-email", user.email);
+    }
+  }
+
   if (!user && request.nextUrl.pathname.startsWith("/home")) {
     return NextResponse.redirect(new URL("/", request.url));
   }

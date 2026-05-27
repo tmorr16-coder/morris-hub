@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { withAuthRetrySafe } from "@/lib/supabase/auth-retry";
 
 function GoogleIcon() {
   return (
@@ -18,22 +19,31 @@ function GoogleIcon() {
 
 async function signInWithGoogle() {
   const supabase = createClient();
-  await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: { redirectTo: `${window.location.origin}/auth/callback` },
+  await withAuthRetrySafe(async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    });
   });
 }
 
 async function signInWithTestUser() {
-  const supabase = createClient();
-  const { error } = await supabase.auth.signInWithPassword({
-    email: "test@morrisai.family",
-    password: "Test123456!",
+  const result = await withAuthRetrySafe(async () => {
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({
+      email: "test@morrisai.family",
+      password: "Test123456!",
+    });
+    if (error) {
+      throw new Error(error.message);
+    }
+    return true;
   });
-  if (!error) {
+
+  if (result) {
     window.location.href = "/home";
   } else {
-    alert("Test user not found. Please use Google login or create a test user in Supabase first.");
+    alert("Test user login failed. Please try again or use Google login.");
   }
 }
 

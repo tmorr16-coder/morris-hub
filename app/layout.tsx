@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, JetBrains_Mono, Instrument_Serif } from "next/font/google";
+import { RateLimitErrorBoundary } from "@/components/RateLimitErrorBoundary";
 import "./globals.css";
 
 const geist = Geist({
@@ -34,7 +35,9 @@ export default function RootLayout({
       lang="en"
       className={`${geist.variable} ${jetBrainsMono.variable} ${instrumentSerif.variable}`}
     >
-      <body>{children}</body>
+      <body>
+        <RateLimitErrorBoundary>{children}</RateLimitErrorBoundary>
+      </body>
     </html>
   );
 }
