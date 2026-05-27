@@ -79,6 +79,11 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
   );
   const [newCat, setNewCat] = useState("");
 
+  // SMS Reminders settings (student support)
+  const [phoneNumber, setPhoneNumber] = useState(initialPrefs.phone_number ?? "");
+  const [smsEnabled, setSmsEnabled] = useState(initialPrefs.sms_notifications_enabled ?? true);
+  const [reminderLeadDays, setReminderLeadDays] = useState(initialPrefs.reminder_lead_days ?? 3);
+
   async function handleResolveZip() {
     if (!zip.trim()) return;
     setResolvingZip(true);
@@ -177,6 +182,9 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         investment_categories: investmentCategories,
         visible_widgets: visibleWidgets,
         reminder_categories: reminderCats,
+        phone_number: phoneNumber || null,
+        sms_notifications_enabled: smsEnabled,
+        reminder_lead_days: reminderLeadDays,
       });
       if (res.error) setError(res.error);
       else {
@@ -492,6 +500,63 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
               </button>
             );
           })}
+        </div>
+      </section>
+
+      {/* Student Support — SMS Reminders */}
+      <section style={card}>
+        <SectionHeader title="Course reminders (SMS)" subtitle="Configure SMS notifications for assignments, tests, and quizzes" />
+
+        <div style={{ marginBottom: 16 }}>
+          <Label>Phone number</Label>
+          <input
+            type="tel"
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(e.target.value)}
+            placeholder="+12125552368 (E.164 format)"
+            style={input}
+          />
+          <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 6 }}>
+            Format: +1 followed by 10-digit number (e.g., +12125552368)
+          </p>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={smsEnabled}
+              onChange={(e) => setSmsEnabled(e.target.checked)}
+              style={{ width: 18, height: 18, cursor: "pointer" }}
+            />
+            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)" }}>
+              Enable SMS notifications
+            </span>
+          </label>
+          <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 4 }}>
+            Receive automatic SMS reminders for upcoming assignments and tests
+          </p>
+        </div>
+
+        <div>
+          <Label>Send reminder X days before</Label>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <input
+              type="range"
+              min="1"
+              max="7"
+              value={reminderLeadDays}
+              onChange={(e) => setReminderLeadDays(parseInt(e.target.value))}
+              style={{ flex: 1, height: 6, cursor: "pointer" }}
+              disabled={!smsEnabled || !phoneNumber.trim()}
+            />
+            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)", minWidth: 30 }}>
+              {reminderLeadDays}d
+            </span>
+          </div>
+          <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 6 }}>
+            Automatic reminders send this many days before a due date (if SMS is enabled)
+          </p>
         </div>
       </section>
 

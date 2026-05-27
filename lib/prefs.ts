@@ -16,6 +16,9 @@ export interface Preferences {
   investment_categories: string[];
   visible_widgets: WidgetId[];
   reminder_categories: string[];
+  phone_number?: string | null;
+  sms_notifications_enabled?: boolean;
+  reminder_lead_days?: number;
 }
 
 export async function getPreferences(userId: string): Promise<Preferences> {
@@ -84,5 +87,8 @@ export async function getPreferences(userId: string): Promise<Preferences> {
     investment_categories: ["stocks", "real_estate", "transportation", "tech", "other"],
     visible_widgets: [...ALL_WIDGETS],
     reminder_categories: [...DEFAULT_REMINDER_CATEGORIES],
+    phone_number: null,
+    sms_notifications_enabled: true,
+    reminder_lead_days: 3,
   };
 }

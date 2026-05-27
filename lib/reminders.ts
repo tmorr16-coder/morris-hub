@@ -87,6 +87,96 @@ export async function getUpcomingReminders(
   return reminders;
 }
 
+/**
+ * Fetch course reminders from student_support schema and transform to hub.Reminder format
+ * for display in the hub reminders widget
+ */
+export async function getCourseReminders(
+  userId: string,
+  daysAhead = 30
+): Promise<Reminder[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const horizon = new Date(Date.now() + daysAhead * 86_400_000).toISOString().split("T")[0];
+  const today = new Date().toISOString().split("T")[0];
+
+  // Get all courses for this user with their reminders
+  const { data: courseReminders } = await service
+    .schema("student_support")
+    .from("reminders")
+    .select(`
+      id,
+      type,
+      title,
+      description,
+      due_date,
+      due_time,
+      is_completed,
+      courses(id, name, user_id)
+    `)
+    .eq("courses.user_id", userId)
+    .gte("due_date", today)
+    .lte("due_date", horizon)
+    .eq("is_completed", false)
+    .order("due_date", { ascending: true });
+
+  if (!courseReminders || courseReminders.length === 0) return [];
+
+  // Transform course reminders to hub.Reminder format
+  const reminders: Reminder[] = courseReminders
+    .filter((r: any) => r.courses?.id) // Only include reminders with valid course
+    .map((r: any) => {
+      // Convert due_date + due_time to ISO format
+      let due_at = `${r.due_date}T00:00:00Z`;
+      if (r.due_time) {
+        const [hour, minute] = r.due_time.split(":");
+        due_at = `${r.due_date}T${hour}:${minute}:00Z`;
+      }
+
+      // Map reminder type to category icon
+      const typeCategory: Record<string, Category> = {
+        test: "appointment",
+        assignment: "personal",
+        quiz: "appointment",
+        practice: "workout",
+        extra_credit: "personal",
+      };
+
+      return {
+        id: r.id,
+        user_id: userId,
+        title: `${r.title} (${r.courses.name})`,
+        notes: r.description ?? null,
+        due_at,
+        recurrence: "once" as Recurrence,
+        category: typeCategory[r.type] || "general",
+        source_app: "hub" as SourceApp,
+        completed_at: r.is_completed ? new Date().toISOString() : null,
+        snooze_until: null,
+      };
+    });
+
+  return reminders;
+}
+
+/**
+ * Fetch both hub reminders and course reminders, merged and sorted by due date
+ */
+export async function getAllUpcomingReminders(
+  userId: string,
+  daysAhead = 30
+): Promise<Reminder[]> {
+  const [hubReminders, courseReminders] = await Promise.all([
+    getUpcomingReminders(userId, daysAhead),
+    getCourseReminders(userId, daysAhead),
+  ]);
+
+  // Merge and sort by due_at
+  const all = [...hubReminders, ...courseReminders];
+  all.sort((a, b) => (a.due_at < b.due_at ? -1 : 1));
+  return all;
+}
+
 export function formatDueLabel(dueAtIso: string, tz: string): string {
   const due = new Date(dueAtIso);
   const now = new Date();

@@ -14,7 +14,7 @@ import SignOutButton from "./_components/SignOutButton";
 import HubChat from "./_components/HubChat";
 import WeatherWidget from "./_components/WeatherWidget";
 import RemindersWidget from "./_components/RemindersWidget";
-import { getUpcomingReminders } from "@/lib/reminders";
+import { getAllUpcomingReminders } from "@/lib/reminders";
 import StocksWidget from "./_components/StocksWidget";
 import LLYNewsWidget from "./_components/LLYNewsWidget";
 import HealthSummaryWidget from "./_components/HealthSummaryWidget";
@@ -46,7 +46,7 @@ export default async function HomePage() {
       .order("completed", { ascending: true })
       .order("created_at", { ascending: false })
       .limit(100),
-    getUpcomingReminders(user.id),
+    getAllUpcomingReminders(user.id),
     service
       .from("profiles")
       .select("role")
