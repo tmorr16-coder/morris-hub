@@ -23,6 +23,7 @@ import NewsWidget from "./_components/NewsWidget";
 import CityNewsWidget from "./_components/CityNewsWidget";
 import SportsWidget from "./_components/SportsWidget";
 import ClaudeTipCard from "./_components/ClaudeTipCard";
+import StudentSupportWidget from "./_components/StudentSupportWidget";
 import type { Todo } from "./actions";
 
 export default async function HomePage() {
@@ -203,6 +204,8 @@ export default async function HomePage() {
                     <ClaudeTipCard />
                   </Suspense>
                 );
+              case "student-support":
+                return <StudentSupportWidget key="student-support" />;
               default:
                 return null;
             }

@@ -8,6 +8,7 @@ interface Reminder {
   title: string;
   description: string | null;
   due_date: string;
+  due_time?: string;
   is_completed: boolean;
 }
 

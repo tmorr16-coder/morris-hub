@@ -98,9 +98,10 @@ export default function PlatformMenu({
                 </a>
               );
             })}
-            {currentApp === "hub" && (
-              <a
-                href="/home/investments"
+{currentApp === "hub" && (
+  <>
+    <a
+      href="/home/investments"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -126,8 +127,37 @@ export default function PlatformMenu({
                   }}
                 />
                 Investments
-              </a>
-            )}
+    </a>
+    <a
+      href="/home/student-support"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "5px 11px",
+        fontSize: 12,
+        fontFamily: "var(--font-geist, system-ui), sans-serif",
+        fontWeight: 500,
+        color: "#6B6258",
+        textDecoration: "none",
+        borderRadius: 7,
+        background: "transparent",
+        transition: "background 100ms, color 100ms",
+      }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: "#8B5CF6",
+          display: "inline-block",
+        }}
+      />
+      Student Support
+    </a>
+  </>
+)}
           </div>
         </div>
 
