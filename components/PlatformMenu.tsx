@@ -158,7 +158,6 @@ export default function PlatformMenu({
     </a>
   </>
 )}
-            )}
           </div>
         </div>
 
