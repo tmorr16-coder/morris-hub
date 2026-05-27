@@ -23,7 +23,7 @@ export default function StudentSupportWidget() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <Link
-          href="/home/student-support"
+          href="/student-success"
           style={{
             padding: "12px 16px",
             borderRadius: 8,
@@ -37,7 +37,7 @@ export default function StudentSupportWidget() {
             cursor: "pointer",
           }}
         >
-          Go to Student Support
+          Go to Student Success
         </Link>
       </div>
     </div>
