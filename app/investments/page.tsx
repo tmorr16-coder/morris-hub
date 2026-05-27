@@ -14,7 +14,7 @@ export default async function InvestmentsPage() {
   if (!user) redirect("/");
 
   // Check if user has access to investments module
-  const prefs = await getPreferences();
+  const prefs = await getPreferences(user.id);
   if (!prefs.app_access?.includes("investments")) {
     redirect("/home");
   }

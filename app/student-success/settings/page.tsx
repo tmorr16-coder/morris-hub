@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import SignOutButton from "@/app/home/_components/SignOutButton";
@@ -17,7 +17,7 @@ export default async function StudentSuccessSettingsPage() {
   if (!user) redirect("/");
 
   // Check if user has access to student-success module
-  const prefs = await getPreferences();
+  const prefs = await getPreferences(user.id);
   if (!prefs.app_access?.includes("student-success")) {
     redirect("/home");
   }
@@ -63,7 +63,7 @@ export default async function StudentSuccessSettingsPage() {
         </div>
 
         <Suspense fallback={<div style={{ color: "var(--color-ink-3)" }}>Loading settings...</div>}>
-          <StudentSettingsForm />
+          <StudentSettingsForm initialSettings={studentSettings || {}} />
         </Suspense>
       </main>
     </div>

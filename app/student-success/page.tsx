@@ -18,7 +18,7 @@ export default async function StudentSupportPage() {
   if (!user) redirect("/");
 
   // Check if user has access to student-success module
-  const prefs = await getPreferences();
+  const prefs = await getPreferences(user.id);
   if (!prefs.app_access?.includes("student-success")) {
     redirect("/home");
   }
