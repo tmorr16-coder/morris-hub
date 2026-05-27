@@ -112,7 +112,7 @@ export async function GET(request: Request) {
       const leadDays = settings.reminder_lead_days || 3;
       const leadTime = leadDays * 24 * 60 * 60 * 1000; // Convert to milliseconds
       const now = new Date().getTime();
-      const qualifyingReminders = userReminders.filter((r) => {
+      const qualifyingReminders = userReminders.filter((r: any) => {
         const dueTime = new Date(r.due_date).getTime();
         return dueTime - now <= leadTime;
       });

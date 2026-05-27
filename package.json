@@ -12,13 +12,13 @@
     "@anthropic-ai/sdk": "^0.96.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
-    "mammoth": "^1.8.0",
+    "mammoth": "^1.12.0",
     "next": "16.2.4",
-    "pdf-parse": "^1.1.1",
+    "pdf-parse": "^1.1.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "resend": "^6.12.3",
-    "twilio": "^4.10.0",
+    "twilio": "^4.23.0",
     "yahoo-finance2": "^3.14.1"
   },
   "devDependencies": {
