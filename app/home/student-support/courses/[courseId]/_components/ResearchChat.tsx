@@ -1,0 +1,207 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
+
+interface ResearchChatProps {
+  courseName: string;
+  courseContext: string;
+}
+
+export default function ResearchChat({ courseName, courseContext }: ResearchChatProps) {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      role: "assistant",
+      content: `Hi! I'm your research assistant for ${courseName}. I can help you understand concepts, research topics, and prepare for your studies. What would you like to learn about?`,
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || loading) return;
+
+    const userMessage = input.trim();
+    setInput("");
+    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/student-support/research-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMessage,
+          courseContext,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to get response");
+
+      const data = await response.json();
+      setMessages((prev) => [...prev, { role: "assistant", content: data.message }]);
+    } catch (err) {
+      console.error("Error:", err);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Sorry, I encountered an error. Please try again.",
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "600px",
+        borderRadius: 8,
+        border: "1px solid var(--color-rule)",
+        background: "var(--color-bg-card)",
+        overflow: "hidden",
+      }}
+    >
+      {/* Messages Area */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "20px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+        }}
+      >
+        {messages.map((msg, idx) => (
+          <div
+            key={idx}
+            style={{
+              display: "flex",
+              justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
+            }}
+          >
+            <div
+              style={{
+                maxWidth: "80%",
+                padding: "12px 16px",
+                borderRadius: 8,
+                background: msg.role === "user" ? "var(--color-accent-dark)" : "var(--color-paper-deep)",
+                color: msg.role === "user" ? "white" : "var(--color-ink)",
+                fontSize: 13,
+                lineHeight: 1.5,
+                wordBreak: "break-word",
+              }}
+            >
+              {msg.content}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-start",
+            }}
+          >
+            <div
+              style={{
+                padding: "12px 16px",
+                borderRadius: 8,
+                background: "var(--color-paper-deep)",
+                color: "var(--color-ink)",
+                fontSize: 13,
+              }}
+            >
+              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <span style={{ opacity: 0.6 }}>Thinking</span>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    gap: 2,
+                  }}
+                >
+                  <span style={{ animation: "blink 0.7s infinite" }}>•</span>
+                  <span style={{ animation: "blink 0.7s infinite 0.2s" }}>•</span>
+                  <span style={{ animation: "blink 0.7s infinite 0.4s" }}>•</span>
+                </span>
+              </div>
+              <style>{`
+                @keyframes blink {
+                  0%, 100% { opacity: 0.3; }
+                  50% { opacity: 1; }
+                }
+              `}</style>
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input Area */}
+      <div
+        style={{
+          borderTop: "1px solid var(--color-rule)",
+          padding: "16px",
+          background: "var(--color-bg)",
+        }}
+      >
+        <form onSubmit={handleSendMessage} style={{ display: "flex", gap: 8 }}>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={loading}
+            placeholder="Ask a question about the course..."
+            style={{
+              flex: 1,
+              padding: "10px 12px",
+              border: "1px solid var(--color-rule)",
+              borderRadius: 6,
+              fontSize: 13,
+              fontFamily: "inherit",
+              boxSizing: "border-box",
+              opacity: loading ? 0.6 : 1,
+            }}
+          />
+          <button
+            type="submit"
+            disabled={loading || !input.trim()}
+            style={{
+              padding: "10px 16px",
+              borderRadius: 6,
+              border: "none",
+              background:
+                loading || !input.trim() ? "var(--color-paper-deep)" : "var(--color-accent-dark)",
+              color: "white",
+              cursor: loading || !input.trim() ? "default" : "pointer",
+              fontSize: 12,
+              fontWeight: 500,
+              opacity: loading || !input.trim() ? 0.6 : 1,
+            }}
+          >
+            Send
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
