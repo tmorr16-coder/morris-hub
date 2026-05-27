@@ -13,15 +13,15 @@ export default async function InvestmentsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
-  // Load preferences and ideas in parallel
-  // NOTE: AI ideas are now generated on-demand via button click, not on page load
-  const [prefs, savedIdeas] = await Promise.all([
-    getPreferences(user.id),
-    getUserInvestmentIdeas(user.id),
-  ]);
+  // Check if user has access to investments module
+  const prefs = await getPreferences();
+  if (!prefs.app_access?.includes("investments")) {
+    redirect("/home");
+  }
 
-  // Empty array - AI ideas generated on-demand
-  const aiIdeas: typeof savedIdeas = [];
+  // Load investment ideas
+  // NOTE: AI ideas are now generated on-demand via button click, not on page load
+  const savedIdeas = await getUserInvestmentIdeas(user.id);
 
   const menuUser = {
     name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
@@ -31,7 +31,7 @@ export default async function InvestmentsPage() {
 
   return (
     <div>
-      <PlatformMenu currentApp="hub" user={menuUser} />
+      <PlatformMenu currentApp="investments" user={menuUser} />
 
       <main style={{ maxWidth: 1400, margin: "0 auto", padding: "32px 28px 80px" }}>
         <Link
@@ -63,7 +63,7 @@ export default async function InvestmentsPage() {
 
         <InvestmentsClient
           savedIdeas={savedIdeas}
-          aiIdeas={aiIdeas}
+          aiIdeas={[]}
           enabledCategories={prefs.investment_categories}
         />
       </main>

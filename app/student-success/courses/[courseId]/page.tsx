@@ -49,7 +49,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
   ]);
 
   if (!courseResult.data) {
-    redirect("/home/student-support");
+    redirect("/student-success");
   }
 
   const course = courseResult.data;
@@ -68,7 +68,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
       >
         <div style={{ maxWidth: 1280, margin: "0 auto" }}>
           <Link
-            href="/home/student-support"
+            href="/student-success"
             style={{
               color: "var(--color-accent-dark)",
               textDecoration: "none",
@@ -77,7 +77,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
               display: "inline-block",
             }}
           >
-            ← Back to Student Support
+            ← Back to Student Success
           </Link>
           <h1 className="serif" style={{ fontSize: 36, margin: "0 0 8px 0", color: course.color_tag }}>
             {course.name}

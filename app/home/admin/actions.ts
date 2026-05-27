@@ -5,7 +5,7 @@ import { Resend } from "resend";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { logEvent } from "@/lib/usage";
 
-export type AppKey = "hub" | "health" | "finance";
+export type AppKey = "hub" | "health" | "finance" | "student-success" | "investments";
 
 async function sendUserEmail(to: string, subject: string, html: string, userId?: string) {
   if (!process.env.RESEND_API_KEY || !to) return;

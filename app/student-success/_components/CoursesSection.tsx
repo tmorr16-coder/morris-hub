@@ -63,7 +63,7 @@ export default function CoursesSection({ courses: initialCourses }: { courses: C
           {courses.map((course) => (
             <Link
               key={course.id}
-              href={`/home/student-support/courses/${course.id}`}
+              href={`/student-success/courses/${course.id}`}
               style={{ textDecoration: "none" }}
             >
               <div

@@ -23,7 +23,6 @@ import NewsWidget from "./_components/NewsWidget";
 import CityNewsWidget from "./_components/CityNewsWidget";
 import SportsWidget from "./_components/SportsWidget";
 import ClaudeTipCard from "./_components/ClaudeTipCard";
-import StudentSupportWidget from "./_components/StudentSupportWidget";
 import type { Todo } from "./actions";
 
 export default async function HomePage() {
@@ -95,23 +94,6 @@ export default async function HomePage() {
       <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 28px 80px" }}>
         {/* App-level controls */}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 8 }}>
-          <Link
-            href="/home/investments"
-            style={{
-              padding: "6px 14px",
-              borderRadius: 8,
-              border: "1px solid var(--color-rule)",
-              background: "transparent",
-              color: "var(--color-ink-2)",
-              fontSize: 12,
-              textDecoration: "none",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-            }}
-          >
-            💡 Investments
-          </Link>
           <Link
             href="/home/settings"
             style={{
@@ -204,8 +186,6 @@ export default async function HomePage() {
                     <ClaudeTipCard />
                   </Suspense>
                 );
-              case "student-support":
-                return <StudentSupportWidget key="student-support" />;
               default:
                 return null;
             }

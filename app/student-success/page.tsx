@@ -3,9 +3,10 @@ export const dynamic = "force-dynamic";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import SignOutButton from "../_components/SignOutButton";
+import SignOutButton from "@/app/home/_components/SignOutButton";
 import PlatformMenu from "@/components/PlatformMenu";
 import { Suspense } from "react";
+import { getPreferences } from "@/lib/prefs";
 import CoursesSection from "./_components/CoursesSection";
 import UpcomingRemindersSection from "./_components/UpcomingRemindersSection";
 
@@ -15,6 +16,12 @@ export default async function StudentSupportPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/");
+
+  // Check if user has access to student-success module
+  const prefs = await getPreferences();
+  if (!prefs.app_access?.includes("student-success")) {
+    redirect("/home");
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
@@ -48,19 +55,19 @@ export default async function StudentSupportPage() {
 
   return (
     <div>
-      <PlatformMenu currentApp="hub" user={menuUser} />
+      <PlatformMenu currentApp="student-success" user={menuUser} />
 
       <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 28px 80px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
           <div>
             <h1 className="serif" style={{ fontSize: 44, lineHeight: 1.05, marginBottom: 8 }}>
-              Student Support
+              Student Success
             </h1>
             <p style={{ color: "var(--color-ink-3)", fontSize: 14 }}>Manage courses, track assignments, and study smarter</p>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <Link
-              href="/home/settings"
+              href="/student-success/settings"
               style={{
                 padding: "6px 14px",
                 borderRadius: 8,

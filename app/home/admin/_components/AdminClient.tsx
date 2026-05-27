@@ -4,11 +4,13 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { inviteUser, cancelInvitation, updateUserRole, removeUser, updateIntegrationRequestStatus, approveUser, rejectUser, updateTicketStatus, updateAppAccess, type AppKey } from "../actions";
 
-const ALL_APPS: AppKey[] = ["hub", "health", "finance"];
+const ALL_APPS: AppKey[] = ["hub", "health", "finance", "student-success", "investments"];
 const APP_COLOR: Record<AppKey, string> = {
   hub: "#3B5C7F",
   health: "#4D6B3A",
   finance: "#8B6A47",
+  "student-success": "#6B5B95",
+  "investments": "#C97A3A",
 };
 
 export interface AdminUser {

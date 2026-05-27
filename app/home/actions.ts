@@ -332,7 +332,7 @@ export async function addInvestmentIdea(data: InvestmentIdeaInsert): Promise<{
     .single();
 
   if (error) return { error: error.message };
-  revalidatePath("/home/investments");
+  revalidatePath("/investments");
   return { idea: row };
 }
 
@@ -353,7 +353,7 @@ export async function updateInvestmentIdea(
     .eq("user_id", userId);
 
   if (error) return { error: error.message };
-  revalidatePath("/home/investments");
+  revalidatePath("/investments");
   return {};
 }
 
@@ -371,7 +371,7 @@ export async function deleteInvestmentIdea(id: string): Promise<{ error?: string
     .eq("user_id", userId);
 
   if (error) return { error: error.message };
-  revalidatePath("/home/investments");
+  revalidatePath("/investments");
   return {};
 }
 
@@ -389,7 +389,7 @@ export async function updateIdeaStatus(id: string, status: string): Promise<{ er
     .eq("user_id", userId);
 
   if (error) return { error: error.message };
-  revalidatePath("/home/investments");
+  revalidatePath("/investments");
   return {};
 }
 
@@ -408,7 +408,7 @@ export async function rateIdea(id: string, rating: number): Promise<{ error?: st
     .eq("user_id", userId);
 
   if (error) return { error: error.message };
-  revalidatePath("/home/investments");
+  revalidatePath("/investments");
   return {};
 }
 
@@ -438,7 +438,7 @@ export async function toggleFavorite(id: string): Promise<{ error?: string }> {
     .eq("user_id", userId);
 
   if (updateError) return { error: updateError.message };
-  revalidatePath("/home/investments");
+  revalidatePath("/investments");
   return {};
 }
 
@@ -456,6 +456,6 @@ export async function updateIdeaNotes(id: string, notes: string): Promise<{ erro
     .eq("user_id", userId);
 
   if (error) return { error: error.message };
-  revalidatePath("/home/investments");
+  revalidatePath("/investments");
   return {};
 }
