@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import MarkdownMessage from "@/components/MarkdownMessage";
 
 interface Message {
   role: "user" | "assistant";
@@ -139,20 +140,40 @@ export default function ResearchChat({ courseName, courseId }: ResearchChatProps
               justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
             }}
           >
-            <div
-              style={{
-                maxWidth: "80%",
-                padding: "12px 16px",
-                borderRadius: 8,
-                background: msg.role === "user" ? "var(--color-accent-dark)" : "var(--color-paper-deep)",
-                color: msg.role === "user" ? "white" : "var(--color-ink)",
-                fontSize: 13,
-                lineHeight: 1.5,
-                wordBreak: "break-word",
-              }}
-            >
-              {msg.content}
-            </div>
+            {msg.role === "user" ? (
+              <div
+                style={{
+                  maxWidth: "75%",
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  background: "var(--color-accent-dark)",
+                  color: "white",
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  wordBreak: "break-word",
+                }}
+              >
+                {msg.content}
+              </div>
+            ) : (
+              <div style={{ maxWidth: "85%", display: "flex", flexDirection: "column", gap: 2 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--color-ink-4)", letterSpacing: "0.08em", marginLeft: 2, marginBottom: 2 }}>
+                  ASSISTANT
+                </span>
+                <MarkdownMessage
+                  content={msg.content}
+                  style={{
+                    background: "var(--color-bg)",
+                    border: "1px solid var(--color-rule)",
+                    borderRadius: 8,
+                    padding: "12px 16px",
+                    fontSize: 13,
+                    color: "var(--color-ink)",
+                    wordBreak: "break-word",
+                  }}
+                />
+              </div>
+            )}
           </div>
         ))}
         {loading && (

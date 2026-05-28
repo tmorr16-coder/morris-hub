@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import type { InvestmentIdea } from "@/lib/investment-ideas-constants";
+import MarkdownMessage from "@/components/MarkdownMessage";
 
 interface Message {
   role: "user" | "assistant";
@@ -161,23 +162,40 @@ Provide helpful investment research guidance based on these ideas and filters.`;
           }}
         >
           {messages.map((m, i) => (
-            <div
-              key={i}
-              style={{
-                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                maxWidth: "90%",
-                padding: "10px 12px",
-                borderRadius: 10,
-                background: m.role === "user" ? "var(--color-accent)" : "var(--color-bg)",
-                color: m.role === "user" ? "#FFFDF8" : "var(--color-ink)",
-                border: m.role === "assistant" ? "1px solid var(--color-rule)" : "none",
-                fontSize: 12,
-                lineHeight: 1.5,
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {m.content}
-            </div>
+            m.role === "user" ? (
+              <div
+                key={i}
+                style={{
+                  alignSelf: "flex-end",
+                  maxWidth: "80%",
+                  padding: "9px 13px",
+                  borderRadius: 10,
+                  background: "var(--color-accent)",
+                  color: "#FFFDF8",
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}
+              >
+                {m.content}
+              </div>
+            ) : (
+              <div key={i} style={{ alignSelf: "flex-start", maxWidth: "92%", display: "flex", flexDirection: "column", gap: 3 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--color-ink-4)", letterSpacing: "0.08em", marginLeft: 2 }}>
+                  ASSISTANT
+                </span>
+                <MarkdownMessage
+                  content={m.content}
+                  style={{
+                    background: "var(--color-bg)",
+                    border: "1px solid var(--color-rule)",
+                    borderRadius: 10,
+                    padding: "10px 14px",
+                    fontSize: 12,
+                    color: "var(--color-ink)",
+                  }}
+                />
+              </div>
+            )
           ))}
           {sending && (
             <div style={{ alignSelf: "flex-start", padding: "8px 12px", fontSize: 12, color: "var(--color-ink-3)", fontStyle: "italic" }}>
