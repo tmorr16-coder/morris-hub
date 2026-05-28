@@ -4,7 +4,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getPreferences } from "@/lib/prefs";
-import { getUserInvestmentIdeas, generateInvestmentIdeas } from "@/lib/investment-ideas";
+import { getUserInvestmentIdeas } from "@/lib/investment-ideas";
 import PlatformMenu from "@/components/PlatformMenu";
 import InvestmentsClient from "./_components/InvestmentsClient";
 
@@ -63,7 +63,6 @@ export default async function InvestmentsPage() {
 
         <InvestmentsClient
           savedIdeas={savedIdeas}
-          aiIdeas={[]}
           enabledCategories={prefs.investment_categories}
         />
       </main>

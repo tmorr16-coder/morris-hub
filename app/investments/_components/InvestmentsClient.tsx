@@ -9,7 +9,6 @@ import InvestmentChat from "./InvestmentChat";
 
 interface InvestmentsClientProps {
   savedIdeas: InvestmentIdea[];
-  aiIdeas: InvestmentIdea[];
   enabledCategories: string[];
 }
 
@@ -18,7 +17,6 @@ type StatusFilter = "all" | "new" | "researching" | "pursuing" | "passed";
 
 export default function InvestmentsClient({
   savedIdeas,
-  aiIdeas,
   enabledCategories,
 }: InvestmentsClientProps) {
   // Initialize state with localStorage values on mount
@@ -98,10 +96,11 @@ export default function InvestmentsClient({
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [showChat, setShowChat] = useState(false);
-  const [generatedAiIdeas, setGeneratedAiIdeas] = useState<InvestmentIdea[]>(aiIdeas);
   const [generatingIdeas, setGeneratingIdeas] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [allIdeas, setAllIdeas] = useState<InvestmentIdea[]>([]);
+
+  const hasAiIdeas = allIdeas.some((i) => i.isAiGenerated);
 
   const handleGenerateIdeas = async () => {
     setGeneratingIdeas(true);
@@ -113,14 +112,18 @@ export default function InvestmentsClient({
         body: JSON.stringify({ categories: enabledCategories }),
       });
       if (!response.ok) throw new Error("Failed to generate ideas");
-      const ideas = await response.json();
-      setGeneratedAiIdeas(ideas);
+      const freshAiIdeas: InvestmentIdea[] = await response.json();
+      // Replace AI ideas in-place; keep user-created ones untouched
+      setAllIdeas((prev) => [
+        ...prev.filter((i) => !i.isAiGenerated),
+        ...freshAiIdeas,
+      ]);
     } catch (error) {
       setGenerateError(error instanceof Error ? error.message : "Error generating ideas");
     } finally {
       setGeneratingIdeas(false);
     }
-  };
+  };;
 
 
   // Save filters to localStorage whenever they change
@@ -181,13 +184,11 @@ export default function InvestmentsClient({
     });
   };
 
-  // Use generated ideas if available, otherwise use prop (which is empty on initial load)
-  const activeAiIdeas = generatedAiIdeas.length > 0 ? generatedAiIdeas : aiIdeas;
-
-  // Update allIdeas when savedIdeas or activeAiIdeas change
+  // Seed allIdeas from server-loaded ideas on mount
   useEffect(() => {
-    setAllIdeas([...activeAiIdeas, ...savedIdeas]);
-  }, [activeAiIdeas, savedIdeas]);
+    setAllIdeas(savedIdeas);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Update local ideas when favorites change
   const handleFavoriteToggle = (ideaId: string, newFavoriteStatus: boolean) => {
@@ -403,7 +404,7 @@ export default function InvestmentsClient({
             opacity: generatingIdeas ? 0.6 : 1,
           }}
         >
-          {generatingIdeas ? "Generating..." : "✨ Generate AI Ideas"}
+          {generatingIdeas ? "Generating..." : hasAiIdeas ? "↺ Refresh AI Ideas" : "✨ Generate AI Ideas"}
         </button>
 
         {/* Add New Idea Button */}
