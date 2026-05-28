@@ -33,12 +33,14 @@ export async function GET(request: NextRequest) {
     .eq("owner_user_id", user.id);
 
   if (error) {
-    // Detect missing table (migration not yet run)
+    // Detect missing table OR missing grants — both require the user to run SQL
     const isMissingTable =
-      error.code === "42P01" ||
+      error.code === "42P01" ||           // relation does not exist
+      error.code === "42501" ||           // permission denied
+      error.code === "PGRST200" ||
       error.message?.includes("does not exist") ||
       error.message?.includes("relation") ||
-      error.code === "PGRST200";
+      error.message?.includes("permission denied");
     return NextResponse.json(
       { error: error.message, setup_required: isMissingTable },
       { status: isMissingTable ? 503 : 500 }

@@ -14,6 +14,8 @@ export default async function SharedCoursePage({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
+  // Note: no app_access check here — recipients don't need student-success
+  // in their own prefs to view a course that was explicitly shared with them.
 
   const { courseId } = await params;
 

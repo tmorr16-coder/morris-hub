@@ -26,6 +26,7 @@ interface ShareTabProps {
 const MIGRATION_SQL = `-- Run this in your Supabase SQL Editor:
 -- https://supabase.com/dashboard/project/mrqutkseujckfhkjuzfr/sql/new
 
+-- Step 1: create the table (safe to re-run)
 create table if not exists student_support.course_shares (
   id                   uuid primary key default gen_random_uuid(),
   course_id            uuid not null references student_support.courses(id) on delete cascade,
@@ -39,7 +40,11 @@ create table if not exists student_support.course_shares (
 create index if not exists course_shares_owner_idx
   on student_support.course_shares(owner_user_id);
 create index if not exists course_shares_recipient_idx
-  on student_support.course_shares(shared_with_user_id);`;
+  on student_support.course_shares(shared_with_user_id);
+
+-- Step 2: grant access (fixes "permission denied" errors)
+grant all on student_support.course_shares to service_role;
+grant select, insert, update, delete on student_support.course_shares to authenticated;`;
 
 export default function ShareTab({ courseId, courseName, colorTag }: ShareTabProps) {
   const [users, setUsers] = useState<PlatformUser[]>([]);
@@ -47,6 +52,7 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null); // userId being saved
   const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null); // per-toggle error
   const [setupRequired, setSetupRequired] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -109,6 +115,8 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
   const handleToggleShare = async (targetUser: PlatformUser, enabled: boolean) => {
     const existing = getShare(targetUser.id);
 
+    setSaveError(null);
+
     if (!enabled && existing) {
       // Remove the share
       setSaving(targetUser.id);
@@ -116,10 +124,13 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
         const res = await fetch(`/api/student-support/shares?id=${existing.id}`, {
           method: "DELETE",
         });
-        if (!res.ok) throw new Error("Failed to remove share");
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || "Failed to remove share");
+        }
         setShares((prev) => prev.filter((s) => s.id !== existing.id));
       } catch (e) {
-        console.error(e);
+        setSaveError(e instanceof Error ? e.message : "Failed to remove share");
       } finally {
         setSaving(null);
       }
@@ -137,14 +148,17 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
             shareAssignments: existing?.share_assignments ?? true,
           }),
         });
-        if (!res.ok) throw new Error("Failed to create share");
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || "Failed to create share");
+        }
         const newShare: CourseShare = await res.json();
         setShares((prev) => {
           const without = prev.filter((s) => s.shared_with_user_id !== targetUser.id);
           return [...without, newShare];
         });
       } catch (e) {
-        console.error(e);
+        setSaveError(e instanceof Error ? e.message : "Failed to save share");
       } finally {
         setSaving(null);
       }
@@ -294,6 +308,27 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
 
   return (
     <div>
+      {/* Save error banner */}
+      {saveError && (
+        <div style={{
+          padding: "10px 14px",
+          borderRadius: 8,
+          background: "#fee2e2",
+          color: "#991b1b",
+          fontSize: 12,
+          marginBottom: 16,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}>
+          <span>⚠️ {saveError}</span>
+          <button
+            onClick={() => setSaveError(null)}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#991b1b", fontSize: 14, padding: 0 }}
+          >×</button>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <h2

@@ -46,21 +46,42 @@ export default async function StudentSupportPage() {
     service
       .schema("student_support")
       .from("course_shares")
-      .select("id, course_id, share_grades, share_assignments, courses:course_id(id, name, instructor, semester, color_tag), profiles:owner_user_id(full_name, email)")
+      .select("id, course_id, owner_user_id, share_grades, share_assignments, courses:course_id(id, name, instructor, semester, color_tag)")
       .eq("shared_with_user_id", user.id),
   ]);
 
   const courses = coursesResult.data ?? [];
   const reminders = remindersResult.data ?? [];
 
+  // Log shares error so it shows up in Vercel runtime logs
+  if (sharesResult.error) {
+    console.error("[student-success] course_shares query failed:", sharesResult.error.message, sharesResult.error.code);
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sharedCourses = (sharesResult.data ?? []).map((s: any) => ({
+  const rawShares = (sharesResult.data ?? []) as any[];
+
+  // Look up owner names from public.profiles (separate query — cross-schema joins
+  // don't work via PostgREST when the FK points to auth.users)
+  let ownerNames: Record<string, string> = {};
+  if (rawShares.length > 0) {
+    const ownerIds = [...new Set(rawShares.map((s: any) => s.owner_user_id as string))];
+    const { data: profileRows } = await service
+      .from("profiles")
+      .select("id, full_name, email")
+      .in("id", ownerIds);
+    for (const p of profileRows ?? []) {
+      ownerNames[p.id] = p.full_name || p.email || "a family member";
+    }
+  }
+
+  const sharedCourses = rawShares.map((s: any) => ({
     shareId: s.id,
     courseId: s.course_id,
     shareGrades: s.share_grades,
     shareAssignments: s.share_assignments,
     course: s.courses,
-    ownerName: s.profiles?.full_name || s.profiles?.email || "a family member",
+    ownerName: ownerNames[s.owner_user_id] ?? "a family member",
   }));
 
   const menuUser = {

@@ -2,6 +2,19 @@
 
 import { useState, useEffect, useCallback } from "react";
 
+// Map schedule item_type → course_reminders.type
+// All item types can become reminders; unmapped types default to "assignment"
+const REMINDER_TYPE_MAP: Record<string, string> = {
+  assignment: "assignment",
+  exam:       "test",
+  quiz:       "quiz",
+  practice:   "practice",
+  study:      "assignment",
+  reading:    "assignment",
+  review:     "assignment",
+  other:      "assignment",
+};
+
 interface ScheduleItem {
   id: string;
   schedule_id: string;
@@ -75,6 +88,8 @@ export default function ScheduleTab({ courseId, courseName, colorTag }: Schedule
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<ScheduleItem>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [addingReminderId, setAddingReminderId] = useState<string | null>(null);
+  const [remindedIds, setRemindedIds] = useState<Set<string>>(new Set());
 
   const loadSchedule = useCallback(async () => {
     setLoading(true);
@@ -153,6 +168,31 @@ export default function ScheduleTab({ courseId, courseName, colorTag }: Schedule
     const res = await fetch(`/api/student-support/schedule/items/${id}`, { method: "DELETE" });
     if (res.ok) setItems((prev) => prev.filter((i) => i.id !== id));
     setDeletingId(null);
+  };
+
+  const handleAddReminder = async (item: ScheduleItem) => {
+    if (!item.scheduled_date) return;
+    setAddingReminderId(item.id);
+    try {
+      const res = await fetch("/api/student-support/reminders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courseId,
+          type: REMINDER_TYPE_MAP[item.item_type] ?? "assignment",
+          title: item.title,
+          description: item.description ?? null,
+          due_date: item.scheduled_date,
+        }),
+      });
+      if (res.ok) {
+        setRemindedIds((prev) => new Set([...prev, item.id]));
+      }
+    } catch (e) {
+      console.error("Failed to add reminder", e);
+    } finally {
+      setAddingReminderId(null);
+    }
   };
 
   const grouped = groupByWeek(items);
@@ -406,7 +446,40 @@ export default function ScheduleTab({ courseId, courseName, colorTag }: Schedule
                       </div>
 
                       {/* Actions */}
-                      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      <div style={{ display: "flex", gap: 4, flexShrink: 0, alignItems: "center" }}>
+                        {/* Remind button — any item with a date can become a platform reminder */}
+                        {item.scheduled_date && (
+                          remindedIds.has(item.id) ? (
+                            <span style={{
+                              padding: "4px 8px",
+                              borderRadius: 4,
+                              fontSize: 11,
+                              color: "#16a34a",
+                              fontWeight: 600,
+                            }}>
+                              ✓ Reminded
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleAddReminder(item)}
+                              disabled={addingReminderId === item.id}
+                              title="Add to platform reminders"
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: 4,
+                                border: `1px solid ${colorTag}50`,
+                                background: `${colorTag}10`,
+                                color: colorTag,
+                                fontSize: 11,
+                                cursor: addingReminderId === item.id ? "default" : "pointer",
+                                opacity: addingReminderId === item.id ? 0.6 : 1,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {addingReminderId === item.id ? "…" : "🔔 Remind"}
+                            </button>
+                          )
+                        )}
                         <button
                           onClick={() => handleStartEdit(item)}
                           style={{
