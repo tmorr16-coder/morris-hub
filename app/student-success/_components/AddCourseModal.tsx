@@ -46,7 +46,8 @@ export default function AddCourseModal({ onClose, onCourseAdded }: AddCourseModa
       });
 
       if (!response.ok) {
-        throw new Error("Failed to create course");
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || `Failed to create course (${response.status})`);
       }
 
       const course = await response.json();

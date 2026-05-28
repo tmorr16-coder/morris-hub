@@ -64,7 +64,8 @@ export async function POST(request: NextRequest) {
     .select();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[student-support/courses POST] Supabase error:", error.message, error.code, error.details);
+    return NextResponse.json({ error: error.message, code: error.code }, { status: 500 });
   }
 
   return NextResponse.json(data[0], { status: 201 });
