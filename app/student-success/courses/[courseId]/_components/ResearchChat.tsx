@@ -10,10 +10,9 @@ interface Message {
 interface ResearchChatProps {
   courseName: string;
   courseId: string;
-  courseContext: string;
 }
 
-export default function ResearchChat({ courseName, courseId, courseContext }: ResearchChatProps) {
+export default function ResearchChat({ courseName, courseId }: ResearchChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -83,7 +82,6 @@ export default function ResearchChat({ courseName, courseId, courseContext }: Re
         body: JSON.stringify({
           message: userMessage,
           courseId,
-          courseContext,
           sessionId,
         }),
       });

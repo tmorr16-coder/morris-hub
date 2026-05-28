@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { message, courseId, courseContext, sessionId } = body;
+  const { message, courseId, sessionId } = body;
 
   if (!message) {
     return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -33,49 +33,120 @@ export async function POST(request: NextRequest) {
   const service = createServiceClient() as any;
 
   try {
-    // Get or create session
-    let currentSessionId = sessionId;
-    if (!currentSessionId) {
-      const { data: newSession, error: sessionError } = await service
+    // Fetch all courses + all content for this user in parallel with session management
+    const [allCoursesResult, sessionResult] = await Promise.all([
+      service
         .schema("student_support")
-        .from("research_chat_sessions")
-        .insert({ user_id: user.id, course_id: courseId })
-        .select("id")
-        .single();
+        .from("courses")
+        .select("id, name, description, instructor, semester")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: true }),
+      sessionId
+        ? Promise.resolve({ data: { id: sessionId } })
+        : service
+            .schema("student_support")
+            .from("research_chat_sessions")
+            .insert({ user_id: user.id, course_id: courseId })
+            .select("id")
+            .single(),
+    ]);
 
-      if (sessionError) {
-        console.error("Session creation error:", sessionError);
-        return NextResponse.json({ error: "Failed to create session" }, { status: 500 });
-      }
-      currentSessionId = newSession.id;
+    const allCourses: Array<{ id: string; name: string; description: string | null; instructor: string | null; semester: string | null }> =
+      allCoursesResult.data ?? [];
+
+    if (!sessionId && sessionResult.error) {
+      console.error("Session creation error:", sessionResult.error);
+      return NextResponse.json({ error: "Failed to create session" }, { status: 500 });
     }
 
-    // Fetch conversation history
-    const { data: messages, error: messagesError } = await service
-      .schema("student_support")
-      .from("research_chat_messages")
-      .select("*")
-      .eq("session_id", currentSessionId)
-      .order("created_at", { ascending: true });
+    const currentSessionId: string = sessionResult.data?.id ?? sessionId;
 
-    if (messagesError) {
-      console.error("Messages fetch error:", messagesError);
+    // Fetch all course content (including extracted text from uploads) across all courses
+    const courseIds = allCourses.map((c) => c.id);
+    const [messagesResult, allContentResult] = await Promise.all([
+      service
+        .schema("student_support")
+        .from("research_chat_messages")
+        .select("role, content")
+        .eq("session_id", currentSessionId)
+        .order("created_at", { ascending: true }),
+      courseIds.length > 0
+        ? service
+            .schema("student_support")
+            .from("course_content")
+            .select("course_id, type, title, description, content_url, extracted_text, is_uploaded")
+            .in("course_id", courseIds)
+            .order("created_at", { ascending: true })
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    if (messagesResult.error) {
+      console.error("Messages fetch error:", messagesResult.error);
       return NextResponse.json({ error: "Failed to fetch conversation" }, { status: 500 });
     }
 
-    // Build system prompt with course context
-    const systemPrompt = courseContext
-      ? `You are a research assistant helping a student with their coursework.
+    const messages = messagesResult.data ?? [];
+    const allContent: Array<{
+      course_id: string;
+      type: string;
+      title: string;
+      description: string | null;
+      content_url: string | null;
+      extracted_text: string | null;
+      is_uploaded: boolean;
+    }> = allContentResult.data ?? [];
 
-Course Context:
-${courseContext}
+    // Build rich system prompt using all courses and their content
+    const activeCourse = allCourses.find((c) => c.id === courseId);
 
-Help the student understand concepts, research topics, and prepare for their studies. Be educational, clear, and encourage deeper understanding.`
-      : `You are a research assistant helping a student with their studies. Help them understand concepts, research topics, and prepare for exams. Be educational, clear, and encourage deeper understanding.`;
+    const courseBlocks = allCourses
+      .map((course) => {
+        const isActive = course.id === courseId;
+        const courseContent = allContent.filter((c) => c.course_id === course.id);
+
+        let block = `### ${isActive ? "★ " : ""}${course.name}${course.semester ? ` (${course.semester})` : ""}${isActive ? " ← CURRENT COURSE" : ""}`;
+        if (course.instructor) block += `\nInstructor: ${course.instructor}`;
+        if (course.description) block += `\nDescription: ${course.description}`;
+
+        if (courseContent.length > 0) {
+          block += `\n\nCourse Materials (${courseContent.length} item${courseContent.length !== 1 ? "s" : ""}):`;
+          for (const item of courseContent) {
+            block += `\n\n  [${item.type.toUpperCase()}] ${item.title}`;
+            if (item.description) block += `\n  ${item.description}`;
+            if (item.content_url) block += `\n  URL: ${item.content_url}`;
+            if (item.extracted_text) {
+              // Include up to 3000 chars of extracted text per item
+              const excerpt = item.extracted_text.length > 3000
+                ? item.extracted_text.slice(0, 3000) + "\n  [... content continues ...]"
+                : item.extracted_text;
+              block += `\n\n  Full Content:\n  ${excerpt.replace(/\n/g, "\n  ")}`;
+            }
+          }
+        } else {
+          block += "\n  (No uploaded materials yet)";
+        }
+
+        return block;
+      })
+      .join("\n\n---\n\n");
+
+    const systemPrompt = `You are a research assistant helping a student with their coursework. You have access to all of their course materials across every course.
+
+${activeCourse ? `The student is currently viewing: **${activeCourse.name}**` : ""}
+
+## All Course Materials
+
+${courseBlocks}
+
+## Instructions
+- Draw on any of the above course materials when relevant to the student's question
+- If content from another course is relevant, mention which course it's from
+- Help the student understand concepts, make connections across courses, and prepare for their studies
+- Be educational, clear, and encourage deeper understanding`;
 
     // Prepare messages for Claude API (include history + new message)
     const conversationMessages: ChatMessage[] = [
-      ...(messages || []).map((m: any) => ({
+      ...messages.map((m: any) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       })),
@@ -93,32 +164,22 @@ Help the student understand concepts, research topics, and prepare for their stu
     const assistantMessage =
       response.content[0].type === "text" ? response.content[0].text : "Unable to generate response";
 
-    // Save user message
-    await service
-      .schema("student_support")
-      .from("research_chat_messages")
-      .insert({
-        session_id: currentSessionId,
-        role: "user",
-        content: message,
-      });
-
-    // Save assistant message
-    await service
-      .schema("student_support")
-      .from("research_chat_messages")
-      .insert({
-        session_id: currentSessionId,
-        role: "assistant",
-        content: assistantMessage,
-      });
-
-    // Update session updated_at
-    await service
-      .schema("student_support")
-      .from("research_chat_sessions")
-      .update({ updated_at: new Date().toISOString() })
-      .eq("id", currentSessionId);
+    // Save user + assistant messages and update session timestamp
+    await Promise.all([
+      service
+        .schema("student_support")
+        .from("research_chat_messages")
+        .insert({ session_id: currentSessionId, role: "user", content: message }),
+      service
+        .schema("student_support")
+        .from("research_chat_messages")
+        .insert({ session_id: currentSessionId, role: "assistant", content: assistantMessage }),
+      service
+        .schema("student_support")
+        .from("research_chat_sessions")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", currentSessionId),
+    ]);
 
     return NextResponse.json({
       sessionId: currentSessionId,

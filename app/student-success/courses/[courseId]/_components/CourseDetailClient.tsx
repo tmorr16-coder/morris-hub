@@ -124,7 +124,7 @@ export default function CourseDetailClient({
           />
         )}
 
-        {activeTab === "research" && <ResearchChat courseId={courseId} courseName={course.name} courseContext={course.description || ""} />}
+        {activeTab === "research" && <ResearchChat courseId={courseId} courseName={course.name} />}
       </div>
     </div>
   );
