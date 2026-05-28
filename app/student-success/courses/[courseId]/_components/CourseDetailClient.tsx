@@ -7,6 +7,7 @@ import FlashcardsTab from "./FlashcardsTab";
 import ResearchChat from "./ResearchChat";
 import ScheduleTab from "./ScheduleTab";
 import GradesTab from "./GradesTab";
+import ShareTab from "./ShareTab";
 
 interface Course {
   id: string;
@@ -49,7 +50,7 @@ interface CourseDetailClientProps {
   userId: string;
 }
 
-type TabType = "content" | "grades" | "schedule" | "reminders" | "flashcards" | "chat";
+type TabType = "content" | "grades" | "schedule" | "reminders" | "flashcards" | "chat" | "share";
 
 export default function CourseDetailClient({
   courseId,
@@ -71,6 +72,7 @@ export default function CourseDetailClient({
     { id: "reminders",  label: "⏰ Reminders" },
     { id: "flashcards", label: "🎯 Flashcards"},
     { id: "chat",       label: "💬 Course Chat"},
+    { id: "share",      label: "🔗 Share"     },
   ] as const;
 
   return (
@@ -138,6 +140,10 @@ export default function CourseDetailClient({
         )}
 
         {activeTab === "chat" && <ResearchChat courseId={courseId} courseName={course.name} />}
+
+        {activeTab === "share" && (
+          <ShareTab courseId={courseId} courseName={course.name} colorTag={course.color_tag} />
+        )}
       </div>
     </div>
   );

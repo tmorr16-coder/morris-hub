@@ -4,6 +4,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
+import PlatformMenu from "@/components/PlatformMenu";
 import CourseDetailClient from "./_components/CourseDetailClient";
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ courseId: string }> }) {
@@ -57,8 +58,16 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
   const reminders = remindersResult.data ?? [];
   const flashcardSets = flashcardSetsResult.data ?? [];
 
+  const menuUser = {
+    name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
+    email: user.email,
+    avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
+    isAdmin: false,
+  };
+
   return (
     <div style={{ background: "var(--color-bg)" }}>
+      <PlatformMenu currentApp="student-success" user={menuUser} />
       <div
         style={{
           background: `linear-gradient(135deg, ${course.color_tag}15 0%, ${course.color_tag}05 100%)`,

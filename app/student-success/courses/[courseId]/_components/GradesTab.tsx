@@ -56,7 +56,31 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [addingRow, setAddingRow] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    setGenerateError(null);
+    try {
+      const res = await fetch("/api/student-support/grades/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courseId }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Failed to generate grade components");
+      }
+      const data = await res.json();
+      setRows(data.components ?? []);
+    } catch (e) {
+      setGenerateError(e instanceof Error ? e.message : "Generation failed");
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const loadGrades = useCallback(async () => {
     setLoading(true);
@@ -312,6 +336,57 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
           </p>
         </div>
 
+        {/* Generate / Regenerate button */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            title={rows.length > 0 ? "Regenerate from course content" : "Generate grade structure from course content"}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 8,
+              border: "none",
+              background: generating ? "var(--color-paper-deep)" : colorTag,
+              color: "white",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: generating ? "default" : "pointer",
+              opacity: generating ? 0.7 : 1,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              transition: "opacity 0.15s",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {generating ? (
+              <>
+                <span style={{ display: "inline-flex", gap: 2 }}>
+                  <span style={{ animation: "blink 0.7s infinite" }}>•</span>
+                  <span style={{ animation: "blink 0.7s infinite 0.2s" }}>•</span>
+                  <span style={{ animation: "blink 0.7s infinite 0.4s" }}>•</span>
+                </span>
+                Generating…
+              </>
+            ) : rows.length > 0 ? (
+              "↺ Regenerate"
+            ) : (
+              "✨ Generate from Content"
+            )}
+          </button>
+          {generateError && (
+            <span style={{ fontSize: 11, color: "#dc2626", maxWidth: 220, textAlign: "right" }}>
+              {generateError}
+            </span>
+          )}
+        </div>
+        <style>{`
+          @keyframes blink {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+          }
+        `}</style>
+
         {/* Overall grade badge */}
         {rows.length > 0 && (
           <div style={{
@@ -375,23 +450,45 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
             No grade components yet
           </p>
           <p style={{ fontSize: 12, margin: "0 0 20px 0" }}>
-            Add categories like Homework, Midterm, or Final Exam to start tracking your grade.
+            Generate a grade structure from your course content, or add categories manually.
           </p>
-          <button
-            onClick={() => setShowSuggestions(true)}
-            style={{
-              padding: "8px 20px",
-              borderRadius: 8,
-              border: "none",
-              background: colorTag,
-              color: "white",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            + Add First Component
-          </button>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+            <button
+              onClick={handleGenerate}
+              disabled={generating}
+              style={{
+                padding: "8px 20px",
+                borderRadius: 8,
+                border: "none",
+                background: generating ? "var(--color-paper-deep)" : colorTag,
+                color: "white",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: generating ? "default" : "pointer",
+                opacity: generating ? 0.7 : 1,
+              }}
+            >
+              {generating ? "Generating…" : "✨ Generate from Content"}
+            </button>
+            <button
+              onClick={() => setShowSuggestions(true)}
+              style={{
+                padding: "8px 20px",
+                borderRadius: 8,
+                border: `1px dashed ${colorTag}`,
+                background: "transparent",
+                color: colorTag,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              + Add Manually
+            </button>
+          </div>
+          {generateError && (
+            <p style={{ fontSize: 12, color: "#dc2626", marginTop: 12 }}>{generateError}</p>
+          )}
         </div>
       ) : (
         /* Grade table */
