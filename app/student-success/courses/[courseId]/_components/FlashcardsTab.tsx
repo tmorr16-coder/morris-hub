@@ -11,6 +11,7 @@ interface FlashcardSet {
 
 interface FlashcardsTabProps {
   courseId: string;
+  colorTag: string;
   flashcardSets: FlashcardSet[];
   onSetAdded: (set: FlashcardSet) => void;
   onSetDeleted: (id: string) => void;
@@ -18,6 +19,7 @@ interface FlashcardsTabProps {
 
 export default function FlashcardsTab({
   courseId,
+  colorTag,
   flashcardSets,
   onSetAdded,
   onSetDeleted,
@@ -81,6 +83,8 @@ export default function FlashcardsTab({
         <FlashcardSetViewer
           setId={selectedSetId}
           setName={set.name}
+          courseId={courseId}
+          colorTag={colorTag}
           onBack={() => setSelectedSetId(null)}
           onSetDeleted={() => {
             handleDeleteSet(selectedSetId);

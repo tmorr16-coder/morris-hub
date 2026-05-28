@@ -46,7 +46,7 @@ export default function ResearchChat({ courseName, courseId }: ResearchChatProps
             setMessages([
               {
                 role: "assistant",
-                content: `Hi! I'm your research assistant for ${courseName}. I can help you understand concepts, research topics, and prepare for your studies. What would you like to learn about?`,
+                content: `Hi! I'm your course assistant for **${courseName}**. I have access to all your uploaded materials. Ask me anything — concepts, study help, exam prep, or questions about your content.`,
               },
             ]);
           }
@@ -231,7 +231,7 @@ export default function ResearchChat({ courseName, courseId }: ResearchChatProps
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={loading}
-            placeholder="Ask a question about the course..."
+            placeholder="Ask anything about this course…"
             style={{
               flex: 1,
               padding: "10px 12px",

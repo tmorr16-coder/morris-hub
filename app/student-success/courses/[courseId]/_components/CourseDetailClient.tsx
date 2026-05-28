@@ -6,6 +6,7 @@ import RemindersTab from "./RemindersTab";
 import FlashcardsTab from "./FlashcardsTab";
 import ResearchChat from "./ResearchChat";
 import ScheduleTab from "./ScheduleTab";
+import GradesTab from "./GradesTab";
 
 interface Course {
   id: string;
@@ -48,7 +49,7 @@ interface CourseDetailClientProps {
   userId: string;
 }
 
-type TabType = "content" | "schedule" | "reminders" | "flashcards" | "research";
+type TabType = "content" | "grades" | "schedule" | "reminders" | "flashcards" | "chat";
 
 export default function CourseDetailClient({
   courseId,
@@ -64,11 +65,12 @@ export default function CourseDetailClient({
   const [flashcardSets, setFlashcardSets] = useState(initialFlashcardSets);
 
   const tabs = [
-    { id: "content",   label: "📚 Content"  },
-    { id: "schedule",  label: "📅 Schedule" },
-    { id: "reminders", label: "⏰ Reminders" },
-    { id: "flashcards",label: "🎯 Flashcards"},
-    { id: "research",  label: "🔍 Research Chat" },
+    { id: "content",    label: "📚 Content"   },
+    { id: "grades",     label: "📊 Grades"    },
+    { id: "schedule",   label: "📅 Schedule"  },
+    { id: "reminders",  label: "⏰ Reminders" },
+    { id: "flashcards", label: "🎯 Flashcards"},
+    { id: "chat",       label: "💬 Course Chat"},
   ] as const;
 
   return (
@@ -117,9 +119,14 @@ export default function CourseDetailClient({
           />
         )}
 
+        {activeTab === "grades" && (
+          <GradesTab courseId={courseId} colorTag={course.color_tag} />
+        )}
+
         {activeTab === "flashcards" && (
           <FlashcardsTab
             courseId={courseId}
+            colorTag={course.color_tag}
             flashcardSets={flashcardSets}
             onSetAdded={(newSet) => setFlashcardSets([...flashcardSets, newSet])}
             onSetDeleted={(id) => setFlashcardSets(flashcardSets.filter((s) => s.id !== id))}
@@ -130,7 +137,7 @@ export default function CourseDetailClient({
           <ScheduleTab courseId={courseId} courseName={course.name} colorTag={course.color_tag} />
         )}
 
-        {activeTab === "research" && <ResearchChat courseId={courseId} courseName={course.name} />}
+        {activeTab === "chat" && <ResearchChat courseId={courseId} courseName={course.name} />}
       </div>
     </div>
   );
