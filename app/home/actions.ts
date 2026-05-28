@@ -223,6 +223,28 @@ export async function deleteReminder(id: string): Promise<{ error?: string }> {
   return {};
 }
 
+/**
+ * Mark a student_support.course_reminder as completed from the hub widget.
+ * This is separate from hub.reminders because it lives in a different schema.
+ */
+export async function completeCourseReminder(id: string): Promise<{ error?: string }> {
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: "Not authenticated" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const { error } = await service
+    .schema("student_support")
+    .from("course_reminders")
+    .update({ is_completed: true, completed_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (error) return { error: error.message };
+  revalidatePath("/home");
+  return {};
+}
+
 export async function updateReminder(
   id: string,
   updates: { next_steps?: string[] }

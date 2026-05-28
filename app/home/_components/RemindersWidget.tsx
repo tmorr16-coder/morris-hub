@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { Reminder, Recurrence, Category } from "@/lib/reminders";
-import { addReminder, completeReminder, snoozeReminder, deleteReminder, updateReminder } from "../actions";
+import { addReminder, completeReminder, completeCourseReminder, snoozeReminder, deleteReminder, updateReminder } from "../actions";
 
 const CATEGORY_ICON: Record<Category, string> = {
   bill: "💸",
@@ -125,9 +125,14 @@ export default function RemindersWidget({
   const [pending, startTransition] = useTransition();
 
   function handleComplete(id: string) {
+    const reminder = reminders.find((r) => r.id === id);
     setReminders((prev) => prev.filter((r) => r.id !== id));
     startTransition(async () => {
-      await completeReminder(id);
+      if (reminder?.source_app === "student-success") {
+        await completeCourseReminder(id);
+      } else {
+        await completeReminder(id);
+      }
     });
   }
 
@@ -200,6 +205,13 @@ export default function RemindersWidget({
           {reminders.map((r, idx) => {
             const due = formatDue(r.due_at, tz);
             const isExpanded = expandedId === r.id;
+            const isCourse = r.source_app === "student-success";
+
+            const COURSE_TYPE_EMOJI: Record<string, string> = {
+              test: "📝", assignment: "📋", quiz: "❓",
+              practice: "🔁", extra_credit: "⭐",
+            };
+
             return (
               <div key={r.id}>
                 <div
@@ -211,20 +223,49 @@ export default function RemindersWidget({
                     gap: 10,
                   }}
                 >
-                  <span style={{ fontSize: 14, color: CATEGORY_COLOR[r.category], flexShrink: 0, width: 18, textAlign: "center" }}>
-                    {CATEGORY_ICON[r.category]}
+                  {/* Icon — course type emoji or category icon */}
+                  <span style={{ fontSize: 14, color: isCourse ? "#6B5B95" : CATEGORY_COLOR[r.category], flexShrink: 0, width: 18, textAlign: "center" }}>
+                    {isCourse
+                      ? (r.reminder_type ? COURSE_TYPE_EMOJI[r.reminder_type] ?? "📚" : "📚")
+                      : CATEGORY_ICON[r.category]}
                   </span>
+
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "var(--color-ink)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {r.title}
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: "var(--color-ink)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          maxWidth: "100%",
+                        }}
+                      >
+                        {r.title}
+                      </div>
+                      {/* Course badge */}
+                      {isCourse && r.course_name && (
+                        <a
+                          href={`/student-success/courses/${r.course_id}`}
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 600,
+                            padding: "1px 5px",
+                            borderRadius: 8,
+                            background: "#6B5B9520",
+                            color: "#6B5B95",
+                            border: "1px solid #6B5B9530",
+                            textDecoration: "none",
+                            whiteSpace: "nowrap",
+                            flexShrink: 0,
+                            letterSpacing: "0.04em",
+                          }}
+                          title={`Go to ${r.course_name}`}
+                        >
+                          📚 {r.course_name}
+                        </a>
+                      )}
                     </div>
                     <div style={{ fontSize: 10, color: due.color, marginTop: 1 }}>
                       {due.text}
@@ -233,42 +274,53 @@ export default function RemindersWidget({
                       )}
                     </div>
                   </div>
+
                   <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                    <button
-                      onClick={() => setExpandedId(isExpanded ? null : r.id)}
-                      disabled={pending}
-                      title="Show details"
-                      style={iconBtn}
-                    >
-                      {isExpanded ? "▼" : "▶"}
-                    </button>
+                    {/* Expand — only for hub reminders (course reminders have no next_steps) */}
+                    {!isCourse && (
+                      <button
+                        onClick={() => setExpandedId(isExpanded ? null : r.id)}
+                        disabled={pending}
+                        title="Show details"
+                        style={iconBtn}
+                      >
+                        {isExpanded ? "▼" : "▶"}
+                      </button>
+                    )}
+                    {/* Complete */}
                     <button
                       onClick={() => handleComplete(r.id)}
                       disabled={pending}
-                      title="Done"
+                      title="Mark done"
                       style={iconBtn}
                     >
                       ✓
                     </button>
-                    <button
-                      onClick={() => handleSnooze(r.id, 24)}
-                      disabled={pending}
-                      title="Snooze 1 day"
-                      style={iconBtn}
-                    >
-                      ⏰
-                    </button>
-                    <button
-                      onClick={() => handleDelete(r.id)}
-                      disabled={pending}
-                      title="Delete"
-                      style={{ ...iconBtn, color: "var(--color-ink-4)" }}
-                    >
-                      ×
-                    </button>
+                    {/* Snooze — hub reminders only */}
+                    {!isCourse && (
+                      <button
+                        onClick={() => handleSnooze(r.id, 24)}
+                        disabled={pending}
+                        title="Snooze 1 day"
+                        style={iconBtn}
+                      >
+                        ⏰
+                      </button>
+                    )}
+                    {/* Delete — hub reminders only (course reminders are managed in Student Success) */}
+                    {!isCourse && (
+                      <button
+                        onClick={() => handleDelete(r.id)}
+                        disabled={pending}
+                        title="Delete"
+                        style={{ ...iconBtn, color: "var(--color-ink-4)" }}
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                 </div>
-                {isExpanded && (
+                {isExpanded && !isCourse && (
                   <ReminderDetails
                     reminder={r}
                     onUpdateNextSteps={handleUpdateNextSteps}

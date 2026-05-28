@@ -20,6 +20,10 @@ export interface Reminder {
   completed_at: string | null;
   snooze_until: string | null;
   next_steps?: string[] | null;
+  // Populated only for course reminders (source_app === "student-success")
+  course_name?: string | null;
+  course_id?: string | null;
+  reminder_type?: string | null;
 }
 
 const RECURRENCE_DAYS: Record<Recurrence, number | null> = {
@@ -89,7 +93,7 @@ export async function getUpcomingReminders(
 
 /**
  * Fetch course reminders from student_support schema and transform to hub.Reminder format
- * for display in the hub reminders widget
+ * for display in the hub reminders widget.
  */
 export async function getCourseReminders(
   userId: string,
@@ -100,10 +104,10 @@ export async function getCourseReminders(
   const horizon = new Date(Date.now() + daysAhead * 86_400_000).toISOString().split("T")[0];
   const today = new Date().toISOString().split("T")[0];
 
-  // Get all courses for this user with their reminders
-  const { data: courseReminders } = await service
+  // Query course_reminders directly by user_id — join course name for display
+  const { data: rows, error } = await service
     .schema("student_support")
-    .from("reminders")
+    .from("course_reminders")
     .select(`
       id,
       type,
@@ -112,51 +116,55 @@ export async function getCourseReminders(
       due_date,
       due_time,
       is_completed,
-      courses(id, name, user_id)
+      courses:course_id (id, name)
     `)
-    .eq("courses.user_id", userId)
+    .eq("user_id", userId)
     .gte("due_date", today)
     .lte("due_date", horizon)
     .eq("is_completed", false)
     .order("due_date", { ascending: true });
 
-  if (!courseReminders || courseReminders.length === 0) return [];
+  if (error) {
+    console.error("[getCourseReminders]", error.message);
+    return [];
+  }
+  if (!rows || rows.length === 0) return [];
 
-  // Transform course reminders to hub.Reminder format
-  const reminders: Reminder[] = courseReminders
-    .filter((r: any) => r.courses?.id) // Only include reminders with valid course
-    .map((r: any) => {
-      // Convert due_date + due_time to ISO format
-      let due_at = `${r.due_date}T00:00:00Z`;
-      if (r.due_time) {
-        const [hour, minute] = r.due_time.split(":");
-        due_at = `${r.due_date}T${hour}:${minute}:00Z`;
-      }
+  // Map reminder type → hub category (for the widget icon)
+  const typeToCategory: Record<string, Category> = {
+    test:         "appointment",
+    assignment:   "personal",
+    quiz:         "appointment",
+    practice:     "workout",
+    extra_credit: "personal",
+  };
 
-      // Map reminder type to category icon
-      const typeCategory: Record<string, Category> = {
-        test: "appointment",
-        assignment: "personal",
-        quiz: "appointment",
-        practice: "workout",
-        extra_credit: "personal",
-      };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (rows as any[]).map((r) => {
+    // Build ISO timestamp from date + optional time
+    let due_at = `${r.due_date}T23:59:00Z`;
+    if (r.due_time) {
+      const [h, m] = r.due_time.split(":");
+      due_at = `${r.due_date}T${h}:${m}:00Z`;
+    }
 
-      return {
-        id: r.id,
-        user_id: userId,
-        title: `${r.title} (${r.courses.name})`,
-        notes: r.description ?? null,
-        due_at,
-        recurrence: "once" as Recurrence,
-        category: typeCategory[r.type] || "general",
-        source_app: "hub" as SourceApp,
-        completed_at: r.is_completed ? new Date().toISOString() : null,
-        snooze_until: null,
-      };
-    });
-
-  return reminders;
+    return {
+      id:           r.id,
+      user_id:      userId,
+      title:        r.title,
+      notes:        r.description ?? null,
+      due_at,
+      recurrence:   "once"            as Recurrence,
+      category:     typeToCategory[r.type] ?? "general" as Category,
+      source_app:   "student-success" as SourceApp,
+      completed_at: null,
+      snooze_until: null,
+      // Extra fields for widget display
+      course_name:    r.courses?.name  ?? null,
+      course_id:      r.courses?.id    ?? null,
+      reminder_type:  r.type           ?? null,
+    } satisfies Reminder;
+  });
 }
 
 /**
