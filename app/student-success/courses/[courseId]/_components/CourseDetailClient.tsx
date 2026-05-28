@@ -5,6 +5,7 @@ import ContentTab from "./ContentTab";
 import RemindersTab from "./RemindersTab";
 import FlashcardsTab from "./FlashcardsTab";
 import ResearchChat from "./ResearchChat";
+import ScheduleTab from "./ScheduleTab";
 
 interface Course {
   id: string;
@@ -47,7 +48,7 @@ interface CourseDetailClientProps {
   userId: string;
 }
 
-type TabType = "content" | "reminders" | "flashcards" | "research";
+type TabType = "content" | "schedule" | "reminders" | "flashcards" | "research";
 
 export default function CourseDetailClient({
   courseId,
@@ -63,10 +64,11 @@ export default function CourseDetailClient({
   const [flashcardSets, setFlashcardSets] = useState(initialFlashcardSets);
 
   const tabs = [
-    { id: "content", label: "📚 Course Content", icon: "📚" },
-    { id: "reminders", label: "⏰ Reminders", icon: "⏰" },
-    { id: "flashcards", label: "🎯 Flashcards", icon: "🎯" },
-    { id: "research", label: "🔍 Research Chat", icon: "🔍" },
+    { id: "content",   label: "📚 Content"  },
+    { id: "schedule",  label: "📅 Schedule" },
+    { id: "reminders", label: "⏰ Reminders" },
+    { id: "flashcards",label: "🎯 Flashcards"},
+    { id: "research",  label: "🔍 Research Chat" },
   ] as const;
 
   return (
@@ -122,6 +124,10 @@ export default function CourseDetailClient({
             onSetAdded={(newSet) => setFlashcardSets([...flashcardSets, newSet])}
             onSetDeleted={(id) => setFlashcardSets(flashcardSets.filter((s) => s.id !== id))}
           />
+        )}
+
+        {activeTab === "schedule" && (
+          <ScheduleTab courseId={courseId} courseName={course.name} colorTag={course.color_tag} />
         )}
 
         {activeTab === "research" && <ResearchChat courseId={courseId} courseName={course.name} />}
