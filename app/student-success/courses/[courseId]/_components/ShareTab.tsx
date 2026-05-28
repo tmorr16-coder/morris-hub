@@ -23,25 +23,59 @@ interface ShareTabProps {
   colorTag: string;
 }
 
+const MIGRATION_SQL = `-- Run this in your Supabase SQL Editor:
+-- https://supabase.com/dashboard/project/mrqutkseujckfhkjuzfr/sql/new
+
+create table if not exists student_support.course_shares (
+  id                   uuid primary key default gen_random_uuid(),
+  course_id            uuid not null references student_support.courses(id) on delete cascade,
+  owner_user_id        uuid not null references auth.users(id) on delete cascade,
+  shared_with_user_id  uuid not null references auth.users(id) on delete cascade,
+  share_grades         boolean not null default true,
+  share_assignments    boolean not null default true,
+  created_at           timestamptz not null default now(),
+  unique (course_id, shared_with_user_id)
+);
+create index if not exists course_shares_owner_idx
+  on student_support.course_shares(owner_user_id);
+create index if not exists course_shares_recipient_idx
+  on student_support.course_shares(shared_with_user_id);`;
+
 export default function ShareTab({ courseId, courseName, colorTag }: ShareTabProps) {
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [shares, setShares] = useState<CourseShare[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null); // userId being saved
   const [error, setError] = useState<string | null>(null);
+  const [setupRequired, setSetupRequired] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Load platform users + current shares in parallel
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       setError(null);
+      setSetupRequired(false);
       try {
         const [usersRes, sharesRes] = await Promise.all([
           fetch("/api/student-support/platform-users"),
           fetch(`/api/student-support/shares?courseId=${courseId}`),
         ]);
-        if (!usersRes.ok) throw new Error("Failed to load users");
-        if (!sharesRes.ok) throw new Error("Failed to load shares");
+
+        // Check for missing-table (setup required) vs real errors
+        if (!sharesRes.ok) {
+          const body = await sharesRes.json().catch(() => ({}));
+          if (body.setup_required || sharesRes.status === 503) {
+            setSetupRequired(true);
+            setLoading(false);
+            return;
+          }
+          throw new Error(body.error || "Failed to load shares");
+        }
+        if (!usersRes.ok) {
+          throw new Error("Failed to load platform users");
+        }
+
         const [usersData, sharesData] = await Promise.all([
           usersRes.json(),
           sharesRes.json(),
@@ -56,6 +90,16 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
     };
     load();
   }, [courseId]);
+
+  const handleCopySQL = async () => {
+    try {
+      await navigator.clipboard.writeText(MIGRATION_SQL);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback: select the text
+    }
+  };
 
   const getShare = (userId: string): CourseShare | undefined =>
     shares.find((s) => s.shared_with_user_id === userId);
@@ -143,6 +187,91 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
     return (
       <div style={{ color: "var(--color-ink-3)", fontSize: 13, paddingTop: 24 }}>
         Loading sharing settings…
+      </div>
+    );
+  }
+
+  // ── Database setup required ─────────────────────────────────────
+  if (setupRequired) {
+    return (
+      <div>
+        <div style={{ marginBottom: 20 }}>
+          <h2 className="serif" style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px 0" }}>
+            Share Course
+          </h2>
+        </div>
+        <div style={{
+          background: "#fffbeb",
+          border: "1px solid #f59e0b",
+          borderRadius: 10,
+          padding: "20px 24px",
+          marginBottom: 16,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <span style={{ fontSize: 20 }}>⚠️</span>
+            <strong style={{ fontSize: 14, color: "#92400e" }}>One-time database setup needed</strong>
+          </div>
+          <p style={{ fontSize: 13, color: "#78350f", margin: "0 0 16px 0", lineHeight: 1.6 }}>
+            The sharing table hasn&apos;t been created yet. Copy the SQL below and run it in your{" "}
+            <a
+              href="https://supabase.com/dashboard/project/mrqutkseujckfhkjuzfr/sql/new"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "#92400e", fontWeight: 600 }}
+            >
+              Supabase SQL Editor ↗
+            </a>
+            , then refresh this page.
+          </p>
+          <div style={{ position: "relative" }}>
+            <pre style={{
+              background: "#1e1e2e",
+              color: "#cdd6f4",
+              borderRadius: 8,
+              padding: "14px 16px",
+              fontSize: 11,
+              lineHeight: 1.6,
+              overflowX: "auto",
+              margin: 0,
+              fontFamily: "monospace",
+            }}>
+              {MIGRATION_SQL}
+            </pre>
+            <button
+              onClick={handleCopySQL}
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                padding: "4px 10px",
+                borderRadius: 5,
+                border: "none",
+                background: copied ? "#16a34a" : "#6B5B95",
+                color: "white",
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {copied ? "✓ Copied!" : "Copy SQL"}
+            </button>
+          </div>
+        </div>
+        <button
+          onClick={() => { setLoading(true); setSetupRequired(false); setTimeout(() => window.location.reload(), 100); }}
+          style={{
+            padding: "8px 18px",
+            borderRadius: 7,
+            border: `1px solid ${colorTag}`,
+            background: "transparent",
+            color: colorTag,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          ↺ Retry after running SQL
+        </button>
       </div>
     );
   }

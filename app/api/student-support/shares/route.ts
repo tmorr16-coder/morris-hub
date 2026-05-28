@@ -32,7 +32,18 @@ export async function GET(request: NextRequest) {
     .eq("course_id", courseId)
     .eq("owner_user_id", user.id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // Detect missing table (migration not yet run)
+    const isMissingTable =
+      error.code === "42P01" ||
+      error.message?.includes("does not exist") ||
+      error.message?.includes("relation") ||
+      error.code === "PGRST200";
+    return NextResponse.json(
+      { error: error.message, setup_required: isMissingTable },
+      { status: isMissingTable ? 503 : 500 }
+    );
+  }
 
   return NextResponse.json(data ?? []);
 }
