@@ -61,6 +61,23 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
   const [visibleWidgets, setVisibleWidgets] = useState<WidgetId[]>(
     initialPrefs.visible_widgets ?? [...ALL_WIDGETS]
   );
+  const [appAccess, setAppAccess] = useState<string[]>(
+    initialPrefs.app_access ?? ["hub", "health", "finance", "student-success", "investments"]
+  );
+
+  const AVAILABLE_MODULES = [
+    { id: "hub", label: "Hub", description: "Home dashboard and core features" },
+    { id: "health", label: "Health", description: "Health tracking and workouts" },
+    { id: "finance", label: "Finance", description: "Budget and account management" },
+    { id: "student-success", label: "Student Success", description: "Courses and study materials" },
+    { id: "investments", label: "Investments", description: "Investment ideas and tracking" },
+  ];
+
+  function toggleModule(moduleId: string) {
+    setAppAccess((prev) =>
+      prev.includes(moduleId) ? prev.filter((m) => m !== moduleId) : [...prev, moduleId]
+    );
+  }
 
   function moveWidget(id: WidgetId, dir: -1 | 1) {
     setVisibleWidgets((prev) => {
@@ -176,6 +193,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         investment_categories: investmentCategories,
         visible_widgets: visibleWidgets,
         reminder_categories: reminderCats,
+        app_access: appAccess,
       });
       if (res.error) setError(res.error);
       else {
@@ -224,6 +242,27 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
                 style={{ fontSize: 11, padding: "3px 9px", borderRadius: 12, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-accent)", cursor: "pointer", fontFamily: "inherit" }}
               >Show</button>
             </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Module access */}
+      <section style={card}>
+        <SectionHeader title="App access" subtitle="Which modules you can access" />
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {AVAILABLE_MODULES.map((module) => (
+            <label key={module.id} style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer", padding: "10px 12px", borderRadius: 8, background: "var(--color-bg)", border: "1px solid var(--color-rule)" }}>
+              <input
+                type="checkbox"
+                checked={appAccess.includes(module.id)}
+                onChange={() => toggleModule(module.id)}
+                style={{ marginTop: 2, cursor: "pointer", width: 18, height: 18 }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)" }}>{module.label}</div>
+                <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 2 }}>{module.description}</div>
+              </div>
+            </label>
           ))}
         </div>
       </section>

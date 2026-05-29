@@ -118,6 +118,7 @@ export async function savePreferences(data: {
   investment_categories?: string[];
   visible_widgets?: string[];
   reminder_categories?: string[];
+  app_access?: string[];
   phone_number?: string | null;
   sms_notifications_enabled?: boolean;
   reminder_lead_days?: number;
