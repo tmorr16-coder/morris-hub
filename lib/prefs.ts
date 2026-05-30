@@ -59,7 +59,7 @@ export async function getPreferences(userId: string): Promise<Preferences> {
       "tech",
       "other",
     ];
-    if (!p.app_access?.length) p.app_access = ["hub", "health", "finance", "student-success", "investments"];
+    if (!p.app_access?.length) p.app_access = ["hub", "health", "finance", "student-success", "investments", "bible"];
     return p;
   }
 
@@ -89,7 +89,7 @@ export async function getPreferences(userId: string): Promise<Preferences> {
     investment_categories: ["stocks", "real_estate", "transportation", "tech", "other"],
     visible_widgets: [...ALL_WIDGETS],
     reminder_categories: [...DEFAULT_REMINDER_CATEGORIES],
-    app_access: ["hub", "health", "finance", "student-success", "investments"],
+    app_access: ["hub", "health", "finance", "student-success", "investments", "bible"],
     phone_number: null,
     sms_notifications_enabled: true,
     reminder_lead_days: 3,

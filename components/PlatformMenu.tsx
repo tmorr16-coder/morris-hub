@@ -10,6 +10,7 @@ const APPS = [
   { key: "finance",          label: "Finance",          href: "https://finance.morrisai.family/dashboard", dot: "#8B6A47" },
   { key: "investments",      label: "Investments",      href: "https://morrisai.family/investments",       dot: "#C97A3A" },
   { key: "student-success",  label: "Student Success",  href: "https://morrisai.family/student-success",   dot: "#6B5B95" },
+  { key: "bible",            label: "Bible",            href: "https://bible.morrisai.family/dashboard",   dot: "#6B3B7C" },
 ];
 
 export interface MenuUser {
@@ -23,7 +24,7 @@ export default function PlatformMenu({
   currentApp,
   user,
 }: {
-  currentApp: "hub" | "health" | "finance" | "investments" | "student-success";
+  currentApp: "hub" | "health" | "finance" | "investments" | "student-success" | "bible";
   user?: MenuUser | null;
 }) {
   return (
