@@ -305,35 +305,54 @@ function parseRss(xml: string, sourceName: string, sourceId: string): RssArticle
     const block = m[1];
 
     const title = decode(tag(block, "title"));
-    const link  = tag(block, "link") || attrHref(block, "link") || tag(block, "guid");
-    const desc  = decode(stripTags(tag(block, "description") || tag(block, "summary") || tag(block, "content")));
+
+    // Atom: prefer <link rel="alternate" href="…"/> over <link rel="self" href="…"/>
+    // RSS 2.0: <link>https://…</link>
+    const link = atomAlternateHref(block) || tag(block, "link") || tag(block, "guid");
+
+    const rawDesc = tag(block, "description") || tag(block, "summary") || tag(block, "content");
+    const desc  = decode(stripTags(rawDesc));
     const date  = tag(block, "pubDate") || tag(block, "published") || tag(block, "updated") || tag(block, "dc:date");
 
     if (!title || !link) continue;
     articles.push({
-      title,
-      url: link,
-      summary: desc.slice(0, 200).trim(),
-      pubDate: date ? new Date(date).toISOString() : new Date().toISOString(),
+      title: decode(title),
+      url: link.trim(),
+      summary: desc.slice(0, 240).trim(),
+      pubDate: date ? (() => { try { return new Date(date).toISOString(); } catch { return new Date().toISOString(); } })() : new Date().toISOString(),
       sourceName,
       sourceId,
     });
-    if (articles.length >= 6) break;
+    if (articles.length >= 7) break;
   }
   return articles;
 }
 
 function tag(xml: string, name: string): string {
-  const re = new RegExp(`<${name}[^>]*>([\\s\\S]*?)<\\/${name}>`, "i");
+  // Match both <tag>…</tag> and <ns:tag>…</ns:tag>
+  const re = new RegExp(`<(?:[a-z]+:)?${name}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/(?:[a-z]+:)?${name}>`, "i");
   const m = re.exec(xml);
   if (!m) return "";
   return m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
 }
 
-function attrHref(xml: string, name: string): string {
-  const re = new RegExp(`<${name}[^>]+href=["']([^"']+)["']`, "i");
-  const m = re.exec(xml);
-  return m ? m[1] : "";
+/** Atom feeds: extract href from <link rel="alternate"> or any <link href=""> */
+function atomAlternateHref(block: string): string {
+  // Prefer rel="alternate" (article link) over rel="self" (feed link)
+  const alternate = /<link[^>]+rel=["']alternate["'][^>]+href=["']([^"']+)["']/i.exec(block)
+    ?? /<link[^>]+href=["']([^"']+)["'][^>]+rel=["']alternate["']/i.exec(block);
+  if (alternate) return alternate[1];
+  // Fall back to any <link href=""> that isn't rel="self" or rel="hub"
+  const anyLink = /<link[^>]+href=["']([^"']+)["'][^>]*>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = anyLink.exec(block)) !== null) {
+    const tag = match[0];
+    if (!tag.includes('rel="self"') && !tag.includes("rel='self'") &&
+        !tag.includes('rel="hub"')  && !tag.includes("rel='hub'")) {
+      return match[1];
+    }
+  }
+  return "";
 }
 
 function stripTags(html: string): string {

@@ -25,15 +25,6 @@ export interface NewsSource {
 
 export const DEFAULT_NEWS_SOURCES: NewsSource[] = [
   {
-    id: "medium",
-    name: "Medium",
-    rss: "https://medium.com/feed/",
-    url: "https://medium.com",
-    authUrl: "https://medium.com/m/account/authenticate-google",
-    auth: "google",
-    enabled: true,
-  },
-  {
     id: "atlantic",
     name: "The Atlantic",
     rss: "https://www.theatlantic.com/feed/all/",
@@ -43,20 +34,31 @@ export const DEFAULT_NEWS_SOURCES: NewsSource[] = [
     enabled: true,
   },
   {
-    id: "wapo",
-    name: "Washington Post",
-    rss: "https://feeds.washingtonpost.com/rss/national",
-    url: "https://washingtonpost.com",
-    authUrl: "https://account.washingtonpost.com/login-form?dest=%2F",
-    auth: "google",
-    enabled: false,
-  },
-  {
     id: "nytimes",
     name: "New York Times",
     rss: "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
     url: "https://nytimes.com",
     authUrl: "https://myaccount.nytimes.com/auth/login",
+    auth: "google",
+    enabled: true,
+  },
+  {
+    // Medium requires your personal feed URL: https://medium.com/feed/@your-username
+    // Add it via Settings → News subscriptions → Add a custom RSS feed
+    id: "medium-tech",
+    name: "Medium · Technology",
+    rss: "https://medium.com/feed/tag/technology",
+    url: "https://medium.com",
+    authUrl: "https://medium.com/m/account/authenticate-google",
+    auth: "google",
+    enabled: false,
+  },
+  {
+    id: "wapo",
+    name: "Washington Post",
+    rss: "https://feeds.washingtonpost.com/rss/world",
+    url: "https://washingtonpost.com",
+    authUrl: "https://account.washingtonpost.com/login-form?dest=%2F",
     auth: "google",
     enabled: false,
   },
