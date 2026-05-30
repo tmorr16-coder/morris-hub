@@ -31,6 +31,11 @@ export default function IdeaCard({ idea, isAiGenerated, onFavoriteToggle }: Idea
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [localNotes, setLocalNotes] = useState(idea.userNotes ?? "");
   const [isSaving, setIsSaving] = useState(false);
+  // Per-action-item reminder state so each button is independent
+  const [reminderStates, setReminderStates] = useState<Record<number, "idle" | "saving" | "done">>({});
+
+  const setReminderState = (index: number, state: "idle" | "saving" | "done") =>
+    setReminderStates((prev) => ({ ...prev, [index]: state }));
 
   const handleStatusChange = async (newStatus: string) => {
     setLocalStatus(newStatus as any);
@@ -69,8 +74,8 @@ export default function IdeaCard({ idea, isAiGenerated, onFavoriteToggle }: Idea
     }
   };
 
-  const handleCreateReminderFromAction = async (actionItem: string) => {
-    setIsSaving(true);
+  const handleCreateReminderFromAction = async (actionItem: string, index: number) => {
+    setReminderState(index, "saving");
     const reminderTitle = `Research: ${idea.title} - ${actionItem}`;
     const tomorrow = new Date(Date.now() + 86_400_000);
     await addReminder({
@@ -81,8 +86,9 @@ export default function IdeaCard({ idea, isAiGenerated, onFavoriteToggle }: Idea
       category: "general",
       source_app: "hub",
     });
-    setIsSaving(false);
-    alert(`Reminder created: "${reminderTitle}"`);
+    setReminderState(index, "done");
+    // Reset back to idle after a moment so the button can be clicked again
+    setTimeout(() => setReminderState(index, "idle"), 2000);
   };
 
   const card: React.CSSProperties = {
@@ -274,40 +280,44 @@ export default function IdeaCard({ idea, isAiGenerated, onFavoriteToggle }: Idea
                   listStyle: "none",
                 }}
               >
-                {idea.actionItems.map((item, i) => (
-                  <li
-                    key={i}
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 6,
-                      marginBottom: 6,
-                      paddingLeft: 16,
-                      position: "relative",
-                    }}
-                  >
-                    <span style={{ position: "absolute", left: 0 }}>•</span>
-                    <span style={{ flex: 1 }}>{item}</span>
-                    <button
-                      onClick={() => handleCreateReminderFromAction(item)}
-                      disabled={isSaving}
-                      title="Create research reminder"
+                {idea.actionItems.map((item, i) => {
+                  const rs = reminderStates[i] ?? "idle";
+                  return (
+                    <li
+                      key={i}
                       style={{
-                        background: "transparent",
-                        border: "none",
-                        color: "var(--color-accent)",
-                        fontSize: 10,
-                        cursor: isSaving ? "not-allowed" : "pointer",
-                        padding: "2px 4px",
-                        whiteSpace: "nowrap",
-                        fontWeight: 500,
-                        opacity: isSaving ? 0.5 : 1,
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 6,
+                        marginBottom: 6,
+                        paddingLeft: 16,
+                        position: "relative",
                       }}
                     >
-                      📋 Remind
-                    </button>
-                  </li>
-                ))}
+                      <span style={{ position: "absolute", left: 0 }}>•</span>
+                      <span style={{ flex: 1 }}>{item}</span>
+                      <button
+                        onClick={() => handleCreateReminderFromAction(item, i)}
+                        disabled={rs === "saving"}
+                        title="Create research reminder"
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: rs === "done" ? "var(--color-green, #4D6B3A)" : "var(--color-accent)",
+                          fontSize: 10,
+                          cursor: rs === "saving" ? "not-allowed" : "pointer",
+                          padding: "2px 4px",
+                          whiteSpace: "nowrap",
+                          fontWeight: 500,
+                          opacity: rs === "saving" ? 0.5 : 1,
+                          transition: "color 150ms",
+                        }}
+                      >
+                        {rs === "saving" ? "Adding…" : rs === "done" ? "✓ Added" : "📋 Remind"}
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
