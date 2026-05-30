@@ -3,10 +3,10 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { savePreferences, lookupZip } from "../../actions";
-import { ALL_WIDGETS, DEFAULT_REMINDER_CATEGORIES } from "@/lib/prefs-shared";
+import { ALL_WIDGETS, DEFAULT_REMINDER_CATEGORIES, DEFAULT_NEWS_SOURCES } from "@/lib/prefs-shared";
 import { AVAILABLE_SPORTS_TEAMS } from "@/lib/sports-teams";
 import { CATEGORY_LABELS } from "@/lib/investment-ideas-constants";
-import type { WidgetId } from "@/lib/prefs-shared";
+import type { WidgetId, NewsSource } from "@/lib/prefs-shared";
 import type { Preferences } from "@/lib/prefs";
 
 const AVAILABLE_TOPICS = [
@@ -20,16 +20,17 @@ const AVAILABLE_TOPICS = [
 ];
 
 const WIDGET_LABELS: Record<WidgetId, string> = {
-  health:    "Health Summary",
-  weather:   "Weather",
-  reminders: "Reminders",
-  todos:     "To-dos",
-  stocks:    "Stocks",
-  sports:    "Sports Scores",
-  lly_news:  "LLY News",
-  news:      "News",
-  city_news: "Local News",
-  tips:      "Claude Tips",
+  health:             "Health Summary",
+  weather:            "Weather",
+  reminders:          "Reminders",
+  todos:              "To-dos",
+  stocks:             "Stocks",
+  sports:             "Sports Scores",
+  lly_news:           "LLY News",
+  news:               "News",
+  city_news:          "Local News",
+  news_subscriptions: "My Subscriptions",
+  tips:               "Claude Tips",
 };
 
 export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferences }) {
@@ -64,6 +65,11 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
   const [appAccess, setAppAccess] = useState<string[]>(
     initialPrefs.app_access ?? ["hub", "health", "finance", "student-success", "investments"]
   );
+  const [newsSources, setNewsSources] = useState<NewsSource[]>(
+    initialPrefs.news_sources?.length ? initialPrefs.news_sources : DEFAULT_NEWS_SOURCES
+  );
+  const [customRssName, setCustomRssName] = useState("");
+  const [customRssUrl, setCustomRssUrl] = useState("");
 
   const AVAILABLE_MODULES = [
     { id: "hub", label: "Hub", description: "Home dashboard and core features" },
@@ -155,6 +161,27 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
     });
   }
 
+  function toggleNewsSource(id: string) {
+    setNewsSources((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, enabled: !s.enabled } : s))
+    );
+  }
+
+  function addCustomSource() {
+    const name = customRssName.trim();
+    const rss  = customRssUrl.trim();
+    if (!name || !rss) return;
+    const id = name.toLowerCase().replace(/[^a-z0-9]/g, "-");
+    if (newsSources.some((s) => s.id === id || s.rss === rss)) return;
+    setNewsSources((prev) => [...prev, { id, name, rss, url: rss, auth: "direct", enabled: true, custom: true }]);
+    setCustomRssName("");
+    setCustomRssUrl("");
+  }
+
+  function removeCustomSource(id: string) {
+    setNewsSources((prev) => prev.filter((s) => s.id !== id || !s.custom));
+  }
+
   function addCat() {
     const c = newCat.trim().toLowerCase();
     if (!c || reminderCats.includes(c)) return;
@@ -194,6 +221,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         visible_widgets: visibleWidgets,
         reminder_categories: reminderCats,
         app_access: appAccess,
+        news_sources: newsSources,
       });
       if (res.error) setError(res.error);
       else {
@@ -530,6 +558,104 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
               </button>
             );
           })}
+        </div>
+      </section>
+
+      {/* News Subscriptions */}
+      <section id="news-subscriptions" style={card}>
+        <SectionHeader title="News subscriptions" subtitle="Publications shown in the My Subscriptions widget. Toggle to enable/disable, or add any RSS feed." />
+
+        {/* Built-in + user sources */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+          {newsSources.map((source) => (
+            <div
+              key={source.id}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: `1px solid ${source.enabled ? "var(--color-accent)" : "var(--color-rule)"}`,
+                background: source.enabled ? "var(--color-accent-soft)" : "var(--color-bg)",
+              }}
+            >
+              <button
+                onClick={() => toggleNewsSource(source.id)}
+                style={{
+                  width: 36, height: 20, borderRadius: 10, border: "none",
+                  background: source.enabled ? "var(--color-accent)" : "var(--color-rule)",
+                  cursor: "pointer", position: "relative", flexShrink: 0, transition: "background 150ms",
+                }}
+                aria-label={source.enabled ? "Disable" : "Enable"}
+              >
+                <span style={{
+                  position: "absolute", top: 2, left: source.enabled ? 18 : 2,
+                  width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                  transition: "left 150ms",
+                }} />
+              </button>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>{source.name}</div>
+                {source.auth === "google" && (
+                  <div style={{ fontSize: 10, color: "var(--color-ink-3)" }}>
+                    🔑 Sign in with Google
+                  </div>
+                )}
+              </div>
+              {source.authUrl && (
+                <a
+                  href={source.authUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 11, color: "var(--color-accent)", textDecoration: "none", flexShrink: 0 }}
+                >
+                  Sign in ↗
+                </a>
+              )}
+              {source.custom && (
+                <button
+                  onClick={() => removeCustomSource(source.id)}
+                  style={{ background: "none", border: "none", color: "var(--color-red)", fontSize: 14, cursor: "pointer", flexShrink: 0 }}
+                  title="Remove"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Add custom RSS feed */}
+        <div style={{ borderTop: "1px solid var(--color-rule-soft)", paddingTop: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--color-ink-3)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Add a custom RSS feed
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input
+              value={customRssName}
+              onChange={(e) => setCustomRssName(e.target.value)}
+              placeholder="Publication name"
+              style={{ flex: "1 1 140px", padding: "8px 10px", borderRadius: 7, border: "1px solid var(--color-rule)", fontSize: 12, fontFamily: "inherit", background: "var(--color-bg)" }}
+            />
+            <input
+              value={customRssUrl}
+              onChange={(e) => setCustomRssUrl(e.target.value)}
+              placeholder="https://example.com/rss"
+              style={{ flex: "2 1 220px", padding: "8px 10px", borderRadius: 7, border: "1px solid var(--color-rule)", fontSize: 12, fontFamily: "inherit", background: "var(--color-bg)" }}
+              onKeyDown={(e) => e.key === "Enter" && addCustomSource()}
+            />
+            <button
+              onClick={addCustomSource}
+              disabled={!customRssName.trim() || !customRssUrl.trim()}
+              style={{
+                padding: "8px 16px", borderRadius: 7, border: "none",
+                background: customRssName && customRssUrl ? "var(--color-accent)" : "var(--color-rule)",
+                color: customRssName && customRssUrl ? "#FFFDF8" : "var(--color-ink-3)",
+                fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              Add
+            </button>
+          </div>
         </div>
       </section>
 

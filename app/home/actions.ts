@@ -119,6 +119,7 @@ export async function savePreferences(data: {
   visible_widgets?: string[];
   reminder_categories?: string[];
   app_access?: string[];
+  news_sources?: object[];
   phone_number?: string | null;
   sms_notifications_enabled?: boolean;
   reminder_lead_days?: number;

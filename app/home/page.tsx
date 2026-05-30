@@ -23,6 +23,7 @@ import NewsWidget from "./_components/NewsWidget";
 import CityNewsWidget from "./_components/CityNewsWidget";
 import SportsWidget from "./_components/SportsWidget";
 import ClaudeTipCard from "./_components/ClaudeTipCard";
+import NewsSubscriptionsWidget from "./_components/NewsSubscriptionsWidget";
 import type { Todo } from "./actions";
 
 export default async function HomePage() {
@@ -178,6 +179,12 @@ export default async function HomePage() {
                 return (
                   <Suspense key="city_news" fallback={<WidgetSkeleton title="Local News" lines={4} />}>
                     <CityNewsWidget cities={prefs.city_names} />
+                  </Suspense>
+                );
+              case "news_subscriptions":
+                return (
+                  <Suspense key="news_subscriptions" fallback={<WidgetSkeleton title="My Subscriptions" lines={4} />}>
+                    <NewsSubscriptionsWidget sources={prefs.news_sources ?? []} />
                   </Suspense>
                 );
               case "tips":

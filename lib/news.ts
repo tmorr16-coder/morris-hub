@@ -282,3 +282,105 @@ export async function fetchCityNews(cities: string[]): Promise<NewsItem[]> {
   const sorted = [...cities].sort();
   return cachedFetchCityNews(sorted);
 }
+
+// ── RSS-based News Subscriptions ──────────────────────────────────────────────
+
+export interface RssArticle {
+  title: string;
+  url: string;
+  summary: string;
+  pubDate: string;        // ISO string
+  sourceName: string;
+  sourceId: string;
+}
+
+/** Lightweight RSS 2.0 / Atom parser — no external library needed */
+function parseRss(xml: string, sourceName: string, sourceId: string): RssArticle[] {
+  const articles: RssArticle[] = [];
+
+  // Handle both RSS <item> and Atom <entry> elements
+  const itemRe = /<(?:item|entry)[^>]*>([\s\S]*?)<\/(?:item|entry)>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = itemRe.exec(xml)) !== null) {
+    const block = m[1];
+
+    const title = decode(tag(block, "title"));
+    const link  = tag(block, "link") || attrHref(block, "link") || tag(block, "guid");
+    const desc  = decode(stripTags(tag(block, "description") || tag(block, "summary") || tag(block, "content")));
+    const date  = tag(block, "pubDate") || tag(block, "published") || tag(block, "updated") || tag(block, "dc:date");
+
+    if (!title || !link) continue;
+    articles.push({
+      title,
+      url: link,
+      summary: desc.slice(0, 200).trim(),
+      pubDate: date ? new Date(date).toISOString() : new Date().toISOString(),
+      sourceName,
+      sourceId,
+    });
+    if (articles.length >= 6) break;
+  }
+  return articles;
+}
+
+function tag(xml: string, name: string): string {
+  const re = new RegExp(`<${name}[^>]*>([\\s\\S]*?)<\\/${name}>`, "i");
+  const m = re.exec(xml);
+  if (!m) return "";
+  return m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
+}
+
+function attrHref(xml: string, name: string): string {
+  const re = new RegExp(`<${name}[^>]+href=["']([^"']+)["']`, "i");
+  const m = re.exec(xml);
+  return m ? m[1] : "";
+}
+
+function stripTags(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function decode(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n)));
+}
+
+async function fetchRssFeed(
+  rssUrl: string,
+  sourceName: string,
+  sourceId: string,
+): Promise<RssArticle[]> {
+  try {
+    const res = await fetch(rssUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; morrisai-hub/1.0)" },
+      next: { revalidate: 1800 }, // cache 30 min
+    });
+    if (!res.ok) return [];
+    const xml = await res.text();
+    return parseRss(xml, sourceName, sourceId);
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchSubscriptionFeeds(
+  sources: Array<{ id: string; name: string; rss: string; enabled: boolean }>,
+): Promise<RssArticle[]> {
+  const enabled = sources.filter((s) => s.enabled);
+  if (enabled.length === 0) return [];
+
+  const results = await Promise.all(
+    enabled.map((s) => fetchRssFeed(s.rss, s.name, s.id))
+  );
+
+  // Interleave: take up to 3 articles per source, sorted newest-first
+  return results
+    .flat()
+    .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+}

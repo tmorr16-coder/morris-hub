@@ -1,8 +1,8 @@
 import { createServiceClient } from "./supabase/server";
-import { ALL_WIDGETS, DEFAULT_REMINDER_CATEGORIES } from "./prefs-shared";
-import type { WidgetId } from "./prefs-shared";
-export { ALL_WIDGETS, DEFAULT_REMINDER_CATEGORIES };
-export type { WidgetId };
+import { ALL_WIDGETS, DEFAULT_REMINDER_CATEGORIES, DEFAULT_NEWS_SOURCES } from "./prefs-shared";
+import type { WidgetId, NewsSource } from "./prefs-shared";
+export { ALL_WIDGETS, DEFAULT_REMINDER_CATEGORIES, DEFAULT_NEWS_SOURCES };
+export type { WidgetId, NewsSource };
 
 export interface Preferences {
   user_id: string;
@@ -17,6 +17,7 @@ export interface Preferences {
   visible_widgets: WidgetId[];
   reminder_categories: string[];
   app_access: string[];
+  news_sources: NewsSource[];
   phone_number?: string | null;
   sms_notifications_enabled?: boolean;
   reminder_lead_days?: number;
@@ -60,6 +61,7 @@ export async function getPreferences(userId: string): Promise<Preferences> {
       "other",
     ];
     if (!p.app_access?.length) p.app_access = ["hub", "health", "finance", "student-success", "investments", "bible"];
+    if (!p.news_sources?.length) p.news_sources = DEFAULT_NEWS_SOURCES;
     return p;
   }
 
@@ -90,6 +92,7 @@ export async function getPreferences(userId: string): Promise<Preferences> {
     visible_widgets: [...ALL_WIDGETS],
     reminder_categories: [...DEFAULT_REMINDER_CATEGORIES],
     app_access: ["hub", "health", "finance", "student-success", "investments", "bible"],
+    news_sources: DEFAULT_NEWS_SOURCES,
     phone_number: null,
     sms_notifications_enabled: true,
     reminder_lead_days: 3,
