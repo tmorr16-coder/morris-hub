@@ -71,14 +71,17 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
   const [customRssName, setCustomRssName] = useState("");
   const [customRssUrl, setCustomRssUrl] = useState("");
 
-  // Medium username — extracted from the medium source's rss URL
-  const initialMediumUsername = (() => {
+  // Medium topic/publication — extracted from the medium source's rss URL
+  const initialMediumTopic = (() => {
     const src = (initialPrefs.news_sources ?? DEFAULT_NEWS_SOURCES).find((s) => s.id === "medium");
-    if (!src?.rss) return "";
-    const m = src.rss.match(/medium\.com\/feed\/@([^/]+)/);
-    return m ? m[1] : "";
+    if (!src?.rss) return "technology";
+    const tagM = src.rss.match(/medium\.com\/feed\/tag\/([^/]+)/);
+    if (tagM) return tagM[1];
+    const pubM = src.rss.match(/medium\.com\/feed\/([^/]+)/);
+    return pubM ? pubM[1] : "technology";
   })();
-  const [mediumUsername, setMediumUsername] = useState(initialMediumUsername);
+  const [mediumTopic, setMediumTopic] = useState(initialMediumTopic);
+  const [customMediumInput, setCustomMediumInput] = useState("");
 
   const AVAILABLE_MODULES = [
     { id: "hub", label: "Hub", description: "Home dashboard and core features" },
@@ -232,7 +235,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         app_access: appAccess,
         news_sources: newsSources.map((s) =>
           s.id === "medium"
-            ? { ...s, rss: mediumUsername.trim() ? `https://medium.com/feed/@${mediumUsername.trim().replace(/^@/, "")}` : "" }
+            ? { ...s, rss: `https://medium.com/feed/tag/${mediumTopic.trim() || "technology"}` }
             : s
         ),
       });
@@ -608,7 +611,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
                   <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>{source.name}</div>
                   <div style={{ fontSize: 10, color: "var(--color-ink-3)" }}>
                     {source.id === "medium"
-                      ? mediumUsername ? `medium.com/feed/@${mediumUsername}` : "Enter your username below"
+                      ? `Topic: ${mediumTopic}`
                       : source.auth === "google" ? "🔑 Sign in with Google" : source.rss}
                   </div>
                 </div>
@@ -626,34 +629,78 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
                 )}
               </div>
 
-              {/* Medium username input — shown inline below the Medium row */}
+              {/* Medium topic picker — shown inline below the Medium row */}
               {source.id === "medium" && (
                 <div style={{
                   borderTop: "1px solid var(--color-rule-soft)",
-                  padding: "10px 14px",
+                  padding: "12px 14px",
                   background: "var(--color-bg)",
-                  display: "flex", gap: 8, alignItems: "center",
                 }}>
-                  <span style={{ fontSize: 12, color: "var(--color-ink-3)", whiteSpace: "nowrap" }}>medium.com/feed/@</span>
-                  <input
-                    value={mediumUsername}
-                    onChange={(e) => setMediumUsername(e.target.value.replace(/^@/, "").replace(/\s/g, ""))}
-                    placeholder="your-username"
-                    style={{
-                      flex: 1, padding: "6px 10px",
-                      borderRadius: 6, border: "1px solid var(--color-rule)",
-                      fontSize: 13, fontFamily: "inherit", background: "var(--color-bg-card)",
-                    }}
-                  />
-                  {mediumUsername && (
-                    <a
-                      href={`https://medium.com/feed/@${mediumUsername}`}
-                      target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: 11, color: "var(--color-accent)", textDecoration: "none", whiteSpace: "nowrap" }}
+                  <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginBottom: 8 }}>
+                    Medium shows articles by topic or publication — not your personal reading list (Medium doesn't expose that via RSS).
+                  </div>
+                  {/* Preset popular topics */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                    {["technology", "science", "business", "programming", "design", "health", "politics", "startups"].map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setMediumTopic(t)}
+                        style={{
+                          padding: "4px 12px", borderRadius: 16, fontSize: 12,
+                          border: `1px solid ${mediumTopic === t ? "var(--color-accent)" : "var(--color-rule)"}`,
+                          background: mediumTopic === t ? "var(--color-accent-soft)" : "transparent",
+                          color: mediumTopic === t ? "var(--color-accent)" : "var(--color-ink-2)",
+                          cursor: "pointer", fontFamily: "inherit", fontWeight: mediumTopic === t ? 600 : 400,
+                          textTransform: "capitalize",
+                        }}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Custom publication or tag */}
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <span style={{ fontSize: 12, color: "var(--color-ink-3)", whiteSpace: "nowrap" }}>medium.com/feed/tag/</span>
+                    <input
+                      value={customMediumInput}
+                      onChange={(e) => setCustomMediumInput(e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""))}
+                      placeholder={mediumTopic}
+                      style={{
+                        flex: 1, padding: "6px 10px", borderRadius: 6,
+                        border: "1px solid var(--color-rule)", fontSize: 12,
+                        fontFamily: "inherit", background: "var(--color-bg-card)",
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && customMediumInput.trim()) {
+                          setMediumTopic(customMediumInput.trim());
+                          setCustomMediumInput("");
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => { if (customMediumInput.trim()) { setMediumTopic(customMediumInput.trim()); setCustomMediumInput(""); } }}
+                      disabled={!customMediumInput.trim()}
+                      style={{
+                        padding: "6px 12px", borderRadius: 6, border: "none",
+                        background: customMediumInput.trim() ? "var(--color-accent)" : "var(--color-rule)",
+                        color: customMediumInput.trim() ? "#fff" : "var(--color-ink-3)",
+                        fontSize: 12, cursor: "pointer",
+                      }}
                     >
-                      Test ↗
+                      Set
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 8 }}>
+                    Current: medium.com/feed/tag/<strong>{mediumTopic}</strong>
+                    {" · "}
+                    <a
+                      href={`https://medium.com/feed/tag/${mediumTopic}`}
+                      target="_blank" rel="noopener noreferrer"
+                      style={{ color: "var(--color-accent)", textDecoration: "none" }}
+                    >
+                      Preview feed ↗
                     </a>
-                  )}
+                  </div>
                 </div>
               )}
             </div>

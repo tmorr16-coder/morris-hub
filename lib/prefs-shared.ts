@@ -43,15 +43,15 @@ export const DEFAULT_NEWS_SOURCES: NewsSource[] = [
     enabled: true,
   },
   {
-    // RSS URL is auto-built from the username you enter in Settings.
-    // Leave rss blank until the user sets their username.
+    // Topic or publication feed — set in Settings.
+    // medium.com/feed/tag/[topic]  or  medium.com/feed/[publication-slug]
     id: "medium",
     name: "Medium",
-    rss: "",
+    rss: "https://medium.com/feed/tag/technology",
     url: "https://medium.com",
     authUrl: "https://medium.com/m/account/authenticate-google",
     auth: "google",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "wapo",
