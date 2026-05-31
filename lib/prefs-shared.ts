@@ -43,11 +43,11 @@ export const DEFAULT_NEWS_SOURCES: NewsSource[] = [
     enabled: true,
   },
   {
-    // Medium requires your personal feed URL: https://medium.com/feed/@your-username
-    // Add it via Settings → News subscriptions → Add a custom RSS feed
-    id: "medium-tech",
-    name: "Medium · Technology",
-    rss: "https://medium.com/feed/tag/technology",
+    // RSS URL is auto-built from the username you enter in Settings.
+    // Leave rss blank until the user sets their username.
+    id: "medium",
+    name: "Medium",
+    rss: "",
     url: "https://medium.com",
     authUrl: "https://medium.com/m/account/authenticate-google",
     auth: "google",

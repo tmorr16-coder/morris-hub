@@ -71,6 +71,15 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
   const [customRssName, setCustomRssName] = useState("");
   const [customRssUrl, setCustomRssUrl] = useState("");
 
+  // Medium username — extracted from the medium source's rss URL
+  const initialMediumUsername = (() => {
+    const src = (initialPrefs.news_sources ?? DEFAULT_NEWS_SOURCES).find((s) => s.id === "medium");
+    if (!src?.rss) return "";
+    const m = src.rss.match(/medium\.com\/feed\/@([^/]+)/);
+    return m ? m[1] : "";
+  })();
+  const [mediumUsername, setMediumUsername] = useState(initialMediumUsername);
+
   const AVAILABLE_MODULES = [
     { id: "hub", label: "Hub", description: "Home dashboard and core features" },
     { id: "health", label: "Health", description: "Health tracking and workouts" },
@@ -221,7 +230,11 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         visible_widgets: visibleWidgets,
         reminder_categories: reminderCats,
         app_access: appAccess,
-        news_sources: newsSources,
+        news_sources: newsSources.map((s) =>
+          s.id === "medium"
+            ? { ...s, rss: mediumUsername.trim() ? `https://medium.com/feed/@${mediumUsername.trim().replace(/^@/, "")}` : "" }
+            : s
+        ),
       });
       if (res.error) setError(res.error);
       else {
@@ -568,57 +581,80 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         {/* Built-in + user sources */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
           {newsSources.map((source) => (
-            <div
-              key={source.id}
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 14px",
-                borderRadius: 8,
-                border: `1px solid ${source.enabled ? "var(--color-accent)" : "var(--color-rule)"}`,
-                background: source.enabled ? "var(--color-accent-soft)" : "var(--color-bg)",
-              }}
-            >
-              <button
-                onClick={() => toggleNewsSource(source.id)}
-                style={{
-                  width: 36, height: 20, borderRadius: 10, border: "none",
-                  background: source.enabled ? "var(--color-accent)" : "var(--color-rule)",
-                  cursor: "pointer", position: "relative", flexShrink: 0, transition: "background 150ms",
-                }}
-                aria-label={source.enabled ? "Disable" : "Enable"}
-              >
-                <span style={{
-                  position: "absolute", top: 2, left: source.enabled ? 18 : 2,
-                  width: 16, height: 16, borderRadius: "50%", background: "#fff",
-                  transition: "left 150ms",
-                }} />
-              </button>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>{source.name}</div>
-                {source.auth === "google" && (
+            <div key={source.id} style={{
+              borderRadius: 8,
+              border: `1px solid ${source.enabled ? "var(--color-accent)" : "var(--color-rule)"}`,
+              background: source.enabled ? "var(--color-accent-soft)" : "var(--color-bg)",
+              overflow: "hidden",
+            }}>
+              {/* Source row */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px" }}>
+                <button
+                  onClick={() => toggleNewsSource(source.id)}
+                  style={{
+                    width: 36, height: 20, borderRadius: 10, border: "none",
+                    background: source.enabled ? "var(--color-accent)" : "var(--color-rule)",
+                    cursor: "pointer", position: "relative", flexShrink: 0, transition: "background 150ms",
+                  }}
+                  aria-label={source.enabled ? "Disable" : "Enable"}
+                >
+                  <span style={{
+                    position: "absolute", top: 2, left: source.enabled ? 18 : 2,
+                    width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                    transition: "left 150ms",
+                  }} />
+                </button>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>{source.name}</div>
                   <div style={{ fontSize: 10, color: "var(--color-ink-3)" }}>
-                    🔑 Sign in with Google
+                    {source.id === "medium"
+                      ? mediumUsername ? `medium.com/feed/@${mediumUsername}` : "Enter your username below"
+                      : source.auth === "google" ? "🔑 Sign in with Google" : source.rss}
                   </div>
+                </div>
+                {source.authUrl && (
+                  <a href={source.authUrl} target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 11, color: "var(--color-accent)", textDecoration: "none", flexShrink: 0 }}>
+                    Sign in ↗
+                  </a>
+                )}
+                {source.custom && (
+                  <button onClick={() => removeCustomSource(source.id)}
+                    style={{ background: "none", border: "none", color: "var(--color-red)", fontSize: 14, cursor: "pointer", flexShrink: 0 }}>
+                    ✕
+                  </button>
                 )}
               </div>
-              {source.authUrl && (
-                <a
-                  href={source.authUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontSize: 11, color: "var(--color-accent)", textDecoration: "none", flexShrink: 0 }}
-                >
-                  Sign in ↗
-                </a>
-              )}
-              {source.custom && (
-                <button
-                  onClick={() => removeCustomSource(source.id)}
-                  style={{ background: "none", border: "none", color: "var(--color-red)", fontSize: 14, cursor: "pointer", flexShrink: 0 }}
-                  title="Remove"
-                >
-                  ✕
-                </button>
+
+              {/* Medium username input — shown inline below the Medium row */}
+              {source.id === "medium" && (
+                <div style={{
+                  borderTop: "1px solid var(--color-rule-soft)",
+                  padding: "10px 14px",
+                  background: "var(--color-bg)",
+                  display: "flex", gap: 8, alignItems: "center",
+                }}>
+                  <span style={{ fontSize: 12, color: "var(--color-ink-3)", whiteSpace: "nowrap" }}>medium.com/feed/@</span>
+                  <input
+                    value={mediumUsername}
+                    onChange={(e) => setMediumUsername(e.target.value.replace(/^@/, "").replace(/\s/g, ""))}
+                    placeholder="your-username"
+                    style={{
+                      flex: 1, padding: "6px 10px",
+                      borderRadius: 6, border: "1px solid var(--color-rule)",
+                      fontSize: 13, fontFamily: "inherit", background: "var(--color-bg-card)",
+                    }}
+                  />
+                  {mediumUsername && (
+                    <a
+                      href={`https://medium.com/feed/@${mediumUsername}`}
+                      target="_blank" rel="noopener noreferrer"
+                      style={{ fontSize: 11, color: "var(--color-accent)", textDecoration: "none", whiteSpace: "nowrap" }}
+                    >
+                      Test ↗
+                    </a>
+                  )}
+                </div>
               )}
             </div>
           ))}

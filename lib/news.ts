@@ -391,7 +391,8 @@ async function fetchRssFeed(
 export async function fetchSubscriptionFeeds(
   sources: Array<{ id: string; name: string; rss: string; enabled: boolean }>,
 ): Promise<RssArticle[]> {
-  const enabled = sources.filter((s) => s.enabled);
+  // Skip sources that are disabled or have no RSS URL (e.g. Medium before username is set)
+  const enabled = sources.filter((s) => s.enabled && s.rss?.trim());
   if (enabled.length === 0) return [];
 
   const results = await Promise.all(
