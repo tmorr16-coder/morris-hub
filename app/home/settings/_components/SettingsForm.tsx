@@ -641,7 +641,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
                   </div>
                   {/* Preset popular topics */}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-                    {["technology", "science", "business", "programming", "design", "health", "politics", "startups"].map((t) => (
+                    {["technology", "ai", "science", "business", "programming", "design", "health", "politics", "startups"].map((t) => (
                       <button
                         key={t}
                         onClick={() => setMediumTopic(t)}
