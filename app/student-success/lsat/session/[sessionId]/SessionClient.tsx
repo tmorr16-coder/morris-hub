@@ -32,7 +32,7 @@ export default function SessionClient({
   const [confidence, setConfidence] = useState<number>(3);
   const [flagged, setFlagged] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [result, setResult] = useState<{ isCorrect: boolean; correctId: string; explanation?: string } | null>(null);
+  const [result, setResult] = useState<{ isCorrect: boolean; correctId: string; attemptId: string } | null>(null);
   const [startTime] = useState(Date.now());
   const [timeLeft, setTimeLeft] = useState<number | null>(
     session.is_timed && session.time_limit_s
@@ -72,7 +72,7 @@ export default function SessionClient({
         }),
       });
       const data = await res.json();
-      setResult({ isCorrect: data.isCorrect, correctId: data.correctChoiceId });
+      setResult({ isCorrect: data.isCorrect, correctId: data.correctChoiceId, attemptId: data.attemptId });
       setSubmitted(true);
     });
   }
@@ -289,10 +289,12 @@ export default function SessionClient({
               </div>
             </div>
             <div style={{ display: "flex", gap: 10 }}>
-              <Link href={`/student-success/lsat/review/${/* current attempt id will come from server */ "latest"}`}
-                style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none", padding: "8px 14px", borderRadius: 8, border: "1px solid var(--color-rule)" }}>
-                Explain →
-              </Link>
+              {result?.attemptId && (
+                <Link href={`/student-success/lsat/review/${result.attemptId}`}
+                  style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none", padding: "8px 14px", borderRadius: 8, border: "1px solid var(--color-rule)" }}>
+                  Explain →
+                </Link>
+              )}
               <button onClick={next} style={{
                 padding: "8px 20px", borderRadius: 8, background: "var(--color-accent)",
                 color: "#fff", border: "none", fontWeight: 600, fontSize: 14, cursor: "pointer",
