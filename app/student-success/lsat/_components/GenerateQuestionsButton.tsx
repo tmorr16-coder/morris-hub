@@ -67,7 +67,7 @@ export default function GenerateQuestionsButton({ questionTypes }: { questionTyp
             AI Question Generator
           </div>
           <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginBottom: 16, lineHeight: 1.5 }}>
-            Claude Opus writes realistic LSAT-style questions, tags trap types on each wrong answer, and stores them in the database. Questions are marked <code style={{ fontSize: 10, background: "var(--color-bg-deep)", padding: "1px 5px", borderRadius: 4 }}>AI-generated</code> — distinct from any official PrepTest questions you add manually.
+            Claude Sonnet writes realistic LSAT-style questions, tags trap types on each wrong answer, and stores them in the database. Questions are marked <code style={{ fontSize: 10, background: "var(--color-bg-deep)", padding: "1px 5px", borderRadius: 4 }}>AI-generated</code> — distinct from any official PrepTest questions you add manually.
           </div>
 
           {/* Question type picker */}
@@ -121,7 +121,7 @@ export default function GenerateQuestionsButton({ questionTypes }: { questionTyp
               ))}
             </div>
             <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 6 }}>
-              Each question takes ~5–10 seconds. Generating {count} will take ~{count * 7}s.
+              Each question takes ~3–5 seconds. Generating {count} will take ~{count * 4}s.
             </div>
           </div>
 

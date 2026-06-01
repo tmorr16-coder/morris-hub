@@ -15,8 +15,10 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
 
-  const { typeId, count = 3 } = await req.json();
+  const { typeId, count: rawCount = 3 } = await req.json();
   if (!typeId) return NextResponse.json({ error: "typeId required" }, { status: 400 });
+  // Cap per-batch at 5 to avoid JSON truncation; loop for larger counts
+  const count = Math.min(Math.max(1, rawCount), 10);
 
   const { data: qtype } = await db
     .schema("student_support")
@@ -56,25 +58,46 @@ Rules:
 
 Return ONLY a JSON array of ${count} question object${count > 1 ? "s" : ""}, no other text.`;
 
-  let generated: {
+  type GeneratedQ = {
     stem: string;
     difficulty: number;
     choices: { label: string; body: string; is_correct: boolean; trap_type: string | null }[];
-  }[] = [];
+  };
+  let generated: GeneratedQ[] = [];
 
-  try {
-    const response = await client.messages.create({
-      model: "claude-opus-4-8",
-      max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
-    });
+  // Generate in batches of 5 to avoid JSON truncation at token limits
+  const BATCH = 5;
+  const batches = Math.ceil(count / BATCH);
 
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) throw new Error("No JSON array found in response");
-    generated = JSON.parse(jsonMatch[0]);
-  } catch (err) {
-    return NextResponse.json({ error: `AI generation failed: ${err instanceof Error ? err.message : err}` }, { status: 500 });
+  for (let b = 0; b < batches; b++) {
+    const batchCount = Math.min(BATCH, count - b * BATCH);
+    const batchPrompt = prompt.replace(
+      new RegExp(`Generate ${count} high-quality`),
+      `Generate ${batchCount} high-quality`
+    ).replace(
+      new RegExp(`Return ONLY a JSON array of ${count} question object${count > 1 ? "s" : ""}`),
+      `Return ONLY a JSON array of ${batchCount} question object${batchCount > 1 ? "s" : ""}`
+    );
+
+    try {
+      const response = await client.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 8192,
+        messages: [{ role: "user", content: batchCount === count ? prompt : batchPrompt }],
+      });
+
+      const text = response.content[0].type === "text" ? response.content[0].text : "";
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) throw new Error(`Batch ${b + 1}: No JSON array found in response`);
+      const batch: GeneratedQ[] = JSON.parse(jsonMatch[0]);
+      generated = generated.concat(batch);
+    } catch (err) {
+      if (generated.length === 0) {
+        return NextResponse.json({ error: `AI generation failed: ${err instanceof Error ? err.message : err}` }, { status: 500 });
+      }
+      // Partial success — continue with what we have
+      break;
+    }
   }
 
   const saved: string[] = [];
