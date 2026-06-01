@@ -69,10 +69,7 @@ export default async function LSATPrepPage() {
     .order("started_at", { ascending: false })
     .limit(5);
 
-  // Calibration data
-  const { data: calibrationRaw } = await db.rpc("lsat_calibration", { p_user_id: userId }).catch(() => ({ data: null }));
-
-  // Simpler fallback: manual aggregation
+  // All attempts — manual aggregation (no separate RPC needed)
   const { data: allAttempts } = await db
     .schema("student_support").from("lsat_attempts")
     .select("confidence, is_correct")
