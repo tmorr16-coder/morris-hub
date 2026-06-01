@@ -247,10 +247,7 @@ export default async function LSATPrepPage() {
                     <div style={{
                       padding: "12px 16px", borderRadius: 10, border: "1px solid var(--color-rule)",
                       background: "var(--color-bg)", display: "flex", justifyContent: "space-between", alignItems: "center",
-                    }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--color-accent)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--color-rule)"; }}
-                    >
+                    }}>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>{item.label}</div>
                         <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>{item.desc}</div>
