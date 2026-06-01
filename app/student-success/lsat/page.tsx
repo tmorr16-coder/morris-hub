@@ -253,6 +253,7 @@ export default async function LSATPrepPage() {
                   { mode: "drill", label: "Drill — LR", desc: "Practice specific question types, untimed", href: "/student-success/lsat/practice?mode=drill&section=LR" },
                   { mode: "drill", label: "Drill — RC", desc: "Reading comprehension passages", href: "/student-success/lsat/practice?mode=drill&section=RC" },
                   { mode: "blind_review", label: "Blind Review", desc: "Re-examine flagged questions before seeing answers", href: "/student-success/lsat/practice?mode=blind_review" },
+                  { mode: "chat", label: "LSAT Tutor Chat", desc: "Ask about techniques, question types, or study strategy", href: "/student-success/lsat/chat" },
                 ].map((item) => (
                   <Link key={item.href} href={item.href} style={{ textDecoration: "none" }}>
                     <div style={{
