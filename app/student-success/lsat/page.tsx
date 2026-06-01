@@ -6,6 +6,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
 import PlatformMenu from "@/components/PlatformMenu";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
+import GenerateQuestionsButton from "./_components/GenerateQuestionsButton";
 
 function CalibrationMatrix({ data }: {
   data: { conf_band: string; is_correct: boolean; n: number }[];
@@ -60,6 +61,13 @@ export default async function LSATPrepPage() {
     .eq("user_id", userId).maybeSingle();
 
   if (!settings?.lsat_enabled) redirect("/student-success/settings");
+
+  // Question types (for generate UI)
+  const { data: questionTypes } = await db
+    .schema("student_support")
+    .from("lsat_question_types")
+    .select("id, section, category, subcategory")
+    .order("section").order("category").order("subcategory");
 
   // Recent sessions
   const { data: recentSessions } = await db
@@ -133,12 +141,15 @@ export default async function LSATPrepPage() {
                 : "Error log · Blind review · Confidence calibration"}
             </p>
           </div>
-          <Link href="/student-success/lsat/practice" style={{
-            padding: "10px 22px", borderRadius: 10, background: "var(--color-accent)",
-            color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 600,
-          }}>
-            + New Session
-          </Link>
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <GenerateQuestionsButton questionTypes={questionTypes ?? []} />
+            <Link href="/student-success/lsat/practice" style={{
+              padding: "10px 22px", borderRadius: 10, background: "var(--color-accent)",
+              color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 600,
+            }}>
+              + New Session
+            </Link>
+          </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
