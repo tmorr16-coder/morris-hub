@@ -28,7 +28,7 @@ export default async function StudentSuccessSettingsPage() {
   const { data: studentSettings } = await service
     .schema("student_support")
     .from("student_settings")
-    .select("phone_number, sms_notifications_enabled, reminder_lead_days")
+    .select("phone_number, sms_notifications_enabled, reminder_lead_days, lsat_enabled, lsat_target_score")
     .eq("user_id", user.id)
     .maybeSingle();
 
