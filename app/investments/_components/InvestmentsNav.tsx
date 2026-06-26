@@ -18,13 +18,10 @@ export default function InvestmentsNav() {
         display: "flex",
         gap: 0,
         borderBottom: "1px solid var(--color-rule)",
-        marginBottom: 28,
-        marginLeft: 0,
-        marginRight: 0,
-        marginTop: -32,
+        borderTop: "1px solid var(--color-rule)",
+        backgroundColor: "var(--color-bg)",
         paddingLeft: 28,
         paddingRight: 28,
-        paddingTop: 32,
       }}
     >
       {navItems.map((item) => (
