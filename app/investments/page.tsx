@@ -7,6 +7,7 @@ import { getPreferences } from "@/lib/prefs";
 import { getUserInvestmentIdeas } from "@/lib/investment-ideas";
 import PlatformMenu from "@/components/PlatformMenu";
 import InvestmentsClient from "./_components/InvestmentsClient";
+import InvestmentsPageWrapper from "./_components/InvestmentsPageWrapper";
 
 export default async function InvestmentsPage() {
   const supabase = await createClient();
@@ -57,13 +58,14 @@ export default async function InvestmentsPage() {
             Investment Ideas<span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>.</span>
           </h1>
           <p style={{ fontSize: 13, color: "var(--color-ink-2)", marginTop: 12 }}>
-            Explore AI-generated opportunities and track your investment research across multiple categories.
+            Explore AI-generated opportunities, track your investment research, and discover individual stocks.
           </p>
         </div>
 
-        <InvestmentsClient
+        <InvestmentsPageWrapper
           savedIdeas={savedIdeas}
           enabledCategories={prefs.investment_categories}
+          watchedStocks={prefs.watched_stocks}
         />
       </main>
     </div>

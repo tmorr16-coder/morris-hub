@@ -10,6 +10,7 @@ import { getPreferences } from "@/lib/prefs";
 import CoursesSection from "./_components/CoursesSection";
 import UpcomingRemindersSection from "./_components/UpcomingRemindersSection";
 import SharedCoursesSection from "./_components/SharedCoursesSection";
+import CertificationsWidget from "./_components/CertificationsWidget";
 
 export default async function StudentSupportPage() {
   const supabase = await createClient();
@@ -146,6 +147,11 @@ export default async function StudentSupportPage() {
                 <SharedCoursesSection sharedCourses={sharedCourses} />
               </Suspense>
             )}
+
+            {/* Certification Prep */}
+            <Suspense fallback={<div style={{ color: "var(--color-ink-3)" }}>Loading certifications...</div>}>
+              <CertificationsWidget userId={user.id} />
+            </Suspense>
 
             {/* LSAT Prep card — shown only when enabled, or as a teaser to enable */}
             <section>

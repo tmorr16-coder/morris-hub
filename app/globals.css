@@ -55,3 +55,61 @@ html, body {
   font-family: var(--font-mono);
   font-feature-settings: "tnum" on, "lnum" on;
 }
+
+/* ── Finance section tokens ──────────────────────────────────────────── */
+[data-section="finance"] {
+  --color-paper:      #F2EDE3;
+  --color-paper-card: #FBF8F1;
+  --color-paper-deep: #E8E0CE;
+  --color-ink:        #161412;
+  --color-ink-2:      #4A4540;
+  --color-ink-3:      #8C857C;
+  --color-ink-4:      #B5AC9C;
+  --color-rule:       #DFD7C7;
+  --color-rule-soft:  #ECE4D3;
+  --color-bronze:     #8B6A47;
+  --color-bronze-dark:#6B4F30;
+  --color-green:      #4D6B3A;
+  --color-red:        #9A3B2A;
+  --shadow-card:      0 1px 0 rgba(22,20,18,0.04), 0 0 0 1px rgba(22,20,18,0.04);
+  background:         var(--color-paper);
+  min-height:         100dvh;
+  overflow-x:         clip; /* stop wide content causing body horizontal scroll */
+}
+
+/* ── Health section tokens ───────────────────────────────────────────── */
+[data-section="health"] {
+  --color-bg:          #f4f1ec;
+  --color-bg-raised:   #ffffff;
+  --color-bg-sunk:     #ece8e1;
+  --color-ink:         #16140f;
+  --color-ink-2:       #3a3630;
+  --color-ink-3:       #6e6960;
+  --color-ink-4:       #9c968b;
+  --color-line:        #e0dbd0;
+  --color-line-2:      #cfc9bc;
+  --color-accent:      #b84a2e;
+  --color-accent-soft: #f1d9cf;
+  --color-moss:        #4a6a4d;
+  --color-moss-soft:   #e0e8dd;
+  --color-slate:       #2f3a47;
+  --color-slate-soft:  #dde1e6;
+  background:          var(--color-bg);
+  min-height:          100dvh;
+  overflow-x:          clip;
+}
+
+[data-section="health"][data-theme="dark"] {
+  --color-bg:          #14130f;
+  --color-bg-raised:   #1c1b16;
+  --color-bg-sunk:     #100f0c;
+  --color-ink:         #f3efe6;
+  --color-ink-2:       #d4cfc1;
+  --color-ink-3:       #8d8779;
+  --color-ink-4:       #5b564b;
+  --color-line:        #2a2823;
+  --color-line-2:      #3a3730;
+  --color-accent-soft: #3a2118;
+  --color-moss-soft:   #1f2920;
+  --color-slate-soft:  #1d242c;
+}

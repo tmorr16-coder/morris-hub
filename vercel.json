@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/health/oura/sync",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/health/withings/sync",
+      "schedule": "30 11 * * *"
+    }
+  ]
+}

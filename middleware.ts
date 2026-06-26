@@ -49,12 +49,26 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (!user && request.nextUrl.pathname.startsWith("/home")) {
+  const { pathname } = request.nextUrl;
+  const isProtected =
+    pathname.startsWith("/home") ||
+    pathname.startsWith("/health") ||
+    pathname.startsWith("/finance") ||
+    pathname.startsWith("/investments") ||
+    pathname.startsWith("/student-success");
+
+  if (!user && isProtected) {
     return NextResponse.redirect(new URL("/", request.url));
   }
   return response;
 }
 
 export const config = {
-  matcher: ["/home/:path*"],
+  matcher: [
+    "/home/:path*",
+    "/health/:path*",
+    "/finance/:path*",
+    "/investments/:path*",
+    "/student-success/:path*",
+  ],
 };

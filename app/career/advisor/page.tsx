@@ -1,0 +1,60 @@
+export const dynamic = "force-dynamic";
+
+import { redirect } from "next/navigation";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
+import CareerAdvisorClient from "./_components/CareerAdvisorClient";
+
+export default async function CareerAdvisorPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createServiceClient() as any;
+
+  const [profileRes, goalsRes, learningRes] = await Promise.all([
+    db
+      .schema("career")
+      .from("career_profile")
+      .select("*")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    db
+      .schema("career")
+      .from("career_goals")
+      .select("id, title, horizon, status, progress_pct")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(10),
+    db
+      .schema("career")
+      .from("career_learning")
+      .select("id, title, status, notes")
+      .eq("user_id", user.id)
+      .eq("status", "in_progress")
+      .order("created_at", { ascending: false })
+      .limit(10),
+  ]);
+
+  const profile = profileRes.data ?? null;
+  const goals = goalsRes.data ?? [];
+  const learningItems = learningRes.data ?? [];
+
+  const hasProfile =
+    profile !== null &&
+    (profile.current_title ||
+      profile.resume_text ||
+      profile.assessment_completed);
+
+  return (
+    <CareerAdvisorClient
+      profile={profile}
+      goals={goals}
+      learningItems={learningItems}
+      hasProfile={!!hasProfile}
+    />
+  );
+}

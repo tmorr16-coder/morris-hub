@@ -34,9 +34,9 @@ export default async function HomePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
 
-  // Parallelize the 4 independent reads — was previously sequential.
+  // Parallelize the 5 independent reads — was previously sequential.
   // Total time drops from sum-of-roundtrips to max-of-roundtrips (~150ms).
-  const [prefs, todoResult, reminders, profileResult] = await Promise.all([
+  const [prefs, todoResult, reminders, profileResult, careerGoalsResult] = await Promise.all([
     getPreferences(user.id),
     service
       .schema("hub")
@@ -52,10 +52,17 @@ export default async function HomePage() {
       .select("role")
       .eq("id", user.id)
       .maybeSingle(),
+    service
+      .schema("career")
+      .from("career_goals")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "active"),
   ]);
 
   const todos = (todoResult.data ?? []) as Todo[];
   const isAdmin = (profileResult.data as { role?: string } | null)?.role === "admin";
+  const activeCareerGoals: number = careerGoalsResult.count ?? 0;
 
   const name = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email ?? "there";
   const firstName = name.split(" ")[0];
@@ -192,6 +199,50 @@ export default async function HomePage() {
                   <Suspense key="tips" fallback={<WidgetSkeleton title="Claude tips" lines={3} />}>
                     <ClaudeTipCard />
                   </Suspense>
+                );
+              case "career":
+                return (
+                  <div
+                    key="career"
+                    style={{
+                      background: "var(--color-bg-card)",
+                      border: "1px solid var(--color-rule)",
+                      borderLeft: "4px solid #2A6049",
+                      borderRadius: 12,
+                      padding: "20px 24px",
+                      boxShadow: "var(--shadow-card)",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+                      <h2 className="serif" style={{ fontSize: 20, color: "var(--color-ink)" }}>Career Development</h2>
+                      <a
+                        href="/career"
+                        style={{ fontSize: 12, color: "#2A6049", textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif" }}
+                      >
+                        Open →
+                      </a>
+                    </div>
+                    {activeCareerGoals === 0 ? (
+                      <div style={{ fontSize: 13, color: "var(--color-ink-3)", lineHeight: 1.5 }}>
+                        No active goals yet.{" "}
+                        <a href="/career/goals/new" style={{ color: "#2A6049", textDecoration: "none" }}>
+                          Start your first goal →
+                        </a>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 13, color: "var(--color-ink-2)", lineHeight: 1.6 }}>
+                        <span style={{ fontWeight: 600, fontSize: 28, color: "var(--color-ink)", fontFamily: "var(--font-display)" }}>
+                          {activeCareerGoals}
+                        </span>
+                        {" "}active goal{activeCareerGoals !== 1 ? "s" : ""}
+                        <div style={{ marginTop: 10 }}>
+                          <a href="/career/goals" style={{ fontSize: 12, color: "#2A6049", textDecoration: "none" }}>
+                            View goals →
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 );
               default:
                 return null;

@@ -5,12 +5,13 @@ import Image from "next/image";
 import QuickAddReminder from "./QuickAddReminder";
 
 const APPS = [
-  { key: "hub",              label: "Hub",              href: "https://morrisai.family",                   dot: "#3B5C7F" },
-  { key: "health",           label: "Health",           href: "https://health.morrisai.family/dashboard",  dot: "#4D6B3A" },
-  { key: "finance",          label: "Finance",          href: "https://finance.morrisai.family/dashboard", dot: "#8B6A47" },
-  { key: "investments",      label: "Investments",      href: "https://morrisai.family/investments",       dot: "#C97A3A" },
-  { key: "student-success",  label: "Student Success",  href: "https://morrisai.family/student-success",   dot: "#6B5B95" },
-  { key: "bible",            label: "Bible",            href: "https://bible.morrisai.family/dashboard",   dot: "#6B3B7C" },
+  { key: "hub",              label: "Hub",              href: "/home",                     dot: "#3B5C7F" },
+  { key: "health",           label: "Health",           href: "/health",                   dot: "#4D6B3A" },
+  { key: "finance",          label: "Finance",          href: "/finance/dashboard",        dot: "#8B6A47" },
+  { key: "investments",      label: "Investments",      href: "/investments",              dot: "#C97A3A" },
+  { key: "student-success",  label: "Student Success",  href: "/student-success",          dot: "#6B5B95" },
+  { key: "bible",            label: "Bible",            href: "https://bible.morrisai.family/dashboard", dot: "#6B3B7C" },
+  { key: "career",           label: "Career",           href: "/career",                                 dot: "#2A6049" },
 ];
 
 export interface MenuUser {
@@ -24,7 +25,7 @@ export default function PlatformMenu({
   currentApp,
   user,
 }: {
-  currentApp: "hub" | "health" | "finance" | "investments" | "student-success" | "bible";
+  currentApp: "hub" | "health" | "finance" | "investments" | "student-success" | "bible" | "career";
   user?: MenuUser | null;
 }) {
   return (
@@ -37,23 +38,33 @@ export default function PlatformMenu({
         position: "sticky",
         top: 0,
         zIndex: 100,
+        /* Full-width background regardless of page horizontal scroll */
+        width: "100%",
       }}
     >
+      {/* Independently scrollable row — swipeable on mobile */}
       <div
         style={{
-          maxWidth: 1280,
-          margin: "0 auto",
-          padding: "8px 28px",
+          overflowX: "auto",
+          overflowY: "hidden",
+          scrollbarWidth: "none",          /* Firefox */
+          WebkitOverflowScrolling: "touch",
+        } as React.CSSProperties}
+      >
+      <div
+        style={{
+          padding: "8px 16px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 16,
+          minWidth: "max-content",         /* don't wrap — let it scroll */
         }}
       >
         {/* Logo + app switcher */}
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <a
-            href="https://morrisai.family"
+            href="/home"
             style={{
               fontFamily: "var(--font-instrument-serif, 'Instrument Serif'), serif",
               fontSize: 16,
@@ -110,7 +121,7 @@ export default function PlatformMenu({
             <QuickAddReminder sourceApp={currentApp} />
             {user.isAdmin && (
               <a
-                href="https://morrisai.family/home/admin"
+                href="/home/admin"
                 style={{
                   fontSize: 11,
                   color: "#6B6258",
@@ -163,6 +174,7 @@ export default function PlatformMenu({
             </span>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

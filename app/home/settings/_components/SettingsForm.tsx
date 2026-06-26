@@ -31,6 +31,7 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
   city_news:          "Local News",
   news_subscriptions: "My Subscriptions",
   tips:               "Claude Tips",
+  career:             "Career Development",
 };
 
 export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferences }) {

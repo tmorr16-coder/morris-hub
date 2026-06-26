@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { RateLimitErrorBoundary } from "@/components/RateLimitErrorBoundary";
 import "./globals.css";
@@ -23,6 +23,19 @@ const instrumentSerif = Instrument_Serif({
 export const metadata: Metadata = {
   title: "morrisai.family",
   description: "Personal & family productivity platform",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Morris AI",
+    statusBarStyle: "default",
+  },
+  icons: { apple: "/apple-touch-icon.png" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#3B5C7F",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

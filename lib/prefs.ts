@@ -18,6 +18,7 @@ export interface Preferences {
   reminder_categories: string[];
   app_access: string[];
   news_sources: NewsSource[];
+  watched_stocks: string[];
   phone_number?: string | null;
   sms_notifications_enabled?: boolean;
   reminder_lead_days?: number;
@@ -62,6 +63,7 @@ export async function getPreferences(userId: string): Promise<Preferences> {
     ];
     if (!p.app_access?.length) p.app_access = ["hub", "health", "finance", "student-success", "investments", "bible"];
     if (!p.news_sources?.length) p.news_sources = DEFAULT_NEWS_SOURCES;
+    if (!p.watched_stocks?.length) p.watched_stocks = [];
     return p;
   }
 
@@ -93,6 +95,7 @@ export async function getPreferences(userId: string): Promise<Preferences> {
     reminder_categories: [...DEFAULT_REMINDER_CATEGORIES],
     app_access: ["hub", "health", "finance", "student-success", "investments", "bible"],
     news_sources: DEFAULT_NEWS_SOURCES,
+    watched_stocks: [],
     phone_number: null,
     sms_notifications_enabled: true,
     reminder_lead_days: 3,
