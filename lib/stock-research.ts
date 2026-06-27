@@ -132,7 +132,7 @@ US tickers only. Mix large-caps and relevant ETFs where appropriate.`,
     })
   );
 
-  return stocks.filter((s): s is Stock => s !== null);
+  return stocks.filter(Boolean) as Stock[];
 }
 
 export async function fetchStockPrice(ticker: string): Promise<Stock | null> {
