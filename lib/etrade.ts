@@ -293,7 +293,7 @@ function buildOrderBody(order: OrderRequest, previewIds?: { previewId: number; c
   // E*TRADE requires clientOrderId to be numeric only (no dashes, letters, etc.)
   const clientOrderId = String(Date.now()).slice(-9); // 9-digit numeric string
   const orderObj: Record<string, unknown> = {
-    allOrNone: false,
+    allOrNone: "false",      // E*TRADE expects string not boolean
     priceType: order.priceType,
     orderTerm: order.orderTerm,
     marketSession: order.marketSession,
@@ -301,7 +301,7 @@ function buildOrderBody(order: OrderRequest, previewIds?: { previewId: number; c
       Product: { securityType: "EQ", symbol: order.symbol.toUpperCase() },
       orderAction: order.action,
       quantityType: "QUANTITY",
-      quantity: Math.floor(order.quantity), // must be integer
+      quantity: Math.floor(order.quantity),
     }],
   };
   if (order.priceType === "LIMIT" && order.limitPrice) {

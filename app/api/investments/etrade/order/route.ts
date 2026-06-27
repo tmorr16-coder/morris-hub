@@ -57,13 +57,20 @@ export async function POST(request: Request) {
     return Response.json({ error: (err as Error).message }, { status: 401 });
   }
 
+  if (!conn.accountIdKey) {
+    return Response.json(
+      { error: "E*TRADE account not linked — disconnect and reconnect to store your account ID" },
+      { status: 400 }
+    );
+  }
+
   if (step === "preview") {
     try {
       const result = await previewOrder(conn.token, conn.secret, conn.accountIdKey, order);
       return Response.json(result);
     } catch (err) {
       const msg = (err as Error).message;
-      console.error("[etrade/order] preview failed:", msg, "key:", conn.accountIdKey);
+      console.error("[etrade/order] preview failed key=", conn.accountIdKey, "err=", msg);
       return Response.json({ error: msg }, { status: 502 });
     }
   }
