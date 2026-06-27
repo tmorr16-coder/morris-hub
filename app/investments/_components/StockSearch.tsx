@@ -13,7 +13,7 @@ export default function StockSearch({ onSelectStock }: StockSearchProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(false);
-  const searchTimeout = useRef<NodeJS.Timeout>();
+  const searchTimeout = useRef<NodeJS.Timeout | undefined>();
 
   const performSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) {
