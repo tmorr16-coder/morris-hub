@@ -243,8 +243,10 @@ export default function FullReportPanel({ stock, onClose }: FullReportPanelProps
               </Section>
 
               {/* Valuation */}
+              {report.valuation && (
               <Section title="Valuation">
                 <div style={{ marginBottom: 14 }}>
+                  {(report.valuation.currentMultiple || report.valuation.historicalRange) && (
                   <div
                     style={{
                       display: "flex",
@@ -255,7 +257,7 @@ export default function FullReportPanel({ stock, onClose }: FullReportPanelProps
                     {[
                       { label: "Current", value: report.valuation.currentMultiple },
                       { label: "5-yr range", value: report.valuation.historicalRange },
-                    ].map((item) => (
+                    ].filter(i => i.value).map((item) => (
                       <div
                         key={item.label}
                         style={{
@@ -274,15 +276,18 @@ export default function FullReportPanel({ stock, onClose }: FullReportPanelProps
                       </div>
                     ))}
                   </div>
+                  )}
+                  {report.valuation.narrative && (
                   <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--color-ink-2)", marginBottom: 14, whiteSpace: "pre-wrap" }}>
                     {report.valuation.narrative}
                   </div>
+                  )}
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {[
                       { label: "Bull", value: report.valuation.scenarioBull, color: "var(--color-green)", bg: "rgba(74,107,58,0.06)" },
                       { label: "Base", value: report.valuation.scenarioBase, color: "var(--color-accent)", bg: "rgba(59,92,127,0.06)" },
                       { label: "Bear", value: report.valuation.scenarioBear, color: "var(--color-red)", bg: "rgba(154,59,42,0.06)" },
-                    ].map((s) => (
+                    ].filter(s => s.value).map((s) => (
                       <div
                         key={s.label}
                         style={{
@@ -304,6 +309,7 @@ export default function FullReportPanel({ stock, onClose }: FullReportPanelProps
                   </div>
                 </div>
               </Section>
+              )}
 
               {/* Comp table */}
               {report.compTable?.length > 0 && (

@@ -218,6 +218,50 @@ export default function WatchlistSidebar({
           </div>
         </>
       )}
+
+      {/* E*TRADE status — pinned to bottom */}
+      <div style={{ marginTop: "auto", borderTop: "1px solid var(--color-rule)", padding: "10px 16px" }}>
+        <ETradeStatusBadge />
+      </div>
     </aside>
+  );
+}
+
+function ETradeStatusBadge() {
+  const [status, setStatus] = useState<{ connected: boolean; expired?: boolean; accountName?: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/investments/etrade/status")
+      .then((r) => r.json())
+      .then(setStatus)
+      .catch(() => {});
+  }, []);
+
+  if (!status) return null;
+
+  if (status.connected && !status.expired) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 8, color: "var(--color-green)" }}>●</span>
+        <span style={{ fontSize: 10, color: "var(--color-ink-3)" }}>
+          E*TRADE connected
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href="/api/investments/etrade/connect"
+      onClick={(e) => {
+        e.preventDefault();
+        // Trigger OOB flow via the dashboard instead
+        document.dispatchEvent(new CustomEvent("etrade:connect"));
+      }}
+      style={{ fontSize: 10, color: "var(--color-ink-4)", textDecoration: "none", display: "flex", alignItems: "center", gap: 5 }}
+    >
+      <span style={{ fontSize: 8 }}>○</span>
+      {status.expired ? "E*TRADE — reconnect" : "E*TRADE — not connected"}
+    </a>
   );
 }

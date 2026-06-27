@@ -158,7 +158,16 @@ async function fetchFullReport(ticker: string): Promise<FullReport> {
     throw new Error("Research incomplete — try again");
   }
 
-  const input = reportBlock.input as Omit<FullReport, "ticker" | "generatedAt">;
+  // Strip <cite index="N"> tags that web_search injects into string values
+  function stripCites(val: unknown): unknown {
+    if (typeof val === "string") return val.replace(/<\/?cite[^>]*>/gi, "").trim();
+    if (Array.isArray(val)) return val.map(stripCites);
+    if (val && typeof val === "object")
+      return Object.fromEntries(Object.entries(val).map(([k, v]) => [k, stripCites(v)]));
+    return val;
+  }
+
+  const input = stripCites(reportBlock.input) as Omit<FullReport, "ticker" | "generatedAt">;
   return { ...input, ticker, generatedAt: new Date().toISOString() };
 }
 
