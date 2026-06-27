@@ -129,7 +129,10 @@ Rules: 3-4 comps, 3 catalysts, 3 risks, all sources you actually read. severity 
     throw new Error("Claude did not return a JSON block");
   }
 
-  const repaired = repairJsonStrings(raw);
+  // web_search_20250305 injects <cite index="N"> tags — the quotes inside the
+  // attribute break JSON.parse when embedded in string values. Strip them first.
+  const stripped = raw.replace(/<\/?cite[^>]*>/gi, "");
+  const repaired = repairJsonStrings(stripped);
 
   let parsed: Record<string, unknown>;
   try {
