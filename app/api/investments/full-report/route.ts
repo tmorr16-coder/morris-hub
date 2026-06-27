@@ -1,6 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
-import { unstable_cache } from "next/cache";
 
 export const maxDuration = 60;
 
@@ -13,7 +12,7 @@ export interface ReportSource {
 export interface ReportComp {
   name: string;
   ticker: string;
-  metric: string; // e.g. "41x fwd P/E"
+  metric: string;
   note: string;
 }
 
@@ -25,14 +24,14 @@ export interface ReportRisk {
 
 export interface ReportCatalyst {
   catalyst: string;
-  timeline: string; // e.g. "Q3 2025", "12-18 months"
+  timeline: string;
   impact: string;
 }
 
 export interface FullReport {
   ticker: string;
-  thesis: string;           // 3-4 paragraph deep thesis narrative
-  businessOverview: string; // key segments, moat, competitive position
+  thesis: string;
+  businessOverview: string;
   valuation: {
     narrative: string;
     currentMultiple: string;
@@ -50,7 +49,24 @@ export interface FullReport {
 
 const client = new Anthropic();
 
-async function fetchFullReportRaw(ticker: string): Promise<FullReport> {
+// Claude sometimes writes literal newlines inside JSON string values,
+// which breaks JSON.parse. Walk char-by-char and escape them.
+function repairJsonStrings(s: string): string {
+  let inString = false;
+  let escaped = false;
+  let result = "";
+  for (const ch of s) {
+    if (escaped) { result += ch; escaped = false; continue; }
+    if (ch === "\\" && inString) { result += ch; escaped = true; continue; }
+    if (ch === '"') { inString = !inString; result += ch; continue; }
+    if (inString && ch === "\n") { result += "\\n"; continue; }
+    if (inString && ch === "\r") continue;
+    result += ch;
+  }
+  return result;
+}
+
+async function fetchFullReport(ticker: string): Promise<FullReport> {
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 2000,
@@ -59,38 +75,38 @@ async function fetchFullReportRaw(ticker: string): Promise<FullReport> {
     messages: [
       {
         role: "user",
-        content: `You are an equity research analyst. Search the web for ${ticker} and find: latest earnings/guidance, analyst price targets, recent news, and 3-4 comparable companies.
+        content: `You are an equity research analyst. Search the web for ${ticker}: latest earnings/guidance, analyst price targets, recent news, comparable company multiples.
 
-Output ONLY this JSON (no other text):
+Output ONLY valid JSON inside a \`\`\`json block. Use \\n for line breaks inside strings — never raw newlines. All string values must be on a single line.
 
 \`\`\`json
 {
-  "thesis": "2 paragraph thesis. P1: headline investment case with specific financials. P2: key risk/reward and what makes this interesting now.",
-  "businessOverview": "1-2 paragraph business model overview: key revenue segments with rough size, competitive moat, main growth driver.",
+  "thesis": "Paragraph 1 of thesis. \\n\\n Paragraph 2 of thesis.",
+  "businessOverview": "Business model summary on one line.",
   "valuation": {
-    "narrative": "1 paragraph: current multiple, whether it is cheap or expensive vs history and peers, and what the market is pricing in.",
-    "currentMultiple": "e.g. 41x NTM P/E",
-    "historicalRange": "e.g. 28–58x over 5 years",
-    "scenarioBase": "Base: $X — brief assumption",
-    "scenarioBull": "Bull: $X — brief assumption",
-    "scenarioBear": "Bear: $X — brief assumption"
+    "narrative": "Valuation paragraph on one line.",
+    "currentMultiple": "41x NTM P/E",
+    "historicalRange": "28–58x over 5 years",
+    "scenarioBase": "Base: $230 — moderate growth assumption",
+    "scenarioBull": "Bull: $275 — acceleration in X",
+    "scenarioBear": "Bear: $160 — margin compression from Y"
   },
   "compTable": [
-    { "name": "Company Name", "ticker": "TICK", "metric": "38x fwd P/E", "note": "one-line vs subject" }
+    { "name": "Company Name", "ticker": "TICK", "metric": "38x fwd P/E", "note": "positioning vs subject" }
   ],
   "catalysts": [
-    { "catalyst": "Catalyst name", "timeline": "Q3 2025", "impact": "one-line impact" }
+    { "catalyst": "Catalyst name", "timeline": "Q3 2025", "impact": "one-line expected impact" }
   ],
   "risks": [
-    { "risk": "Risk title", "severity": "high", "detail": "one sentence on how it materializes" }
+    { "risk": "Risk title", "severity": "high", "detail": "one sentence on materialization" }
   ],
   "sources": [
-    { "title": "Article or page title", "url": "https://real-url.com", "type": "earnings" }
+    { "title": "Page title", "url": "https://actual-url.com", "type": "earnings" }
   ]
 }
 \`\`\`
 
-compTable: 3-4 peers. catalysts: 3 items. risks: 3 items (severity: high/medium/low). sources: every URL you actually read. Not financial advice.`,
+Rules: 3-4 comps, 3 catalysts, 3 risks, all sources you actually read. severity must be high/medium/low. type must be earnings/news/analyst/filing/other.`,
       },
     ],
   });
@@ -101,35 +117,31 @@ compTable: 3-4 peers. catalysts: 3 items. risks: 3 items (severity: high/medium/
     .map((b) => (b as any).text as string)
     .join("\n");
 
-  console.log(`[full-report] ${ticker} response length: ${fullText.length} chars`);
+  console.log(`[full-report] ${ticker} text length: ${fullText.length}`);
 
-  // Greedy match inside code fence captures the full nested JSON object
-  const fencedMatch = fullText.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
-  // Fallback: find the outermost { } that contains "thesis"
-  const bareMatch = fullText.match(/\{[\s\S]*"thesis"[\s\S]*\}/);
-  const jsonStr = fencedMatch?.[1] ?? bareMatch?.[0];
+  // Extract JSON — greedy match inside code fence
+  const fenced = fullText.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+  const bare = fullText.match(/\{[\s\S]*"thesis"[\s\S]*\}/);
+  const raw = fenced?.[1] ?? bare?.[0];
 
-  if (!jsonStr) {
-    console.error(`[full-report] ${ticker} no JSON found. Preview:`, fullText.slice(0, 400));
-    throw new Error("No JSON in Claude response");
+  if (!raw) {
+    console.error(`[full-report] ${ticker} no JSON block found. Text: ${fullText.slice(0, 500)}`);
+    throw new Error("Claude did not return a JSON block");
   }
+
+  const repaired = repairJsonStrings(raw);
 
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(jsonStr);
+    parsed = JSON.parse(repaired);
   } catch (e) {
-    console.error(`[full-report] ${ticker} JSON parse failed:`, e, jsonStr.slice(0, 200));
-    throw new Error("Malformed JSON in Claude response");
+    console.error(`[full-report] ${ticker} parse error:`, (e as Error).message);
+    console.error(`[full-report] raw snippet:`, raw.slice(0, 300));
+    throw new Error("Could not parse report JSON");
   }
 
   return { ...parsed, ticker, generatedAt: new Date().toISOString() } as FullReport;
 }
-
-const getCachedFullReport = unstable_cache(
-  fetchFullReportRaw,
-  ["full-report"],
-  { revalidate: 7200, tags: ["full-report"] } // 2 hour cache
-);
 
 export async function POST(request: Request) {
   const userId = await getCurrentUserId();
@@ -146,10 +158,11 @@ export async function POST(request: Request) {
   if (!ticker) return Response.json({ error: "ticker required" }, { status: 400 });
 
   try {
-    const report = await getCachedFullReport(ticker.toUpperCase());
+    const report = await fetchFullReport(ticker.toUpperCase());
     return Response.json(report);
   } catch (err) {
-    console.error("[full-report] failed:", err);
-    return Response.json({ error: "Report generation failed" }, { status: 500 });
+    const msg = err instanceof Error ? err.message : "Report generation failed";
+    console.error("[full-report] POST failed:", msg);
+    return Response.json({ error: msg }, { status: 500 });
   }
 }
