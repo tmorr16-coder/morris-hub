@@ -45,6 +45,11 @@ export default function WatchlistSidebar({
   const [suggested, setSuggested] = useState<SuggestedStock[]>([]);
   const [tickers, setTickers] = useState(initialTickers);
 
+  // Sync when parent adds/removes a ticker (e.g. Watch button in stock detail)
+  useEffect(() => {
+    setTickers(initialTickers);
+  }, [initialTickers.join(",")]);
+
   useEffect(() => {
     if (!tickers.length) {
       setLoading(false);

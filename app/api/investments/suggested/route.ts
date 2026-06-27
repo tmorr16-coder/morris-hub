@@ -2,6 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 import { unstable_cache } from "next/cache";
 
+export const maxDuration = 30;
+
 interface SuggestedStock {
   ticker: string;
   badge: string;

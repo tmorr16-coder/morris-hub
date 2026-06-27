@@ -69,7 +69,7 @@ export default function PriceChart({ ticker, currentPrice, changeDirection }: Pr
   const [points, setPoints] = useState<CandlePoint[]>([]);
   const [loading, setLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ width: 600, height: 200 });
+  const [size, setSize] = useState({ width: 0, height: 200 });
 
   const range = RANGES[rangeIdx];
   const isUp = changeDirection !== "down";
@@ -77,6 +77,10 @@ export default function PriceChart({ ticker, currentPrice, changeDirection }: Pr
   const areaColor = isUp ? "rgba(74,107,58,0.07)" : "rgba(154,59,42,0.07)";
 
   useEffect(() => {
+    // Measure immediately on mount, then watch for resizes
+    if (containerRef.current) {
+      setSize({ width: containerRef.current.offsetWidth, height: 200 });
+    }
     const obs = new ResizeObserver((entries) => {
       const e = entries[0];
       if (e) setSize({ width: e.contentRect.width, height: 200 });
@@ -150,7 +154,7 @@ export default function PriceChart({ ticker, currentPrice, changeDirection }: Pr
 
       {/* Chart */}
       <div ref={containerRef} style={{ width: "100%", position: "relative" }}>
-        {loading ? (
+        {size.width === 0 || loading ? (
           <div
             style={{
               height: size.height,
