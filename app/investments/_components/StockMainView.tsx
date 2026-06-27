@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import type { Stock } from "@/lib/stock-research";
 import PriceChart from "./PriceChart";
 import DeepResearchPanel from "./DeepResearchPanel";
+import QuickTradePanel from "./QuickTradePanel";
 
 interface StockMetrics {
   weekHigh52: number | null;
@@ -41,6 +42,7 @@ export default function StockMainView({
   onClose,
 }: StockMainViewProps) {
   const [metrics, setMetrics] = useState<StockMetrics | null>(null);
+  const [showTrade, setShowTrade] = useState(false);
 
   useEffect(() => {
     fetch(`/api/investments/metrics?ticker=${stock.ticker}`)
@@ -113,13 +115,29 @@ export default function StockMainView({
               </span>
               <div style={{ display: "flex", gap: 8 }}>
                 <button
+                  onClick={() => setShowTrade(true)}
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: "var(--color-accent)",
+                    color: "#FFFDF8",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                  }}
+                >
+                  Trade
+                </button>
+                <button
                   onClick={onToggleWatch}
                   style={{
                     padding: "6px 12px",
                     borderRadius: 8,
                     border: "1px solid var(--color-rule)",
-                    background: isWatched ? "var(--color-accent)" : "transparent",
-                    color: isWatched ? "#FFFDF8" : "var(--color-ink)",
+                    background: isWatched ? "var(--color-accent-soft)" : "transparent",
+                    color: isWatched ? "var(--color-accent)" : "var(--color-ink)",
                     fontSize: 12,
                     fontWeight: 500,
                     fontFamily: "inherit",
@@ -203,6 +221,9 @@ export default function StockMainView({
         {/* Deep Research */}
         <DeepResearchPanel stock={stock} />
       </div>
+
+      {/* Quick Trade slide-over */}
+      {showTrade && <QuickTradePanel stock={stock} onClose={() => setShowTrade(false)} />}
     </div>
   );
 }

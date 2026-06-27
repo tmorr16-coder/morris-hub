@@ -127,6 +127,23 @@ async function apiGet(path: string, token: string, secret: string): Promise<any>
   return res.json();
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function apiPost(path: string, token: string, secret: string, body: unknown): Promise<any> {
+  const url = `${API_BASE}${path}`;
+  // JSON body — body params are NOT included in OAuth signature per spec
+  const header = buildAuthHeader("POST", url, token, secret);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: header, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`E*TRADE POST ${res.status}: ${text.slice(0, 300)}`);
+  }
+  return res.json();
+}
+
 // ── Accounts ──────────────────────────────────────────────────────────────────
 
 export interface ETradeAccount {
@@ -239,4 +256,123 @@ export async function getPortfolio(
     console.error("[etrade] portfolio fetch failed:", e);
     return [];
   }
+}
+
+// ── Orders ────────────────────────────────────────────────────────────────────
+
+export type OrderAction = "BUY" | "SELL";
+export type OrderPriceType = "MARKET" | "LIMIT";
+export type OrderTerm = "GOOD_FOR_DAY" | "GOOD_TILL_CANCEL" | "IMMEDIATE_OR_CANCEL";
+export type MarketSession = "REGULAR" | "EXTENDED";
+
+export interface OrderRequest {
+  symbol: string;
+  action: OrderAction;
+  quantity: number;
+  priceType: OrderPriceType;
+  limitPrice?: number;
+  orderTerm: OrderTerm;
+  marketSession: MarketSession;
+}
+
+export interface OrderPreviewResult {
+  previewId: number;
+  cashMargin: string;
+  estimatedCommission: number;
+  estimatedTotalAmount: number;
+}
+
+export interface PlacedOrderResult {
+  orderId: number;
+  symbol: string;
+  quantity: number;
+  action: string;
+}
+
+function buildOrderBody(order: OrderRequest, previewIds?: { previewId: number; cashMargin: string }[]) {
+  const clientOrderId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const orderObj: Record<string, unknown> = {
+    allOrNone: false,
+    priceType: order.priceType,
+    orderTerm: order.orderTerm,
+    marketSession: order.marketSession,
+    Instrument: [{
+      Product: { securityType: "EQ", symbol: order.symbol.toUpperCase() },
+      orderAction: order.action,
+      quantityType: "QUANTITY",
+      quantity: order.quantity,
+    }],
+  };
+  if (order.priceType === "LIMIT" && order.limitPrice) {
+    orderObj.limitPrice = order.limitPrice;
+  }
+
+  const req: Record<string, unknown> = {
+    PlaceOrderRequest: {
+      orderType: "EQ",
+      clientOrderId,
+      Order: [orderObj],
+    },
+  };
+
+  if (previewIds) {
+    (req.PlaceOrderRequest as Record<string, unknown>).PreviewIds = previewIds;
+  }
+
+  return req;
+}
+
+export async function previewOrder(
+  token: string,
+  secret: string,
+  accountIdKey: string,
+  order: OrderRequest
+): Promise<OrderPreviewResult> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await apiPost(
+    `/v1/accounts/${accountIdKey}/orders/preview.json`,
+    token,
+    secret,
+    buildOrderBody(order)
+  );
+
+  const resp = data?.PreviewOrderResponse;
+  const previewId = resp?.PreviewIds?.[0]?.previewId ?? resp?.PreviewIds?.previewId;
+  const cashMargin = resp?.PreviewIds?.[0]?.cashMargin ?? "CASH";
+  const orderData = Array.isArray(resp?.Order) ? resp.Order[0] : resp?.Order;
+
+  return {
+    previewId: Number(previewId),
+    cashMargin,
+    estimatedCommission: orderData?.estimatedCommission ?? 0,
+    estimatedTotalAmount: orderData?.estimatedTotalAmount ?? 0,
+  };
+}
+
+export async function placeOrder(
+  token: string,
+  secret: string,
+  accountIdKey: string,
+  order: OrderRequest,
+  previewId: number,
+  cashMargin: string
+): Promise<PlacedOrderResult> {
+  const body = buildOrderBody(order, [{ previewId, cashMargin }]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await apiPost(
+    `/v1/accounts/${accountIdKey}/orders/place.json`,
+    token,
+    secret,
+    body
+  );
+
+  const resp = data?.PlaceOrderResponse;
+  const orderId = resp?.OrderIds?.[0]?.orderId ?? resp?.OrderIds?.orderId ?? 0;
+
+  return {
+    orderId: Number(orderId),
+    symbol: order.symbol,
+    quantity: order.quantity,
+    action: order.action,
+  };
 }
