@@ -8,6 +8,7 @@ import NewsPanel from "./NewsPanel";
 import StockSearch from "./StockSearch";
 import AccountDashboard from "./AccountDashboard";
 import TickerBar from "./TickerBar";
+import MarketBar from "./MarketBar";
 import { toggleWatchStock } from "../actions";
 
 interface ResearchLayoutProps {
@@ -57,6 +58,9 @@ export default function ResearchLayout({ watchedTickers }: ResearchLayoutProps) 
         overflow: "hidden",
       }}
     >
+      {/* Market indices — always visible */}
+      <MarketBar />
+
       {/* Live ticker — only shown when stocks are watched */}
       {localWatched.length > 0 && <TickerBar symbols={localWatched} />}
 
