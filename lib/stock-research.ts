@@ -16,7 +16,7 @@ export interface Stock {
 const COMMON_TICKERS: Record<string, string> = {
   lly: "LLY",
   lily: "LLY",
-  eli lilly: "LLY",
+  "eli lilly": "LLY",
   nvda: "NVDA",
   nvidia: "NVDA",
   msft: "MSFT",
