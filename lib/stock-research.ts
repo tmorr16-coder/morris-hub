@@ -11,6 +11,7 @@ export interface Stock {
   marketCap?: string;
   peRatio?: number;
   dividend?: number; // percent
+  reason?: string;   // set by topic search — one-line rationale from Claude
 }
 
 // Common ticker mappings for quick lookup
@@ -34,41 +35,104 @@ const COMMON_TICKERS: Record<string, string> = {
   facebook: "META",
 };
 
+// Is this a topic query (vs a ticker/company name)?
+// Topics have spaces or are long natural-language phrases.
+function looksLikeTopic(q: string): boolean {
+  const trimmed = q.trim();
+  if (trimmed.includes(" ")) return true;            // multi-word = topic
+  if (trimmed.length > 6 && !/^[a-z]+$/.test(trimmed)) return false; // camelCase etc
+  return trimmed.length > 8;                          // very long single word
+}
+
 export async function searchStocks(query: string): Promise<Stock[]> {
   const q = query.toLowerCase().trim();
 
-  // Check if it's a known company name first
+  // Known ticker/name shortcut
   const ticker = COMMON_TICKERS[q];
   if (ticker) {
-    try {
-      const stock = await fetchStockPrice(ticker);
-      return stock ? [stock] : [];
-    } catch (e) {
-      console.error(`Failed to fetch price for ${ticker}:`, e);
-      return [];
-    }
+    const stock = await fetchStockPrice(ticker).catch(() => null);
+    return stock ? [stock] : [];
   }
 
-  // Try Finnhub search API for unknown queries
+  // Try Finnhub symbol search (fast, handles tickers + company names)
+  let finnhubStocks: Stock[] = [];
   try {
     const results = await searchSymbol(q);
-    const stocks: Stock[] = [];
-
-    for (const result of results) {
-      // Only include US stocks
+    for (const result of results.slice(0, 5)) {
       if (!result.displaySymbol.includes(".")) {
-        const stock = await fetchStockPrice(result.displaySymbol);
-        if (stock) {
-          stocks.push(stock);
-        }
+        const stock = await fetchStockPrice(result.displaySymbol).catch(() => null);
+        if (stock) finnhubStocks.push(stock);
       }
     }
-
-    return stocks;
   } catch (e) {
-    console.error(`Failed to search stocks for ${q}:`, e);
+    console.error(`Finnhub search failed for "${q}":`, e);
+  }
+
+  if (finnhubStocks.length > 0) return finnhubStocks;
+
+  // Fallback: topic search via Claude when Finnhub finds nothing
+  if (looksLikeTopic(q)) {
+    return searchStocksByTopic(query.trim());
+  }
+
+  return [];
+}
+
+// ── Topic search via Claude ───────────────────────────────────────────────────
+
+async function searchStocksByTopic(topic: string): Promise<Stock[]> {
+  const client = new Anthropic();
+
+  let tickerSuggestions: Array<{ ticker: string; reason: string }> = [];
+  try {
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 600,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tools: [{ type: "web_search_20250305" as any, name: "web_search", max_uses: 3 }],
+      messages: [{
+        role: "user",
+        content: `List 6 specific US-listed stocks or ETFs most relevant to: "${topic}"
+
+Use web search if needed for current, accurate results. Output ONLY this JSON:
+
+\`\`\`json
+{"stocks":[{"ticker":"NVDA","reason":"One sentence why this fits the topic"}]}
+\`\`\`
+
+US tickers only. Mix large-caps and relevant ETFs where appropriate.`,
+      }],
+    });
+
+    const text = response.content
+      .filter((b) => b.type === "text")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((b) => (b as any).text as string)
+      .join("\n")
+      .replace(/<\/?cite[^>]*>/gi, "");
+
+    const fenced = text.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+    const bare = text.match(/\{[\s\S]*"stocks"[\s\S]*\}/);
+    const jsonStr = fenced?.[1] ?? bare?.[0];
+    if (jsonStr) {
+      const parsed = JSON.parse(jsonStr);
+      tickerSuggestions = (parsed.stocks ?? []).slice(0, 8);
+    }
+  } catch (e) {
+    console.error(`Topic search failed for "${topic}":`, e);
     return [];
   }
+
+  // Fetch live prices for each suggested ticker
+  const stocks = await Promise.all(
+    tickerSuggestions.map(async ({ ticker, reason }) => {
+      const stock = await fetchStockPrice(ticker.toUpperCase()).catch(() => null);
+      if (!stock) return null;
+      return { ...stock, reason };
+    })
+  );
+
+  return stocks.filter((s): s is Stock => s !== null);
 }
 
 export async function fetchStockPrice(ticker: string): Promise<Stock | null> {

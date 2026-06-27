@@ -57,9 +57,11 @@ export default function StockSearch({ onSelectStock }: StockSearchProps) {
 
     if (value.length >= 1) {
       setLoading(true);
+      // Longer debounce for multi-word topic queries so Claude isn't called mid-phrase
+      const delay = value.includes(" ") ? 800 : 300;
       searchTimeout.current = setTimeout(() => {
         performSearch(value);
-      }, 300);
+      }, delay);
     } else {
       setResults([]);
       setShowResults(false);
@@ -81,7 +83,7 @@ export default function StockSearch({ onSelectStock }: StockSearchProps) {
             type="text"
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
-            placeholder="Search by ticker or company name (e.g., NVDA, Apple)..."
+            placeholder="Search any stock, ETF or topic (e.g., NVDA, AI semiconductors, dividend ETFs)..."
             style={{
               flex: 1,
               padding: "10px 14px",
@@ -185,49 +187,25 @@ export default function StockSearch({ onSelectStock }: StockSearchProps) {
                     "transparent";
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "baseline",
-                    marginBottom: 4,
-                  }}
-                >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
                   <span style={{ fontWeight: 600 }}>{stock.ticker}</span>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color:
-                        stock.changeDirection === "up"
-                          ? "var(--color-green)"
-                          : stock.changeDirection === "down"
-                            ? "var(--color-red)"
-                            : "var(--color-ink-3)",
-                    }}
-                  >
-                    ${stock.price.toFixed(2)} {stock.changeDirection === "up" ? "↑" : "↓"}{" "}
-                    {Math.abs(stock.change).toFixed(2)}%
+                  <span style={{ fontSize: 12, color: stock.changeDirection === "up" ? "var(--color-green)" : stock.changeDirection === "down" ? "var(--color-red)" : "var(--color-ink-3)" }}>
+                    ${(stock.price ?? 0).toFixed(2)} {stock.changeDirection === "up" ? "↑" : "↓"} {Math.abs(stock.change ?? 0).toFixed(2)}%
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: 11,
-                    color: "var(--color-ink-3)",
-                    gap: 8,
-                  }}
-                >
-                  <span>{stock.name}</span>
-                  {stock.sector && (
-                    <span style={{ whiteSpace: "nowrap" }}>{stock.sector}</span>
-                  )}
-                  {stock.peRatio && (
-                    <span style={{ whiteSpace: "nowrap" }}>
-                      PE: {stock.peRatio.toFixed(1)}
-                    </span>
-                  )}
-                </div>
+                {/* Topic search reason */}
+                {stock.reason ? (
+                  <div style={{ fontSize: 11, color: "var(--color-ink-3)", lineHeight: 1.4 }}>
+                    <span style={{ fontWeight: 500, color: "var(--color-ink-2)" }}>{stock.name}</span>
+                    {" · "}{stock.reason}
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--color-ink-3)", gap: 8 }}>
+                    <span>{stock.name}</span>
+                    {stock.sector && <span style={{ whiteSpace: "nowrap" }}>{stock.sector}</span>}
+                    {stock.peRatio && <span style={{ whiteSpace: "nowrap" }}>PE: {stock.peRatio.toFixed(1)}</span>}
+                  </div>
+                )}
               </button>
             ))}
         </div>

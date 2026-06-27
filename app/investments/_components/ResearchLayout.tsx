@@ -133,7 +133,7 @@ export default function ResearchLayout({ watchedTickers }: ResearchLayoutProps) 
               }}
             >
               <span>🔍</span>
-              <span>Search any stock, ETF or topic to research…</span>
+              <span>Search any stock, ETF or topic — NVDA, AI chips, dividend ETFs…</span>
             </button>
           )}
         </div>
