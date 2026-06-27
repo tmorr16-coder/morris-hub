@@ -53,52 +53,44 @@ const client = new Anthropic();
 async function fetchFullReportRaw(ticker: string): Promise<FullReport> {
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
-    max_tokens: 3000,
+    max_tokens: 2000,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    tools: [{ type: "web_search_20250305" as any, name: "web_search", max_uses: 8 }],
+    tools: [{ type: "web_search_20250305" as any, name: "web_search", max_uses: 5 }],
     messages: [
       {
         role: "user",
-        content: `You are a buy-side equity research analyst writing a full research note on ${ticker}.
+        content: `You are an equity research analyst. Search the web for ${ticker} and find: latest earnings/guidance, analyst price targets, recent news, and 3-4 comparable companies.
 
-Search the web to gather:
-1. Latest earnings report and management guidance
-2. Analyst price targets and rating changes (last 90 days)
-3. Key recent news events (last 30 days)
-4. Segment-level revenue breakdown and margins
-5. Comparable company multiples
-6. Any pending catalysts (regulatory decisions, product launches, earnings dates)
-
-Then write the full research note as a single JSON block. Include the actual URLs of pages you searched. Output ONLY this JSON:
+Output ONLY this JSON (no other text):
 
 \`\`\`json
 {
-  "thesis": "3-4 paragraph investment thesis narrative. Be specific about financials, margins, growth rates, and why the stock is interesting or not. First paragraph is the headline thesis. Second covers business quality. Third covers valuation. Fourth covers key risk/reward.",
-  "businessOverview": "2-3 paragraph overview of the business model, key revenue segments with approximate size/mix, competitive moat, and what drives the economics of this business.",
+  "thesis": "2 paragraph thesis. P1: headline investment case with specific financials. P2: key risk/reward and what makes this interesting now.",
+  "businessOverview": "1-2 paragraph business model overview: key revenue segments with rough size, competitive moat, main growth driver.",
   "valuation": {
-    "narrative": "2 paragraph valuation analysis referencing specific multiples, why they are justified or stretched vs history and peers, and what the market is pricing in.",
+    "narrative": "1 paragraph: current multiple, whether it is cheap or expensive vs history and peers, and what the market is pricing in.",
     "currentMultiple": "e.g. 41x NTM P/E",
     "historicalRange": "e.g. 28–58x over 5 years",
-    "scenarioBase": "Base: $X target — [1-2 sentence assumption set]",
-    "scenarioBull": "Bull: $X target — [1-2 sentence assumption set]",
-    "scenarioBear": "Bear: $X target — [1-2 sentence assumption set]"
+    "scenarioBase": "Base: $X — brief assumption",
+    "scenarioBull": "Bull: $X — brief assumption",
+    "scenarioBear": "Bear: $X — brief assumption"
   },
   "compTable": [
-    { "name": "Company Name", "ticker": "TICK", "metric": "38x fwd P/E", "note": "1-line positioning vs subject" }
+    { "name": "Company Name", "ticker": "TICK", "metric": "38x fwd P/E", "note": "one-line vs subject" }
   ],
   "catalysts": [
-    { "catalyst": "Specific catalyst name", "timeline": "Q3 2025", "impact": "1-line expected impact on thesis" }
+    { "catalyst": "Catalyst name", "timeline": "Q3 2025", "impact": "one-line impact" }
   ],
   "risks": [
-    { "risk": "Specific risk title", "severity": "high", "detail": "1-2 sentence detail on how this risk materializes and what it means for the investment" }
+    { "risk": "Risk title", "severity": "high", "detail": "one sentence on how it materializes" }
   ],
   "sources": [
-    { "title": "Page title or article headline", "url": "https://actual-url.com", "type": "earnings" }
+    { "title": "Article or page title", "url": "https://real-url.com", "type": "earnings" }
   ]
 }
 \`\`\`
 
-compTable: 4-5 peers. catalysts: 3-4 items. risks: 3-4 items with severity high/medium/low. sources: list every URL you actually read, 5-15 items. Not financial advice.`,
+compTable: 3-4 peers. catalysts: 3 items. risks: 3 items (severity: high/medium/low). sources: every URL you actually read. Not financial advice.`,
       },
     ],
   });
@@ -109,13 +101,27 @@ compTable: 4-5 peers. catalysts: 3-4 items. risks: 3-4 items with severity high/
     .map((b) => (b as any).text as string)
     .join("\n");
 
-  const fencedMatch = fullText.match(/```(?:json)?\s*({[\s\S]*?})\s*```/);
-  const bareMatch = fullText.match(/{[\s\S]*"thesis"[\s\S]*}/);
+  console.log(`[full-report] ${ticker} response length: ${fullText.length} chars`);
+
+  // Greedy match inside code fence captures the full nested JSON object
+  const fencedMatch = fullText.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
+  // Fallback: find the outermost { } that contains "thesis"
+  const bareMatch = fullText.match(/\{[\s\S]*"thesis"[\s\S]*\}/);
   const jsonStr = fencedMatch?.[1] ?? bareMatch?.[0];
 
-  if (!jsonStr) throw new Error("No JSON in Claude full-report response");
+  if (!jsonStr) {
+    console.error(`[full-report] ${ticker} no JSON found. Preview:`, fullText.slice(0, 400));
+    throw new Error("No JSON in Claude response");
+  }
 
-  const parsed = JSON.parse(jsonStr);
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch (e) {
+    console.error(`[full-report] ${ticker} JSON parse failed:`, e, jsonStr.slice(0, 200));
+    throw new Error("Malformed JSON in Claude response");
+  }
+
   return { ...parsed, ticker, generatedAt: new Date().toISOString() } as FullReport;
 }
 
