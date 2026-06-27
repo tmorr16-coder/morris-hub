@@ -130,7 +130,6 @@ export async function fetchStockPrice(ticker: string): Promise<Stock | null> {
       change: parsed.change,
       changeDirection: parsed.change > 0 ? "up" : parsed.change < 0 ? "down" : "neutral",
       sector: parsed.sector,
-      marketCap: null, // Could extract if needed
       peRatio: parsed.peRatio,
       dividend: parsed.dividend,
     };
