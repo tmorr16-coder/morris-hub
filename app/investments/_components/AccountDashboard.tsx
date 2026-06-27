@@ -36,6 +36,12 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
   const [loading, setLoading] = useState(true);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  // OOB connect flow
+  const [connecting, setConnecting] = useState(false);
+  const [requestToken, setRequestToken] = useState<string | null>(null);
+  const [pin, setPin] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/investments/etrade/status")
@@ -59,6 +65,45 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
     setLoading(false);
   };
 
+  const handleConnect = async () => {
+    setConnecting(true);
+    setVerifyError(null);
+    try {
+      const res = await fetch("/api/investments/etrade/connect");
+      const data = await res.json();
+      if (!res.ok) { setVerifyError(data.error); setConnecting(false); return; }
+      setRequestToken(data.requestToken);
+      window.open(data.authUrl, "_blank", "width=800,height=600");
+    } catch {
+      setVerifyError("Could not reach E*TRADE");
+    }
+    setConnecting(false);
+  };
+
+  const handleVerify = async () => {
+    if (!requestToken || !pin.trim()) return;
+    setVerifying(true);
+    setVerifyError(null);
+    try {
+      const res = await fetch("/api/investments/etrade/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestToken, pin: pin.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setVerifyError(data.error); setVerifying(false); return; }
+      // Success — reload status and portfolio
+      setRequestToken(null);
+      setPin("");
+      const statusRes = await fetch("/api/investments/etrade/status").then((r) => r.json());
+      setStatus(statusRes);
+      if (statusRes.connected && !statusRes.expired) loadPortfolio();
+    } catch {
+      setVerifyError("Verification failed");
+    }
+    setVerifying(false);
+  };
+
   const handleDisconnect = async () => {
     setDisconnecting(true);
     await fetch("/api/investments/etrade/disconnect", { method: "POST" });
@@ -69,48 +114,90 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
 
   const totalDayGain = portfolio?.positions.reduce((s, p) => s + p.daysGain, 0) ?? 0;
 
-  // ── Not connected ──────────────────────────────────────────────────────────
+  // ── Not connected / OOB flow ───────────────────────────────────────────────
   if (!loading && (!status?.connected || status.expired)) {
     return (
-      <div
-        style={{
-          padding: "28px 28px 20px",
-          borderBottom: "1px solid var(--color-rule)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--color-ink-3)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 3 }}>
-              E*TRADE
+      <div style={{ padding: "20px 28px", borderBottom: "1px solid var(--color-rule)" }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--color-ink-3)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>
+          E*TRADE
+        </div>
+
+        {!requestToken ? (
+          // Step 1: initiate
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>
+                {status?.expired ? "Session expired — reconnect to continue" : "Connect your brokerage account"}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 3 }}>
+                {status?.expired ? "E*TRADE sessions reset at midnight ET." : "See live positions, buying power, and day P&L."}
+              </div>
+              {verifyError && <div style={{ fontSize: 11, color: "var(--color-red)", marginTop: 4 }}>{verifyError}</div>}
             </div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>
-              {status?.expired ? "Session expired — reconnect to continue" : "Connect your brokerage account"}
+            <button
+              onClick={handleConnect}
+              disabled={connecting}
+              style={{
+                padding: "9px 16px", borderRadius: 8, border: "none",
+                background: "var(--color-accent)", color: "#FFFDF8",
+                fontSize: 13, fontWeight: 500, fontFamily: "inherit",
+                cursor: connecting ? "wait" : "pointer", flexShrink: 0,
+                opacity: connecting ? 0.7 : 1,
+              }}
+            >
+              {connecting ? "Opening…" : status?.expired ? "Reconnect →" : "Connect E*TRADE →"}
+            </button>
+          </div>
+        ) : (
+          // Step 2: PIN entry
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ fontSize: 13, color: "var(--color-ink)" }}>
+              <strong>Authorize in the E*TRADE window</strong>, then paste the PIN it shows you below.
             </div>
-            <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 3 }}>
-              {status?.expired
-                ? "E*TRADE sessions reset at midnight ET each trading day."
-                : "See your positions, buying power, and day P&L alongside research."}
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleVerify(); }}
+                placeholder="Paste PIN from E*TRADE…"
+                style={{
+                  flex: 1, padding: "8px 12px", borderRadius: 8,
+                  border: "1px solid var(--color-rule)", background: "var(--color-bg)",
+                  fontSize: 13, fontFamily: "inherit", outline: "none", color: "var(--color-ink)",
+                }}
+              />
+              <button
+                onClick={handleVerify}
+                disabled={verifying || !pin.trim()}
+                style={{
+                  padding: "8px 16px", borderRadius: 8, border: "none",
+                  background: "var(--color-accent)", color: "#FFFDF8",
+                  fontSize: 13, fontWeight: 500, fontFamily: "inherit",
+                  cursor: verifying ? "wait" : "pointer",
+                  opacity: verifying || !pin.trim() ? 0.6 : 1,
+                }}
+              >
+                {verifying ? "Connecting…" : "Connect"}
+              </button>
+              <button
+                onClick={() => { setRequestToken(null); setPin(""); setVerifyError(null); }}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "var(--color-ink-3)" }}
+              >
+                Cancel
+              </button>
+            </div>
+            {verifyError && <div style={{ fontSize: 11, color: "var(--color-red)" }}>{verifyError}</div>}
+            <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
+              Window didn&apos;t open?{" "}
+              <button
+                onClick={handleConnect}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-accent)", fontSize: 11, padding: 0, textDecoration: "underline" }}
+              >
+                Reopen E*TRADE →
+              </button>
             </div>
           </div>
-          <a
-            href="/api/investments/etrade/connect"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "9px 16px",
-              borderRadius: 8,
-              background: "var(--color-accent)",
-              color: "#FFFDF8",
-              textDecoration: "none",
-              fontSize: 13,
-              fontWeight: 500,
-              flexShrink: 0,
-            }}
-          >
-            {status?.expired ? "Reconnect" : "Connect E*TRADE"} →
-          </a>
-        </div>
+        )}
       </div>
     );
   }
