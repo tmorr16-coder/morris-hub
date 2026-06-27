@@ -14,10 +14,12 @@ interface PriceChartProps {
 }
 
 const RANGES = [
-  { label: "1D", range: "1d", interval: "5m" },
-  { label: "1M", range: "1mo", interval: "1d" },
-  { label: "3M", range: "3mo", interval: "1d" },
-  { label: "1Y", range: "1y", interval: "1wk" },
+  { label: "1D",  range: "1d",   interval: "5m" },
+  { label: "1M",  range: "1mo",  interval: "1d" },
+  { label: "3M",  range: "3mo",  interval: "1d" },
+  { label: "1Y",  range: "1y",   interval: "1wk" },
+  { label: "5Y",  range: "5y",   interval: "1wk" },
+  { label: "Max", range: "max",  interval: "1mo" },
 ] as const;
 
 function buildSvgPath(

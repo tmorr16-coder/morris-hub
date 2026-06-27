@@ -7,6 +7,7 @@ import StockMainView from "./StockMainView";
 import NewsPanel from "./NewsPanel";
 import StockSearch from "./StockSearch";
 import AccountDashboard from "./AccountDashboard";
+import TickerBar from "./TickerBar";
 import { toggleWatchStock } from "../actions";
 
 interface ResearchLayoutProps {
@@ -51,10 +52,16 @@ export default function ResearchLayout({ watchedTickers }: ResearchLayoutProps) 
     <div
       style={{
         display: "flex",
-        height: "calc(100dvh - 101px)", // PlatformMenu ~52px + InvestmentsNav ~49px
+        flexDirection: "column",
+        height: "calc(100dvh - 101px)",
         overflow: "hidden",
       }}
     >
+      {/* Live ticker — only shown when stocks are watched */}
+      {localWatched.length > 0 && <TickerBar symbols={localWatched} />}
+
+      {/* 3-column layout */}
+      <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
       {/* Left: Watchlist sidebar */}
       <WatchlistSidebar
         initialTickers={localWatched}
@@ -159,6 +166,7 @@ export default function ResearchLayout({ watchedTickers }: ResearchLayoutProps) 
 
       {/* Right: News panel */}
       <NewsPanel ticker={selectedStock?.ticker} tickerName={selectedStock?.name} />
+      </div> {/* end 3-column */}
     </div>
   );
 }

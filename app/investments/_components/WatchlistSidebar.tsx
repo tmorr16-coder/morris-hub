@@ -62,11 +62,11 @@ export default function WatchlistSidebar({
           fetch(`/api/investments/candle?ticker=${ticker}&range=1mo&interval=1d`).then((r) => r.json()),
         ]);
         const stock: Stock = {
-          ticker: stockRes.ticker,
-          name: stockRes.name,
-          price: stockRes.price,
-          change: stockRes.change,
-          changeDirection: stockRes.changeDirection,
+          ticker: stockRes.ticker ?? ticker,
+          name: stockRes.name ?? ticker,
+          price: stockRes.price ?? 0,
+          change: stockRes.change ?? 0,
+          changeDirection: stockRes.changeDirection ?? "neutral",
           sector: stockRes.sector,
         };
         const sparkline: number[] = (candleRes.points || []).map((p: { close: number }) => p.close);
