@@ -7,7 +7,16 @@ export async function GET() {
   const userId = await getCurrentUserId();
   if (!userId) return Response.json({ error: "Not authenticated" }, { status: 401 });
 
-  const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/investments/etrade/callback`;
+  // Validate env vars before attempting — surfaces missing config clearly
+  if (!process.env.ETRADE_CONSUMER_KEY || !process.env.ETRADE_CONSUMER_SECRET) {
+    return Response.json(
+      { error: "ETRADE_CONSUMER_KEY / ETRADE_CONSUMER_SECRET not set in environment" },
+      { status: 500 }
+    );
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://morrisai.family";
+  const callbackUrl = `${appUrl}/api/investments/etrade/callback`;
 
   let requestToken: string;
   let requestTokenSecret: string;
@@ -16,14 +25,15 @@ export async function GET() {
     requestToken = tokens.token;
     requestTokenSecret = tokens.secret;
   } catch (err) {
-    console.error("[etrade/connect] request token failed:", err);
-    return Response.json({ error: "Could not reach E*TRADE" }, { status: 502 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[etrade/connect] request token failed:", msg);
+    // Surface the E*TRADE error body so we can see what went wrong
+    return Response.json({ error: msg }, { status: 502 });
   }
 
-  // Store request token keyed by token value so callback can look it up
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
-  const { error } = await service
+  const { error: dbErr } = await service
     .schema("hub")
     .from("etrade_oauth_state")
     .upsert(
@@ -31,9 +41,9 @@ export async function GET() {
       { onConflict: "request_token" }
     );
 
-  if (error) {
-    console.error("[etrade/connect] DB error:", error.message);
-    return Response.json({ error: "DB error storing OAuth state" }, { status: 500 });
+  if (dbErr) {
+    console.error("[etrade/connect] DB error:", dbErr.message);
+    return Response.json({ error: `DB error: ${dbErr.message}` }, { status: 500 });
   }
 
   redirect(getAuthorizationUrl(requestToken));
