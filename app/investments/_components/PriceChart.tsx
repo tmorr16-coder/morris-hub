@@ -63,6 +63,15 @@ function formatDateLabel(timestamp: number, interval: string): string {
   if (interval === "5m" || interval === "1m" || interval === "15m" || interval === "1h") {
     return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   }
+  if (interval === "1mo") {
+    // Max range — just show year
+    return d.toLocaleDateString("en-US", { year: "numeric" });
+  }
+  if (interval === "1wk") {
+    // 5Y / 1Y weekly — show month + year
+    return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  }
+  // Daily — show month + day
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
@@ -119,10 +128,14 @@ export default function PriceChart({ ticker, currentPrice, changeDirection }: Pr
     y: 16 + (1 - frac) * (size.height - 32),
   }));
 
-  // X-axis date labels (6 evenly spaced)
+  // X-axis date labels — fewer for long ranges so year labels don't overlap
+  const xFracs =
+    range.interval === "1mo" ? [0, 0.25, 0.5, 0.75, 1] :        // Max: 5 year labels
+    range.interval === "1wk" ? [0, 0.2, 0.4, 0.6, 0.8, 1] :     // 5Y/1Y: 6 labels
+    [0, 0.2, 0.4, 0.6, 0.8, 1];                                   // shorter: 6 labels
   const xLabels =
     points.length > 1
-      ? [0, 0.2, 0.4, 0.6, 0.8, 1].map((frac) => {
+      ? xFracs.map((frac) => {
           const idx = Math.min(Math.round(frac * (points.length - 1)), points.length - 1);
           return {
             label: formatDateLabel(points[idx].time, range.interval),
