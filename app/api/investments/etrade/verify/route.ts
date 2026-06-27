@@ -61,7 +61,7 @@ export async function POST(request: Request) {
       accounts[0];
     if (brokerage) {
       accountIdKey = brokerage.accountIdKey;
-      accountName = brokerage.accountName || brokerage.accountDesc || brokerage.accountType;
+      accountName = brokerage.accountName || brokerage.accountType;
     }
   } catch (err) {
     console.error("[etrade/verify] accounts fetch failed:", err);
