@@ -290,7 +290,8 @@ export interface PlacedOrderResult {
 }
 
 function buildOrderBody(order: OrderRequest, previewIds?: { previewId: number; cashMargin: string }[]) {
-  const clientOrderId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  // E*TRADE requires clientOrderId to be numeric only (no dashes, letters, etc.)
+  const clientOrderId = String(Date.now()).slice(-9); // 9-digit numeric string
   const orderObj: Record<string, unknown> = {
     allOrNone: false,
     priceType: order.priceType,
@@ -300,7 +301,7 @@ function buildOrderBody(order: OrderRequest, previewIds?: { previewId: number; c
       Product: { securityType: "EQ", symbol: order.symbol.toUpperCase() },
       orderAction: order.action,
       quantityType: "QUANTITY",
-      quantity: order.quantity,
+      quantity: Math.floor(order.quantity), // must be integer
     }],
   };
   if (order.priceType === "LIMIT" && order.limitPrice) {
