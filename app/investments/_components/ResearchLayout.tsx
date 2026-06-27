@@ -6,6 +6,7 @@ import WatchlistSidebar from "./WatchlistSidebar";
 import StockMainView from "./StockMainView";
 import NewsPanel from "./NewsPanel";
 import StockSearch from "./StockSearch";
+import AccountDashboard from "./AccountDashboard";
 import { toggleWatchStock } from "../actions";
 
 interface ResearchLayoutProps {
@@ -135,24 +136,22 @@ export default function ResearchLayout({ watchedTickers }: ResearchLayoutProps) 
             onClose={() => setSelectedStock(null)}
           />
         ) : (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 12,
-              color: "var(--color-ink-3)",
-              padding: "40px 20px",
-            }}
-          >
-            <div style={{ fontSize: 40 }}>📊</div>
-            <div style={{ fontSize: 18, fontWeight: 600, color: "var(--color-ink-2)" }}>
-              Select a stock to research
-            </div>
-            <div style={{ fontSize: 13, textAlign: "center", maxWidth: 300, lineHeight: 1.6 }}>
-              Search for a ticker above, click a stock in your watchlist, or explore suggested ideas.
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            <AccountDashboard onSelectStock={handleSelectStock} />
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                color: "var(--color-ink-3)",
+                padding: "32px 20px",
+              }}
+            >
+              <div style={{ fontSize: 13, color: "var(--color-ink-3)" }}>
+                Search for a stock above or select one from your watchlist.
+              </div>
             </div>
           </div>
         )}
