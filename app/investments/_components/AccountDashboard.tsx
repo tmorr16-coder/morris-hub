@@ -39,6 +39,7 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
   // OOB connect flow
   const [connecting, setConnecting] = useState(false);
   const [requestToken, setRequestToken] = useState<string | null>(null);
+  const [authUrl, setAuthUrl] = useState<string | null>(null);
   const [pin, setPin] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
@@ -73,7 +74,9 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
       const data = await res.json();
       if (!res.ok) { setVerifyError(data.error); setConnecting(false); return; }
       setRequestToken(data.requestToken);
-      window.open(data.authUrl, "_blank", "width=800,height=600");
+      setAuthUrl(data.authUrl);
+      // Open in a new tab — not a popup, so it doesn't replace the current page
+      window.open(data.authUrl, "_blank");
     } catch {
       setVerifyError("Could not reach E*TRADE");
     }
@@ -149,20 +152,39 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
             </button>
           </div>
         ) : (
-          // Step 2: PIN entry
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ fontSize: 13, color: "var(--color-ink)" }}>
-              <strong>Authorize in the E*TRADE window</strong>, then paste the PIN it shows you below.
+          // Step 2: PIN entry — shows after E*TRADE tab opens
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div
+              style={{
+                padding: "12px 14px",
+                background: "rgba(59,92,127,0.06)",
+                border: "1px solid rgba(59,92,127,0.2)",
+                borderRadius: 8,
+                fontSize: 13,
+                color: "var(--color-ink)",
+                lineHeight: 1.6,
+              }}
+            >
+              <strong>In the E*TRADE tab:</strong> log in, click Authorize, and copy the{" "}
+              <strong>code/PIN</strong> shown on the confirmation page. Paste it here.
+              <div style={{ marginTop: 6, fontSize: 11, color: "var(--color-ink-3)" }}>
+                Tab didn&apos;t open?{" "}
+                <a href={authUrl ?? "#"} target="_blank" rel="noopener noreferrer" style={{ color: "var(--color-accent)" }}>
+                  Open E*TRADE →
+                </a>
+              </div>
             </div>
+
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input
+                autoFocus
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleVerify(); }}
-                placeholder="Paste PIN from E*TRADE…"
+                placeholder="Paste the PIN / verifier code from E*TRADE…"
                 style={{
-                  flex: 1, padding: "8px 12px", borderRadius: 8,
-                  border: "1px solid var(--color-rule)", background: "var(--color-bg)",
+                  flex: 1, padding: "9px 12px", borderRadius: 8,
+                  border: "1px solid var(--color-accent)", background: "var(--color-bg)",
                   fontSize: 13, fontFamily: "inherit", outline: "none", color: "var(--color-ink)",
                 }}
               />
@@ -170,32 +192,30 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
                 onClick={handleVerify}
                 disabled={verifying || !pin.trim()}
                 style={{
-                  padding: "8px 16px", borderRadius: 8, border: "none",
+                  padding: "9px 16px", borderRadius: 8, border: "none",
                   background: "var(--color-accent)", color: "#FFFDF8",
                   fontSize: 13, fontWeight: 500, fontFamily: "inherit",
                   cursor: verifying ? "wait" : "pointer",
                   opacity: verifying || !pin.trim() ? 0.6 : 1,
+                  whiteSpace: "nowrap",
                 }}
               >
-                {verifying ? "Connecting…" : "Connect"}
-              </button>
-              <button
-                onClick={() => { setRequestToken(null); setPin(""); setVerifyError(null); }}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "var(--color-ink-3)" }}
-              >
-                Cancel
+                {verifying ? "Connecting…" : "Submit PIN"}
               </button>
             </div>
-            {verifyError && <div style={{ fontSize: 11, color: "var(--color-red)" }}>{verifyError}</div>}
-            <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
-              Window didn&apos;t open?{" "}
-              <button
-                onClick={handleConnect}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-accent)", fontSize: 11, padding: 0, textDecoration: "underline" }}
-              >
-                Reopen E*TRADE →
-              </button>
-            </div>
+
+            {verifyError && (
+              <div style={{ fontSize: 12, color: "var(--color-red)", padding: "6px 10px", background: "rgba(154,59,42,0.06)", borderRadius: 6 }}>
+                {verifyError}
+              </div>
+            )}
+
+            <button
+              onClick={() => { setRequestToken(null); setAuthUrl(null); setPin(""); setVerifyError(null); }}
+              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--color-ink-4)", textAlign: "left", padding: 0 }}
+            >
+              ← Start over
+            </button>
           </div>
         )}
       </div>
