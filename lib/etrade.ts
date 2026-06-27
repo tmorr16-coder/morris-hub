@@ -290,13 +290,13 @@ export interface PlacedOrderResult {
 }
 
 function buildOrderBody(order: OrderRequest, previewIds?: { previewId: number; cashMargin: string }[]) {
-  // E*TRADE requires clientOrderId to be numeric only (no dashes, letters, etc.)
-  const clientOrderId = String(Date.now()).slice(-9); // 9-digit numeric string
+  // E*TRADE requires clientOrderId to be a short unique numeric string
+  const clientOrderId = String(Math.floor(Math.random() * 9000000) + 1000000); // 7-digit random
   const orderObj: Record<string, unknown> = {
-    allOrNone: "false",      // E*TRADE expects string not boolean
+    allOrNone: false,
     priceType: order.priceType,
     orderTerm: order.orderTerm,
-    // marketSession omitted — sandbox rejects "REGULAR" when market is closed
+    marketSession: order.marketSession ?? "REGULAR",
     Instrument: [{
       Product: { securityType: "EQ", symbol: order.symbol.toUpperCase() },
       orderAction: order.action,
