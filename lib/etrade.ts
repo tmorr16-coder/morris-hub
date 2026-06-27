@@ -331,13 +331,14 @@ export async function previewOrder(
 ): Promise<OrderPreviewResult> {
   // accountIdKey is base64 and may contain +/= — encode for URL path
   const encodedKey = encodeURIComponent(accountIdKey);
-  console.log(`[etrade] previewOrder key="${accountIdKey}" encoded="${encodedKey}"`);
+  const body = buildOrderBody(order);
+  console.log(`[etrade] previewOrder key="${accountIdKey}" encoded="${encodedKey}" body=${JSON.stringify(body)}`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = await apiPost(
     `/v1/accounts/${encodedKey}/orders/preview.json`,
     token,
     secret,
-    buildOrderBody(order)
+    body
   );
 
   const resp = data?.PreviewOrderResponse;

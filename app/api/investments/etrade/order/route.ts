@@ -71,7 +71,12 @@ export async function POST(request: Request) {
     } catch (err) {
       const msg = (err as Error).message;
       console.error("[etrade/order] preview failed key=", conn.accountIdKey, "err=", msg);
-      return Response.json({ error: msg }, { status: 502 });
+      return Response.json({
+        error: msg,
+        _sentKey: conn.accountIdKey,
+        _sentKeyEncoded: encodeURIComponent(conn.accountIdKey),
+        _sentOrder: order,
+      }, { status: 502 });
     }
   }
 
