@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       try {
         const res = await fetch(
           `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_KEY}`,
-          { cache: "no-store" } // always fresh for the live ticker
+          { next: { revalidate: 15 } } // 15-second cache — prevents Finnhub rate limiting
         );
         if (!res.ok) return null;
         const q = await res.json();

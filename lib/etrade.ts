@@ -127,15 +127,39 @@ async function apiGet(path: string, token: string, secret: string): Promise<any>
   return res.json();
 }
 
+// Convert a plain JS object to XML for E*TRADE (their Java API is XML-native)
+function toXml(obj: unknown, tag: string): string {
+  if (typeof obj === "string" || typeof obj === "number" || typeof obj === "boolean") {
+    return `<${tag}>${obj}</${tag}>`;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => toXml(item, tag)).join("");
+  }
+  if (obj && typeof obj === "object") {
+    const inner = Object.entries(obj as Record<string, unknown>)
+      .map(([k, v]) => {
+        if (Array.isArray(v)) return v.map((item) => toXml(item, k)).join("");
+        return toXml(v, k);
+      })
+      .join("");
+    return `<${tag}>${inner}</${tag}>`;
+  }
+  return `<${tag}></${tag}>`;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function apiPost(path: string, token: string, secret: string, body: unknown): Promise<any> {
+async function apiPost(path: string, token: string, secret: string, body: Record<string, unknown>): Promise<any> {
   const url = `${API_BASE}${path}`;
-  // JSON body — body params are NOT included in OAuth signature per spec
   const header = buildAuthHeader("POST", url, token, secret);
+
+  // Build XML — E*TRADE's sandbox is more reliable with XML than JSON
+  const rootTag = Object.keys(body)[0];
+  const xmlBody = toXml(body[rootTag], rootTag);
+
   const res = await fetch(url, {
     method: "POST",
-    headers: { Authorization: header, "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(body),
+    headers: { Authorization: header, "Content-Type": "application/xml", Accept: "application/json" },
+    body: xmlBody,
   });
   if (!res.ok) {
     const text = await res.text();
