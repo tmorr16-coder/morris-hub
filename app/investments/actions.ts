@@ -69,18 +69,6 @@ export async function addToThesis(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const service = createServiceClient() as any;
 
-    const rationale = [
-      summary,
-      "",
-      "BULL CASE:",
-      ...bullCase.map((b) => `• ${b}`),
-      "",
-      "BEAR CASE:",
-      ...bearCase.map((b) => `• ${b}`),
-      "",
-      `12-month price target: $${priceTarget12m}`,
-    ].join("\n");
-
     const { data, error } = await service
       .schema("hub")
       .from("investment_ideas")
@@ -88,7 +76,12 @@ export async function addToThesis(
         user_id: userId,
         category: "stocks",
         title: `${ticker} — ${recommendation}`,
-        rationale,
+        rationale: summary,
+        action_items: [
+          ...bullCase.map((b) => `Bull: ${b}`),
+          ...bearCase.map((b) => `Bear: ${b}`),
+          `12-month target: $${priceTarget12m}`,
+        ],
         related_assets: [ticker],
         is_ai_generated: true,
         source: "claude",
