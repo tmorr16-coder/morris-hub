@@ -5,11 +5,12 @@ import { usePathname } from "next/navigation";
 
 export default function InvestmentsNav() {
   const pathname = usePathname();
-  const isStockResearch = pathname.includes("/stocks");
+  const isStocks = pathname.includes("/stocks");
+  const isIdeas = pathname.includes("/ideas");
 
   const navItems = [
-    { label: "💡 Ideas", href: "/investments", active: !isStockResearch },
-    { label: "📊 Stocks", href: "/investments/stocks", active: isStockResearch },
+    { label: "📊 Stocks", href: "/investments/stocks", active: isStocks || (!isStocks && !isIdeas) },
+    { label: "💡 Ideas",  href: "/investments/ideas",  active: isIdeas },
   ];
 
   return (
