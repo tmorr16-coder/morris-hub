@@ -63,15 +63,8 @@ export async function POST(request: Request) {
       return Response.json(result);
     } catch (err) {
       const msg = (err as Error).message;
-      console.error("[etrade/order] preview failed:", msg);
-      // Return 200 with full error detail so browser DevTools can read it
-      return Response.json({
-        _debug: true,
-        error: msg,
-        accountIdKey: conn.accountIdKey,
-        accountIdKeyEncoded: encodeURIComponent(conn.accountIdKey),
-        orderSent: order,
-      });
+      console.error("[etrade/order] preview failed:", msg, "key:", conn.accountIdKey);
+      return Response.json({ error: msg }, { status: 502 });
     }
   }
 

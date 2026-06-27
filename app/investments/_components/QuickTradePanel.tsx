@@ -39,7 +39,7 @@ export default function QuickTradePanel({ stock, onClose }: QuickTradePanelProps
   const [action, setAction] = useState<OrderAction>("BUY");
   const [priceType, setPriceType] = useState<OrderPriceType>("MARKET");
   const [qty, setQty] = useState<string>("10");
-  const [limitPrice, setLimitPrice] = useState<string>(stock.price.toFixed(2));
+  const [limitPrice, setLimitPrice] = useState<string>((stock.price ?? 0).toFixed(2));
   const [orderTerm, setOrderTerm] = useState<OrderTerm>("GOOD_FOR_DAY");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [placed, setPlaced] = useState<PlacedResult | null>(null);
@@ -88,7 +88,7 @@ export default function QuickTradePanel({ stock, onClose }: QuickTradePanelProps
         body: JSON.stringify({ step: "preview", order: buildOrder() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok || data.error) throw new Error(data.error ?? "Preview failed");
       setPreview(data);
     } catch (e) {
       setError((e as Error).message);
@@ -156,7 +156,7 @@ export default function QuickTradePanel({ stock, onClose }: QuickTradePanelProps
               {stock.ticker}
               <span style={{ fontSize: 13, fontWeight: 400, color: "var(--color-ink-3)", marginLeft: 8 }}>{fmt(stock.price)}</span>
               <span style={{ fontSize: 12, marginLeft: 6, color: isUp ? "var(--color-green)" : "var(--color-red)" }}>
-                {isUp ? "+" : ""}{stock.change.toFixed(2)}%
+                {isUp ? "+" : ""}{(stock.change ?? 0).toFixed(2)}%
               </span>
             </div>
           </div>
@@ -344,7 +344,7 @@ export default function QuickTradePanel({ stock, onClose }: QuickTradePanelProps
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--color-ink-3)" }}>
                     <span>Commission</span>
-                    <span>${preview.estimatedCommission.toFixed(2)}</span>
+                    <span>${(preview.estimatedCommission ?? 0).toFixed(2)}</span>
                   </div>
                 </div>
               )}
