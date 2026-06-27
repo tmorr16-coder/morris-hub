@@ -18,33 +18,39 @@ export interface DeepResearch {
 
 const client = new Anthropic();
 
-// Cache keyed only on ticker — price fluctuations shouldn't bust the cache
+// Cache keyed only on ticker — 1 hour TTL so web-search data stays fresh
 async function fetchDeepResearchRaw(ticker: string): Promise<DeepResearch> {
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1500,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    tools: [{ type: "web_search_20250305" as any, name: "web_search", max_uses: 5 }],
     messages: [
       {
         role: "user",
-        content: `You are a professional equity research analyst with deep knowledge of public markets. Analyze ${ticker} as an investment.
+        content: `You are a professional equity research analyst. Use web search to research ${ticker} right now and find:
+1. Most recent earnings results and any guidance updates
+2. Current analyst consensus rating and price targets
+3. Key news from the last 2 weeks
+4. Any recent catalysts or risk events
 
-Based on your knowledge of this company's business model, financials, competitive position, and market dynamics, provide a structured investment analysis. Output ONLY the JSON below — no other text:
+Then output ONLY a JSON block with your analysis — no other text:
 
 \`\`\`json
 {
   "recommendation": "BUY",
   "conviction": 72,
   "priceTarget12m": 230,
-  "summary": "2-3 sentence investment thesis with specific business metrics or competitive dynamics",
-  "bullCase": ["specific bull point with data", "bull point 2", "bull point 3"],
-  "bearCase": ["specific bear point with data", "bear point 2", "bear point 3"],
-  "catalysts": ["near-term catalyst 1", "catalyst 2", "catalyst 3"],
-  "risks": ["key risk 1 with specifics", "risk 2", "risk 3"],
-  "evidenceBase": 28
+  "summary": "2-3 sentence thesis referencing specific recent data you found",
+  "bullCase": ["data-driven bull point 1", "bull point 2", "bull point 3"],
+  "bearCase": ["data-driven bear point 1", "bear point 2", "bear point 3"],
+  "catalysts": ["near-term catalyst from recent news", "catalyst 2", "catalyst 3"],
+  "risks": ["current risk with specifics", "risk 2", "risk 3"],
+  "evidenceBase": 35
 }
 \`\`\`
 
-Use BUY / HOLD / SELL for recommendation. conviction is 0-100. priceTarget12m is a dollar number. Be specific — cite product lines, margins, competitors, regulatory factors, etc. Not financial advice.`,
+Use BUY / HOLD / SELL. conviction 0-100. priceTarget12m in dollars. Not financial advice.`,
       },
     ],
   });
@@ -68,7 +74,7 @@ Use BUY / HOLD / SELL for recommendation. conviction is 0-100. priceTarget12m is
 const getCachedResearch = unstable_cache(
   fetchDeepResearchRaw,
   ["deep-research"],
-  { revalidate: 21600, tags: ["deep-research"] } // 6 hour cache per ticker
+  { revalidate: 3600, tags: ["deep-research"] } // 1 hour cache — web search data stays reasonably fresh
 );
 
 export async function POST(request: Request) {
