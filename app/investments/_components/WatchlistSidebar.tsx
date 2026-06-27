@@ -41,29 +41,25 @@ export default function WatchlistSidebar({
   onWatchlistChange,
 }: WatchlistSidebarProps) {
   const [items, setItems] = useState<WatchlistItemData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialTickers.length > 0);
   const [suggested, setSuggested] = useState<SuggestedStock[]>([]);
-  const [tickers, setTickers] = useState(initialTickers);
 
-  // Sync when parent adds/removes a ticker (e.g. Watch button in stock detail)
-  useEffect(() => {
-    setTickers(initialTickers);
-  }, [initialTickers.join(",")]);
+  // Stable string key — doesn't change on every render if content is same
+  const tickerKey = initialTickers.join(",");
 
   useEffect(() => {
-    if (!tickers.length) {
+    if (!initialTickers.length) {
       setLoading(false);
+      setItems([]);
       return;
     }
     setLoading(true);
 
     Promise.all(
-      tickers.map(async (ticker) => {
+      initialTickers.map(async (ticker) => {
         const [stockRes, candleRes] = await Promise.all([
           fetch(`/api/investments/stock-summary?ticker=${ticker}`).then((r) => r.json()),
-          fetch(`/api/investments/candle?ticker=${ticker}&range=1mo&interval=1d`).then((r) =>
-            r.json()
-          ),
+          fetch(`/api/investments/candle?ticker=${ticker}&range=1mo&interval=1d`).then((r) => r.json()),
         ]);
         const stock: Stock = {
           ticker: stockRes.ticker,
@@ -73,29 +69,27 @@ export default function WatchlistSidebar({
           changeDirection: stockRes.changeDirection,
           sector: stockRes.sector,
         };
-        const sparkline: number[] = (candleRes.points || []).map(
-          (p: { close: number }) => p.close
-        );
+        const sparkline: number[] = (candleRes.points || []).map((p: { close: number }) => p.close);
         return { stock, sparkline };
       })
     )
       .then((data) => setItems(data.filter((d) => d.stock.price > 0)))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-  }, [tickers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickerKey]);
 
-  // Fetch AI suggestions once tickers are loaded
   useEffect(() => {
-    if (!tickers.length) return;
-    fetch(`/api/investments/suggested?tickers=${tickers.join(",")}`)
+    if (!initialTickers.length) return;
+    fetch(`/api/investments/suggested?tickers=${tickerKey}`)
       .then((r) => r.json())
       .then((data) => setSuggested(data.suggestions || []))
       .catch(() => {});
-  }, [tickers.join(",")]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickerKey]);
 
   const handleRemove = async (ticker: string) => {
-    const newTickers = tickers.filter((t) => t !== ticker);
-    setTickers(newTickers);
+    const newTickers = initialTickers.filter((t) => t !== ticker);
     setItems((prev) => prev.filter((i) => i.stock.ticker !== ticker));
     onWatchlistChange(newTickers);
     await toggleWatchStock(ticker);
@@ -113,38 +107,20 @@ export default function WatchlistSidebar({
         overflowY: "auto",
       }}
     >
-      {/* Watchlist section */}
       <div style={{ padding: "16px 16px 8px" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 12,
-          }}
-        >
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 600,
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              color: "var(--color-ink-3)",
-            }}
-          >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)" }}>
             Your Watchlist
           </span>
-          {tickers.length > 0 && (
+          {initialTickers.length > 0 && (
             <span style={{ fontSize: 10, color: "var(--color-ink-4)" }}>
-              {tickers.length} tracked
+              {initialTickers.length} tracked
             </span>
           )}
         </div>
 
         {loading && (
-          <div style={{ fontSize: 11, color: "var(--color-ink-3)", padding: "8px 0" }}>
-            Loading…
-          </div>
+          <div style={{ fontSize: 11, color: "var(--color-ink-3)", padding: "8px 0" }}>Loading…</div>
         )}
 
         {!loading && items.length === 0 && (
@@ -173,93 +149,34 @@ export default function WatchlistSidebar({
                 transition: "all 0.15s",
               }}
             >
-              {/* Text */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "baseline",
-                    marginBottom: 1,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "var(--color-ink)",
-                      letterSpacing: "-0.01em",
-                    }}
-                  >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 1 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink)", letterSpacing: "-0.01em" }}>
                     {stock.ticker}
                   </span>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: "var(--color-ink)",
-                    }}
-                  >
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-ink)" }}>
                     ${stock.price.toFixed(2)}
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 10,
-                      color: "var(--color-ink-3)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      maxWidth: 80,
-                    }}
-                  >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 10, color: "var(--color-ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 80 }}>
                     {stock.name}
                   </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: isUp ? "var(--color-green)" : "var(--color-red)",
-                      }}
-                    >
-                      {isUp ? "+" : ""}
-                      {stock.change.toFixed(2)}%
-                    </span>
-                  </div>
+                  <span style={{ fontSize: 10, color: isUp ? "var(--color-green)" : "var(--color-red)" }}>
+                    {isUp ? "+" : ""}{stock.change.toFixed(2)}%
+                  </span>
                 </div>
               </div>
 
-              {/* Sparkline */}
               {sparkline.length >= 2 && (
                 <div style={{ flexShrink: 0 }}>
                   <SparklineChart prices={sparkline} width={48} height={20} />
                 </div>
               )}
 
-              {/* Remove button (visible on hover via CSS sibling trick — just always show small x) */}
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleRemove(stock.ticker);
-                }}
-                style={{
-                  flexShrink: 0,
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "var(--color-ink-4)",
-                  fontSize: 12,
-                  padding: 0,
-                  lineHeight: 1,
-                  opacity: 0.6,
-                }}
+                onClick={(e) => { e.stopPropagation(); handleRemove(stock.ticker); }}
+                style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: "var(--color-ink-4)", fontSize: 12, padding: 0, lineHeight: 1, opacity: 0.6 }}
                 title="Remove"
               >
                 ×
@@ -269,105 +186,32 @@ export default function WatchlistSidebar({
         })}
       </div>
 
-      {/* Divider */}
       {suggested.length > 0 && (
         <>
           <div style={{ height: 1, background: "var(--color-rule)", margin: "4px 0" }} />
-
           <div style={{ padding: "12px 16px" }}>
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "var(--color-ink-3)",
-                marginBottom: 4,
-              }}
-            >
+            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 4 }}>
               Suggested Research
             </div>
-            <div
-              style={{
-                fontSize: 10,
-                color: "var(--color-ink-4)",
-                marginBottom: 10,
-              }}
-            >
+            <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginBottom: 10 }}>
               Ideas surfaced from your watchlist
             </div>
-
             {suggested.map((s) => {
               const { bg, color } = getBadgeStyle(s.badge);
               return (
                 <div
                   key={s.ticker}
-                  style={{
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    background: "var(--color-bg-card)",
-                    border: "1px solid var(--color-rule)",
-                    marginBottom: 6,
-                    cursor: "pointer",
-                  }}
+                  style={{ padding: "8px 10px", borderRadius: 8, background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", marginBottom: 6, cursor: "pointer" }}
                   onClick={async () => {
-                    const res = await fetch(
-                      `/api/investments/stock-summary?ticker=${s.ticker}`
-                    ).then((r) => r.json());
-                    if (res.price) {
-                      onSelectStock({
-                        ticker: res.ticker,
-                        name: res.name,
-                        price: res.price,
-                        change: res.change,
-                        changeDirection: res.changeDirection,
-                        sector: res.sector,
-                      });
-                    }
+                    const res = await fetch(`/api/investments/stock-summary?ticker=${s.ticker}`).then((r) => r.json());
+                    if (res.price) onSelectStock({ ticker: res.ticker, name: res.name, price: res.price, change: res.change, changeDirection: res.changeDirection, sector: res.sector });
                   }}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      marginBottom: 4,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: "var(--color-ink)",
-                        letterSpacing: "-0.01em",
-                      }}
-                    >
-                      {s.ticker}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 500,
-                        padding: "2px 6px",
-                        borderRadius: 10,
-                        background: bg,
-                        color,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {s.badge}
-                    </span>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--color-ink)", letterSpacing: "-0.01em" }}>{s.ticker}</span>
+                    <span style={{ fontSize: 9, fontWeight: 500, padding: "2px 6px", borderRadius: 10, background: bg, color, whiteSpace: "nowrap" }}>{s.badge}</span>
                   </div>
-                  <p
-                    style={{
-                      fontSize: 10,
-                      color: "var(--color-ink-3)",
-                      margin: 0,
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    {s.rationale}
-                  </p>
+                  <p style={{ fontSize: 10, color: "var(--color-ink-3)", margin: 0, lineHeight: 1.4 }}>{s.rationale}</p>
                 </div>
               );
             })}

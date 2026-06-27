@@ -56,9 +56,9 @@ function buildSvgPath(
   return { line, area };
 }
 
-function formatDateLabel(timestamp: number, resolution: string): string {
+function formatDateLabel(timestamp: number, interval: string): string {
   const d = new Date(timestamp);
-  if (resolution === "60") {
+  if (interval === "5m" || interval === "1m" || interval === "15m" || interval === "1h") {
     return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   }
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -83,7 +83,10 @@ export default function PriceChart({ ticker, currentPrice, changeDirection }: Pr
     }
     const obs = new ResizeObserver((entries) => {
       const e = entries[0];
-      if (e) setSize({ width: e.contentRect.width, height: 200 });
+      if (e) {
+        const w = Math.floor(e.contentRect.width);
+        setSize((prev) => (prev.width === w ? prev : { width: w, height: 200 }));
+      }
     });
     if (containerRef.current) obs.observe(containerRef.current);
     return () => obs.disconnect();
@@ -100,7 +103,7 @@ export default function PriceChart({ ticker, currentPrice, changeDirection }: Pr
       })
       .catch(() => setPoints([]))
       .finally(() => setLoading(false));
-  }, [ticker, range.resolution, range.days]);
+  }, [ticker, range.range, range.interval]);
 
   const { line, area } = buildSvgPath(points, size.width, size.height);
 
@@ -120,7 +123,7 @@ export default function PriceChart({ ticker, currentPrice, changeDirection }: Pr
       ? [0, 0.2, 0.4, 0.6, 0.8, 1].map((frac) => {
           const idx = Math.min(Math.round(frac * (points.length - 1)), points.length - 1);
           return {
-            label: formatDateLabel(points[idx].time, range.resolution),
+            label: formatDateLabel(points[idx].time, range.interval),
             x: frac * size.width,
           };
         })
