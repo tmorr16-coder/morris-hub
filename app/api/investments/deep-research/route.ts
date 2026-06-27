@@ -67,8 +67,23 @@ Use BUY / HOLD / SELL. conviction 0-100. priceTarget12m in dollars. Not financia
 
   if (!jsonStr) throw new Error("No JSON in Claude response");
 
-  const parsed = JSON.parse(jsonStr);
-  return parsed as DeepResearch;
+  // Strip <cite index="N"> tags injected by web_search tool before parsing
+  const clean = (s: string) => s.replace(/<\/?cite[^>]*>/gi, "").trim();
+  const cleaned = jsonStr.replace(/<\/?cite[^>]*>/gi, "");
+  const parsed = JSON.parse(cleaned);
+
+  // Clean any remaining tags in string fields (belt-and-suspenders)
+  return {
+    recommendation: parsed.recommendation,
+    conviction: parsed.conviction,
+    priceTarget12m: parsed.priceTarget12m,
+    summary: clean(parsed.summary ?? ""),
+    bullCase: (parsed.bullCase ?? []).map(clean),
+    bearCase: (parsed.bearCase ?? []).map(clean),
+    catalysts: (parsed.catalysts ?? []).map(clean),
+    risks: (parsed.risks ?? []).map(clean),
+    evidenceBase: parsed.evidenceBase,
+  } as DeepResearch;
 }
 
 const getCachedResearch = unstable_cache(
