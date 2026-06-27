@@ -26,8 +26,9 @@ function fmt(n: number, prefix = "$"): string {
   return `${prefix}${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function pct(n: number): string {
-  return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+function pct(n: number | undefined | null): string {
+  const v = n ?? 0;
+  return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
 }
 
 export default function AccountDashboard({ onSelectStock }: AccountDashboardProps) {
@@ -268,7 +269,7 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
             {
               label: "Day P&L",
               value: (totalDayGain >= 0 ? "+" : "") + fmt(totalDayGain),
-              sub: `${b.dayChangePct >= 0 ? "+" : ""}${b.dayChangePct.toFixed(2)}% acct`,
+              sub: pct(b.dayChangePct) + " acct",
               color: totalDayGain >= 0 ? "var(--color-green)" : "var(--color-red)",
             },
             {

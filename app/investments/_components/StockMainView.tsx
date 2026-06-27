@@ -111,7 +111,7 @@ export default function StockMainView({
           <div style={{ textAlign: "right" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "flex-end", marginBottom: 4 }}>
               <span style={{ fontSize: 28, fontWeight: 800, color: "var(--color-ink)", letterSpacing: "-0.03em" }}>
-                ${stock.price.toFixed(2)}
+                ${(stock.price ?? 0).toFixed(2)}
               </span>
               <div style={{ display: "flex", gap: 8 }}>
                 <button
@@ -172,7 +172,7 @@ export default function StockMainView({
               }}
             >
               {isUp ? "+" : ""}
-              {stock.change.toFixed(2)}% today
+              {(stock.change ?? 0).toFixed(2)}% today
             </div>
           </div>
         </div>

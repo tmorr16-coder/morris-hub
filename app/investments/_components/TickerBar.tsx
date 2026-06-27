@@ -18,9 +18,9 @@ function TickerItem({ q }: { q: Quote }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "baseline", gap: 5, padding: "0 20px", borderRight: "1px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>
       <span style={{ fontSize: 11, fontWeight: 700, color: "#e8ecf0", letterSpacing: "0.04em" }}>{q.symbol}</span>
-      <span style={{ fontSize: 11, color: "#e8ecf0" }}>${q.price.toFixed(2)}</span>
+      <span style={{ fontSize: 11, color: "#e8ecf0" }}>${(q.price ?? 0).toFixed(2)}</span>
       <span style={{ fontSize: 10, fontWeight: 600, color: isUp ? "#4ade80" : "#f87171" }}>
-        {isUp ? "▲" : "▼"} {Math.abs(q.change).toFixed(2)}%
+        {isUp ? "▲" : "▼"} {Math.abs(q.change ?? 0).toFixed(2)}%
       </span>
     </span>
   );

@@ -120,9 +120,11 @@ export default function DeepResearchPanel({ stock }: DeepResearchPanelProps) {
   }, [stock.ticker]);
 
   const recStyle = research ? REC_COLORS[research.recommendation] : null;
-  const changeVsLast = research
-    ? (((research.priceTarget12m - stock.price) / stock.price) * 100).toFixed(1)
-    : null;
+  const target = research?.priceTarget12m ?? 0;
+  const changeVsLast =
+    research && target && stock.price
+      ? (((target - stock.price) / stock.price) * 100).toFixed(1)
+      : null;
 
   return (
     <div
@@ -260,7 +262,7 @@ export default function DeepResearchPanel({ stock }: DeepResearchPanelProps) {
                 12-Mo Price Target
               </div>
               <div style={{ fontSize: 22, fontWeight: 700, color: "var(--color-ink)" }}>
-                ${research.priceTarget12m.toFixed(0)}
+                {target ? `$${target.toFixed(0)}` : "—"}
               </div>
               {changeVsLast && (
                 <div style={{ fontSize: 11, color: parseFloat(changeVsLast) >= 0 ? "var(--color-green)" : "var(--color-red)" }}>
