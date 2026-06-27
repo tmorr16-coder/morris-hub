@@ -13,14 +13,18 @@ interface StockSearchPageProps {
 
 export default function StockSearchPage({ watchedStocks }: StockSearchPageProps) {
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
+  const [localWatched, setLocalWatched] = useState<string[]>(watchedStocks);
 
   const handleAddToWatchlist = async () => {
-    if (selectedStock) {
-      await toggleWatchStock(selectedStock.ticker);
-    }
+    if (!selectedStock) return;
+    const ticker = selectedStock.ticker.toUpperCase();
+    setLocalWatched((prev) =>
+      prev.includes(ticker) ? prev.filter((t) => t !== ticker) : [...prev, ticker]
+    );
+    await toggleWatchStock(ticker);
   };
 
-  const isStockWatched = selectedStock ? watchedStocks.includes(selectedStock.ticker) : false;
+  const isStockWatched = selectedStock ? localWatched.includes(selectedStock.ticker.toUpperCase()) : false;
 
   if (selectedStock) {
     return (
@@ -67,7 +71,7 @@ export default function StockSearchPage({ watchedStocks }: StockSearchPageProps)
       </div>
 
       {/* Watchlist Section */}
-      {watchedStocks.length > 0 && (
+      {localWatched.length > 0 && (
         <div>
           <h3
             style={{
@@ -79,10 +83,10 @@ export default function StockSearchPage({ watchedStocks }: StockSearchPageProps)
               letterSpacing: "0.05em",
             }}
           >
-            ❤️ Your Watchlist ({watchedStocks.length})
+            ❤️ Your Watchlist ({localWatched.length})
           </h3>
           <Watchlist
-            initialTickers={watchedStocks}
+            initialTickers={localWatched}
             onSelectStock={setSelectedStock}
           />
         </div>

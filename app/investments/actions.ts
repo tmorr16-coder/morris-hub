@@ -45,6 +45,7 @@ export async function toggleWatchStock(ticker: string): Promise<{ error?: string
     if (updateErr) return { error: updateErr.message };
 
     revalidatePath("/investments");
+    revalidatePath("/investments/stocks");
     return {};
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to update watchlist";

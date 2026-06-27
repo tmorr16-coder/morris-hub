@@ -93,6 +93,94 @@ export async function getCompanyProfile(
   }
 }
 
+// ── Candles ──────────────────────────────────────────────────────────────────
+
+export interface FinnhubCandle {
+  c: number[]; // close prices
+  h: number[];
+  l: number[];
+  o: number[];
+  t: number[]; // unix seconds
+  v: number[];
+  s: string;   // "ok" | "no_data"
+}
+
+export async function getStockCandles(
+  ticker: string,
+  resolution: "1" | "5" | "15" | "30" | "60" | "D" | "W" | "M",
+  from: number,
+  to: number
+): Promise<FinnhubCandle | null> {
+  if (!FINNHUB_API_KEY) return null;
+  try {
+    const res = await fetch(
+      `${FINNHUB_BASE_URL}/stock/candle?symbol=${ticker}&resolution=${resolution}&from=${from}&to=${to}&token=${FINNHUB_API_KEY}`,
+      { next: { revalidate: 300 } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.s !== "ok") return null;
+    return data as FinnhubCandle;
+  } catch {
+    return null;
+  }
+}
+
+// ── Basic Financials ─────────────────────────────────────────────────────────
+
+export interface FinnhubMetrics {
+  "52WeekHigh"?: number;
+  "52WeekLow"?: number;
+  "10DayAverageTradingVolume"?: number;
+  "peBasicExclExtraTTM"?: number;
+  "peNormalizedAnnual"?: number;
+  [key: string]: number | undefined;
+}
+
+export async function getBasicFinancials(ticker: string): Promise<FinnhubMetrics | null> {
+  if (!FINNHUB_API_KEY) return null;
+  try {
+    const res = await fetch(
+      `${FINNHUB_BASE_URL}/stock/metric?symbol=${ticker}&metric=all&token=${FINNHUB_API_KEY}`,
+      { next: { revalidate: 3600 } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.metric ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Market News ───────────────────────────────────────────────────────────────
+
+export interface FinnhubNewsItem {
+  category: string;
+  datetime: number;
+  headline: string;
+  id: number;
+  image: string;
+  related: string;
+  source: string;
+  summary: string;
+  url: string;
+}
+
+export async function getMarketNews(): Promise<FinnhubNewsItem[]> {
+  if (!FINNHUB_API_KEY) return [];
+  try {
+    const res = await fetch(
+      `${FINNHUB_BASE_URL}/news?category=general&token=${FINNHUB_API_KEY}`,
+      { next: { revalidate: 900 } }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data.slice(0, 20) : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function searchSymbol(
   query: string
 ): Promise<
