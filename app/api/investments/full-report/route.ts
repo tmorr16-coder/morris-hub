@@ -49,101 +49,117 @@ export interface FullReport {
 
 const client = new Anthropic();
 
-// Claude sometimes writes literal newlines inside JSON string values,
-// which breaks JSON.parse. Walk char-by-char and escape them.
-function repairJsonStrings(s: string): string {
-  let inString = false;
-  let escaped = false;
-  let result = "";
-  for (const ch of s) {
-    if (escaped) { result += ch; escaped = false; continue; }
-    if (ch === "\\" && inString) { result += ch; escaped = true; continue; }
-    if (ch === '"') { inString = !inString; result += ch; continue; }
-    if (inString && ch === "\n") { result += "\\n"; continue; }
-    if (inString && ch === "\r") continue;
-    result += ch;
-  }
-  return result;
-}
+// Tool schema — Claude must call this to submit the report.
+// Structured tool_use input bypasses all JSON-in-text parsing issues.
+const WRITE_REPORT_TOOL: Anthropic.Tool = {
+  name: "write_report",
+  description: "Submit the completed equity research report as structured data.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      thesis: { type: "string", description: "2-paragraph investment thesis. Use \\n between paragraphs." },
+      businessOverview: { type: "string", description: "1-2 paragraph business model: key segments, moat, growth driver." },
+      valuation: {
+        type: "object",
+        properties: {
+          narrative: { type: "string", description: "1 paragraph on current multiple vs history and peers." },
+          currentMultiple: { type: "string", description: "e.g. 41x NTM P/E" },
+          historicalRange: { type: "string", description: "e.g. 28–58x over 5 years" },
+          scenarioBase: { type: "string", description: "e.g. Base: $230 — moderate growth" },
+          scenarioBull: { type: "string", description: "e.g. Bull: $275 — upside case" },
+          scenarioBear: { type: "string", description: "e.g. Bear: $160 — downside case" },
+        },
+        required: ["narrative", "currentMultiple", "historicalRange", "scenarioBase", "scenarioBull", "scenarioBear"],
+      },
+      compTable: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            ticker: { type: "string" },
+            metric: { type: "string", description: "e.g. 38x fwd P/E" },
+            note: { type: "string", description: "One-line positioning vs subject company" },
+          },
+          required: ["name", "ticker", "metric", "note"],
+        },
+      },
+      catalysts: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            catalyst: { type: "string" },
+            timeline: { type: "string", description: "e.g. Q3 2025" },
+            impact: { type: "string", description: "One-line expected impact" },
+          },
+          required: ["catalyst", "timeline", "impact"],
+        },
+      },
+      risks: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            risk: { type: "string" },
+            severity: { type: "string", enum: ["high", "medium", "low"] },
+            detail: { type: "string", description: "One sentence on how this risk materializes" },
+          },
+          required: ["risk", "severity", "detail"],
+        },
+      },
+      sources: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            url: { type: "string" },
+            type: { type: "string", enum: ["earnings", "news", "analyst", "filing", "other"] },
+          },
+          required: ["title", "url", "type"],
+        },
+      },
+    },
+    required: ["thesis", "businessOverview", "valuation", "compTable", "catalysts", "risks", "sources"],
+  },
+};
 
 async function fetchFullReport(ticker: string): Promise<FullReport> {
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 2000,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    tools: [{ type: "web_search_20250305" as any, name: "web_search", max_uses: 5 }],
+    tools: [
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { type: "web_search_20250305" as any, name: "web_search", max_uses: 5 },
+      WRITE_REPORT_TOOL,
+    ],
     messages: [
       {
         role: "user",
-        content: `You are an equity research analyst. Search the web for ${ticker}: latest earnings/guidance, analyst price targets, recent news, comparable company multiples.
-
-Output ONLY valid JSON inside a \`\`\`json block. Use \\n for line breaks inside strings — never raw newlines. All string values must be on a single line.
-
-\`\`\`json
-{
-  "thesis": "Paragraph 1 of thesis. \\n\\n Paragraph 2 of thesis.",
-  "businessOverview": "Business model summary on one line.",
-  "valuation": {
-    "narrative": "Valuation paragraph on one line.",
-    "currentMultiple": "41x NTM P/E",
-    "historicalRange": "28–58x over 5 years",
-    "scenarioBase": "Base: $230 — moderate growth assumption",
-    "scenarioBull": "Bull: $275 — acceleration in X",
-    "scenarioBear": "Bear: $160 — margin compression from Y"
-  },
-  "compTable": [
-    { "name": "Company Name", "ticker": "TICK", "metric": "38x fwd P/E", "note": "positioning vs subject" }
-  ],
-  "catalysts": [
-    { "catalyst": "Catalyst name", "timeline": "Q3 2025", "impact": "one-line expected impact" }
-  ],
-  "risks": [
-    { "risk": "Risk title", "severity": "high", "detail": "one sentence on materialization" }
-  ],
-  "sources": [
-    { "title": "Page title", "url": "https://actual-url.com", "type": "earnings" }
-  ]
-}
-\`\`\`
-
-Rules: 3-4 comps, 3 catalysts, 3 risks, all sources you actually read. severity must be high/medium/low. type must be earnings/news/analyst/filing/other.`,
+        content: `You are an equity research analyst. Research ${ticker} using web search (latest earnings, analyst targets, recent news, comparable company multiples), then call write_report with your structured findings. Include every URL you read as a source.`,
       },
     ],
   });
 
-  const fullText = response.content
-    .filter((b) => b.type === "text")
+  // Find the write_report tool_use block — this is guaranteed structured data
+  const reportBlock = response.content.find(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map((b) => (b as any).text as string)
-    .join("\n");
+    (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && (b as any).name === "write_report"
+  );
 
-  console.log(`[full-report] ${ticker} text length: ${fullText.length}`);
-
-  // Extract JSON — greedy match inside code fence
-  const fenced = fullText.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
-  const bare = fullText.match(/\{[\s\S]*"thesis"[\s\S]*\}/);
-  const raw = fenced?.[1] ?? bare?.[0];
-
-  if (!raw) {
-    console.error(`[full-report] ${ticker} no JSON block found. Text: ${fullText.slice(0, 500)}`);
-    throw new Error("Claude did not return a JSON block");
+  if (!reportBlock) {
+    const text = response.content
+      .filter((b) => b.type === "text")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((b) => (b as any).text as string)
+      .join("\n");
+    console.error(`[full-report] ${ticker} write_report not called. stop_reason: ${response.stop_reason}. Text preview: ${text.slice(0, 300)}`);
+    throw new Error("Research incomplete — try again");
   }
 
-  // web_search_20250305 injects <cite index="N"> tags — the quotes inside the
-  // attribute break JSON.parse when embedded in string values. Strip them first.
-  const stripped = raw.replace(/<\/?cite[^>]*>/gi, "");
-  const repaired = repairJsonStrings(stripped);
-
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(repaired);
-  } catch (e) {
-    console.error(`[full-report] ${ticker} parse error:`, (e as Error).message);
-    console.error(`[full-report] raw snippet:`, raw.slice(0, 300));
-    throw new Error("Could not parse report JSON");
-  }
-
-  return { ...parsed, ticker, generatedAt: new Date().toISOString() } as FullReport;
+  const input = reportBlock.input as Omit<FullReport, "ticker" | "generatedAt">;
+  return { ...input, ticker, generatedAt: new Date().toISOString() };
 }
 
 export async function POST(request: Request) {
@@ -165,7 +181,7 @@ export async function POST(request: Request) {
     return Response.json(report);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Report generation failed";
-    console.error("[full-report] POST failed:", msg);
+    console.error("[full-report] failed:", msg);
     return Response.json({ error: msg }, { status: 500 });
   }
 }
