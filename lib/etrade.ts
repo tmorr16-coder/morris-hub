@@ -183,7 +183,7 @@ export async function getBalance(
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: any = await apiGet(
-      `/v1/accounts/${accountIdKey}/balance.json?instType=BROKERAGE&realTimeNAV=true`,
+      `/v1/accounts/${encodeURIComponent(accountIdKey)}/balance.json?instType=BROKERAGE&realTimeNAV=true`,
       token,
       secret
     );
@@ -228,7 +228,7 @@ export async function getPortfolio(
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: any = await apiGet(
-      `/v1/accounts/${accountIdKey}/portfolio.json`,
+      `/v1/accounts/${encodeURIComponent(accountIdKey)}/portfolio.json`,
       token,
       secret
     );
@@ -328,9 +328,12 @@ export async function previewOrder(
   accountIdKey: string,
   order: OrderRequest
 ): Promise<OrderPreviewResult> {
+  // accountIdKey is base64 and may contain +/= — encode for URL path
+  const encodedKey = encodeURIComponent(accountIdKey);
+  console.log(`[etrade] previewOrder key="${accountIdKey}" encoded="${encodedKey}"`);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = await apiPost(
-    `/v1/accounts/${accountIdKey}/orders/preview.json`,
+    `/v1/accounts/${encodedKey}/orders/preview.json`,
     token,
     secret,
     buildOrderBody(order)
@@ -357,10 +360,11 @@ export async function placeOrder(
   previewId: number,
   cashMargin: string
 ): Promise<PlacedOrderResult> {
+  const encodedKey = encodeURIComponent(accountIdKey);
   const body = buildOrderBody(order, [{ previewId, cashMargin }]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = await apiPost(
-    `/v1/accounts/${accountIdKey}/orders/place.json`,
+    `/v1/accounts/${encodedKey}/orders/place.json`,
     token,
     secret,
     body
