@@ -61,62 +61,93 @@ export async function searchStocks(query: string): Promise<Stock[]> {
   return [];
 }
 
+// Mock stock data for development/demo purposes
+const MOCK_STOCK_DATA: Record<string, Omit<Stock, 'changeDirection'> & { change: number }> = {
+  LLY: {
+    ticker: "LLY",
+    name: "Eli Lilly",
+    price: 842.50,
+    change: 2.3,
+    sector: "Healthcare",
+    peRatio: 62.5,
+    dividend: 0.9,
+  },
+  NVDA: {
+    ticker: "NVDA",
+    name: "Nvidia",
+    price: 128.50,
+    change: 3.2,
+    sector: "Technology",
+    peRatio: 48.5,
+    dividend: 0.1,
+  },
+  MSFT: {
+    ticker: "MSFT",
+    name: "Microsoft",
+    price: 429.00,
+    change: 0.8,
+    sector: "Technology",
+    peRatio: 35.2,
+    dividend: 0.75,
+  },
+  GOOGL: {
+    ticker: "GOOGL",
+    name: "Alphabet",
+    price: 180.50,
+    change: 1.5,
+    sector: "Technology",
+    peRatio: 28.3,
+    dividend: 0.0,
+  },
+  AMZN: {
+    ticker: "AMZN",
+    name: "Amazon",
+    price: 198.75,
+    change: -0.5,
+    sector: "Consumer Discretionary",
+    peRatio: 65.2,
+    dividend: 0.0,
+  },
+  AAPL: {
+    ticker: "AAPL",
+    name: "Apple",
+    price: 235.20,
+    change: 1.2,
+    sector: "Technology",
+    peRatio: 32.1,
+    dividend: 0.65,
+  },
+  TSLA: {
+    ticker: "TSLA",
+    name: "Tesla",
+    price: 245.20,
+    change: -2.1,
+    sector: "Automotive",
+    peRatio: 85.3,
+    dividend: 0.0,
+  },
+  META: {
+    ticker: "META",
+    name: "Meta Platforms",
+    price: 512.30,
+    change: 2.8,
+    sector: "Technology",
+    peRatio: 24.5,
+    dividend: 0.0,
+  },
+};
+
 export async function fetchStockPrice(ticker: string): Promise<Stock | null> {
-  const client = new Anthropic();
+  const mockData = MOCK_STOCK_DATA[ticker.toUpperCase()];
 
-  const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 512,
-    tools: [
-      {
-        name: "web_search",
-        description: "Search the web for current stock information",
-        input_schema: {
-          type: "object" as const,
-          properties: {
-            query: {
-              type: "string",
-              description: "The search query",
-            },
-          },
-          required: ["query"],
-        },
-      },
-    ],
-    messages: [
-      {
-        role: "user",
-        content: `Get current stock price for ${ticker} ticker. Return ONLY a JSON object with: ticker (string), name (string), price (number), change (number as percent), sector (string or null), peRatio (number or null), dividend (number as percent or null). Example: {"ticker":"NVDA","name":"Nvidia","price":128.50,"change":3.2,"sector":"Technology","peRatio":48.5,"dividend":0.1}. Return only JSON, no other text.`,
-      },
-    ],
-  });
-
-  let priceData = "";
-  for (const block of response.content) {
-    if (block.type === "text") {
-      priceData += block.text;
-    }
-  }
-
-  try {
-    const jsonMatch = priceData.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    return {
-      ticker: parsed.ticker,
-      name: parsed.name,
-      price: parsed.price,
-      change: parsed.change,
-      changeDirection: parsed.change > 0 ? "up" : parsed.change < 0 ? "down" : "neutral",
-      sector: parsed.sector,
-      peRatio: parsed.peRatio,
-      dividend: parsed.dividend,
-    };
-  } catch (e) {
-    console.error(`Failed to parse stock price for ${ticker}:`, e);
+  if (!mockData) {
     return null;
   }
+
+  return {
+    ...mockData,
+    changeDirection: mockData.change > 0 ? "up" : mockData.change < 0 ? "down" : "neutral",
+  };
 }
 
 export async function generateStockSummary(
