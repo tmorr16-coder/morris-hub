@@ -1,4 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk";
+import { getStockQuote, getCompanyProfile, searchSymbol } from "./finnhub";
 
 export interface Stock {
   ticker: string;
@@ -36,7 +37,7 @@ const COMMON_TICKERS: Record<string, string> = {
 export async function searchStocks(query: string): Promise<Stock[]> {
   const q = query.toLowerCase().trim();
 
-  // Check if it's a direct ticker or known company name
+  // Check if it's a known company name first
   const ticker = COMMON_TICKERS[q];
   if (ticker) {
     try {
@@ -48,106 +49,59 @@ export async function searchStocks(query: string): Promise<Stock[]> {
     }
   }
 
-  // If not found in common tickers, try as-is (might be a ticker symbol)
-  if (q.length <= 5 && /^[a-z]+$/.test(q)) {
-    try {
-      const stock = await fetchStockPrice(q.toUpperCase());
-      return stock ? [stock] : [];
-    } catch (e) {
-      console.error(`Failed to fetch price for ${q}:`, e);
-    }
-  }
+  // Try Finnhub search API for unknown queries
+  try {
+    const results = await searchSymbol(q);
+    const stocks: Stock[] = [];
 
-  return [];
+    for (const result of results) {
+      // Only include US stocks
+      if (!result.displaySymbol.includes(".")) {
+        const stock = await fetchStockPrice(result.displaySymbol);
+        if (stock) {
+          stocks.push(stock);
+        }
+      }
+    }
+
+    return stocks;
+  } catch (e) {
+    console.error(`Failed to search stocks for ${q}:`, e);
+    return [];
+  }
 }
 
-// Mock stock data for development/demo purposes
-const MOCK_STOCK_DATA: Record<string, Omit<Stock, 'changeDirection'> & { change: number }> = {
-  LLY: {
-    ticker: "LLY",
-    name: "Eli Lilly",
-    price: 842.50,
-    change: 2.3,
-    sector: "Healthcare",
-    peRatio: 62.5,
-    dividend: 0.9,
-  },
-  NVDA: {
-    ticker: "NVDA",
-    name: "Nvidia",
-    price: 128.50,
-    change: 3.2,
-    sector: "Technology",
-    peRatio: 48.5,
-    dividend: 0.1,
-  },
-  MSFT: {
-    ticker: "MSFT",
-    name: "Microsoft",
-    price: 429.00,
-    change: 0.8,
-    sector: "Technology",
-    peRatio: 35.2,
-    dividend: 0.75,
-  },
-  GOOGL: {
-    ticker: "GOOGL",
-    name: "Alphabet",
-    price: 180.50,
-    change: 1.5,
-    sector: "Technology",
-    peRatio: 28.3,
-    dividend: 0.0,
-  },
-  AMZN: {
-    ticker: "AMZN",
-    name: "Amazon",
-    price: 198.75,
-    change: -0.5,
-    sector: "Consumer Discretionary",
-    peRatio: 65.2,
-    dividend: 0.0,
-  },
-  AAPL: {
-    ticker: "AAPL",
-    name: "Apple",
-    price: 235.20,
-    change: 1.2,
-    sector: "Technology",
-    peRatio: 32.1,
-    dividend: 0.65,
-  },
-  TSLA: {
-    ticker: "TSLA",
-    name: "Tesla",
-    price: 245.20,
-    change: -2.1,
-    sector: "Automotive",
-    peRatio: 85.3,
-    dividend: 0.0,
-  },
-  META: {
-    ticker: "META",
-    name: "Meta Platforms",
-    price: 512.30,
-    change: 2.8,
-    sector: "Technology",
-    peRatio: 24.5,
-    dividend: 0.0,
-  },
-};
-
 export async function fetchStockPrice(ticker: string): Promise<Stock | null> {
-  const mockData = MOCK_STOCK_DATA[ticker.toUpperCase()];
+  try {
+    const [quote, profile] = await Promise.all([
+      getStockQuote(ticker),
+      getCompanyProfile(ticker),
+    ]);
 
-  if (!mockData) {
+    if (!quote || !profile) {
+      return null;
+    }
+
+    // Calculate percent change from current vs previous close
+    const change = quote.pc ? ((quote.c - quote.pc) / quote.pc) * 100 : 0;
+
+    return {
+      ticker: ticker.toUpperCase(),
+      name: profile.name || ticker,
+      price: quote.c,
+      change: parseFloat(change.toFixed(2)),
+      changeDirection: change > 0 ? "up" : change < 0 ? "down" : "neutral",
+      sector: profile.finnhubIndustry || undefined,
+      marketCap: profile.marketCapitalization
+        ? `$${(profile.marketCapitalization / 1e9).toFixed(2)}B`
+        : undefined,
+      peRatio: undefined, // Finnhub free tier doesn't include PE ratio
+      dividend: undefined, // Would need dividend API call
+    };
+  } catch (e) {
+    console.error(`Failed to fetch stock price for ${ticker}:`, e);
     return null;
   }
-
-  return {
-    ...mockData,
-    changeDirection: mockData.change > 0 ? "up" : mockData.change < 0 ? "down" : "neutral",
-  };
 }
 
 export async function generateStockSummary(
