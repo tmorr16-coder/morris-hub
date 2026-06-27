@@ -16,6 +16,7 @@ export default function ResearchLayout({ watchedTickers }: ResearchLayoutProps) 
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const [localWatched, setLocalWatched] = useState<string[]>(watchedTickers);
   const [showSearch, setShowSearch] = useState(false);
+  const [watchError, setWatchError] = useState<string | null>(null);
 
   const handleSelectStock = useCallback((stock: Stock) => {
     setSelectedStock(stock);
@@ -26,10 +27,19 @@ export default function ResearchLayout({ watchedTickers }: ResearchLayoutProps) 
     if (!selectedStock) return;
     const ticker = selectedStock.ticker.toUpperCase();
     const isWatched = localWatched.includes(ticker);
+    // Optimistic update
     setLocalWatched((prev) =>
       isWatched ? prev.filter((t) => t !== ticker) : [...prev, ticker]
     );
-    await toggleWatchStock(ticker);
+    setWatchError(null);
+    const result = await toggleWatchStock(ticker);
+    if (result?.error) {
+      // Roll back optimistic update on failure
+      setLocalWatched((prev) =>
+        isWatched ? [...prev, ticker] : prev.filter((t) => t !== ticker)
+      );
+      setWatchError(`Could not save watchlist: ${result.error}`);
+    }
   }, [selectedStock, localWatched]);
 
   const isWatched = selectedStock
@@ -54,6 +64,13 @@ export default function ResearchLayout({ watchedTickers }: ResearchLayoutProps) 
 
       {/* Center: Main content */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
+        {/* Watch error banner */}
+        {watchError && (
+          <div style={{ padding: "8px 20px", background: "rgba(154,59,42,0.08)", borderBottom: "1px solid rgba(154,59,42,0.2)", fontSize: 12, color: "var(--color-red)", display: "flex", justifyContent: "space-between" }}>
+            {watchError}
+            <button onClick={() => setWatchError(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-red)", fontSize: 14 }}>✕</button>
+          </div>
+        )}
         {/* Search bar */}
         <div
           style={{

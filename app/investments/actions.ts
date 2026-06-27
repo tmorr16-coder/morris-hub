@@ -53,6 +53,58 @@ export async function toggleWatchStock(ticker: string): Promise<{ error?: string
   }
 }
 
+export async function addToThesis(
+  ticker: string,
+  name: string,
+  recommendation: string,
+  summary: string,
+  bullCase: string[],
+  bearCase: string[],
+  priceTarget12m: number
+): Promise<{ error?: string; id?: string }> {
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: "Not authenticated" };
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const service = createServiceClient() as any;
+
+    const rationale = [
+      summary,
+      "",
+      "BULL CASE:",
+      ...bullCase.map((b) => `• ${b}`),
+      "",
+      "BEAR CASE:",
+      ...bearCase.map((b) => `• ${b}`),
+      "",
+      `12-month price target: $${priceTarget12m}`,
+    ].join("\n");
+
+    const { data, error } = await service
+      .schema("hub")
+      .from("investment_ideas")
+      .insert({
+        user_id: userId,
+        category: "stocks",
+        title: `${ticker} — ${recommendation}`,
+        rationale,
+        related_assets: [ticker],
+        is_ai_generated: true,
+        source: "claude",
+        status: "researching",
+      })
+      .select("id")
+      .single();
+
+    if (error) return { error: error.message };
+    revalidatePath("/investments");
+    return { id: data.id };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to save thesis" };
+  }
+}
+
 export interface FamilyHolding {
   ticker: string;
   quantity: number;
