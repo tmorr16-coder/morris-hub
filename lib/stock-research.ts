@@ -16,6 +16,7 @@ export interface Stock {
 
 // Common ticker mappings for quick lookup
 const COMMON_TICKERS: Record<string, string> = {
+  // Companies
   lly: "LLY",
   lily: "LLY",
   "eli lilly": "LLY",
@@ -33,6 +34,27 @@ const COMMON_TICKERS: Record<string, string> = {
   tesla: "TSLA",
   meta: "META",
   facebook: "META",
+  // Indices → ETF proxies
+  "s&p": "SPY",
+  "s&p 500": "SPY",
+  "sp500": "SPY",
+  "spx": "SPY",
+  "spy": "SPY",
+  "s&p500": "SPY",
+  "standard and poor": "SPY",
+  "nasdaq": "QQQ",
+  "nasdaq 100": "QQQ",
+  "qqq": "QQQ",
+  "dow": "DIA",
+  "dow jones": "DIA",
+  "djia": "DIA",
+  "dia": "DIA",
+  // Broad market ETFs
+  "vti": "VTI",
+  "total market": "VTI",
+  "iwm": "IWM",
+  "russell 2000": "IWM",
+  "small cap": "IWM",
 };
 
 // Is this a topic query (vs a ticker/company name)?
