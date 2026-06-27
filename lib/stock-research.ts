@@ -12,73 +12,53 @@ export interface Stock {
   dividend?: number; // percent
 }
 
+// Common ticker mappings for quick lookup
+const COMMON_TICKERS: Record<string, string> = {
+  lly: "LLY",
+  lily: "LLY",
+  eli lilly: "LLY",
+  nvda: "NVDA",
+  nvidia: "NVDA",
+  msft: "MSFT",
+  microsoft: "MSFT",
+  googl: "GOOGL",
+  google: "GOOGL",
+  amzn: "AMZN",
+  amazon: "AMZN",
+  aapl: "AAPL",
+  apple: "AAPL",
+  tsla: "TSLA",
+  tesla: "TSLA",
+  meta: "META",
+  facebook: "META",
+};
+
 export async function searchStocks(query: string): Promise<Stock[]> {
-  const client = new Anthropic();
+  const q = query.toLowerCase().trim();
 
-  const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 1024,
-    tools: [
-      {
-        name: "web_search",
-        description: "Search the web for information",
-        input_schema: {
-          type: "object" as const,
-          properties: {
-            query: {
-              type: "string",
-              description: "The search query",
-            },
-          },
-          required: ["query"],
-        },
-      },
-    ],
-    messages: [
-      {
-        role: "user",
-        content: `Find 5 US stock tickers matching or similar to "${query}". Return a JSON array with exact ticker symbols and company names. Format: [{"ticker": "NVDA", "name": "Nvidia Corporation"}, ...]. Only return JSON, no other text.`,
-      },
-    ],
-  });
-
-  // Extract text from response
-  let searchResults = "";
-  for (const block of response.content) {
-    if (block.type === "text") {
-      searchResults += block.text;
+  // Check if it's a direct ticker or known company name
+  const ticker = COMMON_TICKERS[q];
+  if (ticker) {
+    try {
+      const stock = await fetchStockPrice(ticker);
+      return stock ? [stock] : [];
+    } catch (e) {
+      console.error(`Failed to fetch price for ${ticker}:`, e);
+      return [];
     }
   }
 
-  // Parse JSON from response
-  try {
-    const matches = searchResults.match(/\[[\s\S]*\]/);
-    if (!matches) return [];
-
-    const tickers = JSON.parse(matches[0]);
-
-    // Now fetch current prices for each ticker
-    const stocks: Stock[] = [];
-    for (const ticker of tickers) {
-      try {
-        const stock = await fetchStockPrice(ticker.ticker);
-        if (stock) {
-          stocks.push({
-            ...stock,
-            name: ticker.name || stock.name,
-          });
-        }
-      } catch (e) {
-        // Skip if price fetch fails
-        console.error(`Failed to fetch price for ${ticker.ticker}:`, e);
-      }
+  // If not found in common tickers, try as-is (might be a ticker symbol)
+  if (q.length <= 5 && /^[a-z]+$/.test(q)) {
+    try {
+      const stock = await fetchStockPrice(q.toUpperCase());
+      return stock ? [stock] : [];
+    } catch (e) {
+      console.error(`Failed to fetch price for ${q}:`, e);
     }
-
-    return stocks;
-  } catch (e) {
-    console.error("Failed to parse stock search results:", e);
-    return [];
   }
+
+  return [];
 }
 
 export async function fetchStockPrice(ticker: string): Promise<Stock | null> {
