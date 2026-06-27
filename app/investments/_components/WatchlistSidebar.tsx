@@ -61,7 +61,7 @@ export default function WatchlistSidebar({
       tickers.map(async (ticker) => {
         const [stockRes, candleRes] = await Promise.all([
           fetch(`/api/investments/stock-summary?ticker=${ticker}`).then((r) => r.json()),
-          fetch(`/api/investments/candle?ticker=${ticker}&resolution=D&days=30`).then((r) =>
+          fetch(`/api/investments/candle?ticker=${ticker}&range=1mo&interval=1d`).then((r) =>
             r.json()
           ),
         ]);

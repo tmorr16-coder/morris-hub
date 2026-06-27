@@ -14,10 +14,10 @@ interface PriceChartProps {
 }
 
 const RANGES = [
-  { label: "1D", days: 2, resolution: "60" },
-  { label: "1M", days: 30, resolution: "D" },
-  { label: "3M", days: 90, resolution: "D" },
-  { label: "1Y", days: 365, resolution: "D" },
+  { label: "1D", range: "1d", interval: "5m" },
+  { label: "1M", range: "1mo", interval: "1d" },
+  { label: "3M", range: "3mo", interval: "1d" },
+  { label: "1Y", range: "1y", interval: "1wk" },
 ] as const;
 
 function buildSvgPath(
@@ -92,7 +92,7 @@ export default function PriceChart({ ticker, currentPrice, changeDirection }: Pr
   useEffect(() => {
     setLoading(true);
     fetch(
-      `/api/investments/candle?ticker=${ticker}&resolution=${range.resolution}&days=${range.days}`
+      `/api/investments/candle?ticker=${ticker}&range=${range.range}&interval=${range.interval}`
     )
       .then((r) => r.json())
       .then((data) => {

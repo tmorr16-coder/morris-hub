@@ -2,7 +2,6 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 import { unstable_cache } from "next/cache";
 
-// Allow up to 60s — Claude Sonnet + web search takes 20-30s
 export const maxDuration = 60;
 
 export interface DeepResearch {
@@ -22,38 +21,30 @@ const client = new Anthropic();
 // Cache keyed only on ticker — price fluctuations shouldn't bust the cache
 async function fetchDeepResearchRaw(ticker: string): Promise<DeepResearch> {
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 2000,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    tools: [{ type: "web_search_20250305" as any, name: "web_search", max_uses: 6 }],
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 1500,
     messages: [
       {
         role: "user",
-        content: `You are a professional equity research analyst. Research ${ticker} as an investment opportunity.
+        content: `You are a professional equity research analyst with deep knowledge of public markets. Analyze ${ticker} as an investment.
 
-Use web search to find:
-1. Most recent earnings results and guidance
-2. Current analyst consensus and price targets
-3. Key recent news (last 30 days)
-4. Business model, competitive moat, and growth drivers
-
-Then output your structured investment analysis as JSON inside a \`\`\`json block:
+Based on your knowledge of this company's business model, financials, competitive position, and market dynamics, provide a structured investment analysis. Output ONLY the JSON below — no other text:
 
 \`\`\`json
 {
   "recommendation": "BUY",
   "conviction": 72,
   "priceTarget12m": 230,
-  "summary": "2-3 sentence investment thesis with specific data points",
-  "bullCase": ["specific bull point 1", "specific bull point 2", "specific bull point 3"],
-  "bearCase": ["specific bear point 1", "specific bear point 2", "specific bear point 3"],
+  "summary": "2-3 sentence investment thesis with specific business metrics or competitive dynamics",
+  "bullCase": ["specific bull point with data", "bull point 2", "bull point 3"],
+  "bearCase": ["specific bear point with data", "bear point 2", "bear point 3"],
   "catalysts": ["near-term catalyst 1", "catalyst 2", "catalyst 3"],
-  "risks": ["key risk 1", "key risk 2", "key risk 3"],
-  "evidenceBase": 35
+  "risks": ["key risk 1 with specifics", "risk 2", "risk 3"],
+  "evidenceBase": 28
 }
 \`\`\`
 
-Be specific and data-driven. Use current analyst price targets where available. Not financial advice.`,
+Use BUY / HOLD / SELL for recommendation. conviction is 0-100. priceTarget12m is a dollar number. Be specific — cite product lines, margins, competitors, regulatory factors, etc. Not financial advice.`,
       },
     ],
   });
