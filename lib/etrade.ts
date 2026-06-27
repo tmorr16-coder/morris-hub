@@ -296,7 +296,7 @@ function buildOrderBody(order: OrderRequest, previewIds?: { previewId: number; c
     allOrNone: "false",      // E*TRADE expects string not boolean
     priceType: order.priceType,
     orderTerm: order.orderTerm,
-    marketSession: order.marketSession,
+    // marketSession omitted — sandbox rejects "REGULAR" when market is closed
     Instrument: [{
       Product: { securityType: "EQ", symbol: order.symbol.toUpperCase() },
       orderAction: order.action,

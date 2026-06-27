@@ -47,15 +47,21 @@ export async function POST(request: Request) {
     return Response.json({ error: msg }, { status: 401 });
   }
 
-  // Look up primary brokerage account
+  // Pick the best account for trading:
+  // Prefer active, non-IRA, non-CLOSED individual brokerage accounts
   let accountIdKey = "";
   let accountName = "";
   try {
     const accounts = await getAccounts(accessToken, accessTokenSecret);
-    const brokerage = accounts.find((a) => a.institutionType === "BROKERAGE") ?? accounts[0];
+    const active = accounts.filter((a) => a.accountStatus === "ACTIVE");
+    const brokerage =
+      active.find((a) => a.institutionType === "BROKERAGE" && a.accountMode !== "IRA" && a.accountType !== "IRA") ??
+      active.find((a) => a.institutionType === "BROKERAGE") ??
+      active[0] ??
+      accounts[0];
     if (brokerage) {
       accountIdKey = brokerage.accountIdKey;
-      accountName = brokerage.accountName || brokerage.accountType;
+      accountName = brokerage.accountName || brokerage.accountDesc || brokerage.accountType;
     }
   } catch (err) {
     console.error("[etrade/verify] accounts fetch failed:", err);
