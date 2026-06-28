@@ -313,38 +313,49 @@ export interface PlacedOrderResult {
   action: string;
 }
 
-function buildOrderBody(order: OrderRequest, previewIds?: { previewId: number; cashMargin: string }[]) {
-  // E*TRADE requires clientOrderId to be a short unique numeric string
-  const clientOrderId = String(Math.floor(Math.random() * 9000000) + 1000000); // 7-digit random
-  const orderObj: Record<string, unknown> = {
-    allOrNone: false,
-    priceType: order.priceType,
-    orderTerm: order.orderTerm,
-    marketSession: order.marketSession ?? "REGULAR",
-    Instrument: [{
-      Product: { securityType: "EQ", symbol: order.symbol.toUpperCase() },
-      orderAction: order.action,
-      quantityType: "QUANTITY",
-      quantity: Math.floor(order.quantity),
-    }],
-  };
-  if (order.priceType === "LIMIT" && order.limitPrice) {
-    orderObj.limitPrice = order.limitPrice;
-  }
+// Build XML directly — more reliable than generic serializer for E*TRADE
+function buildOrderXml(order: OrderRequest, previewId?: number, cashMargin?: string): string {
+  const clientOrderId = String(Math.floor(Math.random() * 9000000) + 1000000);
+  const limitTag = order.priceType === "LIMIT" && order.limitPrice
+    ? `<limitPrice>${order.limitPrice}</limitPrice>`
+    : "";
+  const previewTag = previewId
+    ? `<PreviewIds><previewId>${previewId}</previewId><cashMargin>${cashMargin ?? "CASH"}</cashMargin></PreviewIds>`
+    : "";
 
-  const req: Record<string, unknown> = {
-    PlaceOrderRequest: {
-      orderType: "EQ",
-      clientOrderId,
-      Order: [orderObj],
-    },
-  };
+  return `<PlaceOrderRequest>` +
+    `<orderType>EQ</orderType>` +
+    `<clientOrderId>${clientOrderId}</clientOrderId>` +
+    previewTag +
+    `<Order>` +
+    `<allOrNone>false</allOrNone>` +
+    `<priceType>${order.priceType}</priceType>` +
+    `<orderTerm>${order.orderTerm}</orderTerm>` +
+    `<marketSession>${order.marketSession ?? "REGULAR"}</marketSession>` +
+    limitTag +
+    `<Instrument>` +
+    `<Product><securityType>EQ</securityType><symbol>${order.symbol.toUpperCase()}</symbol></Product>` +
+    `<orderAction>${order.action}</orderAction>` +
+    `<quantityType>QUANTITY</quantityType>` +
+    `<quantity>${Math.floor(order.quantity)}</quantity>` +
+    `</Instrument>` +
+    `</Order>` +
+    `</PlaceOrderRequest>`;
+}
 
-  if (previewIds) {
-    (req.PlaceOrderRequest as Record<string, unknown>).PreviewIds = previewIds;
-  }
-
-  return req;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function apiPostXml(path: string, token: string, secret: string, xml: string): Promise<any> {
+  const url = `${API_BASE}${path}`;
+  const header = buildAuthHeader("POST", url, token, secret);
+  console.log(`[etrade] POST ${url} xml=${xml}`);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: header, "Content-Type": "application/xml", Accept: "application/json" },
+    body: xml,
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`E*TRADE POST ${res.status}: ${text.slice(0, 300)}`);
+  try { return JSON.parse(text); } catch { return text; }
 }
 
 export async function previewOrder(
@@ -353,17 +364,11 @@ export async function previewOrder(
   accountIdKey: string,
   order: OrderRequest
 ): Promise<OrderPreviewResult> {
-  // accountIdKey is base64 and may contain +/= — encode for URL path
   const encodedKey = encodeURIComponent(accountIdKey);
-  const body = buildOrderBody(order);
-  console.log(`[etrade] previewOrder key="${accountIdKey}" encoded="${encodedKey}" body=${JSON.stringify(body)}`);
+  const xml = buildOrderXml(order);
+  // No .json suffix — tells E*TRADE to parse body as XML; Accept: application/json gets JSON back
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data: any = await apiPost(
-    `/v1/accounts/${encodedKey}/orders/preview.json`,
-    token,
-    secret,
-    body
-  );
+  const data: any = await apiPostXml(`/v1/accounts/${encodedKey}/orders/preview`, token, secret, xml);
 
   const resp = data?.PreviewOrderResponse;
   const previewId = resp?.PreviewIds?.[0]?.previewId ?? resp?.PreviewIds?.previewId;
@@ -387,14 +392,9 @@ export async function placeOrder(
   cashMargin: string
 ): Promise<PlacedOrderResult> {
   const encodedKey = encodeURIComponent(accountIdKey);
-  const body = buildOrderBody(order, [{ previewId, cashMargin }]);
+  const xml = buildOrderXml(order, previewId, cashMargin);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data: any = await apiPost(
-    `/v1/accounts/${encodedKey}/orders/place.json`,
-    token,
-    secret,
-    body
-  );
+  const data: any = await apiPostXml(`/v1/accounts/${encodedKey}/orders/place`, token, secret, xml);
 
   const resp = data?.PlaceOrderResponse;
   const orderId = resp?.OrderIds?.[0]?.orderId ?? resp?.OrderIds?.orderId ?? 0;
