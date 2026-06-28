@@ -172,7 +172,7 @@ export default function CareerAdvisorClient({
       const data = await res.json();
       const assistantMessage: Message = {
         role: "assistant",
-        content: data.content ?? data.message ?? "",
+        content: data.reply ?? data.content ?? data.message ?? "",
         suggestions: data.suggestions ?? [],
       };
       setMessages((prev) => [...prev, assistantMessage]);
