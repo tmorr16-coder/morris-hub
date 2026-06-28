@@ -138,6 +138,9 @@ export default function ResearchLayout({ watchedTickers }: ResearchLayoutProps) 
           )}
         </div>
 
+        {/* Account dashboard — always visible, collapsible, default collapsed */}
+        <AccountDashboard onSelectStock={handleSelectStock} />
+
         {/* Main panel: stock view or empty state */}
         {selectedStock ? (
           <StockMainView
@@ -147,23 +150,8 @@ export default function ResearchLayout({ watchedTickers }: ResearchLayoutProps) 
             onClose={() => setSelectedStock(null)}
           />
         ) : (
-          <div style={{ flex: 1, overflowY: "auto" }}>
-            <AccountDashboard onSelectStock={handleSelectStock} />
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                color: "var(--color-ink-3)",
-                padding: "32px 20px",
-              }}
-            >
-              <div style={{ fontSize: 13, color: "var(--color-ink-3)" }}>
-                Search for a stock above or select one from your watchlist.
-              </div>
-            </div>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-ink-3)", fontSize: 13, padding: 20 }}>
+            Search for a stock above or select one from your watchlist.
           </div>
         )}
       </div>

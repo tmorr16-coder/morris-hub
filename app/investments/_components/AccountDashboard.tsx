@@ -30,6 +30,7 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
   const [data, setData] = useState<AccountData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(true);
 
   const load = async () => {
     try {
@@ -72,26 +73,48 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
   const dayPnl = portfolioValue - lastEquity;
   const dayPnlPct = lastEquity ? ((dayPnl / lastEquity) * 100).toFixed(2) : "0.00";
   const buyingPower = parseFloat(account.buying_power);
+  const dayPnlColor = dayPnl >= 0 ? "var(--color-green)" : "var(--color-red)";
 
+  // ── Collapsed: single-line summary bar ──────────────────────────────────────
+  if (collapsed) {
+    return (
+      <div
+        style={{ borderBottom: "1px solid var(--color-rule)", background: "var(--color-bg)", cursor: "pointer" }}
+        onClick={() => setCollapsed(false)}
+      >
+        <div style={{ padding: "8px 20px", display: "flex", alignItems: "center", gap: 12, fontSize: 12 }}>
+          <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 8, background: clock.is_open ? "rgba(74,107,58,0.1)" : "rgba(138,130,120,0.1)", color: clock.is_open ? "var(--color-green)" : "var(--color-ink-3)", whiteSpace: "nowrap" }}>
+            {clock.is_open ? "● Open" : "○ Closed"}
+          </span>
+          <span style={{ fontWeight: 600, color: "var(--color-ink)", whiteSpace: "nowrap" }}>Alpaca Paper</span>
+          <span style={{ color: "var(--color-ink-3)", fontSize: 11 }}>BP: <span style={{ color: "var(--color-ink)", fontWeight: 500 }}>{fmt(buyingPower)}</span></span>
+          <span style={{ color: "var(--color-ink-3)", fontSize: 11 }}>Day: <span style={{ color: dayPnlColor, fontWeight: 500 }}>{(dayPnl >= 0 ? "+" : "") + fmt(Math.abs(dayPnl))}</span> <span style={{ color: dayPnlColor }}>({dayPnl >= 0 ? "+" : ""}{dayPnlPct}%)</span></span>
+          {positions.length > 0 && <span style={{ color: "var(--color-ink-4)", fontSize: 11 }}>{positions.length} position{positions.length !== 1 ? "s" : ""}</span>}
+          <span style={{ marginLeft: "auto", color: "var(--color-ink-4)", fontSize: 13 }}>▼</span>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Expanded ─────────────────────────────────────────────────────────────────
   return (
     <div style={{ borderBottom: "1px solid var(--color-rule)" }}>
       {/* Header */}
-      <div style={{ padding: "14px 28px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ padding: "12px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10, background: clock.is_open ? "rgba(74,107,58,0.1)" : "rgba(138,130,120,0.12)", color: clock.is_open ? "var(--color-green)" : "var(--color-ink-3)" }}>
             {clock.is_open ? "● Market Open" : "○ Market Closed"}
           </span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink)" }}>
-            Alpaca Paper
-          </span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink)" }}>Alpaca Paper</span>
         </div>
-        <button onClick={load} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--color-ink-4)", padding: 0 }}>
-          ↻ Refresh
-        </button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button onClick={load} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--color-ink-4)", padding: 0 }}>↻</button>
+          <button onClick={() => setCollapsed(true)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "var(--color-ink-4)", padding: 0 }}>▲</button>
+        </div>
       </div>
 
       {/* Key metrics */}
-      <div style={{ display: "flex", gap: 0, padding: "0 28px 12px" }}>
+      <div style={{ display: "flex", gap: 0, padding: "0 20px 12px" }}>
         {[
           { label: "Buying Power", value: fmt(buyingPower), sub: "available cash", color: "var(--color-ink)" },
           { label: "Day P&L", value: (dayPnl >= 0 ? "+" : "") + fmt(Math.abs(dayPnl)), sub: (parseFloat(dayPnlPct) >= 0 ? "+" : "") + dayPnlPct + "%", color: dayPnl >= 0 ? "var(--color-green)" : "var(--color-red)" },
@@ -142,7 +165,7 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-bg-deep)"; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
                   >
-                    <td style={{ padding: "8px 0 8px 28px", fontWeight: 700, color: "var(--color-ink)" }}>{pos.symbol}</td>
+                    <td style={{ padding: "8px 0 8px 20px", fontWeight: 700, color: "var(--color-ink)" }}>{pos.symbol}</td>
                     <td style={{ padding: "8px 12px 8px 0", textAlign: "right", color: "var(--color-ink)" }}>{qty.toLocaleString()}</td>
                     <td style={{ padding: "8px 12px 8px 0", textAlign: "right", color: "var(--color-ink-2)" }}>{fmt(avgCost)}</td>
                     <td style={{ padding: "8px 12px 8px 0", textAlign: "right", color: "var(--color-ink)" }}>{fmt(price)}</td>
@@ -164,7 +187,7 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
       )}
 
       {positions.length === 0 && (
-        <div style={{ padding: "8px 28px 14px", fontSize: 12, color: "var(--color-ink-3)" }}>
+        <div style={{ padding: "8px 20px 14px", fontSize: 12, color: "var(--color-ink-3)" }}>
           No open positions · Paper trading account ready
         </div>
       )}
