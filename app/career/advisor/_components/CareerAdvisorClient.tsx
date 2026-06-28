@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import MarkdownMessage from "@/components/MarkdownMessage";
 import type { SuggestionItem } from "@/app/api/career/advisor/route";
 
 interface Message {
@@ -362,31 +363,41 @@ export default function CareerAdvisorClient({
                     </div>
                   )}
 
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: isUser ? "flex-end" : "flex-start",
-                    }}
-                  >
-                    <div
-                      style={{
-                        maxWidth: "75%",
-                        padding: "12px 16px",
-                        borderRadius: isUser ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
-                        background: isUser
-                          ? "var(--color-accent)"
-                          : "var(--color-bg-raised)",
-                        color: isUser ? "#fff" : "var(--color-ink)",
+                  {isUser ? (
+                    /* User bubble — right-aligned pill */
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <div style={{
+                        maxWidth: "72%",
+                        padding: "10px 16px",
+                        borderRadius: "18px 18px 4px 18px",
+                        background: "var(--color-accent)",
+                        color: "#fff",
                         fontSize: 14,
                         lineHeight: 1.6,
-                        border: isUser ? "none" : "1px solid var(--color-line)",
-                        whiteSpace: "pre-wrap",
                         wordBreak: "break-word",
-                      }}
-                    >
-                      {msg.content}
+                      }}>
+                        {msg.content}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    /* Assistant — full-width card with markdown */
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "var(--color-ink-4)", letterSpacing: "0.1em", textTransform: "uppercase", paddingLeft: 2 }}>
+                        Career Advisor
+                      </span>
+                      <div style={{
+                        background: "var(--color-bg-raised)",
+                        border: "1px solid var(--color-line)",
+                        borderRadius: "4px 16px 16px 16px",
+                        padding: "14px 18px",
+                        fontSize: 14,
+                        color: "var(--color-ink)",
+                        wordBreak: "break-word",
+                      }}>
+                        <MarkdownMessage content={msg.content} />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Suggestions */}
                   {msg.role === "assistant" &&
