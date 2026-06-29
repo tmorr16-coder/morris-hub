@@ -79,7 +79,7 @@ export default function ManualAccountsList({ initialAccounts }: { initialAccount
                 <span>imported {new Date(a.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
               <span className="mono" style={{ fontSize: 22, fontWeight: 600, color: "var(--color-ink)" }}>
                 {fmtMoney(a.balance, a.currency)}
               </span>
@@ -96,16 +96,16 @@ export default function ManualAccountsList({ initialAccounts }: { initialAccount
                 disabled={sharingPending.has(a.id)}
                 title={a.visible_to_family ? "Shared with family — click to hide" : "Share with family"}
                 style={{
-                  fontSize: 11, padding: "4px 10px", borderRadius: 8,
-                  border: `1px solid ${a.visible_to_family ? "var(--color-green)" : "var(--color-rule)"}`,
-                  background: a.visible_to_family ? "rgba(77,107,58,0.08)" : "transparent",
-                  color: a.visible_to_family ? "var(--color-green)" : "var(--color-ink-4)",
+                  fontSize: 11, fontWeight: 600, padding: "5px 12px", borderRadius: 8,
+                  border: `1px solid ${a.visible_to_family ? "var(--color-green)" : "var(--color-bronze)"}`,
+                  background: a.visible_to_family ? "rgba(77,107,58,0.1)" : "rgba(139,106,71,0.08)",
+                  color: a.visible_to_family ? "var(--color-green)" : "var(--color-bronze-dark)",
                   cursor: sharingPending.has(a.id) ? "wait" : "pointer",
                   fontFamily: "inherit", opacity: sharingPending.has(a.id) ? 0.6 : 1,
-                  whiteSpace: "nowrap",
+                  whiteSpace: "nowrap", flexShrink: 0,
                 }}
               >
-                {a.visible_to_family ? "👥 Shared" : "Share"}
+                {a.visible_to_family ? "👥 Shared" : "👥 Share"}
               </button>
               <button
                 onClick={() => remove(a.id)}
