@@ -20,6 +20,8 @@ export interface Preferences {
   news_sources: NewsSource[];
   watched_stocks: string[];
   employer_ticker?: string | null;  // e.g. "LLY" — drives Company News widget
+  tts_voice?: string | null;        // e.g. "Samantha" — platform read-aloud voice name
+  tts_speed?: number | null;        // 0.5–2.0, default 1.0
   phone_number?: string | null;
   sms_notifications_enabled?: boolean;
   reminder_lead_days?: number;

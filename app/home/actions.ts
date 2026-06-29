@@ -113,6 +113,8 @@ export async function savePreferences(data: {
   longitude?: number;
   stock_tickers?: string[];
   employer_ticker?: string | null;
+  tts_voice?: string | null;
+  tts_speed?: number | null;
   news_topics?: string[];
   city_names?: string[];
   sports_enabled_teams?: string[];

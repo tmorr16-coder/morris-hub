@@ -48,6 +48,8 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
 
   const [tickersInput, setTickersInput] = useState(initialPrefs.stock_tickers.join(", "));
   const [employerTicker, setEmployerTicker] = useState(initialPrefs.employer_ticker ?? "");
+  const [ttsVoice, setTtsVoice] = useState(initialPrefs.tts_voice ?? "");
+  const [ttsSpeed, setTtsSpeed] = useState(initialPrefs.tts_speed ?? 1.0);
   const [topics, setTopics] = useState<string[]>(initialPrefs.news_topics);
   const [citiesInput, setCitiesInput] = useState(initialPrefs.city_names.join(", "));
   const [sportsTeams, setSportsTeams] = useState<string[]>(initialPrefs.sports_enabled_teams);
@@ -229,6 +231,8 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         longitude,
         stock_tickers: tickers,
         employer_ticker: employerTicker.trim().toUpperCase() || null,
+        tts_voice: ttsVoice || null,
+        tts_speed: ttsSpeed,
         news_topics: topics,
         city_names: cities,
         sports_enabled_teams: sportsTeams,
@@ -408,6 +412,24 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
           <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 6 }}>
             Your home screen will show a live news feed for this ticker. Leave blank to hide the widget.
           </p>
+        </div>
+      </section>
+
+      {/* Read-aloud / TTS */}
+      <section style={card}>
+        <SectionHeader title="Read-aloud voice" subtitle="Used for Bible reading and any platform text-to-speech" />
+        <Label>Voice name</Label>
+        <TtsVoicePicker value={ttsVoice} onChange={setTtsVoice} />
+        <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 6 }}>
+          Uses free OS voices — Apple voices on Mac/iOS, Microsoft voices on Windows. Leave blank for browser default.
+        </p>
+        <div style={{ marginTop: 14 }}>
+          <Label>Speed <span style={{ fontWeight: 400, color: "var(--color-ink-4)" }}>({ttsSpeed.toFixed(1)}×)</span></Label>
+          <input type="range" min="0.5" max="2" step="0.1" value={ttsSpeed} onChange={(e) => setTtsSpeed(parseFloat(e.target.value))}
+            style={{ width: "100%", accentColor: "var(--color-accent)" }} />
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--color-ink-4)", marginTop: 2 }}>
+            <span>0.5× Slow</span><span>1.0× Normal</span><span>2.0× Fast</span>
+          </div>
         </div>
       </section>
 
@@ -814,6 +836,56 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
     </div>
   );
 }
+
+function TtsVoicePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+
+  // Load voices — browser fires voiceschanged when ready
+  useState(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const load = () => setVoices(window.speechSynthesis.getVoices());
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
+  });
+
+  if (!voices.length) {
+    return (
+      <select style={{ ...inputBase, opacity: 0.6 }} disabled>
+        <option>Loading voices…</option>
+      </select>
+    );
+  }
+
+  // Group: prefer Apple and Microsoft voices first
+  const apple = voices.filter((v) => v.name.includes("(") || v.localService);
+  const microsoft = voices.filter((v) => v.name.toLowerCase().includes("microsoft"));
+  const other = voices.filter((v) => !apple.includes(v) && !microsoft.includes(v));
+
+  const grouped = [
+    { label: "Apple voices", items: apple.filter((v) => /Mac|iPhone|iPad/.test(v.voiceURI) || v.localService) },
+    { label: "Microsoft voices", items: microsoft },
+    { label: "Other voices", items: other },
+  ].filter((g) => g.items.length > 0);
+
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} style={inputBase}>
+      <option value="">Browser default</option>
+      {grouped.map((group) => (
+        <optgroup key={group.label} label={group.label}>
+          {group.items.map((v) => (
+            <option key={v.name} value={v.name}>{v.name}</option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
+
+const inputBase: React.CSSProperties = {
+  width: "100%", padding: "9px 12px", border: "1px solid var(--color-rule)",
+  borderRadius: 8, background: "var(--color-paper)", color: "var(--color-ink)",
+  fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+};
 
 function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (

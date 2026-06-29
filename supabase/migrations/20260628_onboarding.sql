@@ -5,3 +5,4 @@ ALTER TABLE hub.preferences
 
 NOTIFY pgrst, 'reload schema';
 ALTER TABLE hub.preferences ADD COLUMN IF NOT EXISTS employer_ticker text;
+ALTER TABLE hub.preferences ADD COLUMN IF NOT EXISTS tts_voice text; ALTER TABLE hub.preferences ADD COLUMN IF NOT EXISTS tts_speed numeric(3,1) DEFAULT 1.0; NOTIFY pgrst, 'reload schema';
