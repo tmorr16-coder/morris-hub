@@ -167,21 +167,30 @@ export default async function DashboardPage() {
   }
   const ownManualAccounts: ManualAccountRow[] = (manualRows as ManualAccountRow[]) ?? [];
 
-  // Fetch other platform members' manual accounts shared with family
+  // Fetch manual accounts shared with this user via manual_account_shares (auto-accepted only)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: sharedManualRows } = await (service as any)
+  const { data: receivedShareRows } = await (service as any)
     .schema("finance")
-    .from("manual_accounts")
-    .select("id, name, institution, account_type, balance, as_of_date, currency, holdings, source, visible_to_family, user_id")
-    .eq("visible_to_family", true)
-    .neq("user_id", user.id);
+    .from("manual_account_shares")
+    .select("account_id, owner_user_id, mode")
+    .eq("recipient_user_id", user.id)
+    .eq("accepted", true);
 
-  // Attach owner name from profiles if available
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sharedManual: ManualAccountRow[] = ((sharedManualRows ?? []) as any[]).map((r) => ({
-    ...r,
-    sharedBy: r.user_id, // placeholder — could resolve to name if needed
-  }));
+  const sharedManual: ManualAccountRow[] = [];
+  if (receivedShareRows && (receivedShareRows as any[]).length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const accountIds = (receivedShareRows as any[]).map((r) => r.account_id);
+    const { data: sharedAccounts } = await (service as any)
+      .schema("finance")
+      .from("manual_accounts")
+      .select("id, name, institution, account_type, balance, as_of_date, currency, holdings, source")
+      .in("id", accountIds);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ((sharedAccounts ?? []) as any[]).forEach((a) => {
+      sharedManual.push({ ...a, visible_to_family: true });
+    });
+  }
 
   const manualAccounts: ManualAccountRow[] = [...ownManualAccounts, ...sharedManual];
 

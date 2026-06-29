@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { deleteManualAccount, toggleManualAccountSharing } from "../actions";
+import { deleteManualAccount } from "../actions";
+import ShareAccountModal from "./ShareAccountModal";
 
 interface Holding { name: string; value: number; pct: number | null }
 
@@ -32,7 +33,7 @@ const TYPE_LABEL: Record<string, string> = {
 export default function ManualAccountsList({ initialAccounts }: { initialAccounts: ManualAccount[] }) {
   const [accounts, setAccounts] = useState(initialAccounts);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [sharingPending, setSharingPending] = useState<Set<string>>(new Set());
+  const [sharingModal, setSharingModal] = useState<{ id: string; name: string } | null>(null);
   const [, startTransition] = useTransition();
 
   function toggle(id: string) {
@@ -40,15 +41,6 @@ export default function ManualAccountsList({ initialAccounts }: { initialAccount
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
-    });
-  }
-
-  function toggleShare(id: string, current: boolean) {
-    setSharingPending((prev) => new Set(prev).add(id));
-    setAccounts((prev) => prev.map((a) => a.id === id ? { ...a, visible_to_family: !current } : a));
-    startTransition(async () => {
-      await toggleManualAccountSharing(id, !current);
-      setSharingPending((prev) => { const next = new Set(prev); next.delete(id); return next; });
     });
   }
 
@@ -61,6 +53,7 @@ export default function ManualAccountsList({ initialAccounts }: { initialAccount
   }
 
   return (
+    <>
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {accounts.map((a) => (
         <div key={a.id} style={{ background: "var(--color-paper-card)", border: "1px solid var(--color-rule)", borderRadius: 12, overflow: "hidden", boxShadow: "var(--shadow-card)" }}>
@@ -92,20 +85,11 @@ export default function ManualAccountsList({ initialAccounts }: { initialAccount
                 </button>
               )}
               <button
-                onClick={() => toggleShare(a.id, a.visible_to_family)}
-                disabled={sharingPending.has(a.id)}
-                title={a.visible_to_family ? "Shared with family — click to hide" : "Share with family"}
-                style={{
-                  fontSize: 11, fontWeight: 600, padding: "5px 12px", borderRadius: 8,
-                  border: `1px solid ${a.visible_to_family ? "var(--color-green)" : "var(--color-bronze)"}`,
-                  background: a.visible_to_family ? "rgba(77,107,58,0.1)" : "rgba(139,106,71,0.08)",
-                  color: a.visible_to_family ? "var(--color-green)" : "var(--color-bronze-dark)",
-                  cursor: sharingPending.has(a.id) ? "wait" : "pointer",
-                  fontFamily: "inherit", opacity: sharingPending.has(a.id) ? 0.6 : 1,
-                  whiteSpace: "nowrap", flexShrink: 0,
-                }}
+                onClick={() => setSharingModal({ id: a.id, name: a.name })}
+                title="Share with family circle"
+                style={{ fontSize: 11, fontWeight: 600, padding: "5px 12px", borderRadius: 8, border: "1px solid var(--color-bronze)", background: "rgba(139,106,71,0.08)", color: "var(--color-bronze-dark)", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0 }}
               >
-                {a.visible_to_family ? "👥 Shared" : "👥 Share"}
+                👥 Share
               </button>
               <button
                 onClick={() => remove(a.id)}
@@ -159,5 +143,13 @@ export default function ManualAccountsList({ initialAccounts }: { initialAccount
         </div>
       ))}
     </div>
+    {sharingModal && (
+      <ShareAccountModal
+        accountId={sharingModal.id}
+        accountName={sharingModal.name}
+        onClose={() => setSharingModal(null)}
+      />
+    )}
+    </>
   );
 }
