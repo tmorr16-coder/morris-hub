@@ -3,14 +3,14 @@ import { createServiceClient } from "@/lib/supabase/server";
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { moduleId: string } }
+  { params }: { params: Promise<{ moduleId: string }> }
 ) {
   const userId = await getCurrentUserId();
   if (!userId) return Response.json({ error: "Not authenticated" }, { status: 401 });
+  const { moduleId } = await params;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
-  const { moduleId } = params;
 
   try {
     switch (moduleId) {
