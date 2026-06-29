@@ -104,7 +104,7 @@ export default async function DashboardPage() {
     service
       .schema("finance")
       .from("manual_accounts")
-      .select("id, name, institution, account_type, balance, as_of_date, currency, holdings, source")
+      .select("id, name, institution, account_type, balance, as_of_date, currency, holdings, source, visible_to_family")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -162,8 +162,28 @@ export default async function DashboardPage() {
     currency: string;
     holdings: { name: string; value: number; pct: number | null }[] | null;
     source: string;
+    visible_to_family: boolean;
+    sharedBy?: string; // owner's name when viewing another member's shared account
   }
-  const manualAccounts: ManualAccountRow[] = (manualRows as ManualAccountRow[]) ?? [];
+  const ownManualAccounts: ManualAccountRow[] = (manualRows as ManualAccountRow[]) ?? [];
+
+  // Fetch other platform members' manual accounts shared with family
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: sharedManualRows } = await (service as any)
+    .schema("finance")
+    .from("manual_accounts")
+    .select("id, name, institution, account_type, balance, as_of_date, currency, holdings, source, visible_to_family, user_id")
+    .eq("visible_to_family", true)
+    .neq("user_id", user.id);
+
+  // Attach owner name from profiles if available
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sharedManual: ManualAccountRow[] = ((sharedManualRows ?? []) as any[]).map((r) => ({
+    ...r,
+    sharedBy: r.user_id, // placeholder — could resolve to name if needed
+  }));
+
+  const manualAccounts: ManualAccountRow[] = [...ownManualAccounts, ...sharedManual];
 
   // ── Shared accounts (where this user is the grantee) ─────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

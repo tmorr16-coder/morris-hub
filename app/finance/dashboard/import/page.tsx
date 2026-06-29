@@ -18,6 +18,7 @@ interface ManualAccount {
   holdings: { name: string; value: number; pct: number | null; shares: number | null; price: number | null }[] | null;
   source: string;
   created_at: string;
+  visible_to_family: boolean;
 }
 
 export default async function ImportPage() {
@@ -28,7 +29,7 @@ export default async function ImportPage() {
   const { data: rows } = await service
     .schema("finance")
     .from("manual_accounts")
-    .select("id, name, institution, account_type, balance, as_of_date, currency, holdings, source, created_at")
+    .select("id, name, institution, account_type, balance, as_of_date, currency, holdings, source, created_at, visible_to_family")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 

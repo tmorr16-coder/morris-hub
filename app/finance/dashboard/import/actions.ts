@@ -1,6 +1,7 @@
 "use server";
 
 import Anthropic from "@anthropic-ai/sdk";
+import { revalidatePath } from "next/cache";
 import { requireFinanceAccess } from "@/lib/finance/access";
 import { createServiceClient } from "@/lib/supabase/server";
 
@@ -198,6 +199,24 @@ export async function saveManualBalance(data: {
 
   if (error) return { error: error.message };
   return { id: row.id };
+}
+
+export async function toggleManualAccountSharing(
+  id: string,
+  visible: boolean
+): Promise<{ error?: string }> {
+  const { user } = await requireFinanceAccess();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const { error } = await service
+    .schema("finance")
+    .from("manual_accounts")
+    .update({ visible_to_family: visible })
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) return { error: error.message };
+  revalidatePath("/finance/dashboard");
+  return {};
 }
 
 export async function deleteManualAccount(id: string): Promise<{ error?: string }> {

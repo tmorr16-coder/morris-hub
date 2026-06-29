@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { deleteManualAccount } from "../actions";
+import { deleteManualAccount, toggleManualAccountSharing } from "../actions";
 
 interface Holding { name: string; value: number; pct: number | null }
 
@@ -16,6 +16,7 @@ interface ManualAccount {
   holdings: Holding[] | null;
   source: string;
   created_at: string;
+  visible_to_family: boolean;
 }
 
 function fmtMoney(n: number | null, currency = "USD"): string {
@@ -31,6 +32,7 @@ const TYPE_LABEL: Record<string, string> = {
 export default function ManualAccountsList({ initialAccounts }: { initialAccounts: ManualAccount[] }) {
   const [accounts, setAccounts] = useState(initialAccounts);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [sharingPending, setSharingPending] = useState<Set<string>>(new Set());
   const [, startTransition] = useTransition();
 
   function toggle(id: string) {
@@ -38,6 +40,15 @@ export default function ManualAccountsList({ initialAccounts }: { initialAccount
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
+    });
+  }
+
+  function toggleShare(id: string, current: boolean) {
+    setSharingPending((prev) => new Set(prev).add(id));
+    setAccounts((prev) => prev.map((a) => a.id === id ? { ...a, visible_to_family: !current } : a));
+    startTransition(async () => {
+      await toggleManualAccountSharing(id, !current);
+      setSharingPending((prev) => { const next = new Set(prev); next.delete(id); return next; });
     });
   }
 
@@ -80,6 +91,22 @@ export default function ManualAccountsList({ initialAccounts }: { initialAccount
                   {expanded.has(a.id) ? "Hide holdings" : `${a.holdings!.length} holdings`}
                 </button>
               )}
+              <button
+                onClick={() => toggleShare(a.id, a.visible_to_family)}
+                disabled={sharingPending.has(a.id)}
+                title={a.visible_to_family ? "Shared with family — click to hide" : "Share with family"}
+                style={{
+                  fontSize: 11, padding: "4px 10px", borderRadius: 8,
+                  border: `1px solid ${a.visible_to_family ? "var(--color-green)" : "var(--color-rule)"}`,
+                  background: a.visible_to_family ? "rgba(77,107,58,0.08)" : "transparent",
+                  color: a.visible_to_family ? "var(--color-green)" : "var(--color-ink-4)",
+                  cursor: sharingPending.has(a.id) ? "wait" : "pointer",
+                  fontFamily: "inherit", opacity: sharingPending.has(a.id) ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {a.visible_to_family ? "👥 Shared" : "Share"}
+              </button>
               <button
                 onClick={() => remove(a.id)}
                 style={{ fontSize: 12, padding: "4px 8px", borderRadius: 6, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-4)", cursor: "pointer", fontFamily: "inherit" }}

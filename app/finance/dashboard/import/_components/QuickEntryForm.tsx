@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { saveManualBalance } from "../actions";
 
 export default function QuickEntryForm() {
-  const [name, setName] = useState("Lilly Employee 401(k) Plan");
-  const [institution, setInstitution] = useState("Alight / Eli Lilly");
+  const [name, setName] = useState("");
+  const [institution, setInstitution] = useState("");
   const [accountType, setAccountType] = useState("401k");
   const [balance, setBalance] = useState("");
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().slice(0, 10));
@@ -33,7 +33,7 @@ export default function QuickEntryForm() {
       return;
     }
 
-    // Parse optional balance history pasted from Alight
+    // Parse optional balance history
     // Expected: lines of "MM-DD-YYYY  $1,234,567.89  3.07%"
     // or CSV header "Date,Closing Balance,Rate of Return"
     const history: { date: string; balance: number; rate: number | null }[] = [];
@@ -87,11 +87,11 @@ export default function QuickEntryForm() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div>
           <label style={labelStyle}>Account name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="e.g. Lilly 401(k)" />
+          <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="e.g. My 401(k) Plan" />
         </div>
         <div>
           <label style={labelStyle}>Institution</label>
-          <input value={institution} onChange={(e) => setInstitution(e.target.value)} style={inputStyle} placeholder="e.g. Alight" />
+          <input value={institution} onChange={(e) => setInstitution(e.target.value)} style={inputStyle} placeholder="e.g. Fidelity, Vanguard, Alight" />
         </div>
         <div>
           <label style={labelStyle}>Account type</label>
@@ -117,15 +117,15 @@ export default function QuickEntryForm() {
 
       <div>
         <label style={labelStyle}>
-          Balance history (optional) — paste rows from Alight Balance History table
+          Balance history (optional)
         </label>
         <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginBottom: 6 }}>
-          Copy the Date / Closing Balance / Rate of Return rows and paste below. Each line is parsed automatically.
+          Paste monthly balance rows — one per line in <span style={{ fontFamily: "monospace" }}>date  $balance  return%</span> format. Each line is parsed automatically.
         </div>
         <textarea
           value={historyText}
           onChange={(e) => setHistoryText(e.target.value)}
-          placeholder={"05-22-2026  $1,322,659.63  3.07%\n04-30-2026  $1,280,289.69  9.39%\n03-31-2026  $1,166,158.00  -5.68%"}
+          placeholder={"05-22-2026  $325,450.00  2.14%\n04-30-2026  $318,720.50  1.89%\n03-31-2026  $312,900.00  -1.22%"}
           rows={6}
           style={{ ...inputStyle, fontFamily: "var(--font-mono)", fontSize: 12, resize: "vertical" }}
         />
