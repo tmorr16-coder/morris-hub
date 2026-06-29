@@ -19,6 +19,7 @@ export interface MenuUser {
   name?: string | null;
   avatarUrl?: string | null;
   isAdmin?: boolean;
+  appAccess?: string[] | null; // which modules this user has enabled
 }
 
 export default function PlatformMenu({
@@ -28,6 +29,11 @@ export default function PlatformMenu({
   currentApp: "hub" | "health" | "finance" | "investments" | "student-success" | "bible" | "career";
   user?: MenuUser | null;
 }) {
+  // Filter APPS by user's app_access, always showing the current app
+  const visibleApps = user?.appAccess?.length
+    ? APPS.filter((a) => user.appAccess!.includes(a.key) || a.key === currentApp || a.key === "hub")
+    : APPS;
+
   return (
     <div
       style={{
@@ -78,7 +84,7 @@ export default function PlatformMenu({
           </a>
 
           <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-            {APPS.map((app) => {
+            {visibleApps.map((app) => {
               const active = app.key === currentApp;
               return (
                 <a

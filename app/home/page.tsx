@@ -108,6 +108,7 @@ export default async function HomePage() {
     email: user.email,
     avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
     isAdmin,
+    appAccess: prefs.app_access ?? null,
   };
 
   return (

@@ -88,14 +88,37 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
   const [customMediumInput, setCustomMediumInput] = useState("");
 
   const AVAILABLE_MODULES = [
-    { id: "hub", label: "Hub", description: "Home dashboard and core features" },
-    { id: "health", label: "Health", description: "Health tracking and workouts" },
-    { id: "finance", label: "Finance", description: "Budget and account management" },
-    { id: "student-success", label: "Student Success", description: "Courses and study materials" },
-    { id: "investments", label: "Investments", description: "Investment ideas and tracking" },
+    { id: "hub",             label: "Hub",             description: "Home dashboard, reminders, news, and weather" },
+    { id: "health",          label: "Health",          description: "Body composition, workouts, and GLP-1 tracking" },
+    { id: "finance",         label: "Finance",         description: "Accounts, net worth, and spending insights" },
+    { id: "investments",     label: "Investments",     description: "Stock research, deep analysis, and paper trading" },
+    { id: "career",          label: "Career",          description: "AI advisor, goal tracking, and 70/20/10 logging" },
+    { id: "student-success", label: "Student Success", description: "LSAT prep, certifications, and course tracking" },
+    { id: "bible",           label: "Bible",           description: "Scripture reading, plans, notes, and family challenges" },
   ];
 
+  const [removeConfirm, setRemoveConfirm] = useState<{ id: string; label: string } | null>(null);
+  const [removingData, setRemovingData] = useState(false);
+
+  async function confirmRemove(keepData: boolean) {
+    if (!removeConfirm) return;
+    setRemovingData(true);
+    if (!keepData) {
+      // Fire-and-forget data deletion for the module
+      await fetch(`/api/modules/${removeConfirm.id}/delete-data`, { method: "DELETE" }).catch(() => {});
+    }
+    setAppAccess((prev) => prev.filter((m) => m !== removeConfirm.id));
+    setRemoveConfirm(null);
+    setRemovingData(false);
+  }
+
   function toggleModule(moduleId: string) {
+    if (appAccess.includes(moduleId) && moduleId !== "hub") {
+      // Removing — show confirmation
+      const mod = AVAILABLE_MODULES.find((m) => m.id === moduleId);
+      setRemoveConfirm({ id: moduleId, label: mod?.label ?? moduleId });
+      return;
+    }
     setAppAccess((prev) =>
       prev.includes(moduleId) ? prev.filter((m) => m !== moduleId) : [...prev, moduleId]
     );
@@ -301,22 +324,60 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
       <section style={card}>
         <SectionHeader title="App access" subtitle="Which modules you can access" />
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {AVAILABLE_MODULES.map((module) => (
-            <label key={module.id} style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer", padding: "10px 12px", borderRadius: 8, background: "var(--color-bg)", border: "1px solid var(--color-rule)" }}>
-              <input
-                type="checkbox"
-                checked={appAccess.includes(module.id)}
-                onChange={() => toggleModule(module.id)}
-                style={{ marginTop: 2, cursor: "pointer", width: 18, height: 18 }}
-              />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)" }}>{module.label}</div>
-                <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 2 }}>{module.description}</div>
-              </div>
-            </label>
-          ))}
+          {AVAILABLE_MODULES.map((module) => {
+            const isHub = module.id === "hub";
+            const active = appAccess.includes(module.id);
+            return (
+              <label key={module.id} style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: isHub ? "default" : "pointer", padding: "10px 12px", borderRadius: 8, background: "var(--color-bg)", border: `1px solid ${active ? "var(--color-rule)" : "var(--color-rule-soft)"}`, opacity: isHub ? 0.7 : 1 }}>
+                <input
+                  type="checkbox"
+                  checked={active}
+                  disabled={isHub}
+                  onChange={() => toggleModule(module.id)}
+                  style={{ marginTop: 2, cursor: isHub ? "default" : "pointer", width: 18, height: 18 }}
+                />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: active ? "var(--color-ink)" : "var(--color-ink-3)" }}>{module.label}</div>
+                  <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 2 }}>{module.description}</div>
+                </div>
+                {isHub && <span style={{ fontSize: 10, color: "var(--color-ink-4)", alignSelf: "center" }}>Always on</span>}
+              </label>
+            );
+          })}
         </div>
+        <p style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 8 }}>
+          Removing a module hides it from your menu. You can keep or delete your data when removing.
+        </p>
       </section>
+
+      {/* Module removal confirmation modal */}
+      {removeConfirm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 16, width: "100%", maxWidth: 400, padding: "28px 28px 24px", boxShadow: "0 20px 60px rgba(0,0,0,0.12)" }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--color-ink)", marginBottom: 8 }}>
+              Remove {removeConfirm.label}?
+            </h3>
+            <p style={{ fontSize: 13, color: "var(--color-ink-3)", lineHeight: 1.6, marginBottom: 20 }}>
+              This hides {removeConfirm.label} from your menu. What would you like to do with your data?
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button onClick={() => confirmRemove(true)} disabled={removingData}
+                style={{ padding: "11px 16px", borderRadius: 10, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink)", fontSize: 14, fontWeight: 500, fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}>
+                <div style={{ fontWeight: 600 }}>Keep my data</div>
+                <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 2 }}>Hide the module but preserve everything. You can re-enable it later.</div>
+              </button>
+              <button onClick={() => confirmRemove(false)} disabled={removingData}
+                style={{ padding: "11px 16px", borderRadius: 10, border: "1px solid rgba(154,59,42,0.3)", background: "rgba(154,59,42,0.04)", color: "var(--color-red)", fontSize: 14, fontWeight: 500, fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}>
+                <div style={{ fontWeight: 600 }}>Remove and delete data</div>
+                <div style={{ fontSize: 11, marginTop: 2, opacity: 0.8 }}>Permanently delete your {removeConfirm.label} data. This cannot be undone.</div>
+              </button>
+              <button onClick={() => setRemoveConfirm(null)} style={{ padding: "9px 0", border: "none", background: "transparent", color: "var(--color-ink-4)", fontSize: 13, fontFamily: "inherit", cursor: "pointer" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reminder categories */}
       <section style={card}>
