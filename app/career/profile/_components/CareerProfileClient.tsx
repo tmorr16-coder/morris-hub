@@ -358,7 +358,7 @@ export default function CareerProfileClient({ profile }: { profile: Profile }) {
                     value={industry}
                     onChange={(e) => setIndustry(e.target.value)}
                     style={inputStyle}
-                    placeholder="e.g. Pharma / Life Sciences"
+                    placeholder="e.g. Technology, Healthcare, Finance, Education, Consulting"
                   />
                 </Field>
               </div>

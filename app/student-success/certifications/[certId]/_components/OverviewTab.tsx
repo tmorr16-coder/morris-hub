@@ -1,6 +1,49 @@
 "use client";
 
+import { useState } from "react";
+
 type TabType = "overview" | "materials" | "flashcards" | "practice" | "chat";
+
+function AddToCareerButton({ certName, score, sessionId }: { certName: string; score: number; sessionId: string }) {
+  const [state, setState] = useState<"idle" | "saving" | "done">("idle");
+
+  async function add() {
+    setState("saving");
+    try {
+      await fetch("/api/career/learning", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: certName,
+          learning_type: "certification",
+          status: "completed",
+          end_date: new Date().toISOString().slice(0, 10),
+          notes: `Passed with ${Math.round(score)}% in practice session`,
+        }),
+      });
+      setState("done");
+    } catch {
+      setState("idle");
+    }
+  }
+
+  if (state === "done") return <span style={{ fontSize: 11, color: "#059669", fontWeight: 600 }}>✓ Added to Career</span>;
+
+  return (
+    <button
+      onClick={add}
+      disabled={state === "saving"}
+      style={{
+        fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6,
+        border: "1px solid #059669", background: state === "saving" ? "transparent" : "#f0fdf4",
+        color: "#059669", cursor: state === "saving" ? "wait" : "pointer", fontFamily: "inherit",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {state === "saving" ? "Adding…" : "Add to Career ✦"}
+    </button>
+  );
+}
 
 interface Exam {
   id: string;
@@ -381,17 +424,22 @@ export default function OverviewTab({
                 </div>
 
                 {typeof session.score_pct === "number" && (
-                  <div
-                    style={{
-                      fontSize: 18,
-                      fontWeight: 700,
-                      color:
-                        session.score_pct >= exam.passing_score_pct
-                          ? "#059669"
-                          : "#dc2626",
-                    }}
-                  >
-                    {Math.round(session.score_pct)}%
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                    <div
+                      style={{
+                        fontSize: 18,
+                        fontWeight: 700,
+                        color:
+                          session.score_pct >= exam.passing_score_pct
+                            ? "#059669"
+                            : "#dc2626",
+                      }}
+                    >
+                      {Math.round(session.score_pct)}%
+                    </div>
+                    {session.score_pct >= exam.passing_score_pct && (
+                      <AddToCareerButton certName={exam.name} score={session.score_pct} sessionId={session.id} />
+                    )}
                   </div>
                 )}
               </div>

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import QuickLogModal from "./QuickLogModal";
 
 const EXPERIENCE_TYPES = [
   "project",
@@ -53,6 +54,7 @@ export default function ExperiencesPageClient({
 }: Props) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(false);
+  const [showQuickLog, setShowQuickLog] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -130,23 +132,26 @@ export default function ExperiencesPageClient({
 
   return (
     <div>
-      {/* Add button */}
-      <div style={{ marginBottom: 20 }}>
+      {/* Add buttons */}
+      <div style={{ marginBottom: 20, display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button
+          onClick={() => setShowQuickLog(true)}
+          style={{ background: "var(--color-accent)", color: "#fff", border: "none", borderRadius: 8, padding: "9px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+        >
+          ⚡ Quick Log
+        </button>
         <button
           onClick={() => setShowForm((v) => !v)}
-          style={{
-            background: "var(--color-accent)",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            padding: "9px 18px",
-            fontSize: 14,
-            fontWeight: 500,
-            cursor: "pointer",
-          }}
+          style={{ background: "transparent", color: "var(--color-ink-2)", border: "1px solid var(--color-rule)", borderRadius: 8, padding: "9px 18px", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
         >
-          {showForm ? "Cancel" : "+ Log Experience"}
+          {showForm ? "Cancel" : "+ Full Entry"}
         </button>
+        {showQuickLog && (
+          <QuickLogModal
+            onClose={() => setShowQuickLog(false)}
+            onSaved={() => { setShowQuickLog(false); router.refresh(); }}
+          />
+        )}
       </div>
 
       {/* Inline form */}
