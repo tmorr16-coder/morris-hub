@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import PlatformMenu from "@/components/PlatformMenu";
+import FinanceSubNav from "./_components/FinanceSubNav";
 
 export const metadata: Metadata = { title: "Finance · morrisai.family" };
 
@@ -18,6 +19,7 @@ export default async function FinanceLayout({ children }: { children: React.Reac
   return (
     <>
       <PlatformMenu currentApp="finance" user={menuUser} />
+      <FinanceSubNav />
       <div data-section="finance">
         {children}
       </div>
