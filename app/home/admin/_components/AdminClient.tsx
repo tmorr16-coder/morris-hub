@@ -4,14 +4,16 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { inviteUser, cancelInvitation, updateUserRole, removeUser, updateIntegrationRequestStatus, approveUser, rejectUser, updateTicketStatus, updateAppAccess, type AppKey } from "../actions";
 
-const ALL_APPS: AppKey[] = ["hub", "health", "finance", "student-success", "investments", "bible"];
+const ALL_APPS: AppKey[] = ["hub", "health", "finance", "investments", "career", "student-success", "bible"];
+const APP_LABEL: Record<AppKey, string> = {
+  hub: "Hub", health: "Health", finance: "Finance",
+  "student-success": "Student Success", investments: "Investments",
+  bible: "Bible", career: "Career",
+};
 const APP_COLOR: Record<AppKey, string> = {
-  hub: "#3B5C7F",
-  health: "#4D6B3A",
-  finance: "#8B6A47",
-  "student-success": "#6B5B95",
-  "investments": "#C97A3A",
-  "bible": "#6B3B7C",
+  hub: "#3B5C7F", health: "#4D6B3A", finance: "#8B6A47",
+  "student-success": "#6B5B95", investments: "#C97A3A",
+  bible: "#6B3B7C", career: "#2A6049",
 };
 
 export interface AdminUser {
@@ -94,6 +96,112 @@ function RolePill({ role }: { role: "admin" | "standard" }) {
   );
 }
 
+// ── User Detail Modal ──────────────────────────────────────────────────────
+
+function UserDetailModal({ user, onRoleChange, onAppAccessChange, onRemove, isPending, onClose }: {
+  user: AdminUser;
+  onRoleChange: (userId: string, role: "standard" | "admin") => void;
+  onAppAccessChange: (userId: string, appAccess: AppKey[]) => void;
+  onRemove: (userId: string) => void;
+  isPending: boolean;
+  onClose: () => void;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  function toggleApp(app: AppKey) {
+    if (user.isCurrentUser) return;
+    const next = user.appAccess.includes(app)
+      ? user.appAccess.filter((a) => a !== app)
+      : [...user.appAccess, app];
+    onAppAccessChange(user.id, next);
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 16, width: "100%", maxWidth: 480, boxShadow: "0 20px 60px rgba(0,0,0,0.12)", overflow: "hidden" }}>
+
+        {/* Header */}
+        <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid var(--color-rule)", display: "flex", alignItems: "center", gap: 14 }}>
+          <Avatar name={user.name || user.email} avatarUrl={user.avatarUrl} size={44} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: "var(--color-ink)" }}>{user.name || "—"}</span>
+              <RolePill role={user.role} />
+              {user.isCurrentUser && <span style={{ fontSize: 10, color: "var(--color-ink-4)" }}>you</span>}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>{user.email}</div>
+            <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 2 }}>Joined {fmtDate(user.createdAt)}</div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--color-ink-3)", padding: "4px 6px" }}>✕</button>
+        </div>
+
+        {/* Module access */}
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--color-rule)" }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 12 }}>
+            Module Access
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {ALL_APPS.map((app) => {
+              const active = user.appAccess.includes(app);
+              const isHub = app === "hub";
+              return (
+                <div key={app} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 8, background: active ? APP_COLOR[app] + "0d" : "var(--color-bg-deep)", border: `1px solid ${active ? APP_COLOR[app] + "40" : "var(--color-rule)"}` }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: APP_COLOR[app], flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>{APP_LABEL[app]}</span>
+                  {isHub ? (
+                    <span style={{ fontSize: 10, color: "var(--color-ink-4)" }}>Always on</span>
+                  ) : (
+                    <button
+                      onClick={() => toggleApp(app)}
+                      disabled={isPending || user.isCurrentUser}
+                      style={{ width: 40, height: 22, borderRadius: 11, border: "none", background: active ? APP_COLOR[app] : "var(--color-rule)", cursor: user.isCurrentUser ? "not-allowed" : "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }}
+                      title={user.isCurrentUser ? "Cannot edit your own access" : undefined}
+                    >
+                      <div style={{ position: "absolute", top: 3, left: active ? 20 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Admin role + danger zone */}
+        {!user.isCurrentUser && (
+          <div style={{ padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <button
+              disabled={isPending}
+              onClick={() => { onRoleChange(user.id, user.role === "admin" ? "standard" : "admin"); }}
+              style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-2)", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              {user.role === "admin" ? "Revoke admin" : "Make admin"}
+            </button>
+            {!confirmDelete ? (
+              <button onClick={() => setConfirmDelete(true)} disabled={isPending}
+                style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid var(--color-red)", background: "transparent", color: "var(--color-red)", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                Remove user
+              </button>
+            ) : (
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={() => { onRemove(user.id); onClose(); }}
+                  style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "var(--color-red)", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                  Confirm remove
+                </button>
+                <button onClick={() => setConfirmDelete(false)}
+                  style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-3)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── User Row (tappable card) ───────────────────────────────────────────────
+
 interface UserRowProps {
   user: AdminUser;
   onRoleChange: (userId: string, role: "standard" | "admin") => void;
@@ -103,125 +211,46 @@ interface UserRowProps {
 }
 
 function UserRow({ user, onRoleChange, onAppAccessChange, onRemove, isPending }: UserRowProps) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  function toggleApp(app: AppKey) {
-    const next = user.appAccess.includes(app)
-      ? user.appAccess.filter((a) => a !== app)
-      : [...user.appAccess, app];
-    onAppAccessChange(user.id, next);
-  }
+  const [open, setOpen] = useState(false);
 
   return (
-    <div style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 12, overflow: "hidden" }}>
-      <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+    <>
+      <div
+        onClick={() => setOpen(true)}
+        style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", transition: "box-shadow 0.15s" }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 12px rgba(0,0,0,0.07)"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = ""; }}
+      >
         <Avatar name={user.name || user.email} avatarUrl={user.avatarUrl} size={40} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {user.name || "—"}
-            </span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name || "—"}</span>
             <RolePill role={user.role} />
-            {user.isCurrentUser && (
-              <span style={{ fontSize: 10, color: "var(--color-ink-4)", fontWeight: 500 }}>you</span>
-            )}
+            {user.isCurrentUser && <span style={{ fontSize: 10, color: "var(--color-ink-4)" }}>you</span>}
           </div>
-          <div style={{ fontSize: 12, color: "var(--color-ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {user.email}
-          </div>
-          <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 2 }}>
-            Joined {fmtDate(user.createdAt)}
+          <div style={{ fontSize: 12, color: "var(--color-ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</div>
+          <div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>
+            {ALL_APPS.filter((a) => user.appAccess.includes(a)).map((a) => (
+              <span key={a} style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 8, background: APP_COLOR[a] + "18", color: APP_COLOR[a], letterSpacing: "0.04em" }}>
+                {APP_LABEL[a]}
+              </span>
+            ))}
           </div>
         </div>
-
-        {/* Actions */}
-        {!user.isCurrentUser && (
-          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-            <button
-              disabled={isPending}
-              onClick={() => onRoleChange(user.id, user.role === "admin" ? "standard" : "admin")}
-              style={{
-                padding: "6px 10px", borderRadius: 8, border: "1px solid var(--color-rule)",
-                background: "var(--color-bg-deep)", color: "var(--color-ink-3)",
-                fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {user.role === "admin" ? "Revoke admin" : "Make admin"}
-            </button>
-            {!confirmDelete ? (
-              <button
-                disabled={isPending}
-                onClick={() => setConfirmDelete(true)}
-                style={{
-                  padding: "6px 10px", borderRadius: 8, border: "1px solid var(--color-rule)",
-                  background: "var(--color-bg-deep)", color: "var(--color-accent)",
-                  fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
-                }}
-              >
-                Remove
-              </button>
-            ) : (
-              <div style={{ display: "flex", gap: 4 }}>
-                <button
-                  onClick={() => { setConfirmDelete(false); onRemove(user.id); }}
-                  style={{ padding: "6px 10px", borderRadius: 8, border: "none", background: "var(--color-accent)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-                >
-                  Confirm
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(false)}
-                  style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-3)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+        <span style={{ fontSize: 16, color: "var(--color-ink-4)", flexShrink: 0 }}>›</span>
       </div>
 
-      {/* Per-app access toggles */}
-      <div style={{
-        padding: "8px 14px 10px",
-        borderTop: "1px solid var(--color-rule-soft)",
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        flexWrap: "wrap",
-        background: "var(--color-bg)",
-      }}>
-        <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)" }}>
-          Access:
-        </span>
-        {ALL_APPS.map((app) => {
-          const active = user.appAccess.includes(app);
-          return (
-            <button
-              key={app}
-              onClick={() => toggleApp(app)}
-              disabled={isPending || user.isCurrentUser}
-              style={{
-                padding: "4px 11px",
-                borderRadius: 14,
-                border: `1px solid ${active ? APP_COLOR[app] : "var(--color-rule)"}`,
-                background: active ? APP_COLOR[app] : "transparent",
-                color: active ? "#FFFDF8" : "var(--color-ink-3)",
-                fontSize: 11,
-                fontWeight: 500,
-                cursor: isPending || user.isCurrentUser ? "not-allowed" : "pointer",
-                fontFamily: "inherit",
-                textTransform: "capitalize",
-                opacity: isPending ? 0.5 : 1,
-              }}
-              title={user.isCurrentUser ? "You cannot revoke your own access" : `${active ? "Revoke" : "Grant"} ${app} access`}
-            >
-              {active ? "✓ " : ""}{app}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+      {open && (
+        <UserDetailModal
+          user={user}
+          onRoleChange={onRoleChange}
+          onAppAccessChange={onAppAccessChange}
+          onRemove={onRemove}
+          isPending={isPending}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
   );
 }
 

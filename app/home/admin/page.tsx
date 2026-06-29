@@ -67,7 +67,7 @@ export default async function AdminPage() {
         name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? p?.full_name ?? "",
         avatarUrl: u.user_metadata?.avatar_url ?? u.user_metadata?.picture ?? null,
         role: (p?.role as "admin" | "standard") ?? "standard",
-        appAccess: (p?.app_access ?? []) as ("hub" | "health" | "finance" | "student-success" | "investments")[],
+        appAccess: (p?.app_access ?? []) as import("./_components/AdminClient").AdminUser["appAccess"],
         createdAt: u.created_at,
         isCurrentUser: u.id === user.id,
       };

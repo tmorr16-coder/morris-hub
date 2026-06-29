@@ -4,6 +4,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
 import { fetchWeather } from "@/lib/weather";
 import { fetchQuotes } from "@/lib/stocks";
+import { logEvent } from "@/lib/usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -146,6 +147,7 @@ export async function POST(req: NextRequest) {
       });
 
       const reply = response.content[0].type === "text" ? response.content[0].text : "";
+      logEvent({ eventType: "chat", userId: user.id, tokensIn: response.usage?.input_tokens ?? 0, tokensOut: response.usage?.output_tokens ?? 0, metadata: { model: "claude-haiku-4-5", source: "investments" } });
       return NextResponse.json({ reply });
     } catch (err: unknown) {
       if (err instanceof Anthropic.RateLimitError) {
@@ -234,5 +236,15 @@ export async function POST(req: NextRequest) {
   }
 
   const reply = response.content[0].type === "text" ? response.content[0].text : "";
+
+  // Log usage for cost tracking (fire-and-forget)
+  logEvent({
+    eventType: "chat",
+    userId: user.id,
+    tokensIn: response.usage?.input_tokens ?? 0,
+    tokensOut: response.usage?.output_tokens ?? 0,
+    metadata: { model: "claude-haiku-4-5", source: "hub" },
+  });
+
   return NextResponse.json({ reply });
 }
