@@ -280,6 +280,28 @@ export default async function DashboardPage() {
   }, 0) + manualTotal + sharedPortfolioTotal;
   const netFmt = fmtMoneyLarge(netPosition);
 
+  // ── Net position delta via snapshots ──────────────────────────────────────
+  // Read previous snapshot, then store today's so next load shows the delta.
+  let netDelta: number | null = null;
+  try {
+    const { data: prevSnap } = await (service as any)
+      .schema("finance").from("net_position_snapshots")
+      .select("net_position, captured_at")
+      .eq("user_id", user.id)
+      .order("captured_at", { ascending: false })
+      .limit(1).maybeSingle();
+
+    if (prevSnap?.net_position != null) {
+      netDelta = netPosition - Number(prevSnap.net_position);
+    }
+
+    // Store today's snapshot (upsert on user_id + date to avoid spam)
+    const today_date = new Date().toISOString().slice(0, 10);
+    await (service as any).schema("finance").from("net_position_snapshots")
+      .upsert({ user_id: user.id, net_position: netPosition, date: today_date, captured_at: new Date().toISOString() },
+        { onConflict: "user_id,date" });
+  } catch { /* table not yet created — skip delta */ }
+
   const lastSyncAcrossItems = items.reduce<string | null>((latest, it) => {
     if (!it.last_synced_at) return latest;
     if (!latest || it.last_synced_at > latest) return it.last_synced_at;
@@ -363,50 +385,74 @@ export default async function DashboardPage() {
         <section
           id="overview"
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            gap: 24,
-            marginBottom: 32,
-            paddingBottom: 24,
+            textAlign: "center",
+            marginBottom: 40,
+            paddingBottom: 32,
             borderBottom: "1px solid var(--color-rule)",
-            flexWrap: "wrap",
           }}
         >
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 10 }}>
-              {todayDisplay}
-            </div>
-            <h1 className="serif" style={{ fontSize: 44, lineHeight: 1.05 }}>
-              {greeting},
-              <br />
-              <span style={{ fontStyle: "italic", color: "var(--color-bronze-dark)" }}>{firstName}.</span>
-            </h1>
-            {items.length > 0 && (
-              <p style={{ fontSize: 14, color: "var(--color-ink-3)", maxWidth: 460, marginTop: 14, lineHeight: 1.55 }}>
-                {items.length} institution{items.length !== 1 ? "s" : ""} connected ·
-                last sync {relativeTime(lastSyncAcrossItems)} ·
-                {transactions.length} recent transaction{transactions.length !== 1 ? "s" : ""}
-              </p>
-            )}
+          {/* Compact greeting above the number */}
+          <div style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 20 }}>
+            {greeting}, {firstName} · {todayDisplay}
           </div>
 
-          {(items.length > 0 || manualAccounts.length > 0) && (
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>
-                Net position
+          {(items.length > 0 || manualAccounts.length > 0) ? (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 10 }}>
+                Net Position
               </div>
-              <div className="mono" style={{ fontSize: 42, fontWeight: 500, color: "var(--color-ink)", letterSpacing: "-0.02em", lineHeight: 1 }}>
+
+              {/* Hero number */}
+              <div className="mono" style={{ fontSize: 68, fontWeight: 500, color: "var(--color-ink)", letterSpacing: "-0.03em", lineHeight: 1 }}>
                 {netFmt.whole}
-                <span style={{ fontSize: "0.55em", color: "var(--color-ink-3)" }}>{netFmt.cents}</span>
+                <span style={{ fontSize: "0.45em", color: "var(--color-ink-3)", verticalAlign: "super" }}>{netFmt.cents}</span>
               </div>
-              <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 6 }}>
-                across {accounts.length + manualAccounts.length} account{(accounts.length + manualAccounts.length) !== 1 ? "s" : ""}
+
+              {/* Delta */}
+              {netDelta !== null && (
+                <div style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  marginTop: 12,
+                  padding: "5px 14px",
+                  borderRadius: 20,
+                  background: netDelta >= 0 ? "rgba(74,107,58,0.08)" : "rgba(154,59,42,0.08)",
+                  border: `1px solid ${netDelta >= 0 ? "rgba(74,107,58,0.2)" : "rgba(154,59,42,0.2)"}`,
+                }}>
+                  <span style={{ fontSize: 14, color: netDelta >= 0 ? "var(--color-green)" : "var(--color-red)" }}>
+                    {netDelta >= 0 ? "↑" : "↓"}
+                  </span>
+                  <span className="mono" style={{ fontSize: 14, fontWeight: 600, color: netDelta >= 0 ? "var(--color-green)" : "var(--color-red)" }}>
+                    {fmtMoney(Math.abs(netDelta))}
+                  </span>
+                  <span style={{ fontSize: 12, color: "var(--color-ink-4)" }}>since last visit</span>
+                </div>
+              )}
+
+              {/* Metadata */}
+              <div style={{ fontSize: 12, color: "var(--color-ink-4)", marginTop: 14, display: "flex", justifyContent: "center", gap: 12 }}>
+                <span>
+                  {accounts.length + manualAccounts.length} account{(accounts.length + manualAccounts.length) !== 1 ? "s" : ""}
+                </span>
+                {lastSyncAcrossItems && (
+                  <>
+                    <span>·</span>
+                    <span>synced {relativeTime(lastSyncAcrossItems)}</span>
+                  </>
+                )}
                 {manualAccounts.length > 0 && (
-                  <span style={{ color: "var(--color-ink-4)" }}> ({manualAccounts.length} imported)</span>
+                  <>
+                    <span>·</span>
+                    <span>{manualAccounts.length} imported</span>
+                  </>
                 )}
               </div>
-            </div>
+            </>
+          ) : (
+            <h1 className="serif" style={{ fontSize: 44, lineHeight: 1.05, marginTop: 8 }}>
+              {greeting}, <span style={{ fontStyle: "italic", color: "var(--color-bronze-dark)" }}>{firstName}.</span>
+            </h1>
           )}
         </section>
 
