@@ -250,10 +250,10 @@ export default function CareerAdvisorClient({
         style={{
           display: "flex",
           flexDirection: "column",
-          height: "calc(100vh - 120px)",
+          height: "calc(100vh - 173px)", /* PlatformMenu ~52px + CareerSubNav ~49px + layout padding 24px + buffer 48px */
           maxWidth: 860,
           margin: "0 auto",
-          padding: "0 28px",
+          padding: "0",
         }}
       >
         {/* Header */}
