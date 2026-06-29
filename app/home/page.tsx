@@ -34,6 +34,21 @@ export default async function HomePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
 
+  // Gate: redirect new users to onboarding before showing home
+  try {
+    const { data: onboardingCheck } = await service
+      .schema("hub")
+      .from("preferences")
+      .select("onboarding_completed")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (onboardingCheck && onboardingCheck.onboarding_completed === false) {
+      redirect("/onboarding");
+    }
+  } catch {
+    // Column doesn't exist yet — skip the gate, show home
+  }
+
   // Parallelize the 5 independent reads — was previously sequential.
   // Total time drops from sum-of-roundtrips to max-of-roundtrips (~150ms).
   const [prefs, todoResult, reminders, profileResult, careerGoalsResult] = await Promise.all([
