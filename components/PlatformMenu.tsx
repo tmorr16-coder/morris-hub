@@ -6,8 +6,8 @@ import QuickAddReminder from "./QuickAddReminder";
 
 const APPS = [
   { key: "hub",             label: "Hub",             href: "https://morrisai.family",                   dot: "#3B5C7F" },
-  { key: "health",          label: "Health",          href: "https://health.morrisai.family/dashboard",  dot: "#4D6B3A" },
-  { key: "finance",         label: "Finance",         href: "https://finance.morrisai.family/dashboard", dot: "#8B6A47" },
+  { key: "health",          label: "Health",          href: "https://morrisai.family/health",            dot: "#4D6B3A" },
+  { key: "finance",         label: "Finance",         href: "https://morrisai.family/finance/dashboard", dot: "#8B6A47" },
   { key: "investments",     label: "Investments",     href: "https://morrisai.family/investments",       dot: "#C97A3A" },
   { key: "student-success", label: "Student Success", href: "https://morrisai.family/student-success",   dot: "#6B5B95" },
   { key: "bible",           label: "Bible",           href: "https://bible.morrisai.family/dashboard",   dot: "#6B3B7C" },
