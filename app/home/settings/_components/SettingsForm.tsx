@@ -26,7 +26,7 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
   todos:              "To-dos",
   stocks:             "Stocks",
   sports:             "Sports Scores",
-  lly_news:           "LLY News",
+  lly_news:           "Company News",
   news:               "News",
   city_news:          "Local News",
   news_subscriptions: "My Subscriptions",
@@ -47,6 +47,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
   const [resolvingZip, setResolvingZip] = useState(false);
 
   const [tickersInput, setTickersInput] = useState(initialPrefs.stock_tickers.join(", "));
+  const [employerTicker, setEmployerTicker] = useState(initialPrefs.employer_ticker ?? "");
   const [topics, setTopics] = useState<string[]>(initialPrefs.news_topics);
   const [citiesInput, setCitiesInput] = useState(initialPrefs.city_names.join(", "));
   const [sportsTeams, setSportsTeams] = useState<string[]>(initialPrefs.sports_enabled_teams);
@@ -227,6 +228,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         latitude,
         longitude,
         stock_tickers: tickers,
+        employer_ticker: employerTicker.trim().toUpperCase() || null,
         news_topics: topics,
         city_names: cities,
         sports_enabled_teams: sportsTeams,
@@ -389,10 +391,24 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
       <section style={card}>
         <SectionHeader title="Stocks" subtitle="Comma-separated tickers to track" />
         <Label>Tickers</Label>
-        <input type="text" value={tickersInput} onChange={(e) => setTickersInput(e.target.value)} placeholder="LLY, GOOGL, AMZN, NVDA, MSFT" style={input} />
+        <input type="text" value={tickersInput} onChange={(e) => setTickersInput(e.target.value)} placeholder="GOOGL, AMZN, NVDA, MSFT" style={input} />
         <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 6 }}>
-          Examples: LLY · GOOGL · MSFT · NVDA · AAPL · AMZN · META · TSLA · BRK.B
+          Examples: GOOGL · MSFT · NVDA · AAPL · AMZN · META · TSLA · BRK.B
         </p>
+        <div style={{ marginTop: 16 }}>
+          <Label>Employer ticker <span style={{ fontWeight: 400, color: "var(--color-ink-4)" }}>(drives Company News widget)</span></Label>
+          <input
+            type="text"
+            value={employerTicker}
+            onChange={(e) => setEmployerTicker(e.target.value.toUpperCase())}
+            placeholder="e.g. LLY, NVDA, JPM"
+            maxLength={10}
+            style={{ ...input, textTransform: "uppercase" }}
+          />
+          <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 6 }}>
+            Your home screen will show a live news feed for this ticker. Leave blank to hide the widget.
+          </p>
+        </div>
       </section>
 
       {/* Cities for local news */}

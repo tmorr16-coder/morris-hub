@@ -4,3 +4,4 @@ ALTER TABLE hub.preferences
   ADD COLUMN IF NOT EXISTS display_name text;
 
 NOTIFY pgrst, 'reload schema';
+ALTER TABLE hub.preferences ADD COLUMN IF NOT EXISTS employer_ticker text;

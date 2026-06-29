@@ -209,10 +209,11 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer style={{ padding: "28px", textAlign: "center" }}>
+      <footer style={{ padding: "28px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
         <span className="serif" style={{ fontSize: 14, color: "var(--color-ink-4)", fontStyle: "italic" }}>
           morrisai.family &mdash; Private family platform
         </span>
+        <Link href="/privacy" style={{ fontSize: 12, color: "var(--color-ink-4)", textDecoration: "none" }}>Privacy &amp; Data Handling</Link>
       </footer>
     </div>
   );

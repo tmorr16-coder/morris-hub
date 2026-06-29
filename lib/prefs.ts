@@ -19,6 +19,7 @@ export interface Preferences {
   app_access: string[];
   news_sources: NewsSource[];
   watched_stocks: string[];
+  employer_ticker?: string | null;  // e.g. "LLY" — drives Company News widget
   phone_number?: string | null;
   sms_notifications_enabled?: boolean;
   reminder_lead_days?: number;

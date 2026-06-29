@@ -16,7 +16,7 @@ import WeatherWidget from "./_components/WeatherWidget";
 import RemindersWidget from "./_components/RemindersWidget";
 import { getAllUpcomingReminders } from "@/lib/reminders";
 import StocksWidget from "./_components/StocksWidget";
-import LLYNewsWidget from "./_components/LLYNewsWidget";
+import CompanyNewsWidget from "./_components/CompanyNewsWidget";
 import HealthSummaryWidget from "./_components/HealthSummaryWidget";
 import TodosWidget from "./_components/TodosWidget";
 import NewsWidget from "./_components/NewsWidget";
@@ -188,7 +188,9 @@ export default async function HomePage() {
               case "lly_news":
                 return (
                   <Suspense key="lly_news" fallback={<WidgetSkeleton title="LLY news" />}>
-                    <LLYNewsWidget />
+                    {prefs.employer_ticker
+                      ? <CompanyNewsWidget ticker={prefs.employer_ticker} />
+                      : <CompanyNewsWidget ticker="LLY" />}
                   </Suspense>
                 );
               case "news":

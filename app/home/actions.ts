@@ -112,6 +112,7 @@ export async function savePreferences(data: {
   latitude?: number;
   longitude?: number;
   stock_tickers?: string[];
+  employer_ticker?: string | null;
   news_topics?: string[];
   city_names?: string[];
   sports_enabled_teams?: string[];
