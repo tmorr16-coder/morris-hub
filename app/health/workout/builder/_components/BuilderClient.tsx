@@ -9,6 +9,8 @@ import {
 } from '../../_lib/build-plan';
 import { scheduleWorkout } from '../../actions';
 
+type WorkoutMode = 'strength' | 'cardio' | 'mixed';
+
 // ── Shared CSS-variable helpers ───────────────────────────────────────────────
 
 const S = {
@@ -120,6 +122,7 @@ export default function BuilderClient() {
   const [selected, setSelected]   = useState<MuscleGroup[]>([]);
   const [difficulty, setDifficulty] = useState<Difficulty>('intermediate');
   const [editedPlan, setEditedPlan] = useState<PlannedExercise[] | null>(null);
+  const [mode, setMode] = useState<WorkoutMode>('strength');
 
   // Scheduling
   const [showSchedule, setShowSchedule]     = useState(false);
@@ -152,6 +155,11 @@ export default function BuilderClient() {
   const duration = estimateDuration(plan);
 
   const enterReview = () => {
+    if (mode === 'cardio') {
+      // For cardio-only mode, skip review and go straight to workout
+      handleStart();
+      return;
+    }
     setEditedPlan(basePlan.map((ex) => ({ ...ex })));
     setStep('review');
   };
@@ -173,7 +181,8 @@ export default function BuilderClient() {
     const payload: Record<string, unknown> = { exercises };
     if (stretchBefore) payload.warmup   = true;
     if (stretchAfter)  payload.cooldown = true;
-    if (addCardio && cardioDuration) {
+    const includeCardio = mode === 'cardio' ? cardioDuration : (addCardio && cardioDuration);
+    if (includeCardio) {
       const cardio: Record<string, unknown> = { type: cardioType, durationMin: parseInt(cardioDuration, 10) };
       if (cardioDistance && cardioType !== 'Other') cardio.distanceMiles = parseFloat(cardioDistance);
       payload.cardio = cardio;
@@ -428,7 +437,20 @@ export default function BuilderClient() {
           Tap muscle groups on the body. We'll build the plan.
         </p>
 
+        {/* ── Mode selector ─────────────────────────────────────────────────────── */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ ...S.eyebrow, marginBottom: 8 }}>Workout type</div>
+          <div style={{ display: 'flex', background: 'var(--color-bg-sunk)', borderRadius: 10, padding: 3, gap: 2 }}>
+            {(['strength', 'cardio', 'mixed'] as WorkoutMode[]).map((m) => (
+              <SegBtn key={m} active={mode === m} onClick={() => setMode(m)}>
+                {m === 'strength' ? '🏋️ Strength' : m === 'cardio' ? '🚴 Cardio' : '⚡ Mixed'}
+              </SegBtn>
+            ))}
+          </div>
+        </div>
+
         {/* Experience level */}
+        {(mode === 'strength' || mode === 'mixed') && (
         <div style={{ marginBottom: 14 }}>
           <div style={{ ...S.eyebrow, marginBottom: 6 }}>Experience level</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, padding: 3, background: 'var(--color-bg-sunk)', borderRadius: 10 }}>
@@ -451,8 +473,10 @@ export default function BuilderClient() {
           </div>
           <div style={{ ...S.meta, fontSize: 11, marginTop: 6 }}>{LEVELS[difficulty].hint}</div>
         </div>
+        )}
 
         {/* Body diagram */}
+        {(mode === 'strength' || mode === 'mixed') && (
         <div style={{ ...S.tile, padding: '14px 14px 10px', marginBottom: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
           <div style={{ display: 'flex', background: 'var(--color-bg-sunk)', borderRadius: 10, padding: 3, gap: 2, position: 'absolute', top: 14, right: 14 }}>
             <SegBtn active={view === 'front'} onClick={() => setView('front')}>Front</SegBtn>
@@ -465,9 +489,10 @@ export default function BuilderClient() {
             </div>
           )}
         </div>
+        )}
 
         {/* Selected pills */}
-        {n > 0 && (
+        {(mode === 'strength' || mode === 'mixed') && n > 0 && (
           <div style={{ marginBottom: 14 }}>
             <div style={{ ...S.eyebrow, marginBottom: 6 }}>Selected · {n}</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -492,32 +517,53 @@ export default function BuilderClient() {
         )}
 
         {/* Preset chips */}
-        <div style={{ ...S.eyebrow, marginBottom: 8 }}>Or pick a split</div>
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none', margin: '0 -18px', padding: '0 18px', marginBottom: 18 }}>
-          {PRESETS.map((p) => {
-            const active = p.groups.length === n && p.groups.every((g) => selected.includes(g));
-            return (
-              <button
-                key={p.label}
-                aria-pressed={active}
-                onClick={() => setSelected(p.groups)}
-                style={{
-                  flexShrink: 0, padding: '8px 14px', borderRadius: 999,
-                  background: active ? 'var(--color-ink)' : 'var(--color-bg-raised)',
-                  border: `1px solid ${active ? 'var(--color-ink)' : 'var(--color-line)'}`,
-                  color: active ? 'var(--color-bg)' : 'var(--color-ink-2)',
-                  fontSize: 13, fontWeight: 500, cursor: 'pointer',
-                  fontFamily: 'inherit', transition: 'all 160ms',
-                }}
-              >
-                {p.label}
-              </button>
-            );
-          })}
-        </div>
+        {(mode === 'strength' || mode === 'mixed') && (
+        <>
+          <div style={{ ...S.eyebrow, marginBottom: 8 }}>Or pick a split</div>
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none', margin: '0 -18px', padding: '0 18px', marginBottom: 18 }}>
+            {PRESETS.map((p) => {
+              const active = p.groups.length === n && p.groups.every((g) => selected.includes(g));
+              return (
+                <button
+                  key={p.label}
+                  aria-pressed={active}
+                  onClick={() => setSelected(p.groups)}
+                  style={{
+                    flexShrink: 0, padding: '8px 14px', borderRadius: 999,
+                    background: active ? 'var(--color-ink)' : 'var(--color-bg-raised)',
+                    border: `1px solid ${active ? 'var(--color-ink)' : 'var(--color-line)'}`,
+                    color: active ? 'var(--color-bg)' : 'var(--color-ink-2)',
+                    fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                    fontFamily: 'inherit', transition: 'all 160ms',
+                  }}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </>
+        )}
+
+        {/* Cardio activity section (cardio / mixed modes) */}
+        {(mode === 'cardio' || mode === 'mixed') && (
+          <div style={{ ...S.tile, marginBottom: 14 }}>
+            <div style={{ ...S.eyebrow, marginBottom: 10 }}>Cardio activity</div>
+            <select value={cardioType} onChange={(e) => setCardioType(e.target.value as CardioType)}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--color-line)', background: 'var(--color-bg-sunk)', color: 'var(--color-ink)', fontSize: 14, fontFamily: 'inherit', marginBottom: 8 }}>
+              {CARDIO_TYPES.map((t) => <option key={t}>{t}</option>)}
+            </select>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <input value={cardioDuration} onChange={(e) => setCardioDuration(e.target.value)} type="number" min="1" placeholder="Duration (min)"
+                style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--color-line)', background: 'var(--color-bg-sunk)', color: 'var(--color-ink)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const }} />
+              <input value={cardioDistance} onChange={(e) => setCardioDistance(e.target.value)} type="number" min="0" step="0.1" placeholder="Distance (mi)"
+                style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--color-line)', background: 'var(--color-bg-sunk)', color: 'var(--color-ink)', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' as const }} />
+            </div>
+          </div>
+        )}
 
         {/* Live plan preview */}
-        {n > 0 && (
+        {(mode === 'strength' || mode === 'mixed') && n > 0 && (
           <div style={{ ...S.tileBare, marginBottom: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <div style={S.eyebrow}>Plan preview</div>
@@ -556,7 +602,8 @@ export default function BuilderClient() {
           </div>
         </div>
 
-        {/* Cardio */}
+        {/* Cardio (strength/mixed only — optional add-on) */}
+        {(mode === 'strength' || mode === 'mixed') && (
         <div style={{ ...S.tile, padding: '14px', marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: addCardio ? 10 : 0 }}>
             <div style={S.eyebrow}>Cardio (optional)</div>
@@ -603,19 +650,20 @@ export default function BuilderClient() {
             </div>
           )}
         </div>
+        )}
 
         {/* CTA */}
         <button
           onClick={enterReview}
-          disabled={!n}
+          disabled={mode === 'cardio' ? false : !n}
           style={{
             width: '100%', padding: '14px 16px', borderRadius: 10, border: 'none',
             background: 'var(--color-ink)', color: 'var(--color-bg)',
-            fontSize: 15, fontWeight: 500, cursor: n ? 'pointer' : 'default',
-            fontFamily: 'inherit', opacity: n ? 1 : 0.4, transition: 'opacity 160ms',
+            fontSize: 15, fontWeight: 500, cursor: (mode === 'cardio' || n) ? 'pointer' : 'default',
+            fontFamily: 'inherit', opacity: (mode === 'cardio' || n) ? 1 : 0.4, transition: 'opacity 160ms',
           }}
         >
-          Review plan{n > 0 ? ` · ${plan.length} exercises` : ''}
+          {mode === 'cardio' ? 'Start cardio' : `Review plan${n > 0 ? ` · ${plan.length} exercises` : ''}`}
         </button>
       </div>
     </div>

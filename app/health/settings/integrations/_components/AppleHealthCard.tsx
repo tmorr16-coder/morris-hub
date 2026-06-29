@@ -100,9 +100,10 @@ export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, 
         {!hasData && (
           <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.8, display: "flex", flexDirection: "column", gap: 2 }}>
             <li>Install <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Health Auto Export</span> from the App Store.</li>
-            <li>Open the app → Automations → REST API → add a new endpoint.</li>
-            <li>Paste your personal URL below as the endpoint URL.</li>
-            <li>Set the <span style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>api-key</span> header to the shared secret (from your admin).</li>
+            <li>Open the app → <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Settings → Automation</span>.</li>
+            <li>Set <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Export Format: JSON</span>, <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Export Type: Apple Health</span>.</li>
+            <li>Add the webhook URL shown below as the endpoint.</li>
+            <li>Tap <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Export Now</span> to sync immediately.</li>
           </ol>
         )}
 

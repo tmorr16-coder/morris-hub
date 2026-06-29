@@ -900,18 +900,6 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
       {/* ── Extras: stretching + cardio ──────────────────────────────────────── */}
       <div style={{ padding: "0 16px 16px" }}>
         <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, overflow: "hidden" }}>
-          <div style={{ padding: "12px 14px 10px", borderBottom: "1px solid var(--color-line)" }}>
-            <div style={{ ...eyebrow, marginBottom: 8 }}>Stretching</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {[["🧘 Warm-up", warmup, () => setWarmup((v) => !v)] as const,
-                ["🧘 Cool-down", cooldown, () => setCooldown((v) => !v)] as const].map(([label, active, toggle]) => (
-                <button key={label} onClick={toggle} style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${active ? "var(--color-moss)" : "var(--color-line)"}`, background: active ? "var(--color-moss-soft)" : "var(--color-bg-sunk)", color: active ? "var(--color-moss)" : "var(--color-ink-3)", fontSize: 12, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div style={{ padding: "12px 14px" }}>
             <div style={{ ...eyebrow, marginBottom: 8 }}>Cardio</div>
 
@@ -943,9 +931,21 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
               </div>
             ) : (
               <button onClick={() => setShowCardioForm(true)} style={{ width: "100%", padding: "9px", borderRadius: 8, border: "1.5px dashed var(--color-line-2)", background: "transparent", color: "var(--color-ink-3)", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-                + Add cardio
+                + Add cardio to this session
               </button>
             )}
+          </div>
+
+          <div style={{ padding: "12px 14px 10px", borderTop: "1px solid var(--color-line)" }}>
+            <div style={{ ...eyebrow, marginBottom: 8 }}>Stretching</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[["🧘 Warm-up", warmup, () => setWarmup((v) => !v)] as const,
+                ["🧘 Cool-down", cooldown, () => setCooldown((v) => !v)] as const].map(([label, active, toggle]) => (
+                <button key={label} onClick={toggle} style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${active ? "var(--color-moss)" : "var(--color-line)"}`, background: active ? "var(--color-moss-soft)" : "var(--color-bg-sunk)", color: active ? "var(--color-moss)" : "var(--color-ink-3)", fontSize: 12, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

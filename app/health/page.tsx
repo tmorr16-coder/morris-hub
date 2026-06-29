@@ -502,20 +502,32 @@ export default async function DashboardPage() {
               <div
                 style={{
                   background: "var(--color-bg-raised)",
-                  border: "1px dashed var(--color-line)",
+                  border: "1.5px dashed var(--color-line)",
                   borderRadius: 14,
-                  padding: "16px 18px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
+                  padding: "18px 18px",
                 }}
               >
-                <div style={{ fontSize: 28, flexShrink: 0 }}>💍</div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)", marginBottom: 2 }}>Connect Oura Ring</div>
-                  <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>Readiness, activity & sleep scores</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", marginBottom: 12 }}>
+                  Connect your devices
                 </div>
-                <div style={{ marginLeft: "auto", fontSize: 16, color: "var(--color-ink-3)" }}>→</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {[
+                    { icon: "💍", label: "Oura Ring", desc: "Sleep · readiness · HRV" },
+                    { icon: "⌚", label: "Apple Watch", desc: "Activity · workouts · heart rate" },
+                    { icon: "⚖️", label: "Withings Scale", desc: "Weight · body composition" },
+                  ].map(({ icon, label, desc }) => (
+                    <div key={label} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ fontSize: 22, flexShrink: 0, width: 32, textAlign: "center" }}>{icon}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)" }}>{label}</div>
+                        <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>{desc}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: 14, fontSize: 12, fontWeight: 500, color: "var(--color-accent)", textAlign: "right" }}>
+                  Set up integrations →
+                </div>
               </div>
             </Link>
           )}

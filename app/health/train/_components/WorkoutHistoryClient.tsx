@@ -16,6 +16,18 @@ interface Props {
   groups: { day: string; items: UnifiedWorkout[] }[];
 }
 
+function workoutIcon(label: string, source: "manual" | "apple"): string {
+  const l = label.toLowerCase();
+  if (l.includes("run")) return "🏃";
+  if (l.includes("cycl") || l.includes("bike") || l.includes("ride")) return "🚴";
+  if (l.includes("walk")) return "🚶";
+  if (l.includes("swim")) return "🏊";
+  if (l.includes("yoga") || l.includes("stretch")) return "🧘";
+  if (l.includes("hike")) return "🥾";
+  if (source === "apple") return "🍎";
+  return "🏋️";
+}
+
 export default function WorkoutHistoryClient({ groups: initialGroups }: Props) {
   const [groups, setGroups] = useState(initialGroups);
   const [, startTransition] = useTransition();
@@ -105,7 +117,7 @@ export default function WorkoutHistoryClient({ groups: initialGroups }: Props) {
                   }}
                   title={w.source === "manual" ? "Logged in-app" : "From Apple Health"}
                 >
-                  {w.source === "manual" ? "🏋️" : "🍎"}
+                  {workoutIcon(w.label, w.source)}
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>

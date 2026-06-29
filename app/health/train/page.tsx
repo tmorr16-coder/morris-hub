@@ -391,17 +391,13 @@ export default async function TrainPage() {
 
       {/* Unified workout history */}
       <div>
-        <div
-          style={{
-            fontSize: 10,
-            fontWeight: 500,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: "var(--color-ink-3)",
-            marginBottom: 10,
-          }}
-        >
-          History · Last 30 days
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)" }}>
+            History · Last 30 days
+          </div>
+          <Link href="/health/workout/log?past=1" style={{ fontSize: 11, fontWeight: 500, color: "var(--color-ink-3)", textDecoration: "none", border: "1px solid var(--color-line)", borderRadius: 8, padding: "5px 10px" }}>
+            + Log past workout
+          </Link>
         </div>
         <WorkoutHistoryClient groups={groups} />
       </div>

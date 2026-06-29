@@ -219,6 +219,7 @@ function AddMealSheet({
   );
 }
 
+// TODO: Family nutrition view — household meal logging
 export default function NutritionClient({ date, meals: initialMeals, favorites: initialFavorites }: Props) {
   const [meals, setMeals] = useState<Meal[]>(initialMeals);
   const [favorites, setFavorites] = useState<Meal[]>(initialFavorites);

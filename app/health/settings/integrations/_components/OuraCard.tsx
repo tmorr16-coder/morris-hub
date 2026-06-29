@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useState } from "react";
+import { useTransition, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { triggerOuraSync, saveOuraToken, disconnectOura } from "../actions";
 
@@ -25,6 +25,16 @@ export default function OuraCard({ tokenConfigured, lastSyncAt }: Props) {
   const [syncErr, setSyncErr] = useState<string | null>(null);
   const [tokenInput, setTokenInput] = useState("");
   const [saveErr, setSaveErr] = useState<string | null>(null);
+
+  // Auto-sync if data is stale (>24h since last sync)
+  useEffect(() => {
+    if (!tokenConfigured || !lastSyncAt) return;
+    const staleMs = Date.now() - new Date(lastSyncAt).getTime();
+    if (staleMs > 24 * 60 * 60 * 1000) {
+      handleSync();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokenConfigured, lastSyncAt]);
 
   function handleSync() {
     setSyncMsg(null);
