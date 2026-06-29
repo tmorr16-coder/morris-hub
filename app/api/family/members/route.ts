@@ -26,29 +26,35 @@ export async function GET() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
 
-  const [{ data: members }, { data: profiles }] = await Promise.all([
+  const [{ data: members }, usersResult] = await Promise.all([
     service.schema("hub").from("family_members")
       .select("id, member_user_id, nickname")
       .eq("user_id", userId),
-    service.from("profiles")
-      .select("id, full_name, email, avatar_url")
-      .neq("id", userId)
-      .order("full_name", { ascending: true }),
+    service.auth.admin.listUsers({ perPage: 200 }),
   ]);
 
   const circleIds = new Set(((members ?? []) as { member_user_id: string }[]).map((m) => m.member_user_id));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const circle: FamilyMember[] = ((members ?? []) as any[]).map((m) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const profile = ((profiles ?? []) as any[]).find((p) => p.id === m.member_user_id);
-    return { ...m, ...profile };
-  });
+  const authUsers: any[] = (usersResult?.data?.users ?? []).filter((u: any) => u.id !== userId);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const everyone: PlatformUser[] = ((profiles ?? []) as any[]).map((p) => ({
-    ...p,
-    in_circle: circleIds.has(p.id),
+  const userMap = new Map(authUsers.map((u: any) => [u.id, {
+    id: u.id,
+    full_name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? null,
+    email: u.email ?? null,
+    avatar_url: u.user_metadata?.avatar_url ?? null,
+  }]));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const circle: FamilyMember[] = ((members ?? []) as any[]).map((m) => ({
+    ...m,
+    ...(userMap.get(m.member_user_id) ?? {}),
+  }));
+
+  const everyone: PlatformUser[] = authUsers.map((u) => ({
+    ...userMap.get(u.id)!,
+    in_circle: circleIds.has(u.id),
   }));
 
   return Response.json({ circle, everyone });

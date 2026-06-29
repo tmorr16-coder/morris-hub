@@ -15,15 +15,13 @@ export default async function FamilySettingsPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
 
-  // Fetch current family circle and all platform users in parallel
-  const [{ data: members }, { data: profiles }] = await Promise.all([
+  // Fetch current family circle + all platform users via admin API
+  // (auth.admin.listUsers is authoritative — profiles table may not have every user)
+  const [{ data: members }, usersResult] = await Promise.all([
     service.schema("hub").from("family_members")
       .select("id, member_user_id, nickname")
       .eq("user_id", user.id),
-    service.from("profiles")
-      .select("id, full_name, email, avatar_url")
-      .neq("id", user.id)
-      .order("full_name", { ascending: true }),
+    service.auth.admin.listUsers({ perPage: 200 }),
   ]);
 
   const circleIds = new Set(
@@ -31,11 +29,17 @@ export default async function FamilySettingsPage() {
   );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const everyone = ((profiles ?? []) as any[]).map((p) => ({
-    ...p,
-    in_circle: circleIds.has(p.id),
+  const authUsers: any[] = (usersResult?.data?.users ?? []).filter((u: any) => u.id !== user.id);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const everyone = authUsers.map((u: any) => ({
+    id: u.id,
+    full_name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? null,
+    email: u.email ?? null,
+    avatar_url: u.user_metadata?.avatar_url ?? u.user_metadata?.picture ?? null,
+    in_circle: circleIds.has(u.id),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    circle_id: ((members ?? []) as any[]).find((m) => m.member_user_id === p.id)?.id ?? null,
+    circle_id: ((members ?? []) as any[]).find((m) => m.member_user_id === u.id)?.id ?? null,
   }));
 
   const menuUser = {
