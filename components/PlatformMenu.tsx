@@ -1,17 +1,17 @@
-// Shared platform-wide menu bar — same component lives in all 3 apps.
-// Sits above each app's in-app header. Provides cross-app navigation.
+// Shared platform nav — synced across all repos via pre-commit hook.
+// Keep ProfileMenu.tsx and BottomNav.tsx in sync as well.
 
-import Image from "next/image";
 import QuickAddReminder from "./QuickAddReminder";
+import ProfileMenu from "./ProfileMenu";
+import BottomNav from "./BottomNav";
 
-const APPS = [
-  { key: "hub",             label: "Hub",             href: "https://morrisai.family",                   dot: "#3B5C7F" },
-  { key: "health",          label: "Health",          href: "https://morrisai.family/health",            dot: "#4D6B3A" },
-  { key: "finance",         label: "Finance",         href: "https://morrisai.family/finance/dashboard", dot: "#8B6A47" },
-  { key: "investments",     label: "Investments",     href: "https://morrisai.family/investments",       dot: "#C97A3A" },
-  { key: "student-success", label: "Student Success", href: "https://morrisai.family/student-success",   dot: "#6B5B95" },
-  { key: "bible",           label: "Bible",           href: "https://bible.morrisai.family/dashboard",   dot: "#6B3B7C" },
-  { key: "career",          label: "Career",          href: "https://morrisai.family/career",             dot: "#2A6049" },
+const NAV = [
+  { key: "today",  label: "Today",       href: "/home",               accessKeys: [] as string[] },
+  { key: "family", label: "Family",      href: "/home",               accessKeys: [] as string[] },
+  { key: "kids",   label: "Kids",        href: "/student-success",    accessKeys: ["student-success"] },
+  { key: "me",     label: "Me",          href: "/health",             accessKeys: ["health"] },
+  { key: "money",  label: "Money",       href: "/finance/dashboard",  accessKeys: ["finance", "investments"] },
+  { key: "ask",    label: "Ask Morris",  href: "/home",               accessKeys: [] as string[] },
 ];
 
 export interface MenuUser {
@@ -19,7 +19,15 @@ export interface MenuUser {
   name?: string | null;
   avatarUrl?: string | null;
   isAdmin?: boolean;
-  appAccess?: string[] | null; // which modules this user has enabled
+  appAccess?: string[] | null;
+}
+
+function activeKeyFromApp(currentApp: string): string {
+  if (currentApp === "hub") return "today";
+  if (currentApp === "health") return "me";
+  if (currentApp === "finance" || currentApp === "investments") return "money";
+  if (currentApp === "student-success") return "kids";
+  return "today";
 }
 
 export default function PlatformMenu({
@@ -29,159 +37,112 @@ export default function PlatformMenu({
   currentApp: "hub" | "health" | "finance" | "investments" | "student-success" | "bible" | "career";
   user?: MenuUser | null;
 }) {
-  // Filter APPS by user's app_access, always showing the current app
-  const visibleApps = user?.appAccess?.length
-    ? APPS.filter((a) => user.appAccess!.includes(a.key) || a.key === currentApp || a.key === "hub")
-    : APPS;
+  const activeKey = activeKeyFromApp(currentApp);
+
+  const visibleNav = user?.appAccess?.length
+    ? NAV.filter(
+        (n) => n.accessKeys.length === 0 || n.accessKeys.some((k) => user.appAccess!.includes(k))
+      )
+    : NAV;
 
   return (
-    <div
-      style={{
-        background: "rgba(255, 253, 248, 0.85)",
-        borderBottom: "1px solid rgba(0, 0, 0, 0.08)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-        position: "sticky",
-        top: 0,
-        zIndex: 100,
-        /* Full-width background regardless of page horizontal scroll */
-        width: "100%",
-      }}
-    >
-      {/* Independently scrollable row — swipeable on mobile */}
-      <div
+    <>
+      <header
+        role="banner"
         style={{
-          overflowX: "auto",
-          overflowY: "hidden",
-          scrollbarWidth: "none",          /* Firefox */
-          WebkitOverflowScrolling: "touch",
-        } as React.CSSProperties}
-      >
-      <div
-        style={{
-          padding: "8px 16px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 16,
-          minWidth: "max-content",         /* don't wrap — let it scroll */
+          background: "rgba(255,253,248,0.92)",
+          borderBottom: "1px solid rgba(0,0,0,0.07)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          position: "sticky",
+          top: 0,
+          zIndex: 100,
         }}
       >
-        {/* Logo + app switcher */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div
+          style={{
+            maxWidth: 1280,
+            margin: "0 auto",
+            padding: "0 20px",
+            height: 52,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          {/* Logo */}
           <a
             href="/home"
+            aria-label="morrisai.family — go to Today"
             style={{
               fontFamily: "var(--font-instrument-serif, 'Instrument Serif'), serif",
               fontSize: 16,
-              color: "#1a1a1a",
+              color: "var(--color-ink)",
               textDecoration: "none",
-              marginRight: 16,
               letterSpacing: "-0.01em",
+              flexShrink: 0,
+              marginRight: 8,
             }}
           >
-            morrisai<span style={{ fontStyle: "italic", color: "#6B6258" }}>.family</span>
+            morrisai
+            <span style={{ fontStyle: "italic", color: "var(--color-ink-3)" }}>.family</span>
           </a>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-            {visibleApps.map((app) => {
-              const active = app.key === currentApp;
-              return (
-                <a
-                  key={app.key}
-                  href={app.href}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "5px 11px",
-                    fontSize: 12,
-                    fontFamily: "var(--font-geist, system-ui), sans-serif",
-                    fontWeight: active ? 600 : 500,
-                    color: active ? "#1a1a1a" : "#6B6258",
-                    textDecoration: "none",
-                    borderRadius: 7,
-                    background: active ? "rgba(0,0,0,0.06)" : "transparent",
-                    transition: "background 100ms, color 100ms",
-                  }}
-                >
-                  <span
+          {/* Desktop nav — hidden on mobile */}
+          <div className="hidden md:flex" style={{ alignItems: "center", gap: 2, flex: 1 }}>
+            <nav role="navigation" aria-label="Main navigation" style={{ display: "flex", alignItems: "center", gap: 2 }}>
+              {visibleNav.map((item) => {
+                const active = item.key === activeKey;
+                return (
+                  <a
+                    key={item.key}
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
                     style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: app.dot,
-                      display: "inline-block",
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontFamily: "var(--font-geist, system-ui), sans-serif",
+                      fontWeight: active ? 600 : 500,
+                      color: active ? "var(--color-ink)" : "var(--color-ink-3)",
+                      textDecoration: "none",
+                      background: active ? "rgba(0,0,0,0.06)" : "transparent",
+                      transition: "background 100ms, color 100ms",
+                      whiteSpace: "nowrap",
                     }}
-                  />
-                  {app.label}
-                </a>
-              );
-            })}
+                  >
+                    {item.label}
+                  </a>
+                );
+              })}
+            </nav>
           </div>
-        </div>
 
-        {/* User */}
-        {user && (
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <QuickAddReminder sourceApp={currentApp} />
-            {user.isAdmin && (
-              <a
-                href="/home/admin"
-                style={{
-                  fontSize: 11,
-                  color: "#6B6258",
-                  textDecoration: "none",
-                  padding: "4px 9px",
-                  borderRadius: 12,
-                  border: "1px solid rgba(0,0,0,0.08)",
-                  background: "rgba(0,0,0,0.03)",
-                  fontFamily: "var(--font-geist, system-ui), sans-serif",
-                }}
-                title="Platform admin"
-              >
-                ⚙ Admin
-              </a>
-            )}
-            {user.avatarUrl ? (
-              <Image
-                src={user.avatarUrl}
-                alt=""
-                width={22}
-                height={22}
-                style={{ borderRadius: "50%" }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: "50%",
-                  background: "#E0D9C7",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: "#6B6258",
-                }}
-              >
-                {(user.name ?? user.email ?? "?").slice(0, 1).toUpperCase()}
+          {/* Flex spacer on mobile */}
+          <div className="flex-1 md:hidden" />
+
+          {/* Right side */}
+          {user && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+              {/* QuickAdd reminder — desktop only */}
+              <div className="hidden md:block">
+                <QuickAddReminder sourceApp={currentApp} />
               </div>
-            )}
-            <span
-              style={{
-                fontSize: 11,
-                color: "#6B6258",
-                fontFamily: "var(--font-geist, system-ui), sans-serif",
-              }}
-            >
-              {user.name?.split(" ")[0] ?? user.email ?? ""}
-            </span>
-          </div>
-        )}
-      </div>
-      </div>
-    </div>
+              {/* Profile dropdown */}
+              <ProfileMenu user={user} />
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* Mobile bottom nav */}
+      {user && (
+        <BottomNav
+          currentApp={currentApp}
+          appAccess={user.appAccess}
+          isAdmin={user.isAdmin}
+        />
+      )}
+    </>
   );
 }

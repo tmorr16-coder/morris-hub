@@ -1,16 +1,11 @@
 export const dynamic = "force-dynamic";
-// Allow up to 60s so a cold news+web_search fetch can complete on
-// cache miss without timing out. The Suspense boundaries below let
-// the rest of the page stream first regardless.
 export const maxDuration = 60;
 
-import { Suspense } from "react";
-import Link from "next/link";
+import { Suspense, type ReactNode } from "react";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getPreferences } from "@/lib/prefs";
 import PlatformMenu from "@/components/PlatformMenu";
-import SignOutButton from "./_components/SignOutButton";
 import HubChat from "./_components/HubChat";
 import WeatherWidget from "./_components/WeatherWidget";
 import RemindersWidget from "./_components/RemindersWidget";
@@ -26,6 +21,8 @@ import ClaudeTipCard from "./_components/ClaudeTipCard";
 import NewsSubscriptionsWidget from "./_components/NewsSubscriptionsWidget";
 import type { Todo } from "./actions";
 
+const PRIORITY_WIDGETS = new Set(["todos", "reminders"]);
+
 export default async function HomePage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -34,7 +31,7 @@ export default async function HomePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
 
-  // Gate: redirect new users to onboarding before showing home
+  // Gate: redirect new users to onboarding
   try {
     const { data: onboardingCheck } = await service
       .schema("hub")
@@ -46,11 +43,9 @@ export default async function HomePage() {
       redirect("/onboarding");
     }
   } catch {
-    // Column doesn't exist yet — skip the gate, show home
+    // Column doesn't exist yet — skip
   }
 
-  // Parallelize the 5 independent reads — was previously sequential.
-  // Total time drops from sum-of-roundtrips to max-of-roundtrips (~150ms).
   const [prefs, todoResult, reminders, profileResult, careerGoalsResult] = await Promise.all([
     getPreferences(user.id),
     service
@@ -62,11 +57,7 @@ export default async function HomePage() {
       .order("created_at", { ascending: false })
       .limit(100),
     getAllUpcomingReminders(user.id),
-    service
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle(),
+    service.from("profiles").select("role").eq("id", user.id).maybeSingle(),
     service
       .schema("career")
       .from("career_goals")
@@ -81,8 +72,6 @@ export default async function HomePage() {
 
   const name = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email ?? "there";
   const firstName = name.split(" ")[0];
-  // Use the user's location timezone (default to Indianapolis if not resolvable).
-  // Vercel functions run in UTC by default, so we must pass timeZone explicitly.
   const userTz = "America/Indiana/Indianapolis";
   const today = new Date();
   const localHour = parseInt(
@@ -96,12 +85,18 @@ export default async function HomePage() {
     return "Good evening";
   })();
   const todayDisplay = today.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    timeZone: userTz,
+    weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: userTz,
   });
+  const todayStr = today.toLocaleDateString("sv", { timeZone: userTz }); // YYYY-MM-DD
+
+  // Items needing attention: overdue or high-priority incomplete todos
+  const overdueTodos = todos.filter(
+    (t) => !t.completed && t.due_date && t.due_date < todayStr
+  );
+  const urgentTodos = todos.filter(
+    (t) => !t.completed && t.priority === "high" && (!t.due_date || t.due_date >= todayStr)
+  );
+  const needsAttention = [...overdueTodos, ...urgentTodos].slice(0, 5);
 
   const menuUser = {
     name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
@@ -111,166 +106,386 @@ export default async function HomePage() {
     appAccess: prefs.app_access ?? null,
   };
 
+  // Split widgets into priorities vs insights
+  const priorityWids = prefs.visible_widgets.filter((w) => PRIORITY_WIDGETS.has(w));
+  const insightWids = prefs.visible_widgets.filter((w) => !PRIORITY_WIDGETS.has(w));
+
   return (
     <div>
       <PlatformMenu currentApp="hub" user={menuUser} />
 
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 28px 80px" }}>
-        {/* App-level controls */}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 8 }}>
-          <Link
-            href="/home/settings"
+      <main
+        style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 20px 100px" }}
+        id="main-content"
+      >
+        {/* ── Greeting ── */}
+        <section aria-label="Greeting" style={{ marginBottom: 36 }}>
+          <div
             style={{
-              padding: "6px 14px",
-              borderRadius: 8,
-              border: "1px solid var(--color-rule)",
-              background: "transparent",
-              color: "var(--color-ink-2)",
-              fontSize: 12,
-              textDecoration: "none",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
+              fontSize: 10,
+              fontWeight: 500,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              color: "var(--color-ink-3)",
+              marginBottom: 10,
+              fontFamily: "var(--font-geist, system-ui), sans-serif",
             }}
           >
-            ⚙ Settings
-          </Link>
-          <SignOutButton />
-        </div>
-        {/* Greeting */}
-        <section style={{ marginBottom: 32 }}>
-          <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 10 }}>
             {todayDisplay}
           </div>
-          <h1 className="serif" style={{ fontSize: 44, lineHeight: 1.05 }}>
+          <h1
+            className="serif"
+            style={{ fontSize: 44, lineHeight: 1.05, margin: 0 }}
+          >
             {greeting},
             <br />
-            <span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>{firstName}.</span>
+            <span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>
+              {firstName}.
+            </span>
           </h1>
         </section>
 
-        {/* Ask Claude — main interaction surface */}
-        <section style={{ marginBottom: 14 }}>
+        {/* ── Needs Attention ── */}
+        {needsAttention.length > 0 && (
+          <section aria-labelledby="needs-attention-heading" style={{ marginBottom: 28 }}>
+            <div
+              style={{
+                background: "rgba(184,138,46,0.07)",
+                border: "1px solid rgba(184,138,46,0.25)",
+                borderRadius: 12,
+                padding: "14px 18px",
+              }}
+            >
+              <h2
+                id="needs-attention-heading"
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  color: "var(--color-amber)",
+                  margin: "0 0 10px",
+                  fontFamily: "var(--font-geist, system-ui), sans-serif",
+                }}
+              >
+                Needs attention
+              </h2>
+              <ul
+                style={{
+                  margin: 0,
+                  padding: 0,
+                  listStyle: "none",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
+                {needsAttention.map((todo) => (
+                  <li
+                    key={todo.id}
+                    style={{
+                      fontSize: 13,
+                      color: "var(--color-ink-2)",
+                      display: "flex",
+                      alignItems: "baseline",
+                      gap: 8,
+                      fontFamily: "var(--font-geist, system-ui), sans-serif",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        background: todo.due_date && todo.due_date < todayStr
+                          ? "var(--color-red)"
+                          : "var(--color-amber)",
+                        flexShrink: 0,
+                        marginTop: 3,
+                      }}
+                    />
+                    <span>
+                      {todo.title}
+                      {todo.due_date && todo.due_date < todayStr && (
+                        <span style={{ marginLeft: 6, fontSize: 11, color: "var(--color-red)" }}>
+                          overdue
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+        )}
+
+        {/* ── Today's Plan — Ask Morris ── */}
+        <section aria-labelledby="today-plan-heading" style={{ marginBottom: 28 }}>
+          <SectionHeader id="today-plan-heading">Today&apos;s plan</SectionHeader>
           <HubChat firstName={firstName} />
         </section>
 
-        {/* Single widget grid — respects visible_widgets order from preferences */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14, alignItems: "stretch" }}>
-          {prefs.visible_widgets.map((widgetId) => {
-            switch (widgetId) {
-              case "health":
-                return (
-                  <Suspense key="health" fallback={<WidgetSkeleton title="Health" lines={3} />}>
-                    <HealthSummaryWidget userId={user.id} />
-                  </Suspense>
-                );
-              case "weather":
-                return prefs.latitude != null && prefs.longitude != null ? (
-                  <Suspense key="weather" fallback={<WidgetSkeleton title="Weather" />}>
-                    <WeatherWidget lat={prefs.latitude} lon={prefs.longitude} locationName={prefs.location_name ?? ""} />
-                  </Suspense>
-                ) : null;
-              case "reminders":
-                return <RemindersWidget key="reminders" initialReminders={reminders} tz={userTz} categories={prefs.reminder_categories} />;
-              case "todos":
-                return <TodosWidget key="todos" initialTodos={todos} />;
-              case "stocks":
-                return (
-                  <Suspense key="stocks" fallback={<WidgetSkeleton title="Stocks" />}>
-                    <StocksWidget tickers={prefs.stock_tickers} />
-                  </Suspense>
-                );
-              case "sports":
-                return (
-                  <Suspense key="sports" fallback={<WidgetSkeleton title="Sports" lines={3} />}>
-                    <SportsWidget teams={prefs.sports_enabled_teams} />
-                  </Suspense>
-                );
-              case "lly_news":
-                return (
-                  <Suspense key="lly_news" fallback={<WidgetSkeleton title="LLY news" />}>
-                    {prefs.employer_ticker
-                      ? <CompanyNewsWidget ticker={prefs.employer_ticker} />
-                      : <CompanyNewsWidget ticker="LLY" />}
-                  </Suspense>
-                );
-              case "news":
-                return (
-                  <Suspense key="news" fallback={<WidgetSkeleton title="News" lines={4} />}>
-                    <NewsWidget topics={prefs.news_topics} />
-                  </Suspense>
-                );
-              case "city_news":
-                return (
-                  <Suspense key="city_news" fallback={<WidgetSkeleton title="Local News" lines={4} />}>
-                    <CityNewsWidget cities={prefs.city_names} />
-                  </Suspense>
-                );
-              case "news_subscriptions":
-                return (
-                  <Suspense key="news_subscriptions" fallback={<WidgetSkeleton title="My Subscriptions" lines={4} />}>
-                    <NewsSubscriptionsWidget sources={prefs.news_sources ?? []} />
-                  </Suspense>
-                );
-              case "tips":
-                return (
-                  <Suspense key="tips" fallback={<WidgetSkeleton title="Claude tips" lines={3} />}>
-                    <ClaudeTipCard />
-                  </Suspense>
-                );
-              case "career":
-                return (
-                  <div
-                    key="career"
-                    style={{
-                      background: "var(--color-bg-card)",
-                      border: "1px solid var(--color-rule)",
-                      borderLeft: "4px solid #2A6049",
-                      borderRadius: 12,
-                      padding: "20px 24px",
-                      boxShadow: "var(--shadow-card)",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
-                      <h2 className="serif" style={{ fontSize: 20, color: "var(--color-ink)" }}>Career Development</h2>
-                      <a
-                        href="/career"
-                        style={{ fontSize: 12, color: "#2A6049", textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif" }}
-                      >
-                        Open →
-                      </a>
-                    </div>
-                    {activeCareerGoals === 0 ? (
-                      <div style={{ fontSize: 13, color: "var(--color-ink-3)", lineHeight: 1.5 }}>
-                        No active goals yet.{" "}
-                        <a href="/career/goals/new" style={{ color: "#2A6049", textDecoration: "none" }}>
-                          Start your first goal →
-                        </a>
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 13, color: "var(--color-ink-2)", lineHeight: 1.6 }}>
-                        <span style={{ fontWeight: 600, fontSize: 28, color: "var(--color-ink)", fontFamily: "var(--font-display)" }}>
-                          {activeCareerGoals}
-                        </span>
-                        {" "}active goal{activeCareerGoals !== 1 ? "s" : ""}
-                        <div style={{ marginTop: 10 }}>
-                          <a href="/career/goals" style={{ fontSize: 12, color: "#2A6049", textDecoration: "none" }}>
-                            View goals →
-                          </a>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              default:
-                return null;
-            }
-          })}
-        </div>
+        {/* ── My Priorities — todos + reminders ── */}
+        {priorityWids.length > 0 && (
+          <section aria-labelledby="priorities-heading" style={{ marginBottom: 28 }}>
+            <SectionHeader id="priorities-heading">My priorities</SectionHeader>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                gap: 14,
+                alignItems: "start",
+              }}
+            >
+              {priorityWids.map((widgetId) =>
+                renderWidget(widgetId, { todos, reminders, prefs, userTz, activeCareerGoals })
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* ── Family ── */}
+        <section aria-labelledby="family-heading" style={{ marginBottom: 28 }}>
+          <SectionHeader id="family-heading">Family</SectionHeader>
+          <div
+            style={{
+              background: "var(--color-bg-card)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: 12,
+              padding: "20px 24px",
+              boxShadow: "var(--shadow-card)",
+              maxWidth: 480,
+            }}
+          >
+            <p
+              style={{
+                fontSize: 13,
+                color: "var(--color-ink-3)",
+                margin: "0 0 12px",
+                lineHeight: 1.5,
+                fontFamily: "var(--font-geist, system-ui), sans-serif",
+              }}
+            >
+              Family sharing and status coming soon.
+            </p>
+            <a
+              href="/home/settings/family"
+              style={{
+                fontSize: 12,
+                color: "var(--color-accent)",
+                textDecoration: "none",
+                fontFamily: "var(--font-geist, system-ui), sans-serif",
+              }}
+            >
+              Manage family circle →
+            </a>
+          </div>
+        </section>
+
+        {/* ── Insights ── */}
+        {insightWids.length > 0 && (
+          <section aria-labelledby="insights-heading">
+            <SectionHeader id="insights-heading">Insights</SectionHeader>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                gap: 14,
+                alignItems: "stretch",
+              }}
+            >
+              {insightWids.map((widgetId) =>
+                renderWidget(widgetId, { todos, reminders, prefs, userTz, activeCareerGoals, user })
+              )}
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );
 }
+
+// ── Section header ──────────────────────────────────────────────────────────
+
+function SectionHeader({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <h2
+      id={id}
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: "0.12em",
+        textTransform: "uppercase",
+        color: "var(--color-ink-4)",
+        margin: "0 0 12px",
+        fontFamily: "var(--font-geist, system-ui), sans-serif",
+      }}
+    >
+      {children}
+    </h2>
+  );
+}
+
+// ── Widget renderer ─────────────────────────────────────────────────────────
+
+type WidgetContext = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  prefs: any;
+  todos: Todo[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  reminders: any;
+  userTz: string;
+  activeCareerGoals: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  user?: any;
+};
+
+function renderWidget(widgetId: string, ctx: WidgetContext): ReactNode {
+  const { prefs, todos, reminders, userTz, activeCareerGoals, user } = ctx;
+  switch (widgetId) {
+    case "health":
+      return (
+        <Suspense key="health" fallback={<WidgetSkeleton title="Health" lines={3} />}>
+          <HealthSummaryWidget userId={user?.id} />
+        </Suspense>
+      );
+    case "weather":
+      return prefs.latitude != null && prefs.longitude != null ? (
+        <Suspense key="weather" fallback={<WidgetSkeleton title="Weather" />}>
+          <WeatherWidget lat={prefs.latitude} lon={prefs.longitude} locationName={prefs.location_name ?? ""} />
+        </Suspense>
+      ) : null;
+    case "reminders":
+      return (
+        <RemindersWidget
+          key="reminders"
+          initialReminders={reminders}
+          tz={userTz}
+          categories={prefs.reminder_categories}
+        />
+      );
+    case "todos":
+      return <TodosWidget key="todos" initialTodos={todos} />;
+    case "stocks":
+      return (
+        <Suspense key="stocks" fallback={<WidgetSkeleton title="Stocks" />}>
+          <StocksWidget tickers={prefs.stock_tickers} />
+        </Suspense>
+      );
+    case "sports":
+      return (
+        <Suspense key="sports" fallback={<WidgetSkeleton title="Sports" lines={3} />}>
+          <SportsWidget teams={prefs.sports_enabled_teams} />
+        </Suspense>
+      );
+    case "lly_news":
+      return (
+        <Suspense key="lly_news" fallback={<WidgetSkeleton title="Company news" />}>
+          <CompanyNewsWidget ticker={prefs.employer_ticker ?? "LLY"} />
+        </Suspense>
+      );
+    case "news":
+      return (
+        <Suspense key="news" fallback={<WidgetSkeleton title="News" lines={4} />}>
+          <NewsWidget topics={prefs.news_topics} />
+        </Suspense>
+      );
+    case "city_news":
+      return (
+        <Suspense key="city_news" fallback={<WidgetSkeleton title="Local news" lines={4} />}>
+          <CityNewsWidget cities={prefs.city_names} />
+        </Suspense>
+      );
+    case "news_subscriptions":
+      return (
+        <Suspense key="news_subscriptions" fallback={<WidgetSkeleton title="My subscriptions" lines={4} />}>
+          <NewsSubscriptionsWidget sources={prefs.news_sources ?? []} />
+        </Suspense>
+      );
+    case "tips":
+      return (
+        <Suspense key="tips" fallback={<WidgetSkeleton title="Tips" lines={3} />}>
+          <ClaudeTipCard />
+        </Suspense>
+      );
+    case "career":
+      return (
+        <div
+          key="career"
+          style={{
+            background: "var(--color-bg-card)",
+            border: "1px solid var(--color-rule)",
+            borderLeft: "4px solid #2A6049",
+            borderRadius: 12,
+            padding: "20px 24px",
+            boxShadow: "var(--shadow-card)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              marginBottom: 12,
+            }}
+          >
+            <h3 className="serif" style={{ fontSize: 20, color: "var(--color-ink)", margin: 0 }}>
+              Career
+            </h3>
+            <a
+              href="/career"
+              style={{
+                fontSize: 12,
+                color: "#2A6049",
+                textDecoration: "none",
+                fontFamily: "var(--font-geist, system-ui), sans-serif",
+              }}
+            >
+              Open →
+            </a>
+          </div>
+          {activeCareerGoals === 0 ? (
+            <div
+              style={{
+                fontSize: 13,
+                color: "var(--color-ink-3)",
+                lineHeight: 1.5,
+                fontFamily: "var(--font-geist, system-ui), sans-serif",
+              }}
+            >
+              No active goals yet.{" "}
+              <a href="/career/goals/new" style={{ color: "#2A6049", textDecoration: "none" }}>
+                Start your first goal →
+              </a>
+            </div>
+          ) : (
+            <div
+              style={{
+                fontSize: 13,
+                color: "var(--color-ink-2)",
+                lineHeight: 1.6,
+                fontFamily: "var(--font-geist, system-ui), sans-serif",
+              }}
+            >
+              <span style={{ fontWeight: 600, fontSize: 28, color: "var(--color-ink)", fontFamily: "var(--font-display)" }}>
+                {activeCareerGoals}
+              </span>{" "}
+              active goal{activeCareerGoals !== 1 ? "s" : ""}
+              <div style={{ marginTop: 10 }}>
+                <a href="/career/goals" style={{ fontSize: 12, color: "#2A6049", textDecoration: "none" }}>
+                  View goals →
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    default:
+      return null;
+  }
+}
+
+// ── Skeleton ────────────────────────────────────────────────────────────────
 
 function WidgetSkeleton({ title, lines = 2 }: { title: string; lines?: number }) {
   return (
@@ -284,9 +499,24 @@ function WidgetSkeleton({ title, lines = 2 }: { title: string; lines?: number })
         minHeight: 180,
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-        <h2 className="serif" style={{ fontSize: 20, color: "var(--color-ink)" }}>{title}</h2>
-        <span style={{ fontSize: 10, color: "var(--color-ink-4)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          marginBottom: 14,
+        }}
+      >
+        <h2 className="serif" style={{ fontSize: 20, color: "var(--color-ink)", margin: 0 }}>{title}</h2>
+        <span
+          style={{
+            fontSize: 10,
+            color: "var(--color-ink-4)",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            fontFamily: "var(--font-geist, system-ui), sans-serif",
+          }}
+        >
           loading…
         </span>
       </div>
@@ -296,7 +526,7 @@ function WidgetSkeleton({ title, lines = 2 }: { title: string; lines?: number })
             key={i}
             style={{
               height: 14,
-              background: "var(--color-paper-deep)",
+              background: "var(--color-bg-deep)",
               borderRadius: 4,
               opacity: 0.4 + (lines - i) * 0.1,
               width: `${100 - i * 12}%`,
@@ -307,4 +537,3 @@ function WidgetSkeleton({ title, lines = 2 }: { title: string; lines?: number })
     </div>
   );
 }
-
