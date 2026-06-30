@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef, useCallback } from "react";
+import type { FoodResult } from "@/app/api/health/food-search/route";
 import { addMeal, deleteMeal, toggleFavorite, logFavoriteMeal } from "../actions";
 import type { MealType } from "../actions";
 import ChatWidget from "../../_components/ChatWidget";
@@ -72,6 +73,40 @@ function AddMealSheet({
   const [fat, setFat] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Food database search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<FoodResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const handleFoodSearch = useCallback((q: string) => {
+    setSearchQuery(q);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (q.length < 2) { setSearchResults([]); setShowResults(false); return; }
+    setSearching(true);
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/health/food-search?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        setSearchResults(data.results ?? []);
+        setShowResults(true);
+      } catch { setSearchResults([]); }
+      finally { setSearching(false); }
+    }, 400);
+  }, []);
+
+  function selectFood(food: FoodResult) {
+    const label = food.brand ? `${food.name} (${food.brand})` : food.name;
+    setName(label);
+    if (food.calories_per_serving != null) setCalories(String(food.calories_per_serving));
+    if (food.protein_g != null) setProtein(String(food.protein_g));
+    if (food.carbs_g != null) setCarbs(String(food.carbs_g));
+    if (food.fat_g != null) setFat(String(food.fat_g));
+    setSearchQuery("");
+    setShowResults(false);
+  }
 
   const valid = name.trim().length > 0;
 
@@ -171,14 +206,70 @@ function AddMealSheet({
           ))}
         </div>
 
+        {/* Food database search */}
+        <div style={{ position: "relative" }}>
+          <div style={eyebrow}>Search food database</div>
+          <div style={{ position: "relative" }}>
+            <input
+              value={searchQuery}
+              onChange={(e) => handleFoodSearch(e.target.value)}
+              placeholder="Search 3M+ foods — e.g. Greek yogurt, banana…"
+              autoFocus
+              style={{ ...fieldInput, paddingRight: searching ? 36 : 12 }}
+            />
+            {searching && (
+              <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "var(--color-ink-4)" }}>⏳</span>
+            )}
+          </div>
+          {showResults && searchResults.length > 0 && (
+            <div style={{
+              position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20,
+              background: "var(--color-bg-raised)", border: "1px solid var(--color-line)",
+              borderRadius: 10, marginTop: 4, maxHeight: 260, overflowY: "auto",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+            }}>
+              {searchResults.map((food) => (
+                <button
+                  key={food.id}
+                  onClick={() => selectFood(food)}
+                  style={{
+                    width: "100%", textAlign: "left", padding: "11px 14px",
+                    border: "none", borderBottom: "1px solid var(--color-line)",
+                    background: "transparent", cursor: "pointer", fontFamily: "inherit",
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-bg-sunk)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)" }}>
+                    {food.name}
+                    {food.brand && <span style={{ fontWeight: 400, color: "var(--color-ink-3)", marginLeft: 6 }}>· {food.brand}</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 2 }}>
+                    {food.serving_size_g}g serving
+                    {food.calories_per_serving != null && ` · ${food.calories_per_serving} cal`}
+                    {food.protein_g != null && ` · ${food.protein_g}g protein`}
+                    {food.carbs_g != null && ` · ${food.carbs_g}g carbs`}
+                    {food.fat_g != null && ` · ${food.fat_g}g fat`}
+                  </div>
+                </button>
+              ))}
+              <button
+                onClick={() => setShowResults(false)}
+                style={{ width: "100%", padding: "9px", border: "none", background: "transparent", color: "var(--color-ink-4)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Close
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Food name */}
         <div>
-          <div style={eyebrow}>What did you eat?</div>
+          <div style={eyebrow}>Name (edit or enter manually)</div>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Chicken + rice bowl"
-            autoFocus
             style={fieldInput}
           />
         </div>

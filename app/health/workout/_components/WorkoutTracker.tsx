@@ -80,6 +80,8 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   const [cardioType,     setCardioType]     = useState("Running");
   const [cardioDuration, setCardioDuration] = useState("");
   const [cardioDistance, setCardioDistance] = useState("");
+  const [cardioPace,     setCardioPace]     = useState("");  // "9:30" format
+  const [cardioHr,       setCardioHr]       = useState("");  // avg BPM
 
   // ── effects ───────────────────────────────────────────────────────────────
 
@@ -211,13 +213,22 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
     const dur = parseFloat(cardioDuration);
     if (!dur || dur <= 0) return;
     const dist = parseFloat(cardioDistance);
+    // Parse pace "9:30" → 9.5 min/mile
+    const paceRaw = cardioPace.trim();
+    let paceVal: number | undefined;
+    if (paceRaw) {
+      const [pMin, pSec] = paceRaw.split(":").map(Number);
+      if (!isNaN(pMin)) paceVal = pMin + (pSec ?? 0) / 60;
+    }
+    const hr = parseInt(cardioHr);
     setCardioBlocks((prev) => [...prev, {
       type: cardioType,
       durationMin: dur,
       ...(dist > 0 ? { distanceMiles: dist } : {}),
+      ...(paceVal != null ? { paceMinPerMile: paceVal } : {}),
+      ...(hr > 0 ? { hrAvg: hr } : {}),
     }]);
-    setCardioDuration("");
-    setCardioDistance("");
+    setCardioDuration(""); setCardioDistance(""); setCardioPace(""); setCardioHr("");
     setShowCardioForm(false);
   };
 
@@ -905,9 +916,19 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
 
             {cardioBlocks.map((b, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: "var(--color-bg-sunk)", borderRadius: 8, marginBottom: 6 }}>
-                <div>
+                <div style={{ flex: 1 }}>
                   <span style={{ fontSize: 12, fontWeight: 500, color: "var(--color-ink)" }}>{b.type}</span>
-                  <span style={{ fontSize: 11, color: "var(--color-ink-4)", marginLeft: 8 }}>{b.durationMin} min{b.distanceMiles ? ` · ${b.distanceMiles} mi` : ""}</span>
+                  <span style={{ fontSize: 11, color: "var(--color-ink-4)", marginLeft: 8 }}>
+                    {b.durationMin} min
+                    {b.distanceMiles ? ` · ${b.distanceMiles} mi` : ""}
+                    {b.paceMinPerMile ? ` · ${Math.floor(b.paceMinPerMile)}:${String(Math.round((b.paceMinPerMile % 1) * 60)).padStart(2, "0")}/mi` : ""}
+                    {b.hrAvg ? ` · ${b.hrAvg} bpm` : ""}
+                  </span>
+                  {b.hrAvg && (
+                    <span style={{ display: "inline-block", marginLeft: 8, fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 6, background: ["", "#e8f4e8", "#b8e0b8", "#f4e8a8", "#f4c08a", "#f4a0a0"][Math.min(5, Math.max(1, Math.round(b.hrAvg / 220 < 0.6 ? 1 : b.hrAvg / 220 < 0.7 ? 2 : b.hrAvg / 220 < 0.8 ? 3 : b.hrAvg / 220 < 0.9 ? 4 : 5)))], color: "#2f3a47" }}>
+                      Z{b.hrAvg / 220 < 0.6 ? 1 : b.hrAvg / 220 < 0.7 ? 2 : b.hrAvg / 220 < 0.8 ? 3 : b.hrAvg / 220 < 0.9 ? 4 : 5}
+                    </span>
+                  )}
                 </div>
                 <button onClick={() => setCardioBlocks((prev) => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: "var(--color-ink-4)", fontSize: 16, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>×</button>
               </div>
@@ -923,6 +944,10 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
                   {["Running", "Cycling", "Walking"].includes(cardioType) && (
                     <input value={cardioDistance} onChange={(e) => setCardioDistance(e.target.value)} placeholder="Distance (mi)" type="number" min="0" step="0.1" style={{ padding: "9px 10px", borderRadius: 8, border: "1px solid var(--color-line)", background: "var(--color-bg-raised)", color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
                   )}
+                  {["Running", "Walking"].includes(cardioType) && (
+                    <input value={cardioPace} onChange={(e) => setCardioPace(e.target.value)} placeholder="Pace (mm:ss/mi)" style={{ padding: "9px 10px", borderRadius: 8, border: "1px solid var(--color-line)", background: "var(--color-bg-raised)", color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                  )}
+                  <input value={cardioHr} onChange={(e) => setCardioHr(e.target.value)} placeholder="Avg HR (bpm)" type="number" min="40" max="220" style={{ padding: "9px 10px", borderRadius: 8, border: "1px solid var(--color-line)", background: "var(--color-bg-raised)", color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={handleAddCardio} disabled={!cardioDuration} style={{ flex: 2, padding: "9px 0", borderRadius: 8, border: "none", background: cardioDuration ? "var(--color-ink)" : "var(--color-bg-sunk)", color: cardioDuration ? "var(--color-bg)" : "var(--color-ink-4)", fontSize: 13, fontWeight: 600, cursor: cardioDuration ? "pointer" : "not-allowed", fontFamily: "inherit" }}>Add</button>

@@ -126,6 +126,30 @@ export interface CardioBlock {
   type: string;
   durationMin: number;
   distanceMiles?: number;
+  paceMinPerMile?: number;  // e.g. 9.5 = 9:30/mile
+  hrAvg?: number;           // average BPM
+}
+
+export function hrZone(hrAvg: number, ageYears = 40): 1 | 2 | 3 | 4 | 5 {
+  const maxHr = 220 - ageYears;
+  const pct = hrAvg / maxHr;
+  if (pct < 0.60) return 1;
+  if (pct < 0.70) return 2;
+  if (pct < 0.80) return 3;
+  if (pct < 0.90) return 4;
+  return 5;
+}
+
+const ZONE_LABEL: Record<number, string> = {
+  1: "Zone 1 · Recovery",
+  2: "Zone 2 · Aerobic base",
+  3: "Zone 3 · Endurance",
+  4: "Zone 4 · Threshold",
+  5: "Zone 5 · VO₂ max",
+};
+
+export function hrZoneLabel(zone: number): string {
+  return ZONE_LABEL[zone] ?? "";
 }
 
 export async function deleteSession(
@@ -203,7 +227,9 @@ export async function saveCardioBlocks(
     date,
     type: b.type,
     duration_min: b.durationMin,
-    ...(b.distanceMiles != null ? { distance_miles: b.distanceMiles } : {}),
+    ...(b.distanceMiles   != null ? { distance_miles: b.distanceMiles }   : {}),
+    ...(b.paceMinPerMile  != null ? { pace_min_per_mile: b.paceMinPerMile } : {}),
+    ...(b.hrAvg           != null ? { hr_avg: b.hrAvg }                   : {}),
   }));
 
   const { error } = await db.from("workout_sessions").insert(rows);

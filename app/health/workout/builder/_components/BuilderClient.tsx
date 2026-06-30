@@ -8,6 +8,7 @@ import {
   type PlannedExercise, type Difficulty,
 } from '../../_lib/build-plan';
 import { scheduleWorkout } from '../../actions';
+import { EXERCISE_TEMPLATES, templateToExercise } from '../../exercise-library';
 
 type WorkoutMode = 'strength' | 'cardio' | 'mixed';
 
@@ -123,6 +124,16 @@ export default function BuilderClient() {
   const [difficulty, setDifficulty] = useState<Difficulty>('intermediate');
   const [editedPlan, setEditedPlan] = useState<PlannedExercise[] | null>(null);
   const [mode, setMode] = useState<WorkoutMode>('strength');
+
+  // Exercise search (review step)
+  const [exSearch, setExSearch] = useState('');
+  const exResults = useMemo(() => {
+    if (exSearch.trim().length < 2) return [];
+    const q = exSearch.toLowerCase();
+    return EXERCISE_TEMPLATES.filter(
+      (t) => t.name.toLowerCase().includes(q) || t.muscles.some((m) => m.toLowerCase().includes(q)) || t.category.toLowerCase().includes(q)
+    ).slice(0, 8);
+  }, [exSearch]);
 
   // Scheduling
   const [showSchedule, setShowSchedule]     = useState(false);
@@ -290,6 +301,41 @@ export default function BuilderClient() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Add exercise from library */}
+          <div style={{ ...S.tileBare, marginBottom: 14 }}>
+            <div style={{ ...S.eyebrow, marginBottom: 8 }}>Add from library (120+ exercises)</div>
+            <div style={{ position: 'relative' }}>
+              <input
+                value={exSearch}
+                onChange={(e) => setExSearch(e.target.value)}
+                placeholder="Search by name or muscle — e.g. bench press, hamstrings…"
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 9, border: '1px solid var(--color-line)', background: 'var(--color-bg-sunk)', color: 'var(--color-ink)', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
+              />
+              {exResults.length > 0 && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10, background: 'var(--color-bg-raised)', border: '1px solid var(--color-line)', borderRadius: 10, marginTop: 4, maxHeight: 240, overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}>
+                  {exResults.map((t) => (
+                    <button key={t.name}
+                      onClick={() => {
+                        const ex = templateToExercise(t);
+                        const newEx: PlannedExercise = { name: ex.name, sets: ex.target.sets, reps: ex.target.reps, primary: [], secondary: [], _score: 0 };
+                        setEditedPlan((prev) => [...(prev ?? plan), newEx]);
+                        setExSearch('');
+                      }}
+                      style={{ width: '100%', textAlign: 'left', padding: '10px 12px', border: 'none', borderBottom: '1px solid var(--color-line)', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-sunk)'; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-ink)' }}>{t.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-ink-4)', marginTop: 2 }}>
+                        {t.muscles.join(', ')} · {t.equipment} · {t.defaultSets}×{t.defaultReps}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
