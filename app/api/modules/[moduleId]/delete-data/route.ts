@@ -1,13 +1,14 @@
+import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 import { createServiceClient } from "@/lib/supabase/server";
 
 export async function DELETE(
-  _request: Request,
-  context: { params: Promise<{ moduleId: string }> }
+  _request: NextRequest,
+  { params }: { params: Promise<{ moduleId: string }> }
 ) {
   const userId = await getCurrentUserId();
-  if (!userId) return Response.json({ error: "Not authenticated" }, { status: 401 });
-  const { moduleId } = await context.params;
+  if (!userId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  const { moduleId } = await params;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
@@ -38,11 +39,11 @@ export async function DELETE(
         console.log(`[modules/delete] ${moduleId} for ${userId}: data lives in separate app, user must delete from that module's settings`);
         break;
       default:
-        return Response.json({ error: `Unknown module: ${moduleId}` }, { status: 400 });
+        return NextResponse.json({ error: `Unknown module: ${moduleId}` }, { status: 400 });
     }
-    return Response.json({ ok: true, moduleId });
+    return NextResponse.json({ ok: true, moduleId });
   } catch (err) {
     console.error(`[modules/delete] ${moduleId}:`, err);
-    return Response.json({ error: "Deletion failed" }, { status: 500 });
+    return NextResponse.json({ error: "Deletion failed" }, { status: 500 });
   }
 }
