@@ -16,7 +16,7 @@ export default async function SportsWidget({ teams }: { teams: string[] }) {
           </span>
         </div>
         <p style={{ fontSize: 13, color: "var(--color-ink-4)", padding: "30px 0", textAlign: "center" }}>
-          No sports data fetched yet. Refreshes on each cache miss.
+          
         </p>
       </div>
     );

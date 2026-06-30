@@ -23,7 +23,7 @@ export default function NewsClient({
   if (totalItems === 0) {
     return (
       <p style={{ fontSize: 13, color: "var(--color-ink-4)", padding: "30px 0", textAlign: "center" }}>
-        No news fetched yet. Refreshes on each cache miss.
+        
       </p>
     );
   }
