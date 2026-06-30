@@ -243,7 +243,7 @@ export default function ChapterReader({
             {/* Version */}
             <select
               value={bibleId}
-              onChange={(e) => router.push(`/read/${book.id}/${chapterNum}?v=${e.target.value}`)}
+              onChange={(e) => router.push(`/bible/read/${book.id}/${chapterNum}?v=${e.target.value}`)}
               style={{
                 padding: "6px 10px", borderRadius: 8, border: "1px solid var(--color-rule)",
                 background: "var(--color-bg-card)", fontSize: 12, fontFamily: "inherit",
@@ -369,11 +369,11 @@ export default function ChapterReader({
       {/* ── Chapter navigation ── */}
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 28, fontSize: 13 }}>
         {prevChapter
-          ? <Link href={`/read/${book.id}/${prevChapter}?v=${bibleId}`} style={{ color: "var(--color-accent)", textDecoration: "none" }}>← Ch. {prevChapter}</Link>
+          ? <Link href={`/bible/read/${book.id}/${prevChapter}?v=${bibleId}`} style={{ color: "var(--color-accent)", textDecoration: "none" }}>← Ch. {prevChapter}</Link>
           : <span />}
         <Link href="/bible/read" style={{ color: "var(--color-ink-3)", textDecoration: "none" }}>All books</Link>
         {nextChapter
-          ? <Link href={`/read/${book.id}/${nextChapter}?v=${bibleId}`} style={{ color: "var(--color-accent)", textDecoration: "none" }}>Ch. {nextChapter} →</Link>
+          ? <Link href={`/bible/read/${book.id}/${nextChapter}?v=${bibleId}`} style={{ color: "var(--color-accent)", textDecoration: "none" }}>Ch. {nextChapter} →</Link>
           : <span />}
       </div>
 
@@ -481,13 +481,13 @@ export default function ChapterReader({
       {chapterData && (
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 48, paddingTop: 20, borderTop: "1px solid var(--color-rule)", fontSize: 13 }}>
           {prevChapter
-            ? <Link href={`/read/${book.id}/${prevChapter}?v=${bibleId}`} style={{
+            ? <Link href={`/bible/read/${book.id}/${prevChapter}?v=${bibleId}`} style={{
                 display: "flex", alignItems: "center", gap: 6,
                 color: "var(--color-accent)", textDecoration: "none", fontWeight: 500,
               }}>← {book.name} {prevChapter}</Link>
             : <span />}
           {nextChapter
-            ? <Link href={`/read/${book.id}/${nextChapter}?v=${bibleId}`} style={{
+            ? <Link href={`/bible/read/${book.id}/${nextChapter}?v=${bibleId}`} style={{
                 display: "flex", alignItems: "center", gap: 6,
                 color: "var(--color-accent)", textDecoration: "none", fontWeight: 500,
               }}>{book.name} {nextChapter} →</Link>

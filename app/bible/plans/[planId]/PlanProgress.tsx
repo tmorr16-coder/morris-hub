@@ -200,7 +200,7 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
                         return (
                           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                             <Link
-                              href={`/read/${parsed.bookId}/${parsed.chapter}`}
+                              href={`/bible/read/${parsed.bookId}/${parsed.chapter}`}
                               style={{
                                 padding: "4px 10px", borderRadius: 7, fontSize: 12, fontWeight: 500,
                                 border: "1px solid var(--color-rule)",
@@ -212,7 +212,7 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
                               📖 Read
                             </Link>
                             <Link
-                              href={`/read/${parsed.bookId}/${parsed.chapter}?${focusParams}`}
+                              href={`/bible/read/${parsed.bookId}/${parsed.chapter}?${focusParams}`}
                               style={{
                                 padding: "4px 10px", borderRadius: 7, fontSize: 12, fontWeight: 600,
                                 border: "none",

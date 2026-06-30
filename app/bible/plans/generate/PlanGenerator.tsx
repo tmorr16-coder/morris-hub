@@ -35,7 +35,7 @@ export default function PlanGenerator({ userId }: { userId: string }) {
       });
       if (!res.ok) throw new Error(await res.text());
       const { planId } = await res.json();
-      router.push(`/plans/${planId}`);
+      router.push(`/bible/plans/${planId}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generation failed");
       setGenerating(false);

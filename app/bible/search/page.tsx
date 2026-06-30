@@ -1,29 +1,36 @@
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { KNOWN_VERSIONS } from "@/lib/bible-api";
-import SearchClient from "./_components/SearchClient";
+import SearchAndAsk from "./_components/SearchAndAsk";
 
-export default async function SearchPage() {
+export default async function SearchPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/");
+  if (!user) redirect("/login");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
-  const { data: prefs } = await db.schema("bible").from("user_preferences")
-    .select("preferred_bible_id").eq("user_id", user.id).maybeSingle();
+  const { data: prefs } = await db
+    .schema("bible")
+    .from("user_preferences")
+    .select("preferred_bible_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
   const preferredBibleId = prefs?.preferred_bible_id ?? "de4e12af7f28f599-02";
 
-  const menuUser = { email: user.email, name: user.user_metadata?.full_name ?? user.email, avatarUrl: user.user_metadata?.avatar_url ?? null };
+  const { tab } = await searchParams;
+  const initialTab = tab === "ask" ? "ask" : "search";
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)", paddingBottom: 80 }}>
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px 20px" }}>
-        <h1 style={{ fontFamily: "var(--font-instrument-serif, serif)", fontSize: 26, fontWeight: 400, margin: "0 0 20px" }}>
-          Search the Bible
-        </h1>
-        <SearchClient versions={KNOWN_VERSIONS} defaultBibleId={preferredBibleId} />
-      </div>
-    </div>
+    <SearchAndAsk
+      versions={KNOWN_VERSIONS}
+      defaultBibleId={preferredBibleId}
+      initialTab={initialTab}
+      firstName={user.user_metadata?.full_name?.split(" ")[0] ?? ""}
+    />
   );
 }

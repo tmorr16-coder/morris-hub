@@ -86,13 +86,13 @@ export default function SearchClient({ versions, defaultBibleId }: Props) {
     if (!found) { setGoToError(`Book not recognised: "${bookInput}"`); return; }
     const ch = Math.min(parseInt(chStr), found.chapters);
     const hash = verseStr ? `#v${verseStr}` : "";
-    router.push(`/read/${found.id}/${ch}?bibleId=${bibleId}${hash}`);
+    router.push(`/bible/read/${found.id}/${ch}?bibleId=${bibleId}${hash}`);
   }
 
   function resultHref(r: SearchResult): string {
     if (!r.id) return "#";
     const parts = r.id.split(".");
-    if (parts.length >= 2) return `/read/${parts[0]}/${parts[1]}?bibleId=${bibleId}`;
+    if (parts.length >= 2) return `/bible/read/${parts[0]}/${parts[1]}?bibleId=${bibleId}`;
     return "#";
   }
 

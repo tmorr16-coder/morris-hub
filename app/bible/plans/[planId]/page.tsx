@@ -19,7 +19,7 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ pla
   if (!isBuiltIn) {
     const { data } = await db.schema("bible").from("reading_plans").select("*").eq("id", planId).single();
     plan = data;
-    if (!plan) redirect("/plans");
+    if (!plan) redirect("/bible/plans");
   }
 
   // Load enrollment

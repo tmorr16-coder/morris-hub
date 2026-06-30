@@ -58,7 +58,7 @@ export default async function PlansPage() {
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink-2)", marginBottom: 12 }}>My plans</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {(userPlans ?? []).map((up: any) => (
-                <Link key={up.plan_id} href={`/plans/${up.plan_id}`} style={{ textDecoration: "none" }}>
+                <Link key={up.plan_id} href={`/bible/plans/${up.plan_id}`} style={{ textDecoration: "none" }}>
                   <div style={{
                     background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
                     borderRadius: 12, padding: "16px 20px", boxShadow: "var(--shadow-card)",
@@ -109,7 +109,7 @@ export default async function PlansPage() {
                     <div style={{ fontWeight: 600, fontSize: 14 }}>{plan.title}</div>
                     <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 2 }}>{plan.duration_days} days</div>
                   </div>
-                  <Link href={`/plans/${plan.id}`} style={{
+                  <Link href={`/bible/plans/${plan.id}`} style={{
                     padding: "6px 14px", background: "var(--color-accent-soft)",
                     color: "var(--color-accent)", borderRadius: 8, textDecoration: "none",
                     fontSize: 12, fontWeight: 500,
@@ -143,7 +143,7 @@ export default async function PlansPage() {
                 const totalDays = fp.plan?.duration_days ?? 1;
                 const pct = Math.round((myCompleted / totalDays) * 100);
                 return (
-                  <Link key={fp.id} href={`/plans/${fp.plan_id}?familyPlanId=${fp.id}`}
+                  <Link key={fp.id} href={`/bible/plans/${fp.plan_id}?familyPlanId=${fp.id}`}
                     style={{ display: "block", padding: "14px 16px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10, textDecoration: "none" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>{fp.name}</div>
@@ -169,7 +169,7 @@ export default async function PlansPage() {
 // Server component button placeholder — enrollment happens via the plan detail page
 function EnrollButton({ planId, planTitle, userId }: { planId: string; planTitle: string; userId: string }) {
   return (
-    <Link href={`/plans/${planId}`} style={{
+    <Link href={`/bible/plans/${planId}`} style={{
       display: "inline-block", padding: "6px 14px",
       background: "var(--color-accent)", color: "#fff",
       borderRadius: 8, textDecoration: "none", fontSize: 12, fontWeight: 500,

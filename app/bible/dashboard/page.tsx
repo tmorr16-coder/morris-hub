@@ -110,10 +110,10 @@ export default async function DashboardPage() {
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             {[
-              { label: "Continue where I left off", href: "/read" },
-              { label: `${todayBook.name} 1`, href: `/read/${todayBook.id}/1` },
-              { label: "John 3", href: "/read/JHN/3" },
-              { label: "Psalms 23", href: "/read/PSA/23" },
+              { label: "Continue where I left off", href: "/bible/read" },
+              { label: `${todayBook.name} 1`, href: `/bible/read/${todayBook.id}/1` },
+              { label: "John 3", href: "/bible/read/JHN/3" },
+              { label: "Psalms 23", href: "/bible/read/PSA/23" },
             ].map((item) => (
               <Link key={item.href} href={item.href} style={{
                 padding: "8px 14px",
@@ -138,7 +138,7 @@ export default async function DashboardPage() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {(userPlans ?? []).map((up: any) => (
-                <Link key={up.plan_id} href={`/plans/${up.plan_id}`} style={{ textDecoration: "none" }}>
+                <Link key={up.plan_id} href={`/bible/plans/${up.plan_id}`} style={{ textDecoration: "none" }}>
                   <div style={{
                     background: "var(--color-bg-card)",
                     border: "1px solid var(--color-rule)",

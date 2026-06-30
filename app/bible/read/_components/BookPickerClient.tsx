@@ -36,7 +36,7 @@ export default function BookPickerClient({ books, preferredBibleId }: Props) {
     if (!found) { setGoToError(`Book not found: "${bookInput}"`); return; }
     const ch = Math.min(parseInt(chStr), found.chapters);
     const verse = verseStr ? `#v${verseStr}` : "";
-    router.push(`/read/${found.id}/${ch}?bibleId=${preferredBibleId}${verse}`);
+    router.push(`/bible/read/${found.id}/${ch}?bibleId=${preferredBibleId}${verse}`);
   }
 
   function renderBookGrid(list: Book[]) {
@@ -69,7 +69,7 @@ export default function BookPickerClient({ books, preferredBibleId }: Props) {
                   {Array.from({ length: book.chapters }, (_, i) => i + 1).map((ch) => (
                     <a
                       key={ch}
-                      href={`/read/${book.id}/${ch}?bibleId=${preferredBibleId}`}
+                      href={`/bible/read/${book.id}/${ch}?bibleId=${preferredBibleId}`}
                       style={{
                         display: "flex", alignItems: "center", justifyContent: "center",
                         height: 36, borderRadius: 6,

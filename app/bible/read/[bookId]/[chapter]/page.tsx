@@ -83,12 +83,12 @@ export default async function ChapterPage({ params, searchParams }: Props) {
             const nextRef = dayReadings[nextRidx];
             const parsed = parseRef(nextRef);
             if (parsed) {
-              nextReadingHref = `/read/${parsed.bookId}/${parsed.chapter}?focus=1&plan=${planId}&day=${day}&ridx=${nextRidx}`;
+              nextReadingHref = `/bible/read/${parsed.bookId}/${parsed.chapter}?focus=1&plan=${planId}&day=${day}&ridx=${nextRidx}`;
               nextReadingLabel = nextRef;
             }
           } else {
             // End of today — link back to plan
-            nextReadingHref = `/plans/${planId}`;
+            nextReadingHref = `/bible/plans/${planId}`;
             nextReadingLabel = `Day ${day} complete`;
           }
         }
