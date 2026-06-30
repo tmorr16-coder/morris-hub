@@ -12,7 +12,7 @@ import type {
 interface Props {
   accounts: RetirementAccount[];
   setAccounts: (a: RetirementAccount[]) => void;
-  onDelete: (updatedAccounts: RetirementAccount[]) => void;
+  onAccountsChange: (updatedAccounts: RetirementAccount[]) => void;
   plaidAccounts: PlaidAccountSuggestion[];
   savedAccounts: SavedAccountSuggestion[];
   sharedAccounts: SharedAccountSuggestion[];
@@ -80,7 +80,7 @@ const EMPTY_FORM = {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function AccountsTab({
-  accounts, setAccounts, onDelete, plaidAccounts, savedAccounts, sharedAccounts, profile,
+  accounts, setAccounts, onAccountsChange, plaidAccounts, savedAccounts, sharedAccounts, profile,
 }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -155,8 +155,10 @@ export default function AccountsTab({
     e.preventDefault();
     const returnOverride = form.return_override !== "" ? parseFloat(form.return_override) / 100 : null;
 
+    let updated: RetirementAccount[];
+
     if (editId) {
-      setAccounts(accounts.map((a) =>
+      updated = accounts.map((a) =>
         a.id === editId ? {
           ...a,
           name: form.name, type: form.type, owner: form.owner,
@@ -166,7 +168,7 @@ export default function AccountsTab({
           return_override: returnOverride,
           plaid_account_id: form.plaid_account_id || null,
         } : a
-      ));
+      );
     } else {
       const newAcct: RetirementAccount = {
         id: crypto.randomUUID(), profile_id: "",
@@ -179,9 +181,10 @@ export default function AccountsTab({
         sort_order: accounts.length,
         created_at: new Date().toISOString(),
       };
-      setAccounts([...accounts, newAcct]);
+      updated = [...accounts, newAcct];
     }
 
+    onAccountsChange(updated); // auto-save add/edit to DB
     setShowForm(false);
     setEditId(null);
     setForm({ ...EMPTY_FORM });
@@ -189,8 +192,7 @@ export default function AccountsTab({
 
   function handleDelete(id: string) {
     const updated = accounts.filter((a) => a.id !== id);
-    setAccounts(updated);   // immediate visual update
-    onDelete(updated);       // auto-save so Portfolio reflects the change
+    onAccountsChange(updated); // updates state + auto-saves
   }
 
   const selfAccounts = accounts.filter((a) => a.owner === "self");

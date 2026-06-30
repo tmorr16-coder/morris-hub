@@ -248,8 +248,8 @@ export default function RetirementClient({
     }
   }
 
-  // Auto-save when an account is deleted so Portfolio reflects the change immediately
-  function handleAccountDelete(updatedAccounts: RetirementAccount[]) {
+  // Auto-save any accounts change (add, edit, delete) so the DB stays in sync
+  function handleAccountsChange(updatedAccounts: RetirementAccount[]) {
     setAccounts(updatedAccounts);
     handleSave(updatedAccounts);
   }
@@ -346,7 +346,7 @@ export default function RetirementClient({
         <AccountsTab
           accounts={accounts}
           setAccounts={setAccounts}
-          onDelete={handleAccountDelete}
+          onAccountsChange={handleAccountsChange}
           plaidAccounts={plaidAccounts}
           savedAccounts={savedAccounts}
           sharedAccounts={sharedAccounts}
