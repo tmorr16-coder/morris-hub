@@ -46,7 +46,12 @@ export default async function HomePage() {
     // Column doesn't exist yet — skip
   }
 
-  const [prefs, todoResult, reminders, profileResult, careerGoalsResult] = await Promise.all([
+  // Compute early so workouts query can filter by today's date
+  const userTz = "America/Indiana/Indianapolis";
+  const today = new Date();
+  const todayStr = today.toLocaleDateString("sv", { timeZone: userTz }); // YYYY-MM-DD
+
+  const [prefs, todoResult, reminders, profileResult, careerGoalsResult, workoutsResult] = await Promise.all([
     getPreferences(user.id),
     service
       .schema("hub")
@@ -64,6 +69,12 @@ export default async function HomePage() {
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
       .eq("status", "active"),
+    service
+      .from("scheduled_workouts")
+      .select("id, label, scheduled_time")
+      .eq("user_id", user.id)
+      .eq("scheduled_date", todayStr)
+      .order("scheduled_time", { ascending: true, nullsFirst: false }),
   ]);
 
   const todos = (todoResult.data ?? []) as Todo[];
@@ -72,8 +83,6 @@ export default async function HomePage() {
 
   const name = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email ?? "there";
   const firstName = name.split(" ")[0];
-  const userTz = "America/Indiana/Indianapolis";
-  const today = new Date();
   const localHour = parseInt(
     today.toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: userTz }),
     10
@@ -87,7 +96,7 @@ export default async function HomePage() {
   const todayDisplay = today.toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: userTz,
   });
-  const todayStr = today.toLocaleDateString("sv", { timeZone: userTz }); // YYYY-MM-DD
+  // todayStr already computed above before queries
 
   // Items needing attention: overdue or high-priority incomplete todos
   const overdueTodos = todos.filter(
@@ -98,15 +107,51 @@ export default async function HomePage() {
   );
   const needsAttention = [...overdueTodos, ...urgentTodos].slice(0, 5);
 
-  // Today's plan: reminders due today sorted chronologically + todos due today
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const todayReminders = (reminders as any[])
-    .filter((r) => {
-      const localDate = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
-      return localDate === todayStr;
-    })
-    .sort((a: { due_at: string }, b: { due_at: string }) => a.due_at.localeCompare(b.due_at));
+  // Today's plan: cross-module timeline sorted chronologically
   const todayDueTodos = todos.filter((t) => !t.completed && t.due_date === todayStr);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scheduledWorkouts = (workoutsResult.data ?? []) as { id: string; label: string; scheduled_time: string | null }[];
+
+  const timelineItems: TimelineItem[] = [
+    // Reminders (cross-module via source_app: hub, health, finance, student-success, etc.)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...(reminders as any[])
+      .filter((r) => {
+        const localDate = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
+        return localDate === todayStr;
+      })
+      .map((r) => ({
+        id: `rem-${r.id}`,
+        sortKey: r.due_at,
+        timeLabel: new Date(r.due_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: userTz }),
+        label: r.title,
+        module: (r.source_app ?? "hub") as string,
+        category: (r.category ?? "general") as string,
+        href: MODULE_HREF[r.source_app as string],
+      })),
+    // Scheduled workouts from the health module
+    ...scheduledWorkouts.map((w) => ({
+      id: `wkt-${w.id}`,
+      sortKey: w.scheduled_time ? `${todayStr}T${w.scheduled_time}` : `${todayStr}T23:00`,
+      timeLabel: w.scheduled_time
+        ? new Date(`${todayStr}T${w.scheduled_time}`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: userTz })
+        : "Today",
+      label: w.label || "Workout",
+      module: "health",
+      category: "workout",
+      href: "/health/train",
+    })),
+    // Todos due today (no specific time — rendered after timed items)
+    ...todayDueTodos.map((t) => ({
+      id: `todo-${t.id}`,
+      sortKey: `${todayStr}T99:99`,
+      timeLabel: "Due today",
+      label: t.title,
+      module: "hub",
+      category: "todo",
+      href: undefined,
+    })),
+  ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
   const menuUser = {
     name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
@@ -229,20 +274,15 @@ export default async function HomePage() {
           </section>
         )}
 
-        {/* ── Ask Morris ── */}
-        <section aria-labelledby="ask-morris-heading" style={{ marginBottom: 28 }}>
-          <SectionHeader id="ask-morris-heading">Ask Morris</SectionHeader>
-          <HubChat firstName={firstName} />
-        </section>
-
-        {/* ── Today's Plan — chronological schedule ── */}
+        {/* ── Today's Plan — cross-module timeline ── */}
         <section aria-labelledby="today-plan-heading" style={{ marginBottom: 28 }}>
           <SectionHeader id="today-plan-heading">Today&apos;s plan</SectionHeader>
-          <TodayTimeline
-            reminders={todayReminders}
-            todos={todayDueTodos}
-            userTz={userTz}
-          />
+          <TodayTimeline items={timelineItems} />
+        </section>
+
+        {/* ── Ask Morris — dedicated AI surface ── */}
+        <section aria-label="Ask Morris" style={{ marginBottom: 28 }}>
+          <HubChat firstName={firstName} />
         </section>
 
         {/* ── My Priorities — todos + reminders ── */}
@@ -327,75 +367,123 @@ export default async function HomePage() {
 
 // ── Today timeline ──────────────────────────────────────────────────────────
 
-const CATEGORY_DOT: Record<string, string> = {
-  appointment: "var(--color-accent)",
-  medication:  "var(--color-green)",
-  workout:     "#C97A3A",
-  bill:        "var(--color-amber)",
-  personal:    "var(--color-ink-3)",
-  general:     "var(--color-ink-3)",
-  todo:        "var(--color-ink-4)",
+interface TimelineItem {
+  id: string;
+  sortKey: string;
+  timeLabel: string;
+  label: string;
+  module: string;
+  category: string;
+  href?: string;
+}
+
+// Module color dots — matches the platform nav palette
+const MODULE_HREF: Record<string, string> = {
+  health:           "/health",
+  finance:          "/finance/dashboard",
+  investments:      "/investments",
+  "student-success":"/student-success",
+  career:           "/career",
+  bible:            "/bible",
 };
 
-function TimelineRow({ time, label, category }: { time: string; label: string; category: string }) {
-  return (
+const MODULE_DOT: Record<string, string> = {
+  hub:              "var(--color-accent)",
+  health:           "#4D6B3A",
+  finance:          "#8B6A47",
+  investments:      "#C97A3A",
+  "student-success":"#6B5B95",
+  career:           "#2A6049",
+  bible:            "#7B5EA7",
+  // category overrides
+  appointment:      "var(--color-accent)",
+  medication:       "#4D6B3A",
+  workout:          "#C97A3A",
+  bill:             "var(--color-amber)",
+  todo:             "var(--color-ink-4)",
+  general:          "var(--color-ink-3)",
+};
+
+const MODULE_LABEL: Record<string, string> = {
+  hub:              "Hub",
+  health:           "Health",
+  finance:          "Finance",
+  investments:      "Investments",
+  "student-success":"Kids",
+  career:           "Career",
+  bible:            "Bible",
+  workout:          "Health",
+};
+
+function TimelineRow({ item }: { item: TimelineItem }) {
+  const dotColor = MODULE_DOT[item.category] ?? MODULE_DOT[item.module] ?? "var(--color-ink-3)";
+  const moduleTag = MODULE_LABEL[item.module];
+
+  const inner = (
     <div
       style={{
         display: "flex",
         alignItems: "center",
         gap: 14,
-        padding: "12px 20px",
+        padding: "11px 20px",
         borderBottom: "1px solid var(--color-rule-soft)",
       }}
     >
+      {/* Time */}
       <span
         style={{
           fontSize: 11,
           fontWeight: 500,
           color: "var(--color-ink-4)",
-          minWidth: 56,
+          minWidth: 58,
           fontFamily: "var(--font-geist, system-ui), sans-serif",
           letterSpacing: "0.02em",
           flexShrink: 0,
         }}
       >
-        {time}
+        {item.timeLabel}
       </span>
-      <span
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: "50%",
-          background: CATEGORY_DOT[category] ?? "var(--color-ink-3)",
-          flexShrink: 0,
-        }}
-      />
+      {/* Category dot */}
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+      {/* Label */}
       <span
         style={{
           fontSize: 13,
           color: "var(--color-ink-2)",
           fontFamily: "var(--font-geist, system-ui), sans-serif",
           lineHeight: 1.4,
+          flex: 1,
         }}
       >
-        {label}
+        {item.label}
       </span>
+      {/* Module badge */}
+      {moduleTag && (
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            color: dotColor,
+            flexShrink: 0,
+          }}
+        >
+          {moduleTag}
+        </span>
+      )}
     </div>
   );
+
+  return item.href ? (
+    <a href={item.href} style={{ display: "block", textDecoration: "none" }}>
+      {inner}
+    </a>
+  ) : inner;
 }
 
-function TodayTimeline({
-  reminders,
-  todos,
-  userTz,
-}: {
-  reminders: Array<{ id: string; due_at: string; title: string; category: string }>;
-  todos: Todo[];
-  userTz: string;
-}) {
-  const hasItems = reminders.length > 0 || todos.length > 0;
-
-  if (!hasItems) {
+function TodayTimeline({ items }: { items: TimelineItem[] }) {
+  if (items.length === 0) {
     return (
       <div
         style={{
@@ -430,18 +518,8 @@ function TodayTimeline({
         overflow: "hidden",
       }}
     >
-      {reminders.map((r) => {
-        const time = new Date(r.due_at).toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-          timeZone: userTz,
-        });
-        return (
-          <TimelineRow key={r.id} time={time} label={r.title} category={r.category} />
-        );
-      })}
-      {todos.map((t) => (
-        <TimelineRow key={t.id} time="Due today" label={t.title} category="todo" />
+      {items.map((item) => (
+        <TimelineRow key={item.id} item={item} />
       ))}
     </div>
   );
