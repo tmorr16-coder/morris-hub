@@ -21,8 +21,9 @@ import ClaudeTipCard from "./_components/ClaudeTipCard";
 import NewsSubscriptionsWidget from "./_components/NewsSubscriptionsWidget";
 import type { Todo } from "./actions";
 
-const PRIORITY_WIDGETS = new Set(["todos"]);       // personal tasks only
-const FAMILY_WIDGETS   = new Set(["reminders"]);    // household/shared → Family section
+const PRIORITY_WIDGETS = new Set(["todos"]);    // personal tasks only → My Priorities
+// Family gets a dedicated WeekAhead component (not a widget-slot)
+// "reminders" falls into Insights as a full management widget
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -99,14 +100,44 @@ export default async function HomePage() {
   });
   // todayStr already computed above before queries
 
-  // Items needing attention: overdue or high-priority incomplete todos
+  // Items needing attention: overdue todos + high-priority todos + overdue reminders
   const overdueTodos = todos.filter(
     (t) => !t.completed && t.due_date && t.due_date < todayStr
   );
   const urgentTodos = todos.filter(
     (t) => !t.completed && t.priority === "high" && (!t.due_date || t.due_date >= todayStr)
   );
-  const needsAttention = [...overdueTodos, ...urgentTodos].slice(0, 5);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const overdueReminders = (reminders as any[]).filter((r) => {
+    if (r.completed_at) return false;
+    const localDate = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
+    return localDate < todayStr;
+  });
+  const needsAttentionItems: Array<{ id: string; label: string; kind: "todo-overdue" | "todo-urgent" | "reminder-overdue" }> = [
+    ...overdueTodos.map((t) => ({ id: `t-${t.id}`, label: t.title, kind: "todo-overdue" as const })),
+    ...urgentTodos.map((t) => ({ id: `t-${t.id}`, label: t.title, kind: "todo-urgent" as const })),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...overdueReminders.map((r: any) => ({ id: `r-${r.id}`, label: r.title, kind: "reminder-overdue" as const })),
+  ].slice(0, 6);
+
+  // Week ahead: reminders for the next 7 days (tomorrow → +7d), grouped by date
+  const weekAheadItems = (() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const upcoming = (reminders as any[]).filter((r) => {
+      if (r.completed_at) return false;
+      const localDate = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
+      return localDate > todayStr; // strictly after today
+    });
+    const byDay: Record<string, Array<{ id: string; title: string; category: string; source_app: string }>> = {};
+    for (const r of upcoming) {
+      const dateKey = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
+      if (!byDay[dateKey]) byDay[dateKey] = [];
+      if (byDay[dateKey].length < 4) byDay[dateKey].push({ id: r.id, title: r.title, category: r.category, source_app: r.source_app });
+    }
+    return Object.entries(byDay)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(0, 5); // cap at 5 days
+  })();
 
   // Today's plan: cross-module timeline sorted chronologically
   const todayDueTodos = todos.filter((t) => !t.completed && t.due_date === todayStr);
@@ -162,10 +193,9 @@ export default async function HomePage() {
     appAccess: prefs.app_access ?? null,
   };
 
-  // Route widgets: todos → My Priorities, reminders → Family, everything else → Insights
+  // todos → My Priorities; everything else (including reminders) → Insights
   const priorityWids = prefs.visible_widgets.filter((w) => PRIORITY_WIDGETS.has(w));
-  const familyWids   = prefs.visible_widgets.filter((w) => FAMILY_WIDGETS.has(w));
-  const insightWids  = prefs.visible_widgets.filter((w) => !PRIORITY_WIDGETS.has(w) && !FAMILY_WIDGETS.has(w));
+  const insightWids  = prefs.visible_widgets.filter((w) => !PRIORITY_WIDGETS.has(w));
 
   return (
     <div>
@@ -202,8 +232,8 @@ export default async function HomePage() {
           </h1>
         </section>
 
-        {/* ── Needs Attention ── */}
-        {needsAttention.length > 0 && (
+        {/* ── Needs Attention — overdue todos + urgent todos + overdue reminders ── */}
+        {needsAttentionItems.length > 0 && (
           <section aria-labelledby="needs-attention-heading" style={{ marginBottom: 28 }}>
             <div
               style={{
@@ -227,19 +257,10 @@ export default async function HomePage() {
               >
                 Needs attention
               </h2>
-              <ul
-                style={{
-                  margin: 0,
-                  padding: 0,
-                  listStyle: "none",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 6,
-                }}
-              >
-                {needsAttention.map((todo) => (
+              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
+                {needsAttentionItems.map((item) => (
                   <li
-                    key={todo.id}
+                    key={item.id}
                     style={{
                       fontSize: 13,
                       color: "var(--color-ink-2)",
@@ -254,20 +275,16 @@ export default async function HomePage() {
                         width: 6,
                         height: 6,
                         borderRadius: "50%",
-                        background: todo.due_date && todo.due_date < todayStr
-                          ? "var(--color-red)"
-                          : "var(--color-amber)",
+                        background: item.kind === "todo-urgent" ? "var(--color-amber)" : "var(--color-red)",
                         flexShrink: 0,
                         marginTop: 3,
                       }}
                     />
                     <span>
-                      {todo.title}
-                      {todo.due_date && todo.due_date < todayStr && (
-                        <span style={{ marginLeft: 6, fontSize: 11, color: "var(--color-red)" }}>
-                          overdue
-                        </span>
-                      )}
+                      {item.label}
+                      <span style={{ marginLeft: 6, fontSize: 11, color: item.kind === "todo-urgent" ? "var(--color-amber)" : "var(--color-red)" }}>
+                        {item.kind === "todo-urgent" ? "high priority" : "overdue"}
+                      </span>
                     </span>
                   </li>
                 ))}
@@ -306,62 +323,16 @@ export default async function HomePage() {
           </section>
         )}
 
-        {/* ── Family — household reminders + shared tasks ── */}
+        {/* ── Family — week-ahead household view ── */}
         <section aria-labelledby="family-heading" style={{ marginBottom: 28 }}>
           <SectionHeader id="family-heading">Family</SectionHeader>
-          {familyWids.length > 0 && (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-                gap: 14,
-                alignItems: "start",
-                marginBottom: 14,
-              }}
-            >
-              {familyWids.map((widgetId) =>
-                renderWidget(widgetId, { todos, reminders, prefs, userTz, activeCareerGoals })
-              )}
-            </div>
-          )}
-          <div
-            style={{
-              background: "var(--color-bg-card)",
-              border: "1px solid var(--color-rule)",
-              borderRadius: 12,
-              padding: "16px 20px",
-              boxShadow: "var(--shadow-card)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-            }}
-          >
-            <p
-              style={{
-                fontSize: 13,
-                color: "var(--color-ink-3)",
-                margin: 0,
-                lineHeight: 1.5,
-                fontFamily: "var(--font-geist, system-ui), sans-serif",
-              }}
-            >
-              Family circle, member sharing, and assigned household tasks coming in Phase 2.
-            </p>
-            <a
-              href="/home/settings/family"
-              style={{
-                fontSize: 12,
-                color: "var(--color-accent)",
-                textDecoration: "none",
-                fontFamily: "var(--font-geist, system-ui), sans-serif",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
-            >
-              Manage circle →
-            </a>
-          </div>
+          <WeekAhead
+            weekItems={weekAheadItems}
+            today={today}
+            userTz={userTz}
+            activeCareerGoals={activeCareerGoals}
+            appAccess={prefs.app_access ?? []}
+          />
         </section>
 
         {/* ── Insights ── */}
@@ -386,6 +357,185 @@ export default async function HomePage() {
     </div>
   );
 }
+
+// ── Week-ahead family view ───────────────────────────────────────────────────
+
+const WEEK_DOT: Record<string, string> = {
+  appointment: "var(--color-accent)",
+  medication:  "#4D6B3A",
+  workout:     "#C97A3A",
+  bill:        "var(--color-amber)",
+  personal:    "var(--color-ink-3)",
+  general:     "var(--color-ink-3)",
+};
+
+const WEEK_MODULE_LABEL: Record<string, string> = {
+  health:           "Health",
+  finance:          "Finance",
+  "student-success":"Kids",
+  career:           "Career",
+};
+
+function weekDayLabel(dateStr: string, today: Date, userTz: string): string {
+  const d = new Date(`${dateStr}T12:00:00`);
+  const tomorrowStr = new Date(today.getTime() + 86_400_000)
+    .toLocaleDateString("sv", { timeZone: userTz });
+  if (dateStr === tomorrowStr) return "Tomorrow";
+  return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+}
+
+function WeekAhead({
+  weekItems,
+  today,
+  userTz,
+  activeCareerGoals,
+  appAccess,
+}: {
+  weekItems: Array<[string, Array<{ id: string; title: string; category: string; source_app: string }>]>;
+  today: Date;
+  userTz: string;
+  activeCareerGoals: number;
+  appAccess: string[];
+}) {
+  const hasItems = weekItems.length > 0;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Week-ahead reminders grouped by day */}
+      {hasItems ? (
+        <div
+          style={{
+            background: "var(--color-bg-card)",
+            border: "1px solid var(--color-rule)",
+            borderRadius: 12,
+            boxShadow: "var(--shadow-card)",
+            overflow: "hidden",
+          }}
+        >
+          {weekItems.map(([dateStr, items], di) => (
+            <div key={dateStr}>
+              {/* Day header */}
+              <div
+                style={{
+                  padding: "9px 20px 6px",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  color: "var(--color-ink-4)",
+                  fontFamily: "var(--font-geist, system-ui), sans-serif",
+                  background: di % 2 === 0 ? "transparent" : "rgba(0,0,0,0.015)",
+                  borderTop: di > 0 ? "1px solid var(--color-rule-soft)" : "none",
+                }}
+              >
+                {weekDayLabel(dateStr, today, userTz)}
+              </div>
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "8px 20px",
+                    background: di % 2 === 0 ? "transparent" : "rgba(0,0,0,0.015)",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: WEEK_DOT[item.category] ?? "var(--color-ink-3)",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: 13,
+                      color: "var(--color-ink-2)",
+                      fontFamily: "var(--font-geist, system-ui), sans-serif",
+                      flex: 1,
+                    }}
+                  >
+                    {item.title}
+                  </span>
+                  {WEEK_MODULE_LABEL[item.source_app] && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        letterSpacing: "0.06em",
+                        textTransform: "uppercase",
+                        color: "var(--color-ink-4)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {WEEK_MODULE_LABEL[item.source_app]}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div
+          style={{
+            background: "var(--color-bg-card)",
+            border: "1px solid var(--color-rule)",
+            borderRadius: 12,
+            padding: "20px 24px",
+            boxShadow: "var(--shadow-card)",
+          }}
+        >
+          <p style={{ fontSize: 13, color: "var(--color-ink-4)", margin: 0, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+            Nothing coming up this week.
+          </p>
+        </div>
+      )}
+
+      {/* Module summary links */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        {appAccess.includes("student-success") && (
+          <a href="/student-success" style={{ ...summaryChipStyle, borderColor: "#6B5B95", color: "#6B5B95" }}>
+            Kids →
+          </a>
+        )}
+        {appAccess.includes("health") && (
+          <a href="/health" style={{ ...summaryChipStyle, borderColor: "#4D6B3A", color: "#4D6B3A" }}>
+            Health →
+          </a>
+        )}
+        {(appAccess.includes("finance") || appAccess.includes("investments")) && (
+          <a href="/finance/dashboard" style={{ ...summaryChipStyle, borderColor: "#8B6A47", color: "#8B6A47" }}>
+            Finance →
+          </a>
+        )}
+        {activeCareerGoals > 0 && appAccess.includes("career") && (
+          <a href="/career/goals" style={{ ...summaryChipStyle, borderColor: "#2A6049", color: "#2A6049" }}>
+            {activeCareerGoals} career goal{activeCareerGoals !== 1 ? "s" : ""} →
+          </a>
+        )}
+        <a href="/home/settings/family" style={{ ...summaryChipStyle }}>
+          Manage circle →
+        </a>
+      </div>
+    </div>
+  );
+}
+
+const summaryChipStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 500,
+  padding: "5px 12px",
+  borderRadius: 20,
+  border: "1px solid var(--color-rule)",
+  color: "var(--color-ink-3)",
+  textDecoration: "none",
+  fontFamily: "var(--font-geist, system-ui), sans-serif",
+  background: "var(--color-bg-card)",
+};
 
 // ── Today timeline ──────────────────────────────────────────────────────────
 
