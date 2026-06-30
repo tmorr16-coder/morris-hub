@@ -103,6 +103,23 @@ export interface PlaidAccountSuggestion {
   balance: number | null;
 }
 
+export interface SavedAccountSuggestion {
+  id: string;
+  name: string;
+  institution: string | null;
+  account_type: string;
+  balance: number;
+}
+
+export interface SharedAccountSuggestion {
+  id: string;
+  name: string;
+  institution: string | null;
+  account_type: string;
+  balance: number;
+  shared_by: string; // display label: "Shared by [name/email]"
+}
+
 export interface ProjectionPoint {
   age: number;
   portfolio: number;

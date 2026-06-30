@@ -9,6 +9,8 @@ import type {
   RetirementDebt,
   RetirementScenario,
   PlaidAccountSuggestion,
+  SavedAccountSuggestion,
+  SharedAccountSuggestion,
   PlanSnapshot,
 } from "../types";
 import { savePlan } from "../actions";
@@ -63,6 +65,8 @@ interface Props {
   debts: RetirementDebt[];
   scenario: RetirementScenario | null;
   plaidAccounts: PlaidAccountSuggestion[];
+  savedAccounts: SavedAccountSuggestion[];
+  sharedAccounts: SharedAccountSuggestion[];
 }
 
 function computeNestEgg(
@@ -206,6 +210,8 @@ export default function RetirementClient({
   debts: initialDebts,
   scenario: initialScenario,
   plaidAccounts,
+  savedAccounts,
+  sharedAccounts,
 }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("Accounts");
   const [profile, setProfile] = useState<RetirementProfile>(
@@ -328,6 +334,8 @@ export default function RetirementClient({
           accounts={accounts}
           setAccounts={setAccounts}
           plaidAccounts={plaidAccounts}
+          savedAccounts={savedAccounts}
+          sharedAccounts={sharedAccounts}
           profile={profile}
         />
       )}

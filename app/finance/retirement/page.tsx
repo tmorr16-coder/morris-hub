@@ -1,7 +1,5 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
-import { requireFinanceAccess } from "@/lib/finance/access";
 import { loadPlan } from "./actions";
 import RetirementClient from "./_components/RetirementClient";
 
@@ -29,6 +27,8 @@ export default async function RetirementPage() {
           debts={plan.debts}
           scenario={plan.scenario}
           plaidAccounts={plan.plaidAccounts}
+          savedAccounts={plan.savedAccounts}
+          sharedAccounts={plan.sharedAccounts}
         />
       </main>
 

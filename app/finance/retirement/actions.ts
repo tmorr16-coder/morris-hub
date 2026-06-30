@@ -10,6 +10,8 @@ import type {
   RetirementDebt,
   RetirementScenario,
   PlaidAccountSuggestion,
+  SavedAccountSuggestion,
+  SharedAccountSuggestion,
 } from "./types";
 
 type Svc = ReturnType<typeof createServiceClient>;
@@ -26,6 +28,8 @@ export async function loadPlan(): Promise<{
   debts: RetirementDebt[];
   scenario: RetirementScenario | null;
   plaidAccounts: PlaidAccountSuggestion[];
+  savedAccounts: SavedAccountSuggestion[];
+  sharedAccounts: SharedAccountSuggestion[];
 }> {
   const { user } = await requireFinanceAccess();
   const service = createServiceClient();
@@ -37,8 +41,17 @@ export async function loadPlan(): Promise<{
     .eq("user_id", user.id)
     .maybeSingle();
 
+  const [
+    plaidAccounts,
+    savedAccounts,
+    sharedAccounts,
+  ] = await Promise.all([
+    fetchPlaidAccounts(service, user.id),
+    fetchSavedAccounts(service, user.id),
+    fetchSharedAccounts(service, user.id),
+  ]);
+
   if (!profile) {
-    const plaidAccounts = await fetchPlaidAccounts(service, user.id);
     return {
       profile: null,
       accounts: [],
@@ -47,6 +60,8 @@ export async function loadPlan(): Promise<{
       debts: [],
       scenario: null,
       plaidAccounts,
+      savedAccounts,
+      sharedAccounts,
     };
   }
 
@@ -56,14 +71,12 @@ export async function loadPlan(): Promise<{
     { data: expenses },
     { data: debts },
     { data: scenario },
-    plaidAccounts,
   ] = await Promise.all([
     schema.from("retirement_accounts").select("*").eq("profile_id", profile.id).order("sort_order"),
     schema.from("retirement_incomes").select("*").eq("profile_id", profile.id).order("sort_order"),
     schema.from("retirement_expenses").select("*").eq("profile_id", profile.id).order("sort_order"),
     schema.from("retirement_debts").select("*").eq("profile_id", profile.id).order("sort_order"),
     schema.from("retirement_scenarios").select("*").eq("profile_id", profile.id).maybeSingle(),
-    fetchPlaidAccounts(service, user.id),
   ]);
 
   return {
@@ -74,6 +87,8 @@ export async function loadPlan(): Promise<{
     debts: (debts ?? []) as RetirementDebt[],
     scenario: scenario as RetirementScenario | null,
     plaidAccounts,
+    savedAccounts,
+    sharedAccounts,
   };
 }
 
@@ -101,6 +116,43 @@ async function fetchPlaidAccounts(service: Svc, userId: string): Promise<PlaidAc
     mask: a.mask,
     balance: a.current_balance,
   })) as PlaidAccountSuggestion[];
+}
+
+async function fetchSavedAccounts(service: Svc, userId: string): Promise<SavedAccountSuggestion[]> {
+  const schema = db(service);
+  const { data } = await schema
+    .from("manual_accounts")
+    .select("id, name, institution, account_type, balance")
+    .eq("user_id", userId)
+    .order("name");
+  return ((data ?? []) as any[]).map((a) => ({
+    id: a.id,
+    name: a.name,
+    institution: a.institution,
+    account_type: a.account_type ?? "other_investment",
+    balance: a.balance ?? 0,
+  }));
+}
+
+async function fetchSharedAccounts(service: Svc, userId: string): Promise<SharedAccountSuggestion[]> {
+  const schema = db(service);
+  // Manual accounts shared with this user
+  const { data: sharedManual } = await schema
+    .from("manual_account_shares")
+    .select("account:manual_accounts(id, name, institution, account_type, balance), owner_user_id")
+    .eq("recipient_user_id", userId)
+    .eq("accepted", true);
+
+  return ((sharedManual ?? []) as any[])
+    .filter((r) => r.account)
+    .map((r) => ({
+      id: r.account.id,
+      name: r.account.name,
+      institution: r.account.institution,
+      account_type: r.account.account_type ?? "other_investment",
+      balance: r.account.balance ?? 0,
+      shared_by: "Shared account",
+    }));
 }
 
 export async function savePlan(data: {
