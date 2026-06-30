@@ -64,7 +64,15 @@ export async function getPreferences(userId: string): Promise<Preferences> {
       "tech",
       "other",
     ];
-    if (!p.app_access?.length) p.app_access = ["hub", "health", "finance", "student-success", "investments", "bible"];
+    // Ensure all modules are in app_access (add any missing ones for existing users)
+    const ALL_MODULES = ["hub", "health", "finance", "investments", "career", "student-success", "bible"];
+    if (!p.app_access?.length) {
+      p.app_access = ALL_MODULES;
+    } else {
+      // Merge in any modules added after the user's preferences were first set
+      const missing = ALL_MODULES.filter((m) => !p.app_access!.includes(m));
+      if (missing.length > 0) p.app_access = [...p.app_access!, ...missing];
+    }
     if (!p.news_sources?.length) p.news_sources = DEFAULT_NEWS_SOURCES;
     if (!p.watched_stocks?.length) p.watched_stocks = [];
     return p;

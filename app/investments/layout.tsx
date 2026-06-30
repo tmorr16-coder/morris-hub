@@ -23,6 +23,7 @@ export default async function InvestmentsLayout({
     name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
     email: user.email,
     avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
+    appAccess: prefs.app_access ?? null,
   };
 
   return (
