@@ -1,23 +1,30 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
 import PlatformMenu from "@/components/PlatformMenu";
-import InvestmentsNav from "./_components/InvestmentsNav";
+import MoneySubNav from "../finance/_components/MoneySubNav";
+import PinGate from "../finance/_components/PinGate";
 
-export default async function InvestmentsLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function InvestmentsLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/");
+  if (!user) redirect("/login");
 
-  // Check if user has access to investments module
-  const prefs = await getPreferences(user.id);
-  if (!prefs.app_access?.includes("investments")) {
-    redirect("/home");
-  }
+  const [prefs, pinResult] = await Promise.all([
+    getPreferences(user.id),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (createServiceClient() as any)
+      .schema("hub")
+      .from("preferences")
+      .select("finance_pin")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+  ]);
+
+  if (!prefs.app_access?.includes("investments")) redirect("/home");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const financePin: string | null = (pinResult.data as any)?.finance_pin ?? null;
 
   const menuUser = {
     name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
@@ -29,8 +36,12 @@ export default async function InvestmentsLayout({
   return (
     <div>
       <PlatformMenu currentApp="investments" user={menuUser} />
-      <InvestmentsNav />
-      {children}
+      <MoneySubNav />
+      <PinGate enabled={!!financePin} correctPin={financePin ?? ""}>
+        <div style={{ paddingBottom: 100 }}>
+          {children}
+        </div>
+      </PinGate>
     </div>
   );
 }

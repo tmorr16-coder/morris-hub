@@ -8,7 +8,7 @@ import ConnectSection from "./_components/ConnectSection";
 import SyncNowButton from "./_components/SyncNowButton";
 import FinanceChat from "./_components/FinanceChat";
 import RecentActivityClient from "./_components/RecentActivityClient";
-import PinGate from "./_components/PinGate";
+// PinGate moved to finance/layout.tsx — covers all Money routes including investments
 import SharedAccountsSection from "./_components/SharedAccountsSection";
 import type { SharedWithMe } from "./settings/share-actions";
 
@@ -83,18 +83,10 @@ export default async function DashboardPage() {
   // Round 1: fetch user-scoped data that doesn't depend on other results.
   // accounts and transactions are fetched in round 2 once we know itemIds.
   const [
-    { data: prefData },
     { data: itemRows },
     { data: manualRows },
     { data: sharedWithMeRaw },
   ] = await Promise.all([
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (service as any)
-      .schema("hub")
-      .from("preferences")
-      .select("finance_pin")
-      .eq("user_id", user.id)
-      .maybeSingle(),
     service
       .schema("finance")
       .from("plaid_items")
@@ -141,9 +133,6 @@ export default async function DashboardPage() {
         .order("date", { ascending: false })
         .limit(100)
     : { data: [] };
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const financePin: string | null = (prefData as any)?.finance_pin ?? null;
 
   const items: ItemRow[] = (itemRows as ItemRow[]) ?? [];
   const allAccounts: AccountRow[] = (accountRowsRaw as AccountRow[]) ?? [];
@@ -331,7 +320,6 @@ export default async function DashboardPage() {
   });
 
   return (
-    <PinGate enabled={!!financePin} correctPin={financePin ?? ""}>
     <div>
 
       {/* ── Header ────────────────────────────────────────────────────── */}
@@ -692,6 +680,5 @@ export default async function DashboardPage() {
         <span>finance.morrisai.family</span>
       </footer>
     </div>
-    </PinGate>
   );
 }
