@@ -12,7 +12,7 @@ const TABS = [
 const MORE_ITEMS = [
   { label: "Money",       href: "/finance/dashboard",                      accessKey: "finance" },
   { label: "Ask Morris",  href: "/home",                                   accessKey: null },
-  { label: "Bible",       href: "https://bible.morrisai.family/dashboard", accessKey: "bible" },
+  { label: "Bible",       href: "/bible/dashboard",                        accessKey: "bible" },
   { label: "Career",      href: "/career",                                 accessKey: "career" },
   { label: "Settings",    href: "/home/settings",                          accessKey: null },
 ];

@@ -27,7 +27,8 @@ function activeKeyFromApp(currentApp: string): string {
   if (currentApp === "health") return "me";
   if (currentApp === "finance" || currentApp === "investments") return "money";
   if (currentApp === "student-success") return "kids";
-  return "today";
+  // bible and career have no top-level nav tab — return empty so nothing is highlighted
+  return "";
 }
 
 export default function PlatformMenu({
