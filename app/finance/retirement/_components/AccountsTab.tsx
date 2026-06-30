@@ -40,11 +40,12 @@ const MANUAL_TO_RETIREMENT_TYPE: Record<string, string> = {
 
 type Source = "custom" | "plaid" | "saved" | "shared";
 
+// "Shared with me" intentionally excluded — retirement accounts are personal;
+// another person's shared account should not appear in your retirement plan.
 const SOURCES: { key: Source; label: string; description: string }[] = [
   { key: "custom",  label: "Custom",         description: "Enter account details manually" },
   { key: "plaid",   label: "Plaid account",  description: "Link a Plaid-connected account" },
   { key: "saved",   label: "Saved account",  description: "Import from your saved accounts" },
-  { key: "shared",  label: "Shared with me", description: "Import an account shared by a family member" },
 ];
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -93,8 +94,7 @@ export default function AccountsTab({
   const availableSources = SOURCES.filter((s) => {
     if (s.key === "plaid") return plaidAccounts.length > 0;
     if (s.key === "saved") return savedAccounts.length > 0;
-    if (s.key === "shared") return sharedAccounts.length > 0;
-    return true;
+    return true; // "shared" is excluded from SOURCES entirely
   });
 
   function openAdd() {
