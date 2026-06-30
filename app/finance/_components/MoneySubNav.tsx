@@ -10,6 +10,11 @@ const LINKS = [
     match: (p: string) => p === "/finance/dashboard" || p === "/finance",
   },
   {
+    href: "/finance/portfolio",
+    label: "Portfolio",
+    match: (p: string) => p.startsWith("/finance/portfolio"),
+  },
+  {
     href: "/investments/stocks",
     label: "Stocks",
     match: (p: string) => p.startsWith("/investments/stocks"),
