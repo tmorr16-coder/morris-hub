@@ -19,7 +19,12 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 401 });
+    const hint = error.message.includes("Email logins are disabled")
+      ? "Enable Email/Password in Supabase Auth → Providers, then try again."
+      : error.message.includes("Invalid login credentials")
+      ? "Wrong email or password. Use PUT /api/auth/test-login to set the password first."
+      : error.message;
+    return NextResponse.json({ error: hint }, { status: 401 });
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://morrisai.family";
@@ -41,11 +46,32 @@ export async function PUT(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const admin = createServiceClient() as any;
 
-  // Create user via admin API — skips email verification
+  // Try to find existing user first and update their password
+  const { data: listData } = await admin.auth.admin.listUsers({ perPage: 200 });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const existing = (listData?.users ?? []).find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+
+  if (existing) {
+    // User exists (e.g. from Google OAuth) — set/update their password
+    const { data: updated, error: updateErr } = await admin.auth.admin.updateUserById(existing.id, {
+      password,
+      email_confirm: true,
+    });
+    if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 400 });
+    try {
+      await admin.schema("hub").from("preferences").upsert(
+        { user_id: existing.id, onboarding_completed: true, app_access: ["hub", "health", "finance", "investments", "career", "student-success", "bible"] },
+        { onConflict: "user_id" }
+      );
+    } catch { /* ignore */ }
+    return NextResponse.json({ ok: true, userId: updated?.user?.id ?? existing.id, email, action: "password_updated" });
+  }
+
+  // Create new user — skips email verification
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password,
-    email_confirm: true, // auto-confirm so they can log in immediately
+    email_confirm: true,
     user_metadata: { full_name: name ?? email.split("@")[0] },
   });
 
@@ -61,5 +87,5 @@ export async function PUT(req: NextRequest) {
     );
   } catch { /* ignore if table not ready */ }
 
-  return NextResponse.json({ ok: true, userId: data.user.id, email: data.user.email });
+  return NextResponse.json({ ok: true, userId: data.user.id, email: data.user.email, action: "created" });
 }
