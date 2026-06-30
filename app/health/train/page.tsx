@@ -125,6 +125,21 @@ export default async function TrainPage() {
     (a, b) => b.dateStr.localeCompare(a.dateStr)
   );
 
+  // Build workout history context for AI coach (last 7 sessions)
+  const recentSessions = allWorkouts.slice(0, 7);
+  const workoutHistoryContext = recentSessions.length > 0
+    ? `\n\n## Recent workout history (last ${recentSessions.length} sessions)\n` +
+      recentSessions.map((w) => {
+        const parts = [w.dateStr, w.label];
+        if (w.durationLabel) parts.push(w.durationLabel);
+        if (w.meta) parts.push(w.meta);
+        return `- ${parts.join(" · ")}`;
+      }).join("\n") +
+      "\n\nUse this history to give specific progressive overload suggestions and reference what they've actually done recently."
+    : "";
+
+  const workoutCoachContext = `You are an expert personal trainer and strength coach. Give specific, actionable advice about programming, form, progressive overload, and recovery. Keep answers concise — 2-4 sentences unless the question genuinely requires more. Be encouraging but direct.${workoutHistoryContext}`;
+
   // Group by day label for display
   const groups: { day: string; items: UnifiedWorkout[] }[] = [];
   for (const w of allWorkouts) {
@@ -382,7 +397,7 @@ export default async function TrainPage() {
           Workout coach
         </div>
         <ChatWidget
-          systemContext="You are an expert personal trainer and strength coach. Give specific, actionable advice about programming, form, progressive overload, and recovery. Keep answers concise — 2-4 sentences unless the question genuinely requires more. Be encouraging but direct."
+          systemContext={workoutCoachContext}
           placeholder="Ask about sets, reps, form, programming…"
           welcomeMessage="Ready to help with your training. What do you want to work on?"
           addProfileContext

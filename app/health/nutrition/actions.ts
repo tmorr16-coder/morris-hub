@@ -14,6 +14,9 @@ export async function addMeal(data: {
   meal_type: MealType;
   name: string;
   calories_est: number | null;
+  protein_g?: number | null;
+  carbs_g?: number | null;
+  fat_g?: number | null;
   notes: string | null;
   is_favorite?: boolean;
 }): Promise<{ error?: string; id?: string }> {

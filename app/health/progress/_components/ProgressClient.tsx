@@ -31,6 +31,14 @@ export interface FeedItem {
   icon: string;
 }
 
+export interface BiaPoint {
+  ts: string;
+  label: string;
+  weight: number | null;
+  muscle: number | null;
+  fat: number | null;
+}
+
 export interface ProgressProps {
   withingsCurrent: number | null;
   withingsDelta30d: number | null;
@@ -42,6 +50,8 @@ export interface ProgressProps {
   last7Steps: { day: string; steps: number }[];
   feedItems: FeedItem[];
   serverTargetWeightLbs: number | null;
+  biaPoints?: BiaPoint[];
+  biaHasData?: boolean;
 }
 
 function relativeDay(dateStr: string): string {
@@ -181,6 +191,8 @@ export default function ProgressClient({
   last7Steps,
   feedItems,
   serverTargetWeightLbs,
+  biaPoints = [],
+  biaHasData = false,
 }: ProgressProps) {
   const [tab, setTab] = useState<Tab>("body");
   // Seed from server (Supabase user_metadata); localStorage overrides if user set it locally
@@ -197,11 +209,22 @@ export default function ProgressClient({
     } catch { /* ignore */ }
   }, []);
 
+  // Use real Withings BIA data when available, fall back to mock
   const bodyData = useMemo(() => {
+    if (biaHasData && biaPoints.length >= 2) {
+      // DataPoint index signature requires number|Date — omit null metrics
+      return biaPoints.map((p) => {
+        const pt: { date: Date; [k: string]: number | Date } = { date: new Date(p.ts) };
+        if (p.weight != null) pt.weight = p.weight;
+        if (p.muscle != null) pt.muscle = p.muscle;
+        if (p.fat    != null) pt.fat    = p.fat;
+        return pt;
+      });
+    }
+    // Fallback to mock with current weight offset
     return MOCK_WEEKS_AGO.map((weeksAgo, i) => {
       const d = new Date();
       d.setDate(d.getDate() + weeksAgo * 7);
-      // Use real current weight if available, scale back proportionally
       const realCurrent = withingsCurrent ?? MOCK_WEIGHTS[MOCK_WEIGHTS.length - 1];
       const mockCurrent = MOCK_WEIGHTS[MOCK_WEIGHTS.length - 1];
       const offset = realCurrent - mockCurrent;
@@ -209,10 +232,10 @@ export default function ProgressClient({
         date: d,
         weight: MOCK_WEIGHTS[i] + offset,
         muscle: MOCK_MUSCLES[i],
-        fat:    MOCK_FATS[i],
+        fat: MOCK_FATS[i],
       };
     });
-  }, [withingsCurrent]);
+  }, [biaHasData, biaPoints, withingsCurrent]);
 
   // Body comp stats (bottom section, always visible)
   const currentWeight = withingsCurrent ?? MOCK_WEIGHTS[MOCK_WEIGHTS.length - 1];

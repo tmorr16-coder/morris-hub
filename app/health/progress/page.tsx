@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
 import { createClient } from "@/lib/supabase/server";
-import ProgressClient from "./_components/ProgressClient";
+import ProgressClient, { type BiaPoint } from "./_components/ProgressClient";
 
 function toDateStr(d: Date) { return d.toLocaleDateString("sv"); }
 
@@ -19,6 +19,8 @@ export default async function ProgressPage() {
   const sevenDaysAgo  = new Date(Date.now() - 7  * 86_400_000);
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);
 
+  const twelveWeeksAgo = new Date(Date.now() - 84 * 86_400_000);
+
   const [
     { data: latestWeightRows },
     { data: oldestWeightRows },
@@ -26,6 +28,7 @@ export default async function ProgressPage() {
     { data: sessionRows },
     { data: mealRows },
     { data: stepRows },
+    { data: bodyCompRows },
   ] = await Promise.all([
     db.from("apple_health_metrics")
       .select("value")
@@ -58,6 +61,13 @@ export default async function ProgressPage() {
       .eq("user_id", userId).eq("source", "apple_health")
       .in("metric_name", ["step_count", "Step Count", "Steps"])
       .gte("timestamp", sevenDaysAgo.toISOString()),
+    // 12-week Withings BIA — weight, muscle_mass, fat_mass
+    db.from("apple_health_metrics")
+      .select("metric_name, value, timestamp")
+      .eq("user_id", userId).eq("source", "withings")
+      .in("metric_name", ["weight", "muscle_mass", "fat_mass"])
+      .gte("timestamp", twelveWeeksAgo.toISOString())
+      .order("timestamp", { ascending: true }),
   ]);
 
   type WtRow  = { value: number };
@@ -65,6 +75,34 @@ export default async function ProgressPage() {
   type WkRow  = { id: string; date: string; type: string; duration_min: number | null; effort: string | null };
   type MRow   = { id: string; date: string; meal_type: string; name: string; calories_est: number | null };
   type StRow  = { value: number; timestamp: string };
+  type BiaRow = { metric_name: string; value: number; timestamp: string };
+
+  // Build body comp series from Withings BIA data (bucket by week)
+  // BiaPoint type imported from ProgressClient
+  const biaRows: BiaRow[] = (bodyCompRows as BiaRow[] | null) ?? [];
+  const biaHasData = biaRows.length > 0;
+
+  // Group by ISO week (take latest reading per week per metric)
+  const weekMap = new Map<string, { weight?: number; muscle?: number; fat?: number; ts: string }>();
+  for (const r of biaRows) {
+    const d = new Date(r.timestamp);
+    const weekKey = `${d.getFullYear()}-W${Math.ceil((d.getDate() + new Date(d.getFullYear(), d.getMonth(), 1).getDay()) / 7).toString().padStart(2, "0")}`;
+    const entry = weekMap.get(weekKey) ?? { ts: r.timestamp };
+    if (r.metric_name === "weight") entry.weight = r.value;
+    if (r.metric_name === "muscle_mass") entry.muscle = r.value;
+    if (r.metric_name === "fat_mass") entry.fat = r.value;
+    weekMap.set(weekKey, { ...entry, ts: r.timestamp });
+  }
+  const biaPoints: BiaPoint[] = [...weekMap.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-8) // last 8 weeks
+    .map(([, v]) => ({
+      ts: v.ts,
+      label: new Date(v.ts).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      weight: v.weight ?? null,
+      muscle: v.muscle ?? null,
+      fat: v.fat ?? null,
+    }));
 
   const withingsCurrent: number | null = (latestWeightRows as WtRow[]|null)?.[0]?.value ?? null;
   const withingsOldest:  number | null = (oldestWeightRows as WtRow[]|null)?.[0]?.value ?? null;
@@ -130,6 +168,8 @@ export default async function ProgressPage() {
       last7Steps={last7Steps}
       feedItems={feedItems}
       serverTargetWeightLbs={serverTargetWeightLbs}
+      biaPoints={biaPoints}
+      biaHasData={biaHasData}
     />
   );
 }

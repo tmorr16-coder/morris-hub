@@ -10,6 +10,9 @@ export interface Meal {
   meal_type: MealType;
   name: string;
   calories_est: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
   notes: string | null;
   is_favorite: boolean;
 }
@@ -64,6 +67,9 @@ function AddMealSheet({
   const [mealType, setMealType] = useState<MealType>(defaultType);
   const [name, setName] = useState("");
   const [calories, setCalories] = useState("");
+  const [protein, setProtein] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [fat, setFat] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -78,6 +84,9 @@ function AddMealSheet({
         meal_type: mealType,
         name: name.trim(),
         calories_est: calories ? parseInt(calories) : null,
+        protein_g: protein ? parseFloat(protein) : null,
+        carbs_g: carbs ? parseFloat(carbs) : null,
+        fat_g: fat ? parseFloat(fat) : null,
         notes: notes.trim() || null,
       });
       if (!result.error && result.id) {
@@ -86,6 +95,9 @@ function AddMealSheet({
           meal_type: mealType,
           name: name.trim(),
           calories_est: calories ? parseInt(calories) : null,
+          protein_g: protein ? parseFloat(protein) : null,
+          carbs_g: carbs ? parseFloat(carbs) : null,
+          fat_g: fat ? parseFloat(fat) : null,
           notes: notes.trim() || null,
           is_favorite: false,
         });
@@ -185,6 +197,32 @@ function AddMealSheet({
           />
         </div>
 
+        {/* Macros */}
+        <div>
+          <div style={eyebrow}>Macros · g (optional)</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            {[
+              { label: "Protein", val: protein, set: setProtein, color: "#4a6a4d" },
+              { label: "Carbs",   val: carbs,   set: setCarbs,   color: "#7a5c2e" },
+              { label: "Fat",     val: fat,     set: setFat,     color: "#b84a2e" },
+            ].map(({ label, val, set, color }) => (
+              <div key={label}>
+                <div style={{ fontSize: 9, fontWeight: 600, color, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
+                <input
+                  value={val}
+                  onChange={(e) => set(e.target.value)}
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  placeholder="—"
+                  inputMode="decimal"
+                  style={{ ...fieldInput, textAlign: "center", padding: "10px 6px" }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Notes */}
         <div>
           <div style={eyebrow}>Notes (optional)</div>
@@ -281,7 +319,7 @@ export default function NutritionClient({ date, meals: initialMeals, favorites: 
         // Reload by revalidation — or optimistically add
         setMeals((prev) => [
           ...prev,
-          { id: crypto.randomUUID(), meal_type: mealType, name: fav.name, calories_est: fav.calories_est, notes: null, is_favorite: false },
+          { id: crypto.randomUUID(), meal_type: mealType, name: fav.name, calories_est: fav.calories_est, protein_g: null, carbs_g: null, fat_g: null, notes: null, is_favorite: false },
         ]);
         setShowFavorites(false);
       }
