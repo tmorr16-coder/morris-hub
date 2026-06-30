@@ -52,7 +52,7 @@ export default function PrivacyPage() {
         <Link href="/login" style={{ fontSize: 13, color: "var(--color-ink-3)", textDecoration: "none" }}>Sign in</Link>
       </nav>
 
-      <main style={{ maxWidth: 760, margin: "0 auto", padding: "48px 28px 80px" }}>
+      <main style={{ maxWidth: 760, margin: "0 auto", padding: "48px 28px 100px" }}>
 
         {/* Header */}
         <div style={{ marginBottom: 40 }}>

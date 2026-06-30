@@ -194,7 +194,7 @@ export default function NewCertificationPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
-      <main style={{ maxWidth: 680, margin: "0 auto", padding: "40px 28px 80px" }}>
+      <main style={{ maxWidth: 680, margin: "0 auto", padding: "40px 28px 100px" }}>
         {/* Back link */}
         <Link
           href="/student-success/certifications"

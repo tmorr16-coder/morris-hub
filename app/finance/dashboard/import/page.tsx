@@ -93,7 +93,7 @@ export default async function ImportPage() {
         <section style={{ marginBottom: 40 }}>
           <h2 className="serif" style={{ fontSize: 22, marginBottom: 6 }}>Upload statement</h2>
           <p style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 16, maxWidth: 560 }}>
-            Upload a PDF or CSV — Claude will extract the balance and holdings. Works best with holdings summaries, not transaction logs.
+            Upload a PDF or CSV — Morris will extract the balance and holdings. Works best with holdings summaries, not transaction logs.
           </p>
           <ImportClient userId={user.id} />
         </section>

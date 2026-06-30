@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/health/auth";
-import BottomNav from "./_components/BottomNav";
 import PlatformMenu from "@/components/PlatformMenu";
+// Health-specific BottomNav removed — platform BottomNav (in PlatformMenu) handles mobile nav
 
 export default async function DashboardLayout({
   children,
@@ -52,9 +52,8 @@ export default async function DashboardLayout({
   return (
     <>
       <PlatformMenu currentApp="health" user={menuUser} />
-      <div data-section="health" style={{ paddingBottom: 72 }}>
+      <div data-section="health" style={{ paddingBottom: 100 }}>
         {children}
-        <BottomNav />
       </div>
     </>
   );

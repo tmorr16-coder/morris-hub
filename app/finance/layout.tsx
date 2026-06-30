@@ -28,7 +28,7 @@ export default async function FinanceLayout({ children }: { children: React.Reac
     <>
       <PlatformMenu currentApp="finance" user={menuUser} />
       <FinanceSubNav />
-      <div data-section="finance">
+      <div data-section="finance" style={{ paddingBottom: 100 }}>
         {children}
       </div>
     </>

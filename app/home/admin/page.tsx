@@ -160,7 +160,7 @@ export default async function AdminPage() {
     <div>
       <PlatformMenu currentApp="hub" user={menuUser} />
 
-      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 28px 80px" }}>
+      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 28px 100px" }}>
         <Link
           href="/home"
           style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--color-ink-3)", textDecoration: "none", marginBottom: 16 }}

@@ -30,7 +30,7 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
   news:               "News",
   city_news:          "Local News",
   news_subscriptions: "My Subscriptions",
-  tips:               "Claude Tips",
+  tips:               "Morris tips",
   career:             "Career Development",
 };
 
@@ -844,7 +844,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
 
       {/* News topics */}
       <section style={card}>
-        <SectionHeader title="News topics" subtitle="What Claude searches when refreshing the news feed" />
+        <SectionHeader title="News topics" subtitle="What Morris searches when refreshing the news feed" />
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {AVAILABLE_TOPICS.map((t) => {
             const active = topics.includes(t.id);

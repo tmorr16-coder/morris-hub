@@ -125,7 +125,7 @@ export default async function LSATPrepPage() {
     <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
       <PlatformMenu currentApp="student-success" user={menuUser} />
 
-      <main style={{ maxWidth: 960, margin: "0 auto", padding: "32px 28px 80px" }}>
+      <main style={{ maxWidth: 960, margin: "0 auto", padding: "32px 28px 100px" }}>
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
           <div>

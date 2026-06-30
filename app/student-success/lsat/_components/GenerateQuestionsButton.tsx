@@ -67,7 +67,7 @@ export default function GenerateQuestionsButton({ questionTypes }: { questionTyp
             AI Question Generator
           </div>
           <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginBottom: 16, lineHeight: 1.5 }}>
-            Claude Sonnet writes realistic LSAT-style questions, tags trap types on each wrong answer, and stores them in the database. Questions are marked <code style={{ fontSize: 10, background: "var(--color-bg-deep)", padding: "1px 5px", borderRadius: 4 }}>AI-generated</code> — distinct from any official PrepTest questions you add manually.
+            Morris generates realistic LSAT-style questions, tags trap types on each wrong answer, and stores them in the database. Questions are marked <code style={{ fontSize: 10, background: "var(--color-bg-deep)", padding: "1px 5px", borderRadius: 4 }}>AI-generated</code> — distinct from any official PrepTest questions you add manually.
           </div>
 
           {/* Question type picker */}
@@ -148,7 +148,7 @@ export default function GenerateQuestionsButton({ questionTypes }: { questionTyp
               fontFamily: "inherit",
             }}
           >
-            {loading ? `Generating ${count} questions with Claude Opus… (may take ~${count * 7}s)` : `Generate ${count} Questions`}
+            {loading ? `Generating ${count} questions… (may take ~${count * 7}s)` : `Generate ${count} Questions`}
           </button>
         </div>
       )}

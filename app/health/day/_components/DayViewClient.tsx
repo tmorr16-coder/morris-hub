@@ -427,7 +427,7 @@ export default function DayViewClient({ data }: { data: DayData }) {
   const totalCalories = meals.reduce((s, m) => s + (m.calories_est ?? 0), 0);
 
   return (
-    <div style={{ padding: "20px 20px 80px" }}>
+    <div style={{ padding: "20px 20px 100px" }}>
 
       {/* Date navigation */}
       <div style={{ marginBottom: 20 }}>

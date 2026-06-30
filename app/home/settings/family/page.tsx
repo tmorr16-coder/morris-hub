@@ -51,7 +51,7 @@ export default async function FamilySettingsPage() {
   return (
     <div>
       <PlatformMenu currentApp="hub" user={menuUser} />
-      <main style={{ maxWidth: 680, margin: "0 auto", padding: "32px 28px 80px" }}>
+      <main style={{ maxWidth: 680, margin: "0 auto", padding: "32px 28px 100px" }}>
         <Link href="/home/settings" style={{ fontSize: 12, color: "var(--color-ink-3)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4, marginBottom: 24 }}>
           ← Settings
         </Link>

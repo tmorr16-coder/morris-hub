@@ -74,7 +74,7 @@ export default function PensionScanner({ spouseEnabled, spouseName, onSelect }: 
       </div>
 
       <p style={{ fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.5, marginBottom: 12 }}>
-        Upload a photo or screenshot of your Lilly pension benefit statement. Claude will extract the payment options automatically.
+        Upload a photo or screenshot of your Lilly pension benefit statement. Morris will extract the payment options automatically.
       </p>
 
       {!result && (

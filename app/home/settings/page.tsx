@@ -24,7 +24,7 @@ export default async function SettingsPage() {
     <div>
       <PlatformMenu currentApp="hub" user={menuUser} />
 
-      <main style={{ maxWidth: 720, margin: "0 auto", padding: "32px 28px 80px" }}>
+      <main style={{ maxWidth: 720, margin: "0 auto", padding: "32px 28px 100px" }}>
         <Link
           href="/home"
           style={{

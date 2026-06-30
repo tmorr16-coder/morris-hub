@@ -41,7 +41,7 @@ export default async function PracticeSetupPage({
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
-      <main style={{ maxWidth: 720, margin: "0 auto", padding: "40px 28px 80px" }}>
+      <main style={{ maxWidth: 720, margin: "0 auto", padding: "40px 28px 100px" }}>
         <Link href="/student-success/lsat" style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none" }}>
           ← LSAT Prep
         </Link>

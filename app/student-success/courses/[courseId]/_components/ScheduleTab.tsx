@@ -265,7 +265,7 @@ export default function ScheduleTab({ courseId, courseName, colorTag }: Schedule
             No schedule yet
           </p>
           <p style={{ fontSize: 12, margin: 0 }}>
-            Upload course materials and click <strong>Generate Schedule</strong> — Claude will create a week-by-week study plan based on your content and deadlines.
+            Upload course materials and click <strong>Generate Schedule</strong> — Morris will create a week-by-week study plan based on your content and deadlines.
           </p>
         </div>
       )}
@@ -274,7 +274,7 @@ export default function ScheduleTab({ courseId, courseName, colorTag }: Schedule
       {generating && (
         <div style={{ padding: "32px 0", textAlign: "center", color: "var(--color-ink-3)", fontSize: 13 }}>
           <div style={{ marginBottom: 8 }}>Building your schedule…</div>
-          <div style={{ fontSize: 11 }}>Claude is reading your course materials — this takes about 10 seconds.</div>
+          <div style={{ fontSize: 11 }}>Reading your course materials — this takes about 10 seconds.</div>
         </div>
       )}
 

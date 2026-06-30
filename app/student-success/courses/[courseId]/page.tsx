@@ -95,7 +95,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
         </div>
       </div>
 
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 28px 80px" }}>
+      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 28px 100px" }}>
         <Suspense fallback={<div style={{ color: "var(--color-ink-3)" }}>Loading course details...</div>}>
           <CourseDetailClient
             courseId={courseId}

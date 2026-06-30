@@ -20,7 +20,7 @@ export default function ClaudeTipClient({ tips }: { tips: ClaudeTip[] }) {
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
         <h2 className="serif" style={{ fontSize: 22 }}>
-          Claude <span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>tips</span>
+          Morris <span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>tips</span>
         </h2>
         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 10, color: "var(--color-ink-4)" }}>{idx + 1} / {tips.length}</span>

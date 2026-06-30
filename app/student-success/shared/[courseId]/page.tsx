@@ -153,7 +153,7 @@ export default async function SharedCoursePage({
         </div>
       </div>
 
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 28px 80px" }}>
+      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 28px 100px" }}>
         <SharedCourseClient
           courseId={courseId}
           colorTag={course.color_tag}

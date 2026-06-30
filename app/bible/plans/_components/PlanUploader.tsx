@@ -96,7 +96,7 @@ export default function PlanUploader() {
           background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
           boxShadow: "var(--shadow-float)", color: "var(--color-ink-3)", maxWidth: 240,
         }}>
-          Claude is reading your plan and extracting the schedule in batches. A 365-day plan takes ~60–90 seconds — please wait.
+          Reading your plan and extracting the schedule in batches. A 365-day plan takes ~60–90 seconds — please wait.
         </div>
       )}
     </div>

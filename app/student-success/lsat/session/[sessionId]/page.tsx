@@ -102,7 +102,7 @@ export default async function SessionPage({
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
-      <main style={{ maxWidth: 800, margin: "0 auto", padding: "32px 28px 80px" }}>
+      <main style={{ maxWidth: 800, margin: "0 auto", padding: "32px 28px 100px" }}>
         <SessionClient
           session={session}
           nextQuestion={nextQuestion}

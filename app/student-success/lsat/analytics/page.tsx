@@ -59,7 +59,7 @@ export default async function AnalyticsPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
-      <main style={{ maxWidth: 800, margin: "0 auto", padding: "32px 28px 80px" }}>
+      <main style={{ maxWidth: 800, margin: "0 auto", padding: "32px 28px 100px" }}>
         <Link href="/student-success/lsat" style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none" }}>
           ← LSAT Prep
         </Link>

@@ -19,6 +19,7 @@ import CityNewsWidget from "./_components/CityNewsWidget";
 import SportsWidget from "./_components/SportsWidget";
 import ClaudeTipCard from "./_components/ClaudeTipCard";
 import NewsSubscriptionsWidget from "./_components/NewsSubscriptionsWidget";
+import CollapsibleSection from "./_components/CollapsibleSection";
 import type { Todo } from "./actions";
 
 const PRIORITY_WIDGETS = new Set(["todos"]);    // personal tasks only → My Priorities
@@ -335,10 +336,9 @@ export default async function HomePage() {
           />
         </section>
 
-        {/* ── Insights ── */}
+        {/* ── Insights — collapsible ── */}
         {insightWids.length > 0 && (
-          <section aria-labelledby="insights-heading">
-            <SectionHeader id="insights-heading">Insights</SectionHeader>
+          <CollapsibleSection id="insights-heading" label="Insights">
             <div
               style={{
                 display: "grid",
@@ -351,7 +351,7 @@ export default async function HomePage() {
                 renderWidget(widgetId, { todos, reminders, prefs, userTz, activeCareerGoals, user })
               )}
             </div>
-          </section>
+          </CollapsibleSection>
         )}
       </main>
     </div>

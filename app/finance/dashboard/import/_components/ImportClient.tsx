@@ -96,7 +96,7 @@ export default function ImportClient({ userId }: { userId: string }) {
               fontFamily: "inherit",
             }}
           >
-            {isPending ? "Extracting with Claude…" : "Upload & Extract"}
+            {isPending ? "Extracting…" : "Upload & Extract"}
           </button>
           <button
             onClick={() => { setFile(null); setError(null); }}
@@ -113,7 +113,7 @@ export default function ImportClient({ userId }: { userId: string }) {
 
       {isPending && (
         <div style={{ fontSize: 12, color: "var(--color-ink-3)", padding: "8px 0" }}>
-          Sending to Claude for extraction — PDFs may take 10-15 seconds…
+          Extracting from document — PDFs may take 10–15 seconds…
         </div>
       )}
 

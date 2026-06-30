@@ -30,7 +30,7 @@ export default async function CareerLayout({
     <>
       <PlatformMenu currentApp="career" user={menuUser} />
       <CareerSubNav />
-      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "24px 28px 80px" }}>
+      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "24px 28px 100px" }}>
         {children}
       </div>
     </>

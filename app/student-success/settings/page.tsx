@@ -43,7 +43,7 @@ export default async function StudentSuccessSettingsPage() {
     <div>
       <PlatformMenu currentApp="student-success" user={menuUser} />
 
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 28px 80px" }}>
+      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 28px 100px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
           <div>
             <Link
