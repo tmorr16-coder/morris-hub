@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { RetirementProfile, RetirementAccount, RetirementIncome, RetirementScenario } from "../types";
 
 interface Props {
@@ -11,6 +12,10 @@ interface Props {
 
 interface ProjectionResult {
   portfolioByAge: Map<number, number>;
+  jobIncomeByAge: Map<number, number>;    // salary pre-ret + bridge/part_time post-ret (annual $)
+  ssIncomeByAge: Map<number, number>;     // Social Security income (annual $)
+  pensionIncomeByAge: Map<number, number>;
+  expensesByAge: Map<number, number>;     // annual expenses post-retirement only
   nestEgg: number;
   safeMonthlyWithdrawal: number;
   depletionAge: number | null;
@@ -54,7 +59,11 @@ function project(
     monthlySpend * 12 + scenario.annual_travel + scenario.monthly_health_premium * 12;
 
   let portfolio = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
-  const portfolioByAge = new Map<number, number>();
+  const portfolioByAge    = new Map<number, number>();
+  const jobIncomeByAge    = new Map<number, number>();
+  const ssIncomeByAge     = new Map<number, number>();
+  const pensionIncomeByAge = new Map<number, number>();
+  const expensesByAge     = new Map<number, number>();
   let nestEgg = 0;
   let depletionAge: number | null = null;
 
@@ -136,6 +145,45 @@ function project(
     }
 
     portfolioByAge.set(age, portfolio);
+
+    // ── Per-age income/expense data for chart series ─────────────────────────
+    const inflFactor = Math.pow(1 + profile.inflation_rate, yearsFromNow);
+
+    // Job income: salary (pre-ret) or part_time/bridge/other (post-ret)
+    let jobIncome = 0;
+    for (const inc of incomes) {
+      if (!["salary", "part_time", "other", "bonus"].includes(inc.type)) continue;
+      const start = inc.start_age ?? (inc.type === "salary" ? profile.current_age : profile.retirement_age);
+      const end = inc.end_age ?? (inc.type === "salary" ? profile.retirement_age - 1 : 999);
+      if (age < start || age > end) continue;
+      const growth = inc.annual_growth_pct
+        ? Math.pow(1 + inc.annual_growth_pct / 100, age - start)
+        : 1;
+      const annual = inc.frequency === "annual" ? inc.monthly_amount : inc.monthly_amount * 12;
+      jobIncome += annual * growth * (isRetired ? inflFactor : 1);
+    }
+    jobIncomeByAge.set(age, Math.round(jobIncome));
+
+    // Social Security income
+    let ssIncome = 0;
+    for (const inc of incomes) {
+      if (inc.type !== "social_security") continue;
+      if (age < (inc.ss_claim_age ?? 67)) continue;
+      ssIncome += inc.monthly_amount * 12 * inflFactor;
+    }
+    ssIncomeByAge.set(age, Math.round(ssIncome));
+
+    // Pension income
+    let pensionIncome = 0;
+    for (const inc of incomes) {
+      if (inc.type !== "pension") continue;
+      if (age < (inc.start_age ?? profile.retirement_age)) continue;
+      pensionIncome += inc.monthly_amount * 12 * inflFactor;
+    }
+    pensionIncomeByAge.set(age, Math.round(pensionIncome));
+
+    // Expenses (post-retirement only)
+    expensesByAge.set(age, isRetired ? Math.round(baseAnnualSpend * inflFactor) : 0);
   }
 
   if (nestEgg === 0) {
@@ -146,7 +194,7 @@ function project(
   const runway =
     depletionAge != null ? depletionAge - profile.retirement_age : "lifetime";
 
-  return { portfolioByAge, nestEgg, safeMonthlyWithdrawal, depletionAge, runway, baseAnnualSpend };
+  return { portfolioByAge, jobIncomeByAge, ssIncomeByAge, pensionIncomeByAge, expensesByAge, nestEgg, safeMonthlyWithdrawal, depletionAge, runway, baseAnnualSpend };
 }
 
 function projectForScenario(
@@ -163,10 +211,23 @@ function projectForScenario(
 
 const KEY_AGES = [0, 5, 10, 15, 20, 25];
 
+const SERIES = [
+  { key: "portfolio" as const, label: "Portfolio balance", color: "#C97A3A" },
+  { key: "jobIncome" as const, label: "Job / bridge income", color: "#4D6B3A" },
+  { key: "ss" as const, label: "Social Security", color: "#3B5C7F" },
+  { key: "pension" as const, label: "Pension", color: "#6B5B95" },
+  { key: "expenses" as const, label: "Annual expenses", color: "#9A3B2A" },
+];
+
 export default function ProjectionTab({ profile, accounts, incomes, scenario }: Props) {
+  const [shown, setShown] = useState<Record<string, boolean>>({
+    portfolio: true, jobIncome: true, ss: true, pension: true, expenses: true,
+  });
+  function toggle(key: string) { setShown((s) => ({ ...s, [key]: !s[key] })); }
+
   const result = project(profile, accounts, incomes, scenario);
-  const { portfolioByAge, nestEgg, safeMonthlyWithdrawal, depletionAge, runway, baseAnnualSpend } =
-    result;
+  const { portfolioByAge, jobIncomeByAge, ssIncomeByAge, pensionIncomeByAge, expensesByAge,
+          nestEgg, safeMonthlyWithdrawal, depletionAge, runway, baseAnnualSpend } = result;
 
   const annualWithdrawalNeed = getSelectedSpend(scenario) * 12 + scenario.annual_travel + scenario.monthly_health_premium * 12;
   const safeAnnualWithdrawal = nestEgg * 0.04;
@@ -181,7 +242,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
   // SVG chart
   const W = 800;
   const H = 300;
-  const PADDING = { top: 24, right: 24, bottom: 40, left: 72 };
+  const PADDING = { top: 24, right: 80, bottom: 40, left: 72 }; // wider right for income axis
   const chartW = W - PADDING.left - PADDING.right;
   const chartH = H - PADDING.top - PADDING.bottom;
 
@@ -189,12 +250,35 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
   const values = ages.map((a) => portfolioByAge.get(a) ?? 0);
   const maxVal = Math.max(...values, 1);
 
+  // Right axis: income/expenses scale
+  const incomeValues = ages.flatMap((a) => [
+    jobIncomeByAge.get(a) ?? 0,
+    ssIncomeByAge.get(a) ?? 0,
+    pensionIncomeByAge.get(a) ?? 0,
+    expensesByAge.get(a) ?? 0,
+  ]);
+  const maxIncome = Math.max(...incomeValues, 1);
+
   function xPos(age: number) {
     return PADDING.left + ((age - profile.current_age) / (profile.life_expectancy - profile.current_age)) * chartW;
   }
 
   function yPos(val: number) {
     return PADDING.top + chartH - (val / maxVal) * chartH;
+  }
+
+  function yPosIncome(val: number) {
+    return PADDING.top + chartH - (val / maxIncome) * chartH;
+  }
+
+  function toIncomePath(map: Map<number, number>): string {
+    return ages
+      .map((a, i) => {
+        const x = xPos(a).toFixed(1);
+        const y = yPosIncome(map.get(a) ?? 0).toFixed(1);
+        return `${i === 0 ? "M" : "L"}${x},${y}`;
+      })
+      .join(" ");
   }
 
   // Build path segments: pre-retirement (green), retirement with value (bronze), depleted (red)
@@ -318,6 +402,32 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
         >
           Portfolio projection
         </div>
+
+        {/* ── Series toggle chips ── */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+          {SERIES.map((s) => (
+            <button
+              key={s.key}
+              onClick={() => toggle(s.key)}
+              aria-pressed={!!shown[s.key]}
+              style={{
+                padding: "4px 11px",
+                borderRadius: 20,
+                fontSize: 11,
+                fontWeight: 500,
+                border: shown[s.key] ? `1.5px solid ${s.color}` : "1px solid var(--color-rule)",
+                background: shown[s.key] ? `${s.color}22` : "var(--color-bg)",
+                color: shown[s.key] ? s.color : "var(--color-ink-4)",
+                cursor: "pointer",
+                fontFamily: "var(--font-geist, system-ui), sans-serif",
+                transition: "all 100ms",
+              }}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
         <svg
           viewBox={`0 0 ${W} ${H}`}
           style={{ width: "100%", height: "auto", display: "block" }}
@@ -412,6 +522,76 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
               strokeLinejoin="round"
             />
           )}
+
+          {/* ── Income / expense series (right Y-axis scale) ── */}
+          {shown["jobIncome"] && (
+            <path
+              d={toIncomePath(jobIncomeByAge)}
+              fill="none"
+              stroke="#4D6B3A"
+              strokeWidth="1.5"
+              strokeDasharray="5 3"
+              strokeLinecap="round"
+            />
+          )}
+          {shown["ss"] && (
+            <path
+              d={toIncomePath(ssIncomeByAge)}
+              fill="none"
+              stroke="#3B5C7F"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          )}
+          {shown["pension"] && (
+            <path
+              d={toIncomePath(pensionIncomeByAge)}
+              fill="none"
+              stroke="#6B5B95"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          )}
+          {shown["expenses"] && (
+            <path
+              d={toIncomePath(expensesByAge)}
+              fill="none"
+              stroke="#9A3B2A"
+              strokeWidth="1.5"
+              strokeDasharray="7 3"
+              strokeLinecap="round"
+            />
+          )}
+
+          {/* Right Y-axis: income/expense scale */}
+          {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
+            const val = maxIncome * pct;
+            const y = yPosIncome(val).toFixed(1);
+            return (
+              <g key={`ri-${i}`}>
+                <text
+                  x={W - PADDING.right + 6}
+                  y={+y + 4}
+                  fontSize="9"
+                  fill="var(--color-ink-4)"
+                  fontFamily="var(--font-geist, system-ui)"
+                >
+                  {fmtLarge(val)}
+                </text>
+              </g>
+            );
+          })}
+          <text
+            x={W - 10}
+            y={PADDING.top + chartH / 2}
+            fontSize="9"
+            fill="var(--color-ink-4)"
+            fontFamily="var(--font-geist, system-ui)"
+            textAnchor="middle"
+            transform={`rotate(-90, ${W - 10}, ${PADDING.top + chartH / 2})`}
+          >
+            Income / yr →
+          </text>
 
           {/* X-axis age labels */}
           {[profile.current_age, profile.retirement_age, profile.life_expectancy].map((a) => {
