@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireFinanceAccess } from "@/lib/finance/access";
 import SettingsClient, { type AccountRow } from "./_components/SettingsClient";
@@ -70,22 +69,6 @@ export default async function SettingsPage() {
 
   return (
     <div>
-      <header style={{ borderBottom: "1px solid var(--color-rule)", background: "var(--color-paper)" }}>
-        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--color-bronze)", alignSelf: "center" }} />
-            <span className="serif" style={{ fontSize: 22 }}>morrisai</span>
-            <span className="serif" style={{ color: "var(--color-bronze-dark)", fontStyle: "italic" }}>.family</span>
-            <span style={{ color: "var(--color-ink-3)", fontSize: 12, letterSpacing: "0.04em", textTransform: "uppercase", marginLeft: 14, paddingLeft: 14, borderLeft: "1px solid var(--color-rule)" }}>
-              finance · settings
-            </span>
-          </div>
-          <Link href="/finance/dashboard" style={{ fontSize: 12, color: "var(--color-ink-3)", textDecoration: "none", padding: "6px 12px", borderRadius: 8, border: "1px solid var(--color-rule)" }}>
-            ← Dashboard
-          </Link>
-        </div>
-      </header>
-
       <main style={{ maxWidth: 880, margin: "0 auto", padding: "24px 28px 80px" }}>
 
         {/* Section jump nav */}

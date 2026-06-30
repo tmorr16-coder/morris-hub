@@ -1,11 +1,8 @@
 export const revalidate = 1800; // cache for 30 minutes
 
-import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireFinanceAccess } from "@/lib/finance/access";
-import SignOutButton from "./_components/SignOutButton";
 import ConnectSection from "./_components/ConnectSection";
-import SyncNowButton from "./_components/SyncNowButton";
 import FinanceChat from "./_components/FinanceChat";
 import RecentActivityClient from "./_components/RecentActivityClient";
 // PinGate moved to finance/layout.tsx — covers all Money routes including investments
@@ -321,51 +318,6 @@ export default async function DashboardPage() {
 
   return (
     <div>
-
-      {/* ── Header ────────────────────────────────────────────────────── */}
-      <header
-        style={{
-          borderBottom: "1px solid var(--color-rule)",
-          background: "var(--color-paper)",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1180,
-            margin: "0 auto",
-            padding: "16px 28px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 24,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--color-bronze)", alignSelf: "center" }} />
-            <span className="serif" style={{ fontSize: 22 }}>morrisai</span>
-            <span className="serif" style={{ color: "var(--color-bronze-dark)", fontStyle: "italic" }}>.family</span>
-            <span style={{ color: "var(--color-ink-3)", fontSize: 12, letterSpacing: "0.04em", textTransform: "uppercase", marginLeft: 14, paddingLeft: 14, borderLeft: "1px solid var(--color-rule)" }}>
-              finance
-            </span>
-          </div>
-
-          <nav style={{ display: "flex", gap: 22, fontSize: 13, letterSpacing: "0.02em" }}>
-            <a href="#overview" style={{ color: "var(--color-ink)", textDecoration: "none", padding: "6px 0", borderBottom: "1px solid var(--color-bronze)", fontWeight: 500 }}>Overview</a>
-            <Link href="/finance/dashboard/insights" style={{ color: "var(--color-ink-2)", textDecoration: "none", padding: "6px 0" }}>Insights</Link>
-            <a href="#activity" style={{ color: "var(--color-ink-2)", textDecoration: "none", padding: "6px 0" }}>Activity</a>
-            <a href="#accounts" style={{ color: "var(--color-ink-2)", textDecoration: "none", padding: "6px 0" }}>Accounts</a>
-            <Link href="/finance/dashboard/import" style={{ color: "var(--color-ink-2)", textDecoration: "none", padding: "6px 0" }}>Import</Link>
-            <Link href="/finance/retirement" style={{ color: "var(--color-ink-2)", textDecoration: "none", padding: "6px 0" }}>Retirement</Link>
-            <Link href="/finance/dashboard/settings" style={{ color: "var(--color-ink-2)", textDecoration: "none", padding: "6px 0" }}>Settings</Link>
-          </nav>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <SyncNowButton />
-            <SignOutButton />
-          </div>
-        </div>
-      </header>
 
       <main style={{ maxWidth: 1180, margin: "0 auto", padding: "32px 28px 80px" }}>
 

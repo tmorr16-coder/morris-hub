@@ -3,8 +3,6 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireFinanceAccess } from "@/lib/finance/access";
-import SignOutButton from "../_components/SignOutButton";
-import SyncNowButton from "../_components/SyncNowButton";
 import { Suspense } from "react";
 import MonthlyTrendChart, { type MonthPoint } from "./_components/MonthlyTrendChart";
 import CategoryBreakdown, { type CategoryRow } from "./_components/CategoryBreakdown";
@@ -353,46 +351,6 @@ export default async function InsightsPage({
 
   return (
     <div>
-
-      {/* Header */}
-      <header
-        style={{
-          borderBottom: "1px solid var(--color-rule)",
-          background: "var(--color-paper)",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1180,
-            margin: "0 auto",
-            padding: "16px 28px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 24,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--color-bronze)", alignSelf: "center" }} />
-            <span className="serif" style={{ fontSize: 22 }}>morrisai</span>
-            <span className="serif" style={{ color: "var(--color-bronze-dark)", fontStyle: "italic" }}>.family</span>
-            <span style={{ color: "var(--color-ink-3)", fontSize: 12, letterSpacing: "0.04em", textTransform: "uppercase", marginLeft: 14, paddingLeft: 14, borderLeft: "1px solid var(--color-rule)" }}>
-              finance
-            </span>
-          </div>
-
-          <nav style={{ display: "flex", gap: 22, fontSize: 13, letterSpacing: "0.02em" }}>
-            <Link href="/finance/dashboard" style={{ color: "var(--color-ink-2)", textDecoration: "none", padding: "6px 0" }}>Overview</Link>
-            <Link href="/finance/dashboard/insights" style={{ color: "var(--color-ink)", textDecoration: "none", padding: "6px 0", borderBottom: "1px solid var(--color-bronze)", fontWeight: 500 }}>Insights</Link>
-          </nav>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <SyncNowButton />
-            <SignOutButton />
-          </div>
-        </div>
-      </header>
 
       <main style={{ maxWidth: 1180, margin: "0 auto", padding: "32px 28px 80px" }}>
 

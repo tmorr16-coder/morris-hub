@@ -268,23 +268,33 @@ export default function PortfolioClient({
       {/* ── Alpaca + Plaid investments ──────────────────────────────────── */}
       {(hasAlpaca || plaidInvestmentAccounts.length > 0) && (
         <SectionCard label="Investment Accounts" subtotal={plaidInvestTotal + alpacaTotal}>
-          {hasAlpaca && (
-            <AccountRow
-              label="Alpaca Portfolio"
-              sublabel={alpacaLoading ? "Loading live balance…" : "Paper / live trading · Alpaca"}
-              balance={alpacaValue ?? 0}
-              accent="#C97A3A"
-            />
-          )}
           {plaidInvestmentAccounts.map(a => (
             <AccountRow
               key={a.id}
               label={a.name}
-              sublabel={`${a.subtype ?? "Investment"}${a.mask ? ` ···${a.mask}` : ""} · Plaid`}
+              sublabel={`${a.subtype ?? "Investment"}${a.mask ? ` ···${a.mask}` : ""}${a.name.includes("(shared)") ? " · Shared" : " · Plaid"}`}
               balance={a.balance}
               accent="#8B6A47"
             />
           ))}
+          {hasAlpaca && (
+            <AccountRow
+              label="Alpaca Paper Portfolio"
+              sublabel={alpacaLoading ? "Loading…" : `${alpacaValue !== null ? "Live balance" : "Unavailable"} · Paper trading · Gamification`}
+              balance={alpacaValue ?? 0}
+              accent="#C97A3A"
+            />
+          )}
+          {plaidInvestmentAccounts.length === 0 && !hasAlpaca && (
+            <div style={{ padding: "8px 0" }}>
+              <p style={{ fontSize: 13, color: "var(--color-ink-4)", margin: "0 0 8px", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+                Connect a brokerage account for live investment data.
+              </p>
+              <a href="/finance/dashboard/import" style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+                Connect via Plaid (E*TRADE, Fidelity, Schwab, etc.) →
+              </a>
+            </div>
+          )}
         </SectionCard>
       )}
 
@@ -303,7 +313,7 @@ export default function PortfolioClient({
             Add brokerage accounts, real estate, crypto, or any other asset.
           </p>
         ) : (
-          manualItems.map(item => (
+          manualItems.map((item) => (
             editingId === item.id ? (
               <div key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--color-rule-soft)" }}>
                 <span style={{ flex: 1, fontSize: 13, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{item.name}</span>
@@ -321,11 +331,15 @@ export default function PortfolioClient({
               <AccountRow
                 key={item.id}
                 label={item.name}
-                sublabel={`${ACCOUNT_TYPE_LABELS[item.account_type] ?? item.account_type}${item.institution ? ` · ${item.institution}` : ""}`}
+                sublabel={[
+                  ACCOUNT_TYPE_LABELS[item.account_type] ?? item.account_type,
+                  item.institution,
+                  item.is_shared ? "Shared" : item.source === "import" ? "Imported" : null,
+                ].filter(Boolean).join(" · ")}
                 balance={item.balance}
-                accent="var(--color-green)"
-                onEdit={() => { setEditingId(item.id); setEditBalance(String(item.balance)); }}
-                onRemove={() => handleRemove(item.id)}
+                accent={item.is_shared ? "#8B6A47" : "var(--color-green)"}
+                onEdit={item.is_shared ? undefined : () => { setEditingId(item.id); setEditBalance(String(item.balance)); }}
+                onRemove={item.is_shared ? undefined : () => handleRemove(item.id)}
               />
             )
           ))
