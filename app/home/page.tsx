@@ -21,7 +21,8 @@ import ClaudeTipCard from "./_components/ClaudeTipCard";
 import NewsSubscriptionsWidget from "./_components/NewsSubscriptionsWidget";
 import type { Todo } from "./actions";
 
-const PRIORITY_WIDGETS = new Set(["todos", "reminders"]);
+const PRIORITY_WIDGETS = new Set(["todos"]);       // personal tasks only
+const FAMILY_WIDGETS   = new Set(["reminders"]);    // household/shared → Family section
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -161,9 +162,10 @@ export default async function HomePage() {
     appAccess: prefs.app_access ?? null,
   };
 
-  // Split widgets into priorities vs insights
+  // Route widgets: todos → My Priorities, reminders → Family, everything else → Insights
   const priorityWids = prefs.visible_widgets.filter((w) => PRIORITY_WIDGETS.has(w));
-  const insightWids = prefs.visible_widgets.filter((w) => !PRIORITY_WIDGETS.has(w));
+  const familyWids   = prefs.visible_widgets.filter((w) => FAMILY_WIDGETS.has(w));
+  const insightWids  = prefs.visible_widgets.filter((w) => !PRIORITY_WIDGETS.has(w) && !FAMILY_WIDGETS.has(w));
 
   return (
     <div>
@@ -285,7 +287,7 @@ export default async function HomePage() {
           <HubChat firstName={firstName} />
         </section>
 
-        {/* ── My Priorities — todos + reminders ── */}
+        {/* ── My Priorities — personal todos only ── */}
         {priorityWids.length > 0 && (
           <section aria-labelledby="priorities-heading" style={{ marginBottom: 28 }}>
             <SectionHeader id="priorities-heading">My priorities</SectionHeader>
@@ -304,29 +306,47 @@ export default async function HomePage() {
           </section>
         )}
 
-        {/* ── Family ── */}
+        {/* ── Family — household reminders + shared tasks ── */}
         <section aria-labelledby="family-heading" style={{ marginBottom: 28 }}>
           <SectionHeader id="family-heading">Family</SectionHeader>
+          {familyWids.length > 0 && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                gap: 14,
+                alignItems: "start",
+                marginBottom: 14,
+              }}
+            >
+              {familyWids.map((widgetId) =>
+                renderWidget(widgetId, { todos, reminders, prefs, userTz, activeCareerGoals })
+              )}
+            </div>
+          )}
           <div
             style={{
               background: "var(--color-bg-card)",
               border: "1px solid var(--color-rule)",
               borderRadius: 12,
-              padding: "20px 24px",
+              padding: "16px 20px",
               boxShadow: "var(--shadow-card)",
-              maxWidth: 480,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
             }}
           >
             <p
               style={{
                 fontSize: 13,
                 color: "var(--color-ink-3)",
-                margin: "0 0 12px",
+                margin: 0,
                 lineHeight: 1.5,
                 fontFamily: "var(--font-geist, system-ui), sans-serif",
               }}
             >
-              Family sharing and status coming soon.
+              Family circle, member sharing, and assigned household tasks coming in Phase 2.
             </p>
             <a
               href="/home/settings/family"
@@ -335,9 +355,11 @@ export default async function HomePage() {
                 color: "var(--color-accent)",
                 textDecoration: "none",
                 fontFamily: "var(--font-geist, system-ui), sans-serif",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
               }}
             >
-              Manage family circle →
+              Manage circle →
             </a>
           </div>
         </section>
