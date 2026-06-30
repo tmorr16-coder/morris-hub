@@ -98,6 +98,16 @@ export default async function HomePage() {
   );
   const needsAttention = [...overdueTodos, ...urgentTodos].slice(0, 5);
 
+  // Today's plan: reminders due today sorted chronologically + todos due today
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const todayReminders = (reminders as any[])
+    .filter((r) => {
+      const localDate = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
+      return localDate === todayStr;
+    })
+    .sort((a: { due_at: string }, b: { due_at: string }) => a.due_at.localeCompare(b.due_at));
+  const todayDueTodos = todos.filter((t) => !t.completed && t.due_date === todayStr);
+
   const menuUser = {
     name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
     email: user.email,
@@ -219,10 +229,20 @@ export default async function HomePage() {
           </section>
         )}
 
-        {/* ── Today's Plan — Ask Morris ── */}
+        {/* ── Ask Morris ── */}
+        <section aria-labelledby="ask-morris-heading" style={{ marginBottom: 28 }}>
+          <SectionHeader id="ask-morris-heading">Ask Morris</SectionHeader>
+          <HubChat firstName={firstName} />
+        </section>
+
+        {/* ── Today's Plan — chronological schedule ── */}
         <section aria-labelledby="today-plan-heading" style={{ marginBottom: 28 }}>
           <SectionHeader id="today-plan-heading">Today&apos;s plan</SectionHeader>
-          <HubChat firstName={firstName} />
+          <TodayTimeline
+            reminders={todayReminders}
+            todos={todayDueTodos}
+            userTz={userTz}
+          />
         </section>
 
         {/* ── My Priorities — todos + reminders ── */}
@@ -301,6 +321,128 @@ export default async function HomePage() {
           </section>
         )}
       </main>
+    </div>
+  );
+}
+
+// ── Today timeline ──────────────────────────────────────────────────────────
+
+const CATEGORY_DOT: Record<string, string> = {
+  appointment: "var(--color-accent)",
+  medication:  "var(--color-green)",
+  workout:     "#C97A3A",
+  bill:        "var(--color-amber)",
+  personal:    "var(--color-ink-3)",
+  general:     "var(--color-ink-3)",
+  todo:        "var(--color-ink-4)",
+};
+
+function TimelineRow({ time, label, category }: { time: string; label: string; category: string }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        padding: "12px 20px",
+        borderBottom: "1px solid var(--color-rule-soft)",
+      }}
+    >
+      <span
+        style={{
+          fontSize: 11,
+          fontWeight: 500,
+          color: "var(--color-ink-4)",
+          minWidth: 56,
+          fontFamily: "var(--font-geist, system-ui), sans-serif",
+          letterSpacing: "0.02em",
+          flexShrink: 0,
+        }}
+      >
+        {time}
+      </span>
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
+          background: CATEGORY_DOT[category] ?? "var(--color-ink-3)",
+          flexShrink: 0,
+        }}
+      />
+      <span
+        style={{
+          fontSize: 13,
+          color: "var(--color-ink-2)",
+          fontFamily: "var(--font-geist, system-ui), sans-serif",
+          lineHeight: 1.4,
+        }}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function TodayTimeline({
+  reminders,
+  todos,
+  userTz,
+}: {
+  reminders: Array<{ id: string; due_at: string; title: string; category: string }>;
+  todos: Todo[];
+  userTz: string;
+}) {
+  const hasItems = reminders.length > 0 || todos.length > 0;
+
+  if (!hasItems) {
+    return (
+      <div
+        style={{
+          background: "var(--color-bg-card)",
+          border: "1px solid var(--color-rule)",
+          borderRadius: 12,
+          padding: "20px 24px",
+          boxShadow: "var(--shadow-card)",
+        }}
+      >
+        <p
+          style={{
+            fontSize: 13,
+            color: "var(--color-ink-4)",
+            margin: 0,
+            fontFamily: "var(--font-geist, system-ui), sans-serif",
+          }}
+        >
+          Nothing scheduled for today.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        background: "var(--color-bg-card)",
+        border: "1px solid var(--color-rule)",
+        borderRadius: 12,
+        boxShadow: "var(--shadow-card)",
+        overflow: "hidden",
+      }}
+    >
+      {reminders.map((r) => {
+        const time = new Date(r.due_at).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          timeZone: userTz,
+        });
+        return (
+          <TimelineRow key={r.id} time={time} label={r.title} category={r.category} />
+        );
+      })}
+      {todos.map((t) => (
+        <TimelineRow key={t.id} time="Due today" label={t.title} category="todo" />
+      ))}
     </div>
   );
 }

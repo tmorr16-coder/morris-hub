@@ -135,8 +135,8 @@ export default function PlatformMenu({
         </div>
       </header>
 
-      {/* Mobile bottom nav */}
-      {user && (
+      {/* Mobile bottom nav — suppressed for apps with their own in-app nav (bible) */}
+      {user && currentApp !== "bible" && (
         <BottomNav
           currentApp={currentApp}
           appAccess={user.appAccess}
