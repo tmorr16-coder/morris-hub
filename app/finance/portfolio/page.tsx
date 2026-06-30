@@ -32,12 +32,15 @@ export default async function PortfolioPage() {
 
   const [plan, myManualResult, plaidResult, sharedManualResult, sharedPlaidResult] = await Promise.all([
     loadPlan(),
-    // My own manually-entered and imported accounts
+    // My own manually-entered and imported accounts — EXCLUDE retirement types
+    // (401k, IRA, HSA, pension) since those come exclusively from the retirement planner.
+    // Custom Additions should only contain non-retirement assets (brokerage, real estate, crypto, etc.)
     service
       .schema("finance")
       .from("manual_accounts")
       .select("id, name, institution, account_type, balance, as_of_date, source")
       .eq("user_id", user.id)
+      .not("account_type", "in", '("401k","roth_ira","traditional_ira","hsa","pension")')
       .order("created_at", { ascending: true }),
     // My Plaid investment accounts
     service
@@ -47,13 +50,14 @@ export default async function PortfolioPage() {
       .eq("user_id", user.id)
       .eq("type", "investment")
       .eq("is_hidden", false),
-    // Manual accounts shared WITH this user by others
+    // Manual accounts shared WITH this user by others (excluding retirement types)
     service
       .schema("finance")
       .from("manual_account_shares")
-      .select("id, account:manual_accounts(id, name, institution, account_type, balance, as_of_date)")
+      .select("id, account:manual_accounts!inner(id, name, institution, account_type, balance, as_of_date)")
       .eq("recipient_user_id", user.id)
-      .eq("accepted", true),
+      .eq("accepted", true)
+      .not("account.account_type", "in", '("401k","roth_ira","traditional_ira","hsa","pension")'),
     // Plaid accounts shared WITH this user and opted into portfolio
     service
       .schema("finance")

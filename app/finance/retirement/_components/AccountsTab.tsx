@@ -12,6 +12,7 @@ import type {
 interface Props {
   accounts: RetirementAccount[];
   setAccounts: (a: RetirementAccount[]) => void;
+  onDelete: (updatedAccounts: RetirementAccount[]) => void;
   plaidAccounts: PlaidAccountSuggestion[];
   savedAccounts: SavedAccountSuggestion[];
   sharedAccounts: SharedAccountSuggestion[];
@@ -79,7 +80,7 @@ const EMPTY_FORM = {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function AccountsTab({
-  accounts, setAccounts, plaidAccounts, savedAccounts, sharedAccounts, profile,
+  accounts, setAccounts, onDelete, plaidAccounts, savedAccounts, sharedAccounts, profile,
 }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -187,7 +188,9 @@ export default function AccountsTab({
   }
 
   function handleDelete(id: string) {
-    setAccounts(accounts.filter((a) => a.id !== id));
+    const updated = accounts.filter((a) => a.id !== id);
+    setAccounts(updated);   // immediate visual update
+    onDelete(updated);       // auto-save so Portfolio reflects the change
   }
 
   const selfAccounts = accounts.filter((a) => a.owner === "self");

@@ -228,10 +228,17 @@ export default function RetirementClient({
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  async function handleSave() {
+  async function handleSave(overrideAccounts?: RetirementAccount[]) {
     setSaveState("saving");
     setSaveError(null);
-    const result = await savePlan({ profile, accounts, incomes, expenses, debts, scenario });
+    const result = await savePlan({
+      profile,
+      accounts: overrideAccounts ?? accounts,
+      incomes,
+      expenses,
+      debts,
+      scenario,
+    });
     if ("error" in result) {
       setSaveState("error");
       setSaveError(result.error);
@@ -239,6 +246,12 @@ export default function RetirementClient({
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2500);
     }
+  }
+
+  // Auto-save when an account is deleted so Portfolio reflects the change immediately
+  function handleAccountDelete(updatedAccounts: RetirementAccount[]) {
+    setAccounts(updatedAccounts);
+    handleSave(updatedAccounts);
   }
 
   const metrics = computeNestEgg(profile, accounts, incomes, scenario);
@@ -272,7 +285,7 @@ export default function RetirementClient({
           <span style={{ fontSize: 12, color: "var(--color-green)" }}>Saved</span>
         )}
         <button
-          onClick={handleSave}
+          onClick={() => handleSave()}
           disabled={saveState === "saving"}
           style={{
             padding: "9px 22px",
@@ -333,6 +346,7 @@ export default function RetirementClient({
         <AccountsTab
           accounts={accounts}
           setAccounts={setAccounts}
+          onDelete={handleAccountDelete}
           plaidAccounts={plaidAccounts}
           savedAccounts={savedAccounts}
           sharedAccounts={sharedAccounts}
