@@ -209,8 +209,6 @@ function projectForScenario(
   return { depletionAge: r.depletionAge, nestEgg: r.nestEgg };
 }
 
-const KEY_AGES = [0, 5, 10, 15, 20, 25];
-
 const SERIES = [
   { key: "portfolio" as const, label: "Portfolio balance", color: "#C97A3A" },
   { key: "jobIncome" as const, label: "Job / bridge income", color: "#4D6B3A" },
@@ -225,9 +223,11 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
   });
   function toggle(key: string) { setShown((s) => ({ ...s, [key]: !s[key] })); }
 
+  const [hoveredAge, setHoveredAge] = useState<number | null>(null);
+
   const result = project(profile, accounts, incomes, scenario);
   const { portfolioByAge, jobIncomeByAge, ssIncomeByAge, pensionIncomeByAge, expensesByAge,
-          nestEgg, safeMonthlyWithdrawal, depletionAge, runway, baseAnnualSpend } = result;
+          nestEgg, safeMonthlyWithdrawal, depletionAge, runway } = result;
 
   const annualWithdrawalNeed = getSelectedSpend(scenario) * 12 + scenario.annual_travel + scenario.monthly_health_premium * 12;
   const safeAnnualWithdrawal = nestEgg * 0.04;
@@ -248,7 +248,18 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
 
   const ages = Array.from({ length: profile.life_expectancy - profile.current_age + 1 }, (_, i) => profile.current_age + i);
   const values = ages.map((a) => portfolioByAge.get(a) ?? 0);
-  const maxVal = Math.max(...values, 1);
+
+  // Y-axis scale: exclude housing_windfall spike so pre-retirement growth is visible.
+  // The windfall adds to the portfolio at retirement age in one jump — if we include it
+  // in maxVal the entire chart collapses to the bottom to make room for the spike.
+  const windfallAmount = scenario.housing_windfall ?? 0;
+  const valuesForScale = ages.map((a) => {
+    const v = portfolioByAge.get(a) ?? 0;
+    // Subtract windfall from the retirement-age value for scaling purposes only
+    return a === profile.retirement_age && windfallAmount > 0 ? v - windfallAmount : v;
+  });
+  const maxValRaw = Math.max(...valuesForScale, 1);
+  const maxVal = maxValRaw * 1.1; // 10% headroom
 
   // Right axis: income/expenses scale
   const incomeValues = ages.flatMap((a) => [
@@ -302,6 +313,18 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
   // Y axis labels
   const yTicks = 5;
   const yTickValues = Array.from({ length: yTicks + 1 }, (_, i) => (maxVal * i) / yTicks);
+
+  // Bridge job note
+  const hasBridgeJob = incomes.some(
+    (inc) => inc.type === "part_time" && (inc.start_age ?? profile.retirement_age) >= profile.retirement_age
+  );
+
+  // Hovered values for tooltip
+  const hoveredPortfolio = hoveredAge != null ? (portfolioByAge.get(hoveredAge) ?? 0) : null;
+  const hoveredJobIncome = hoveredAge != null ? (jobIncomeByAge.get(hoveredAge) ?? 0) : null;
+  const hoveredSS = hoveredAge != null ? (ssIncomeByAge.get(hoveredAge) ?? 0) : null;
+  const hoveredPension = hoveredAge != null ? (pensionIncomeByAge.get(hoveredAge) ?? 0) : null;
+  const hoveredExpenses = hoveredAge != null ? (expensesByAge.get(hoveredAge) ?? 0) : null;
 
   // Key ages for table
   const tableAges = [
@@ -432,7 +455,15 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
           viewBox={`0 0 ${W} ${H}`}
           style={{ width: "100%", height: "auto", display: "block" }}
           aria-label="Portfolio projection chart"
+          onMouseLeave={() => setHoveredAge(null)}
         >
+          <defs>
+            {/* Clip chart lines to the chart area — prevents windfall/income spikes from overflowing */}
+            <clipPath id="chartArea">
+              <rect x={PADDING.left} y={PADDING.top} width={chartW} height={chartH} />
+            </clipPath>
+          </defs>
+
           {/* Y axis grid lines + labels */}
           {yTickValues.map((val, i) => {
             const y = yPos(val).toFixed(1);
@@ -484,11 +515,26 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
                 >
                   Retire {profile.retirement_age}
                 </text>
+                {/* Windfall annotation — explains any spike at retirement */}
+                {windfallAmount > 0 && (
+                  <text
+                    x={xPos(profile.retirement_age) + 4}
+                    y={PADDING.top + 24}
+                    fontSize="9"
+                    fill="var(--color-bronze)"
+                    fontFamily="var(--font-geist, system-ui)"
+                  >
+                    +{fmtLarge(windfallAmount)} windfall
+                  </text>
+                )}
               </g>
             )}
 
+          {/* All data lines clipped to chart area */}
+          <g clipPath="url(#chartArea)">
+
           {/* Path: pre-retirement (green) */}
-          {preRetirementPoints.length > 1 && (
+          {shown["portfolio"] && preRetirementPoints.length > 1 && (
             <path
               d={toPath(preRetirementPoints)}
               fill="none"
@@ -500,7 +546,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
           )}
 
           {/* Path: retirement healthy (bronze) */}
-          {healthyRetiredPoints.length > 1 && (
+          {shown["portfolio"] && healthyRetiredPoints.length > 1 && (
             <path
               d={toPath(healthyRetiredPoints)}
               fill="none"
@@ -512,7 +558,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
           )}
 
           {/* Path: depleted (red) */}
-          {depletedPoints.length > 1 && (
+          {shown["portfolio"] && depletedPoints.length > 1 && (
             <path
               d={toPath(depletedPoints)}
               fill="none"
@@ -563,6 +609,8 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
             />
           )}
 
+          </g>{/* end clipPath group */}
+
           {/* Right Y-axis: income/expense scale */}
           {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
             const val = maxIncome * pct;
@@ -612,7 +660,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
           })}
 
           {/* Dot at retirement */}
-          {profile.retirement_age >= profile.current_age &&
+          {shown["portfolio"] && profile.retirement_age >= profile.current_age &&
             profile.retirement_age <= profile.life_expectancy && (
               <circle
                 cx={xPos(profile.retirement_age).toFixed(1)}
@@ -623,7 +671,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
             )}
 
           {/* Dot at depletion */}
-          {depletionAge != null && (
+          {shown["portfolio"] && depletionAge != null && (
             <circle
               cx={xPos(depletionAge).toFixed(1)}
               cy={yPos(0).toFixed(1)}
@@ -631,6 +679,67 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
               fill="var(--color-red)"
             />
           )}
+
+          {/* Hover detection: one transparent rect per age band */}
+          {ages.map((age) => (
+            <rect
+              key={age}
+              x={xPos(age) - chartW / (2 * Math.max(ages.length - 1, 1))}
+              y={PADDING.top}
+              width={chartW / Math.max(ages.length - 1, 1)}
+              height={chartH}
+              fill="transparent"
+              onMouseEnter={() => setHoveredAge(age)}
+            />
+          ))}
+
+          {/* Tooltip */}
+          {hoveredAge != null && (() => {
+            const tooltipLines: { label: string; val: string; color: string }[] = [
+              { label: "Portfolio", val: fmtLarge(hoveredPortfolio ?? 0), color: "#C97A3A" },
+              ...(shown["jobIncome"] && (hoveredJobIncome ?? 0) > 0
+                ? [{ label: "Job income", val: fmtLarge(hoveredJobIncome ?? 0), color: "#4D6B3A" }]
+                : []),
+              ...(shown["ss"] && (hoveredSS ?? 0) > 0
+                ? [{ label: "Soc. Sec.", val: fmtLarge(hoveredSS ?? 0), color: "#3B5C7F" }]
+                : []),
+              ...(shown["pension"] && (hoveredPension ?? 0) > 0
+                ? [{ label: "Pension", val: fmtLarge(hoveredPension ?? 0), color: "#6B5B95" }]
+                : []),
+              ...(shown["expenses"] && (hoveredExpenses ?? 0) > 0
+                ? [{ label: "Expenses", val: fmtLarge(hoveredExpenses ?? 0), color: "#9A3B2A" }]
+                : []),
+            ];
+            const tx = Math.min(xPos(hoveredAge) + 8, W - PADDING.right - 140);
+            const ty = PADDING.top + 4;
+            const boxH = 18 + tooltipLines.length * 15;
+            return (
+              <g>
+                <line
+                  x1={xPos(hoveredAge).toFixed(1)}
+                  y1={PADDING.top}
+                  x2={xPos(hoveredAge).toFixed(1)}
+                  y2={H - PADDING.bottom}
+                  stroke="var(--color-ink-3)"
+                  strokeWidth="1"
+                  strokeDasharray="3,3"
+                  opacity="0.5"
+                />
+                <rect x={tx} y={ty} width={138} height={boxH} rx="6"
+                  fill="var(--color-paper-card)" stroke="var(--color-rule)" strokeWidth="1" opacity="0.96" />
+                <text x={tx + 10} y={ty + 12} fontSize="10" fontWeight="600"
+                  fill="var(--color-ink)" fontFamily="var(--font-geist, system-ui)">
+                  Age {hoveredAge}
+                </text>
+                {tooltipLines.map((line, li) => (
+                  <text key={li} x={tx + 10} y={ty + 24 + li * 15} fontSize="10"
+                    fill={line.color} fontFamily="var(--font-geist-mono, monospace)">
+                    {line.label}: {line.val}
+                  </text>
+                ))}
+              </g>
+            );
+          })()}
         </svg>
 
         {/* Legend */}
@@ -651,6 +760,23 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
           )}
         </div>
       </div>
+
+      {/* Bridge job note */}
+      {hasBridgeJob && (
+        <div
+          style={{
+            fontSize: 12,
+            color: "var(--color-ink-4)",
+            marginBottom: 16,
+            padding: "8px 14px",
+            borderRadius: 8,
+            background: "var(--color-paper-deep)",
+            border: "1px solid var(--color-rule)",
+          }}
+        >
+          Part-time / consulting income is modeled as a bridge job reducing portfolio withdrawals.
+        </div>
+      )}
 
       {/* Scenario comparison */}
       <div
