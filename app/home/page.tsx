@@ -55,7 +55,7 @@ export default async function HomePage() {
   const today = new Date();
   const todayStr = today.toLocaleDateString("sv", { timeZone: userTz }); // YYYY-MM-DD
 
-  const [prefs, todoResult, reminders, profileResult, careerGoalsResult, workoutsResult, assignedReminders] = await Promise.all([
+  const [prefs, todoResult, reminders, profileResult, careerGoalsResult, workoutsResult, assignedReminders, circleResult] = await Promise.all([
     getPreferences(user.id),
     service
       .schema("hub")
@@ -83,10 +83,38 @@ export default async function HomePage() {
       .order("scheduled_time", { ascending: true, nullsFirst: false }),
     // Reminders assigned to this user by family members (Phase 2b)
     getAssignedReminders(user.id),
+    // Family circle members for FamilyTimeline filter chips
+    service.schema("hub").from("family_members")
+      .select("member_user_id, display_name, nickname")
+      .eq("user_id", user.id),
   ]);
 
   const todos = (todoResult.data ?? []) as Todo[];
   const isAdmin = (profileResult.data as { role?: string } | null)?.role === "admin";
+
+  // Family circle members for FamilyTimeline filter chips + household reminders
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const circleMembers = ((circleResult.data ?? []) as any[]).map((m) => ({
+    id: m.member_user_id as string,
+    label: (m.display_name ?? m.nickname ?? "Member") as string,
+  }));
+  const memberIds = circleMembers.map((m) => m.id);
+
+  // Fetch household reminders from circle members (requires Phase 2b RLS)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let familyHouseholdReminders: any[] = [];
+  if (memberIds.length > 0) {
+    const { data: hwData } = await service
+      .schema("hub")
+      .from("reminders")
+      .select("id, title, due_at, category, source_app, user_id, assigned_to")
+      .eq("is_household", true)
+      .is("completed_at", null)
+      .in("user_id", memberIds)
+      .lte("due_at", new Date(Date.now() + 7 * 86_400_000).toISOString())
+      .order("due_at", { ascending: true });
+    familyHouseholdReminders = hwData ?? [];
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const careerGoals = (careerGoalsResult.data ?? []) as Array<{ id: string; title: string; target_date: string | null; horizon: string; category: string }>;
   const activeCareerGoals = careerGoals.length;
@@ -387,6 +415,28 @@ export default async function HomePage() {
         href: "/home/family",
         person: "me",
       })),
+    // Household reminders from family circle members (visible via Phase 2b RLS)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...familyHouseholdReminders
+      .filter((r: any) => {
+        const localDate = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
+        return localDate === todayStr;
+      })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((r: any) => {
+        const owner = circleMembers.find((m) => m.id === r.user_id);
+        return {
+          id: `family-hw-${r.id}`,
+          sortKey: r.due_at,
+          timeLabel: new Date(r.due_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: userTz }),
+          label: r.title,
+          module: "family",
+          category: r.category ?? "general",
+          href: "/home/family",
+          person: r.user_id as string,   // filter chip uses member_user_id
+          personLabel: owner?.label,
+        };
+      }),
   ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
   const menuUser = {
@@ -542,7 +592,7 @@ export default async function HomePage() {
         {/* ══ SECTION 2: Today's Plan ════════════════════════════════════════════ */}
         <section aria-labelledby="today-plan-heading" style={{ marginBottom: 28 }}>
           <SectionHeader id="today-plan-heading">Today&apos;s plan</SectionHeader>
-          <FamilyTimeline items={timelineItems} members={[]} />
+          <FamilyTimeline items={timelineItems} members={circleMembers} />
         </section>
 
         {/* ══ SECTION 3: Family Status ══════════════════════════════════════════ */}

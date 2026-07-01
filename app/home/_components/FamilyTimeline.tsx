@@ -12,7 +12,8 @@ export interface TimelineItem {
   module: string;        // "hub" | "health" | "finance" | "student-success" | "career"
   category: string;
   href?: string;
-  person?: string;       // "me" | family member id (Phase 2)
+  person?: string;       // "me" | family member_user_id (Phase 2b)
+  personLabel?: string;  // display name for the person (e.g. "Alicia")
 }
 
 export interface FamilyMember {
@@ -163,7 +164,8 @@ export default function FamilyTimeline({ items, members }: Props) {
           const hasConflict = conflicts.has(item.id);
           const dotColor =
             MODULE_DOT[item.category] ?? MODULE_DOT[item.module] ?? "var(--color-ink-3)";
-          const badge = MODULE_BADGE[item.module] ?? MODULE_BADGE[item.category];
+          // For family household items, show the person's name as the badge
+          const badge = item.personLabel ?? MODULE_BADGE[item.module] ?? MODULE_BADGE[item.category];
 
           const row = (
             <div

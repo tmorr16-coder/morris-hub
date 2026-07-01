@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import PlanUploader from "./_components/PlanUploader";
+import StartFamilyPlanButton from "./_components/StartFamilyPlanButton";
 
 const BUILT_IN_PLANS = [
   { id: "bible-in-a-year",   title: "Bible in a Year",         description: "Read the entire Bible in 365 days — Old and New Testament together.", duration_days: 365 },
@@ -58,19 +59,20 @@ export default async function PlansPage() {
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink-2)", marginBottom: 12 }}>My plans</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {(userPlans ?? []).map((up: any) => (
-                <Link key={up.plan_id} href={`/bible/plans/${up.plan_id}`} style={{ textDecoration: "none" }}>
-                  <div style={{
-                    background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
-                    borderRadius: 12, padding: "16px 20px", boxShadow: "var(--shadow-card)",
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                  }}>
-                    <div>
+                <div key={up.plan_id} style={{
+                  background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
+                  borderRadius: 12, padding: "16px 20px", boxShadow: "var(--shadow-card)",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <Link href={`/bible/plans/${up.plan_id}`} style={{ textDecoration: "none", flex: 1 }}>
                       <div style={{ fontWeight: 600, color: "var(--color-ink)", fontSize: 15 }}>{up.plan?.title}</div>
                       <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 3 }}>{up.plan?.duration_days} days • Started {new Date(up.started_at).toLocaleDateString()}</div>
-                    </div>
-                    <span style={{ color: "var(--color-accent)", fontSize: 20 }}>›</span>
+                    </Link>
+                    <Link href={`/bible/plans/${up.plan_id}`} style={{ color: "var(--color-accent)", fontSize: 20, textDecoration: "none", marginLeft: 12 }}>›</Link>
                   </div>
-                </Link>
+                  {/* Start family plan for any enrolled plan */}
+                  <StartFamilyPlanButton planId={up.plan_id} planTitle={up.plan?.title ?? "Plan"} />
+                </div>
               ))}
             </div>
           </div>
