@@ -20,31 +20,59 @@ interface TxRow {
   pending: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   personal_finance_category: any;
+  category: string[] | null;        // legacy Plaid category array fallback
 }
 
-// Primary categories to exclude from spending analysis.
-// These are transfers, payments, and balance adjustments — not true spending.
-const EXCLUDED_PRIMARIES = new Set([
+// Primary categories to exclude from spending analysis (case-insensitive via .toUpperCase()).
+// Covers transfer, payment, and balance categories regardless of Plaid API version.
+const EXCLUDED_PRIMARIES_UPPER = new Set([
   "TRANSFER_IN", "TRANSFER_OUT", "LOAN_PAYMENTS",
   "BANK_FEES", "INCOME", "BALANCE",
-  "transfer_in", "transfer_out", "loan_payments",
-  "bank_fees", "income", "balance",
+  "TRANSFER", "PAYMENT", "ADJUSTMENT",
 ]);
 
-function categoryFromPFC(pfc: { primary?: string; detailed?: string } | string | null | undefined): string | null {
-  // Handle stringified JSON (some Plaid sync implementations store as string)
-  if (typeof pfc === "string") {
-    try { pfc = JSON.parse(pfc) as { primary?: string }; } catch { return null; }
+function categoryFromPFC(
+  pfc: { primary?: string; detailed?: string } | string | string[] | null | undefined,
+  legacyCategory?: string[] | null
+): string | null {
+  // ── Handle array format (old Plaid /transactions/get category field) ──
+  // e.g. ["Food and Drink", "Restaurants"]
+  if (Array.isArray(pfc)) {
+    const first = (pfc as string[])[0];
+    if (!first) return null;
+    const upper = first.toUpperCase().replace(/\s+/g, "_");
+    if (EXCLUDED_PRIMARIES_UPPER.has(upper) || EXCLUDED_PRIMARIES_UPPER.has(first.toUpperCase())) return null;
+    return first;
   }
+
+  // ── Handle stringified JSON ──
+  if (typeof pfc === "string") {
+    const raw = pfc;
+    try { pfc = JSON.parse(pfc) as { primary?: string }; } catch {
+      // Not JSON — treat as raw primary string
+      const upper = raw.toUpperCase();
+      if (EXCLUDED_PRIMARIES_UPPER.has(upper)) return null;
+      return raw.toLowerCase().split("_").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    }
+  }
+
+  // ── Standard object format {primary, detailed} ──
   const p = (pfc as { primary?: string } | null)?.primary;
-  if (!p) return null;
-  // Exclude non-spending categories — they distort the breakdown
-  if (EXCLUDED_PRIMARIES.has(p)) return null;
-  return p
-    .toLowerCase()
-    .split("_")
-    .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+  if (p) {
+    // Case-insensitive exclusion — catches "BALANCE", "Balance", "balance", etc.
+    if (EXCLUDED_PRIMARIES_UPPER.has(p.toUpperCase())) return null;
+    return p.toLowerCase().split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  }
+
+  // ── Fallback: use legacy category array if PFC has no primary ──
+  if (legacyCategory && Array.isArray(legacyCategory) && legacyCategory.length > 0) {
+    const first = legacyCategory[0];
+    const upper = first.toUpperCase().replace(/\s+/g, "_");
+    if (EXCLUDED_PRIMARIES_UPPER.has(upper) || EXCLUDED_PRIMARIES_UPPER.has(first.toUpperCase())) return null;
+    return first;
+  }
+
+  return null;
 }
 
 function monthKey(dateStr: string): string {
@@ -134,7 +162,7 @@ function detectRecurring(
 
     const merchant = sorted[0].merchant_name ?? sorted[0].name;
     const lastTx = sorted[sorted.length - 1];
-    const category = categoryFromPFC(lastTx.personal_finance_category) ?? "Other";
+    const category = categoryFromPFC(lastTx.personal_finance_category, lastTx.category) ?? "Other";
 
     // Monthly cost normalization
     const monthlyCost =
@@ -206,7 +234,7 @@ export default async function InsightsPage({
       const { data: txRows } = await service
         .schema("finance")
         .from("transactions")
-        .select("id, account_id, date, amount, merchant_name, name, pending, personal_finance_category")
+        .select("id, account_id, date, amount, merchant_name, name, pending, personal_finance_category, category")
         .in("account_id", acctIds)
         .gte("date", twelveAgo)
         .order("date", { ascending: true });
@@ -243,7 +271,7 @@ export default async function InsightsPage({
         date: t.date,
         merchant: t.merchant_name ?? t.name,
         amount: t.amount,
-        category: categoryFromPFC(t.personal_finance_category) ?? "Uncategorized",
+        category: categoryFromPFC(t.personal_finance_category, t.category) ?? "Uncategorized",
         isIncome: t.amount < 0,
       })).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)),
     }))
@@ -272,7 +300,7 @@ export default async function InsightsPage({
   const prevDetail = new Map<string, Map<string, number>>();
   for (const t of transactions) {
     if (t.amount <= 0) continue;
-    const cat = categoryFromPFC(t.personal_finance_category);
+    const cat = categoryFromPFC(t.personal_finance_category, t.category);
     if (!cat) continue; // skip transfers, income, balance adjustments
     const sub = detailedLabel(t.personal_finance_category);
     const mk = monthKey(t.date);
@@ -299,7 +327,7 @@ export default async function InsightsPage({
       for (const t of transactions) {
         if (t.amount <= 0) continue;
         if (monthKey(t.date) !== currentMonth) continue;
-        if (categoryFromPFC(t.personal_finance_category) !== cat) continue;
+        if (categoryFromPFC(t.personal_finance_category, t.category) !== cat) continue;
         const sub = detailedLabel(t.personal_finance_category);
         if (!subTxns.has(sub)) subTxns.set(sub, []);
         subTxns.get(sub)!.push(t);
@@ -343,7 +371,7 @@ export default async function InsightsPage({
     if (!merchant) continue;
     const key = merchant.toLowerCase();
     if (!merchantsThisMonth.has(key)) {
-      merchantsThisMonth.set(key, { merchant, total: 0, count: 0, category: categoryFromPFC(t.personal_finance_category) ?? "Uncategorized", txns: [] });
+      merchantsThisMonth.set(key, { merchant, total: 0, count: 0, category: categoryFromPFC(t.personal_finance_category, t.category) ?? "Uncategorized", txns: [] });
     }
     const m = merchantsThisMonth.get(key)!;
     m.total += t.amount;
