@@ -24,11 +24,13 @@ interface TxRow {
 }
 
 // Primary categories to exclude from spending analysis (case-insensitive via .toUpperCase()).
-// Covers transfer, payment, and balance categories regardless of Plaid API version.
+// Rule: exclude money IN (income, transfers in) and pure balance adjustments.
+// KEEP: LOAN_PAYMENTS (real bill payments), BANK_FEES (actual charges), TRANSFER_OUT
+// (may include bill pay). Only exclude when it's definitively not user spending.
 const EXCLUDED_PRIMARIES_UPPER = new Set([
-  "TRANSFER_IN", "TRANSFER_OUT", "LOAN_PAYMENTS",
-  "BANK_FEES", "INCOME", "BALANCE",
-  "TRANSFER", "PAYMENT", "ADJUSTMENT",
+  "TRANSFER_IN",  // money arriving into an account — not spending
+  "INCOME",        // payroll, interest — not spending
+  "BALANCE",       // not a real Plaid category; balance adjustment noise
 ]);
 
 function categoryFromPFC(
@@ -357,16 +359,17 @@ export default async function InsightsPage({
   // ── Recurring charges ─────────────────────────────────────────────────
   const recurring = detectRecurring(transactions, accountById);
 
-  // ── Top merchants this month ──────────────────────────────────────────
-  // Track the constituent transactions per merchant so we can also report
-  // which account is the most common source for each.
+  // ── Top merchants — last 30 days ─────────────────────────────────────
+  // Use a rolling 30-day window rather than calendar month so the view
+  // is never empty on the 1st of the month.
+  const thirtyDaysAgo = new Date(today.getTime() - 30 * 86_400_000).toISOString().slice(0, 10);
   const merchantsThisMonth = new Map<
     string,
     { merchant: string; total: number; count: number; category: string; txns: TxRow[] }
   >();
   for (const t of transactions) {
     if (t.amount <= 0) continue;
-    if (monthKey(t.date) !== currentMonth) continue;
+    if (t.date < thirtyDaysAgo) continue;  // rolling 30-day window
     const merchant = (t.merchant_name ?? t.name).trim();
     if (!merchant) continue;
     const key = merchant.toLowerCase();

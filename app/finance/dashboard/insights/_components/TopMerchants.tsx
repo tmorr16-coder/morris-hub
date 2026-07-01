@@ -20,13 +20,13 @@ export default function TopMerchants({ rows }: { rows: MerchantRow[] }) {
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
         <h2 className="serif" style={{ fontSize: 20 }}>Top merchants</h2>
         <span style={{ fontSize: 11, color: "var(--color-ink-3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-          This month
+          Last 30 days
         </span>
       </div>
 
       {rows.length === 0 ? (
         <p style={{ fontSize: 13, color: "var(--color-ink-4)", padding: "20px 0", textAlign: "center" }}>
-          No spending this month yet
+          No transactions in the last 30 days
         </p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column" }}>
