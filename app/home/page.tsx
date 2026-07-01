@@ -559,9 +559,16 @@ export default async function HomePage() {
         </section>
 
         {/* ══ SECTION 4: My Priorities ══════════════════════════════════════════ */}
-        {myPriorities.length > 0 && (
-          <section aria-labelledby="priorities-heading" style={{ marginBottom: 28 }}>
-            <SectionHeader id="priorities-heading">My priorities</SectionHeader>
+        <section aria-labelledby="priorities-heading" style={{ marginBottom: 28 }}>
+          <SectionHeader id="priorities-heading">My priorities</SectionHeader>
+
+          {/* TodosWidget — always present, core My Priorities tool */}
+          <div style={{ marginBottom: myPriorities.length > 0 ? 12 : 0 }}>
+            <TodosWidget initialTodos={todos} />
+          </div>
+
+          {/* Compact goal/health/family/wellness summary cards */}
+          {myPriorities.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {myPriorities.map((p) => (
                 <div
@@ -601,8 +608,8 @@ export default async function HomePage() {
                 </div>
               ))}
             </div>
-          </section>
-        )}
+          )}
+        </section>
 
         {/* ══ SECTION 5: Insights — collapsed by default ════════════════════════ */}
         {insightWids.length > 0 && (
