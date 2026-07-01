@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import PlatformMenu from "@/components/PlatformMenu";
 import { createClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
@@ -10,21 +11,22 @@ export default async function CareerLayout({
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
-  let appAccess: string[] | null = null;
-  if (user) {
-    const prefs = await getPreferences(user.id);
-    appAccess = prefs.app_access ?? null;
+  const prefs = await getPreferences(user.id);
+  const appAccess = prefs.app_access ?? null;
+
+  // Access gate — matches the pattern used by health, finance, investments, student-success
+  if (Array.isArray(appAccess) && !appAccess.includes("career")) {
+    redirect("/home");
   }
 
-  const menuUser = user
-    ? {
-        email: user.email,
-        name: user.user_metadata?.full_name ?? null,
-        avatarUrl: user.user_metadata?.avatar_url ?? null,
-        appAccess,
-      }
-    : null;
+  const menuUser = {
+    email: user.email,
+    name: user.user_metadata?.full_name ?? null,
+    avatarUrl: user.user_metadata?.avatar_url ?? null,
+    appAccess,
+  };
 
   return (
     <>

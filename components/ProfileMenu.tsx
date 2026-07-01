@@ -14,14 +14,60 @@ export interface ProfileMenuUser {
 export default function ProfileMenu({ user }: { user: ProfileMenuUser }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
+  // Close on outside click
   useEffect(() => {
     function onMouseDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        // Don't return focus on outside click — focus is already elsewhere
+      }
     }
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
   }, []);
+
+  // Escape closes and returns focus; arrow keys navigate menu items
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus();
+        return;
+      }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const items = Array.from(
+          menuRef.current?.querySelectorAll('[role="menuitem"]') ?? []
+        ) as HTMLElement[];
+        if (!items.length) return;
+        const current = items.indexOf(document.activeElement as HTMLElement);
+        const next = e.key === "ArrowDown"
+          ? (current + 1) % items.length
+          : (current - 1 + items.length) % items.length;
+        items[next]?.focus();
+      }
+      if (e.key === "Home") {
+        e.preventDefault();
+        const items = menuRef.current?.querySelectorAll('[role="menuitem"]') as NodeListOf<HTMLElement>;
+        items?.[0]?.focus();
+      }
+      if (e.key === "End") {
+        e.preventDefault();
+        const items = menuRef.current?.querySelectorAll('[role="menuitem"]') as NodeListOf<HTMLElement>;
+        items?.[items.length - 1]?.focus();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    // Move focus to first menu item when menu opens
+    const firstItem = menuRef.current?.querySelector('[role="menuitem"]') as HTMLElement | null;
+    firstItem?.focus();
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -35,6 +81,7 @@ export default function ProfileMenu({ user }: { user: ProfileMenuUser }) {
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button
+        ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         aria-label="Open profile menu"
         aria-expanded={open}
@@ -93,6 +140,7 @@ export default function ProfileMenu({ user }: { user: ProfileMenuUser }) {
 
       {open && (
         <div
+          ref={menuRef}
           role="menu"
           aria-label="Profile options"
           style={{

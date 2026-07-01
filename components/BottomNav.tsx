@@ -1,17 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const TABS = [
   { key: "today",  label: "Today",  href: "/home" },
-  { key: "family", label: "Family", href: "/home" },
+  { key: "family", label: "Family", href: "/home/family" },
   { key: "kids",   label: "Kids",   href: "/student-success" },
   { key: "me",     label: "Me",     href: "/health" },
 ];
 
 const MORE_ITEMS = [
   { label: "Money",       href: "/finance/dashboard",                      accessKey: "finance" },
-  { label: "Ask Morris",  href: "/home",                                   accessKey: null },
+  { label: "Ask Morris",  href: "/home/ask",                                accessKey: null },
   { label: "Bible",       href: "/bible/dashboard",                        accessKey: "bible" },
   { label: "Career",      href: "/career",                                 accessKey: "career" },
   { label: "Settings",    href: "/home/settings",                          accessKey: null },
@@ -19,6 +19,7 @@ const MORE_ITEMS = [
 
 function activeKeyFromApp(currentApp: string): string | null {
   if (currentApp === "hub") return "today";
+  if (currentApp === "family") return "family";
   if (currentApp === "health") return "me";
   if (currentApp === "student-success") return "kids";
   return null;
@@ -35,6 +36,39 @@ export default function BottomNav({
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const activeKey = activeKeyFromApp(currentApp);
+  const moreBtnRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+
+  // Keyboard handling for More sheet: Escape closes + returns focus; arrow keys navigate
+  useEffect(() => {
+    if (!moreOpen) return;
+    // Focus first link in sheet
+    const firstLink = sheetRef.current?.querySelector("a") as HTMLElement | null;
+    firstLink?.focus();
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMoreOpen(false);
+        moreBtnRef.current?.focus();
+        return;
+      }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const links = Array.from(
+          sheetRef.current?.querySelectorAll("a") ?? []
+        ) as HTMLElement[];
+        if (!links.length) return;
+        const current = links.indexOf(document.activeElement as HTMLElement);
+        const next = e.key === "ArrowDown"
+          ? (current + 1) % links.length
+          : (current - 1 + links.length) % links.length;
+        links[next]?.focus();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [moreOpen]);
 
   const visibleMore = MORE_ITEMS.filter(
     (item) => !item.accessKey || !appAccess?.length || appAccess.includes(item.accessKey)
@@ -45,7 +79,7 @@ export default function BottomNav({
       {/* Backdrop */}
       {moreOpen && (
         <div
-          onClick={() => setMoreOpen(false)}
+          onClick={() => { setMoreOpen(false); moreBtnRef.current?.focus(); }}
           aria-hidden="true"
           style={{
             position: "fixed",
@@ -59,8 +93,10 @@ export default function BottomNav({
       {/* More sheet */}
       {moreOpen && (
         <div
+          ref={sheetRef}
           role="dialog"
           aria-label="More navigation options"
+          aria-modal="true"
           style={{
             position: "fixed",
             left: 0,
@@ -82,7 +118,7 @@ export default function BottomNav({
               fontWeight: 700,
               letterSpacing: "0.12em",
               textTransform: "uppercase",
-              color: "var(--color-ink-4)",
+              color: "var(--color-ink-3)",
               fontFamily: "var(--font-geist, system-ui), sans-serif",
             }}
           >
@@ -161,7 +197,7 @@ export default function BottomNav({
                 justifyContent: "center",
                 gap: 3,
                 textDecoration: "none",
-                color: active ? "var(--color-accent)" : "var(--color-ink-4)",
+                color: active ? "var(--color-accent)" : "var(--color-ink-2)",
                 fontSize: 10,
                 fontWeight: active ? 600 : 500,
                 fontFamily: "var(--font-geist, system-ui), sans-serif",
@@ -176,8 +212,10 @@ export default function BottomNav({
 
         {/* More tab */}
         <button
+          ref={moreBtnRef}
           onClick={() => setMoreOpen((o) => !o)}
           aria-expanded={moreOpen}
+          aria-haspopup="dialog"
           aria-label="More navigation options"
           style={{
             flex: 1,
@@ -189,7 +227,7 @@ export default function BottomNav({
             background: "none",
             border: "none",
             cursor: "pointer",
-            color: moreOpen ? "var(--color-accent)" : "var(--color-ink-4)",
+            color: moreOpen ? "var(--color-accent)" : "var(--color-ink-2)",
             fontSize: 10,
             fontWeight: moreOpen ? 600 : 500,
             fontFamily: "var(--font-geist, system-ui), sans-serif",
