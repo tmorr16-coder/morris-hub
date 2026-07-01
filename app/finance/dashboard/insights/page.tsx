@@ -279,8 +279,12 @@ export default async function InsightsPage({
     }))
     .slice(-6);
 
-  // ── Category breakdown — current month vs previous month ──────────────
+  // ── Category breakdown — last 30 days vs 31–60 days ago ─────────────
+  // Rolling windows mean the view is never empty at the start of a month.
   const today = new Date();
+  const d30 = new Date(today.getTime() - 30 * 86_400_000).toISOString().slice(0, 10);
+  const d60 = new Date(today.getTime() - 60 * 86_400_000).toISOString().slice(0, 10);
+  // Keep currentMonth/prevMonth for the monthly trend chart which still uses them
   const currentMonth = today.toISOString().slice(0, 7);
   const prevDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
   const prevMonth = prevDate.toISOString().slice(0, 7);
@@ -298,20 +302,21 @@ export default async function InsightsPage({
 
   const currentByCat = new Map<string, number>();
   const prevByCat = new Map<string, number>();
-  const currentDetail = new Map<string, Map<string, number>>(); // primary → detailed → amt
+  const currentDetail = new Map<string, Map<string, number>>();
   const prevDetail = new Map<string, Map<string, number>>();
   for (const t of transactions) {
     if (t.amount <= 0) continue;
     const cat = categoryFromPFC(t.personal_finance_category, t.category);
-    if (!cat) continue; // skip transfers, income, balance adjustments
+    if (!cat) continue;
     const sub = detailedLabel(t.personal_finance_category);
-    const mk = monthKey(t.date);
-    if (mk === currentMonth) {
+    if (t.date >= d30) {
+      // Last 30 days → "current"
       currentByCat.set(cat, (currentByCat.get(cat) ?? 0) + t.amount);
       if (!currentDetail.has(cat)) currentDetail.set(cat, new Map());
       const sm = currentDetail.get(cat)!;
       sm.set(sub, (sm.get(sub) ?? 0) + t.amount);
-    } else if (mk === prevMonth) {
+    } else if (t.date >= d60) {
+      // 31–60 days ago → "previous"
       prevByCat.set(cat, (prevByCat.get(cat) ?? 0) + t.amount);
       if (!prevDetail.has(cat)) prevDetail.set(cat, new Map());
       const sm = prevDetail.get(cat)!;
@@ -324,11 +329,11 @@ export default async function InsightsPage({
       const curSub = currentDetail.get(cat) ?? new Map();
       const prevSub = prevDetail.get(cat) ?? new Map();
       const subKeys = new Set([...curSub.keys(), ...prevSub.keys()]);
-      // Include actual transactions for each subcategory so the UI can drill down
+      // Drill-down: include individual transactions from the current 30-day window
       const subTxns = new Map<string, TxRow[]>();
       for (const t of transactions) {
         if (t.amount <= 0) continue;
-        if (monthKey(t.date) !== currentMonth) continue;
+        if (t.date < d30) continue;
         if (categoryFromPFC(t.personal_finance_category, t.category) !== cat) continue;
         const sub = detailedLabel(t.personal_finance_category);
         if (!subTxns.has(sub)) subTxns.set(sub, []);

@@ -76,11 +76,11 @@ export default function CategoryBreakdown({ rows }: { rows: CategoryRow[] }) {
         <div style={{ display: "flex", gap: 14, fontSize: 11 }}>
           <span style={{ color: "var(--color-ink-3)", display: "flex", alignItems: "center", gap: 5 }}>
             <span style={{ width: 10, height: 10, background: "var(--color-bronze)", borderRadius: 2 }} />
-            This month
+            Last 30 days
           </span>
           <span style={{ color: "var(--color-ink-3)", display: "flex", alignItems: "center", gap: 5 }}>
             <span style={{ width: 10, height: 10, background: "var(--color-paper-deep)", borderRadius: 2 }} />
-            Last month
+            Prior 30 days
           </span>
           <span style={{ color: "var(--color-ink-4)", fontStyle: "italic" }}>click to expand</span>
         </div>
