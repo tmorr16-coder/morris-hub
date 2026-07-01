@@ -258,8 +258,28 @@ export default async function DashboardPage() {
     other: accounts.filter((a) => bucket(a.type) === "other"),
   };
 
-  // Net position = Plaid accounts + manual accounts (investments add, loans/credit subtract).
-  const manualTotal = manualAccounts.reduce((sum, a) => sum + (a.balance ?? 0), 0);
+  // ── Net position calculation ──────────────────────────────────────────────
+  // LIABILITY_TYPES: manual accounts of these types subtract from net position
+  // (matching the sign logic applied to Plaid credit/loan accounts above).
+  const LIABILITY_ACCOUNT_TYPES = new Set(["credit_card", "mortgage", "loan", "other_liability"]);
+
+  // Build the set of Plaid account IDs already counted above so we can
+  // exclude any manual account that is the SAME real-world account imported
+  // as a PDF statement. Without this, a Fidelity 401k synced via Plaid AND
+  // also imported as a statement would count twice.
+  const plaidAccountIds = new Set(accounts.map((a) => a.id));
+
+  const manualTotal = manualAccounts.reduce((sum, a) => {
+    // Skip manual accounts explicitly linked to a Plaid account we already counted
+    if ((a as ManualAccountRow & { plaid_account_id?: string }).plaid_account_id &&
+        plaidAccountIds.has((a as ManualAccountRow & { plaid_account_id?: string }).plaid_account_id!)) {
+      return sum;
+    }
+    const bal = a.balance ?? 0;
+    // Liabilities subtract; all other manual accounts (assets, investments) add
+    return sum + (LIABILITY_ACCOUNT_TYPES.has(a.account_type) ? -Math.abs(bal) : bal);
+  }, 0);
+
   const netPosition = accounts.reduce((sum, a) => {
     const bal = a.current_balance ?? 0;
     return sum + (a.type === "credit" || a.type === "loan" ? -bal : bal);

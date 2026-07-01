@@ -198,7 +198,12 @@ export default function PortfolioClient({
   // ── Totals ──────────────────────────────────────────────────────────────────
 
   const retirementTotal = retirementAccounts.reduce((s, a) => s + (a.balance ?? 0), 0);
-  const manualTotal = manualItems.reduce((s, a) => s + (a.balance ?? 0), 0);
+  // Liabilities in custom additions subtract from the gross total
+  const LIABILITY_TYPES = new Set(["credit_card", "mortgage", "loan", "other_liability"]);
+  const manualTotal = manualItems.reduce((s, a) => {
+    const bal = a.balance ?? 0;
+    return s + (LIABILITY_TYPES.has(a.account_type) ? -Math.abs(bal) : bal);
+  }, 0);
   const plaidInvestTotal = plaidInvestmentAccounts.reduce((s, a) => s + a.balance, 0);
   const alpacaTotal = alpacaValue ?? 0;
   const debtTotal = retirementDebts.reduce((s, d) => s + (d.balance ?? 0), 0);
