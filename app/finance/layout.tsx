@@ -24,6 +24,8 @@ export default async function FinanceLayout({ children }: { children: React.Reac
       .maybeSingle(),
   ]);
 
+  if (!prefs.app_access?.includes("finance")) redirect("/home");
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const financePin: string | null = (pinResult.data as any)?.finance_pin ?? null;
 

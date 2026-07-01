@@ -48,14 +48,15 @@ export async function PATCH(
       .schema("hub")
       .from("family_members")
       .upsert([
-        // Inviter → this user
+        // Inviter → this user (with the role assigned by the inviter)
         {
           user_id: invite.inviter_id,
           member_user_id: user.id,
           role: invite.role,
           display_name: invite.display_name,
+          birth_year: invite.birth_year ?? null,
         },
-        // This user → inviter (so they can also see the circle)
+        // This user → inviter
         {
           user_id: user.id,
           member_user_id: invite.inviter_id,
@@ -63,6 +64,20 @@ export async function PATCH(
           display_name: null,
         },
       ], { onConflict: "user_id,member_user_id", ignoreDuplicates: true });
+
+    // ── Phase 3: enforce role-based app_access ────────────────────────────
+    // Child members get a restricted module set. This is set explicitly so
+    // getPreferences cannot auto-expand it back to the full adult set.
+    if (invite.role === "child") {
+      const CHILD_MODULES = ["hub", "health", "student-success", "bible"];
+      await service
+        .schema("hub")
+        .from("preferences")
+        .upsert(
+          { user_id: user.id, app_access: CHILD_MODULES },
+          { onConflict: "user_id" }
+        );
+    }
   }
 
   return NextResponse.json({ ok: true, action });
