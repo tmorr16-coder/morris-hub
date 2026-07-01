@@ -74,6 +74,7 @@ const EMPTY_FORM = {
   start_age: "",
   end_age: "",
   ss_claim_age: "",
+  recurring: false,   // stock_award: same grant issued every year until retirement
 };
 
 interface RetirementTemplate {
@@ -179,6 +180,11 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
 
   function openEdit(inc: RetirementIncome) {
     setEditId(inc.id);
+    // Detect recurring: stock_award with no vest_years and end_age = retirement_age
+    const isRecurring =
+      inc.type === "stock_award" &&
+      inc.vest_years == null &&
+      inc.end_age === profile.retirement_age;
     setForm({
       name: inc.name,
       type: inc.type,
@@ -187,8 +193,9 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
       annual_growth_pct: inc.annual_growth_pct != null ? String(inc.annual_growth_pct) : "",
       vest_years: inc.vest_years != null ? String(inc.vest_years) : "",
       start_age: inc.start_age != null ? String(inc.start_age) : "",
-      end_age: inc.end_age != null ? String(inc.end_age) : "",
+      end_age: inc.end_age != null && !isRecurring ? String(inc.end_age) : "",
       ss_claim_age: inc.ss_claim_age != null ? String(inc.ss_claim_age) : "",
+      recurring: isRecurring,
     });
     setShowPensionScanner(false);
     setShowForm(true);
@@ -198,12 +205,16 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
     e.preventDefault();
 
     const growthPct = form.annual_growth_pct !== "" ? parseFloat(form.annual_growth_pct) : null;
-    const vestYears = form.vest_years !== "" ? parseInt(form.vest_years) : null;
-    // Auto-set end_age for stock awards based on vest_years
     const startAge = form.start_age !== "" ? parseInt(form.start_age) : null;
-    const endAge = form.type === "stock_award" && vestYears != null && startAge != null
-      ? startAge + vestYears
-      : form.end_age !== "" ? parseInt(form.end_age) : null;
+
+    // Recurring annual stock award: same grant every year until retirement
+    const isRecurring = form.type === "stock_award" && form.recurring;
+    const vestYears = isRecurring ? null : (form.vest_years !== "" ? parseInt(form.vest_years) : null);
+    const endAge = isRecurring
+      ? profile.retirement_age            // runs until retirement age
+      : form.type === "stock_award" && vestYears != null && startAge != null
+        ? startAge + vestYears             // single grant: start + vest period
+        : form.end_age !== "" ? parseInt(form.end_age) : null;
 
     const incomeFields = {
       name: form.name,
@@ -258,6 +269,11 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
   function ageRange(inc: RetirementIncome): string {
     if (inc.type === "social_security" && inc.ss_claim_age != null) {
       return `Claiming at age ${inc.ss_claim_age}`;
+    }
+    // Recurring annual grant: vest_years is null, end_age = retirement_age
+    if (inc.type === "stock_award" && inc.vest_years == null && inc.end_age === profile.retirement_age) {
+      const grantAge = inc.start_age ?? profile.current_age;
+      return `Recurring annual grant · age ${grantAge} to retirement`;
     }
     if (inc.type === "stock_award" && inc.vest_years != null) {
       const grantAge = inc.start_age ?? profile.current_age;
@@ -632,31 +648,75 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
               </div>
             )}
 
-            {/* Stock award: vesting period + total grant */}
+            {/* Stock award: recurring toggle + optional vesting period */}
             {form.type === "stock_award" && (
               <>
-                <div>
-                  <label style={labelStyle}>Vesting period (years)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    step="1"
-                    value={form.vest_years}
-                    onChange={(e) => setForm((f) => ({ ...f, vest_years: e.target.value }))}
-                    placeholder="e.g. 4"
-                    style={inputStyle}
-                  />
+                {/* Recurring annual grant toggle */}
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, recurring: !f.recurring, vest_years: "" }))}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "10px 14px",
+                      borderRadius: 9,
+                      border: form.recurring ? "1.5px solid var(--color-bronze)" : "1px solid var(--color-rule)",
+                      background: form.recurring ? "rgba(139,106,71,0.07)" : "transparent",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      width: "100%",
+                      textAlign: "left",
+                    }}
+                  >
+                    <span style={{ fontSize: 16 }}>{form.recurring ? "🔁" : "🎁"}</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: form.recurring ? "var(--color-bronze-dark)" : "var(--color-ink-2)" }}>
+                        {form.recurring ? "Recurring annual grant until retirement" : "One-time grant (vests over N years)"}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 2 }}>
+                        {form.recurring
+                          ? `Same grant issued every year from age ${form.start_age || "start"} to retirement — adds ${form.monthly_amount ? fmtMoney(parseFloat(form.monthly_amount)) : "$…"}/yr to portfolio`
+                          : "E.g. a single RSU grant that vests over 4 years — tap to make it annual"}
+                      </div>
+                    </div>
+                  </button>
                 </div>
-                {form.vest_years && form.monthly_amount && (
-                  <div style={{ gridColumn: "1 / -1" }}>
+
+                {/* One-time grant: vesting period */}
+                {!form.recurring && (
+                  <div>
+                    <label style={labelStyle}>Vesting period (years)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      step="1"
+                      value={form.vest_years}
+                      onChange={(e) => setForm((f) => ({ ...f, vest_years: e.target.value }))}
+                      placeholder="e.g. 4"
+                      style={inputStyle}
+                    />
+                  </div>
+                )}
+
+                {/* Summary */}
+                <div style={{ gridColumn: "1 / -1" }}>
+                  {form.recurring && form.monthly_amount && form.start_age && (
+                    <div style={{ fontSize: 11, color: "var(--color-bronze-dark)", padding: "8px 12px", background: "rgba(139,106,71,0.07)", borderRadius: 7 }}>
+                      🔁 {fmtMoney(parseFloat(form.monthly_amount))}/yr added to portfolio every year from age {form.start_age} to retirement (age {profile.retirement_age})
+                      {" · "}{profile.retirement_age - parseInt(form.start_age)} grants total
+                    </div>
+                  )}
+                  {!form.recurring && form.vest_years && form.monthly_amount && (
                     <div style={{ fontSize: 11, color: "var(--color-bronze-dark)", padding: "8px 12px", background: "rgba(139,106,71,0.07)", borderRadius: 7 }}>
                       Total grant value: {fmtMoney(parseFloat(form.monthly_amount) * parseInt(form.vest_years))} ·
                       vests {fmtMoney(parseFloat(form.monthly_amount))}/yr over {form.vest_years} years
                       {form.start_age && ` (age ${form.start_age}–${parseInt(form.start_age) + parseInt(form.vest_years)})`}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </>
             )}
 
