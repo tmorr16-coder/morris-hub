@@ -28,7 +28,7 @@ interface Props {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const MODULE_DOT: Record<string, string> = {
+export const MODULE_DOT: Record<string, string> = {
   hub:              "var(--color-accent)",
   family:           "#E07B39",   // Phase 2b: assigned household tasks
   health:           "#4D6B3A",
@@ -46,7 +46,7 @@ const MODULE_DOT: Record<string, string> = {
   personal:         "var(--color-ink-3)",
 };
 
-const MODULE_BADGE: Record<string, string> = {
+export const MODULE_BADGE: Record<string, string> = {
   health:           "Health",
   finance:          "Finance",
   "student-success":"Kids",

@@ -194,12 +194,27 @@ export default async function FamilyPage() {
       <PlatformMenu currentApp="family" user={menuUser} />
       <main style={{ maxWidth: 760, margin: "0 auto", padding: "32px 20px 100px" }}>
 
-        <h1 className="serif" style={{ fontSize: 36, marginBottom: 8, margin: "0 0 8px" }}>
-          Family
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--color-ink-3)", marginBottom: 28, fontFamily: "var(--font-geist, system-hub), sans-serif" }}>
-          Household schedule, shared responsibilities, and family circle.
-        </p>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div>
+            <h1 className="serif" style={{ fontSize: 36, marginBottom: 8, margin: "0 0 8px" }}>
+              Family
+            </h1>
+            <p style={{ fontSize: 14, color: "var(--color-ink-3)", marginBottom: 28, fontFamily: "var(--font-geist, system-hub), sans-serif" }}>
+              Household schedule, shared responsibilities, and family circle.
+            </p>
+          </div>
+          <a
+            href="/home/family/calendar"
+            style={{
+              padding: "7px 16px", borderRadius: 9, border: "1px solid var(--color-rule)",
+              background: "var(--color-bg-card)", color: "var(--color-accent)",
+              fontSize: 13, fontWeight: 600, textDecoration: "none",
+              fontFamily: "var(--font-geist, system-ui), sans-serif", flexShrink: 0,
+            }}
+          >
+            Calendar →
+          </a>
+        </div>
 
         {/* ── Pending invitations ── */}
         {pendingInvites.length > 0 && (
