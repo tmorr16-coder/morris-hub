@@ -11,6 +11,7 @@ interface CircleMember {
   display_name: string | null;
   full_name: string | null;
   email: string | null;
+  birth_year: number | null;
 }
 
 interface SentInvite {
@@ -18,6 +19,7 @@ interface SentInvite {
   invite_email: string;
   display_name: string | null;
   role: string;
+  birth_year: number | null;
   status: string;       // 'pending' | 'accepted' | 'declined'
   created_at: string;
 }
@@ -28,6 +30,7 @@ interface PendingInvite {
   inviter_name: string | null;
   display_name: string | null;
   role: string;
+  birth_year: number | null;
 }
 
 interface Props {
@@ -59,6 +62,10 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function age(birthYear: number | null): number | null {
+  return birthYear ? new Date().getFullYear() - birthYear : null;
+}
+
 const chip = (label: string, color: string): React.CSSProperties => ({
   fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
   padding: "2px 7px", borderRadius: 8,
@@ -87,6 +94,7 @@ export default function FamilyManagementClient({
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
   const [inviteRole, setInviteRole] = useState<"adult" | "child">("adult");
+  const [inviteBirthYear, setInviteBirthYear] = useState("");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState(false);
@@ -102,14 +110,19 @@ export default function FamilyManagementClient({
     const res = await fetch("/api/family/invite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ invite_email: inviteEmail, display_name: inviteName, role: inviteRole }),
+      body: JSON.stringify({
+        invite_email: inviteEmail,
+        display_name: inviteName,
+        role: inviteRole,
+        birth_year: inviteBirthYear || null,
+      }),
     });
     const data = await res.json();
     setInviting(false);
     if (!res.ok) { setInviteError(data.error ?? "Failed to send invite"); return; }
     setInviteSuccess(true);
     setSent((prev) => [data.invite, ...prev.filter((i) => i.invite_email !== inviteEmail)]);
-    setInviteEmail(""); setInviteName("");
+    setInviteEmail(""); setInviteName(""); setInviteBirthYear("");
   }
 
   async function cancelInvite(id: string) {
@@ -175,6 +188,7 @@ export default function FamilyManagementClient({
                   </div>
                   <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 2, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
                     Role: <strong style={{ color: "var(--color-ink-3)" }}>{ROLE_LABELS[inv.role] ?? inv.role}</strong>
+                    {age(inv.birth_year) !== null && ` · Age ${age(inv.birth_year)}`}
                     {inv.display_name && ` · Listed as "${inv.display_name}"`}
                   </div>
                 </div>
@@ -219,7 +233,7 @@ export default function FamilyManagementClient({
                     <div style={{ fontSize: 11, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{m.email}</div>
                   </div>
                   <span style={chip(ROLE_LABELS[m.role] ?? m.role, m.role === "child" ? "#6B5B95" : "var(--color-accent)")}>
-                    {ROLE_LABELS[m.role] ?? m.role}
+                    {ROLE_LABELS[m.role] ?? m.role}{age(m.birth_year) !== null && ` · ${age(m.birth_year)}`}
                   </span>
                   <button
                     onClick={() => removeMember(m.id)}
@@ -272,6 +286,20 @@ export default function FamilyManagementClient({
               ))}
             </div>
           </div>
+          {inviteRole === "child" && (
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-ink-3)", display: "block", marginBottom: 5, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>Birth year (optional)</label>
+              <input
+                type="number"
+                value={inviteBirthYear}
+                onChange={(e) => setInviteBirthYear(e.target.value)}
+                placeholder="e.g. 2016"
+                min={new Date().getFullYear() - 100}
+                max={new Date().getFullYear()}
+                style={{ ...inp, maxWidth: 140 }}
+              />
+            </div>
+          )}
           {inviteError && <div style={{ fontSize: 12, color: "var(--color-red)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{inviteError}</div>}
           {inviteSuccess && <div style={{ fontSize: 12, color: "var(--color-green)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>Invitation sent — they'll see it when they log in.</div>}
           <button type="submit" disabled={inviting} style={{ padding: "9px 20px", borderRadius: 9, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 13, fontWeight: 600, cursor: inviting ? "wait" : "pointer", fontFamily: "inherit", alignSelf: "flex-start", opacity: inviting ? 0.7 : 1 }}>
@@ -292,7 +320,7 @@ export default function FamilyManagementClient({
                     {inv.display_name ? `${inv.display_name} ` : ""}<span style={{ color: "var(--color-ink-4)" }}>{inv.invite_email}</span>
                   </div>
                   <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 2, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-                    {ROLE_LABELS[inv.role] ?? inv.role} · Sent {fmtDate(inv.created_at)}
+                    {ROLE_LABELS[inv.role] ?? inv.role}{age(inv.birth_year) !== null && ` · Age ${age(inv.birth_year)}`} · Sent {fmtDate(inv.created_at)}
                   </div>
                 </div>
                 <span style={chip(inv.status, STATUS_COLOR[inv.status] ?? "var(--color-ink-3)")}>

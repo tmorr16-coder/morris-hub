@@ -60,7 +60,7 @@ export default async function FamilyPage() {
       .eq("status", "active"),
     // My family circle members (include role for Kids section)
     service.schema("hub").from("family_members")
-      .select("id, member_user_id, role, display_name, nickname")
+      .select("id, member_user_id, role, display_name, nickname, birth_year")
       .eq("user_id", user.id),
     // Pending invites addressed to me
     service.schema("hub").from("family_invitations")
@@ -93,6 +93,7 @@ export default async function FamilyPage() {
     member_user_id: m.member_user_id,
     role: m.role ?? "adult",
     display_name: m.display_name ?? m.nickname ?? null,
+    birth_year: m.birth_year ?? null,
     ...userMap.get(m.member_user_id),
   }));
 
@@ -127,9 +128,10 @@ export default async function FamilyPage() {
   // ── Phase 2b: Kids module — child members' upcoming courses/assignments ──
   const childMembers = familyMembers.filter((m) => m.role === "child");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const kidsData: Array<{ memberId: string; name: string; courses: any[]; assignments: any[] }> = [];
+  const kidsData: Array<{ memberId: string; name: string; age: number | null; courses: any[]; assignments: any[] }> = [];
   for (const child of childMembers) {
     const childName = child.display_name ?? child.full_name ?? child.email ?? "Child";
+    const childAge = child.birth_year ? today.getFullYear() - child.birth_year : null;
     const nowStr = today.toISOString().slice(0, 10);
     const horizonStr = new Date(today.getTime() + 30 * 86_400_000).toISOString().slice(0, 10);
     const [cRes, aRes] = await Promise.all([
@@ -149,6 +151,7 @@ export default async function FamilyPage() {
     kidsData.push({
       memberId: child.member_user_id,
       name: childName,
+      age: childAge,
       courses: cRes?.data ?? [],
       assignments: aRes?.data ?? [],
     });
@@ -294,7 +297,7 @@ export default async function FamilyPage() {
               {kidsData.map((kid) => (
                 <div key={kid.memberId} style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderLeft: "3px solid #6B5B95", borderRadius: 12, padding: "14px 18px", boxShadow: "var(--shadow-card)" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{kid.name}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{kid.name}{kid.age !== null ? ` (${kid.age})` : ""}</span>
                     <a href="/student-success" style={{ fontSize: 11, color: "#6B5B95", textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>View all →</a>
                   </div>
                   {kid.courses.length === 0 && kid.assignments.length === 0 ? (

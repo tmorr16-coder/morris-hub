@@ -19,16 +19,16 @@ export default async function FamilySettingsPage() {
   const [circleResult, sentResult, pendingResult, usersResult] = await Promise.all([
     // My family members (who accepted my invites)
     service.schema("hub").from("family_members")
-      .select("id, member_user_id, role, display_name, nickname")
+      .select("id, member_user_id, role, display_name, nickname, birth_year")
       .eq("user_id", user.id),
     // Invitations I sent
     service.schema("hub").from("family_invitations")
-      .select("id, invite_email, display_name, role, status, created_at, responded_at")
+      .select("id, invite_email, display_name, role, birth_year, status, created_at, responded_at")
       .eq("inviter_id", user.id)
       .order("created_at", { ascending: false }),
     // Invitations pending for me
     service.schema("hub").from("family_invitations")
-      .select("id, inviter_id, display_name, role, created_at")
+      .select("id, inviter_id, display_name, role, birth_year, created_at")
       .eq("invite_email", user.email?.toLowerCase() ?? "")
       .eq("status", "pending"),
     // All platform users for name/email lookup
@@ -52,6 +52,7 @@ export default async function FamilySettingsPage() {
     display_name: m.display_name ?? m.nickname ?? null,
     full_name: userMap.get(m.member_user_id)?.full_name ?? null,
     email: userMap.get(m.member_user_id)?.email ?? null,
+    birth_year: m.birth_year ?? null,
   }));
 
   // Sent invitations
@@ -66,6 +67,7 @@ export default async function FamilySettingsPage() {
     inviter_name: userMap.get(inv.inviter_id)?.full_name ?? null,
     display_name: inv.display_name,
     role: inv.role,
+    birth_year: inv.birth_year ?? null,
   }));
 
   const menuUser = {

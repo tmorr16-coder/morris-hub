@@ -9,10 +9,20 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const { invite_email, display_name, role } = await req.json().catch(() => ({}));
+  const { invite_email, display_name, role, birth_year } = await req.json().catch(() => ({}));
   if (!invite_email) return NextResponse.json({ error: "Email required" }, { status: 400 });
   if (invite_email.toLowerCase() === user.email?.toLowerCase()) {
     return NextResponse.json({ error: "You can't invite yourself" }, { status: 400 });
+  }
+
+  const currentYear = new Date().getFullYear();
+  let birthYear: number | null = null;
+  if (birth_year !== undefined && birth_year !== null && birth_year !== "") {
+    const n = Number(birth_year);
+    if (!Number.isInteger(n) || n < currentYear - 100 || n > currentYear) {
+      return NextResponse.json({ error: "Birth year is out of range" }, { status: 400 });
+    }
+    birthYear = n;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,12 +38,13 @@ export async function POST(req: NextRequest) {
         invite_email: invite_email.toLowerCase(),
         display_name: display_name?.trim() || null,
         role: role === "child" ? "child" : "adult",
+        birth_year: birthYear,
         status: "pending",
         responded_at: null,
       },
       { onConflict: "inviter_id,invite_email" }
     )
-    .select("id, invite_email, display_name, role, status, created_at")
+    .select("id, invite_email, display_name, role, birth_year, status, created_at")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -52,7 +63,7 @@ export async function GET() {
   const { data, error } = await service
     .schema("hub")
     .from("family_invitations")
-    .select("id, invite_email, display_name, role, status, created_at, responded_at")
+    .select("id, invite_email, display_name, role, birth_year, status, created_at, responded_at")
     .eq("inviter_id", user.id)
     .order("created_at", { ascending: false });
 
