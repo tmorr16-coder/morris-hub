@@ -9,7 +9,7 @@ import PlatformMenu from "@/components/PlatformMenu";
 import HubChat from "./_components/HubChat";
 import WeatherWidget from "./_components/WeatherWidget";
 import RemindersWidget from "./_components/RemindersWidget";
-import { getAllUpcomingReminders } from "@/lib/reminders";
+import { getAllUpcomingReminders, getAssignedReminders } from "@/lib/reminders";
 import StocksWidget from "./_components/StocksWidget";
 import CompanyNewsWidget from "./_components/CompanyNewsWidget";
 import HealthSummaryWidget from "./_components/HealthSummaryWidget";
@@ -56,7 +56,7 @@ export default async function HomePage() {
   const today = new Date();
   const todayStr = today.toLocaleDateString("sv", { timeZone: userTz }); // YYYY-MM-DD
 
-  const [prefs, todoResult, reminders, profileResult, careerGoalsResult, workoutsResult] = await Promise.all([
+  const [prefs, todoResult, reminders, profileResult, careerGoalsResult, workoutsResult, assignedReminders] = await Promise.all([
     getPreferences(user.id),
     service
       .schema("hub")
@@ -82,6 +82,8 @@ export default async function HomePage() {
       .eq("user_id", user.id)
       .eq("scheduled_date", todayStr)
       .order("scheduled_time", { ascending: true, nullsFirst: false }),
+    // Reminders assigned to this user by family members (Phase 2b)
+    getAssignedReminders(user.id),
   ]);
 
   const todos = (todoResult.data ?? []) as Todo[];
@@ -370,6 +372,22 @@ export default async function HomePage() {
       category: "todo",
       href: undefined,
     })),
+    // Reminders assigned to this user by family members (Phase 2b)
+    ...assignedReminders
+      .filter((r) => {
+        const localDate = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
+        return localDate === todayStr;
+      })
+      .map((r) => ({
+        id: `assigned-${r.id}`,
+        sortKey: r.due_at,
+        timeLabel: new Date(r.due_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: userTz }),
+        label: `${r.title} — assigned to you`,
+        module: "family",
+        category: "appointment",
+        href: "/home/family",
+        person: "me",
+      })),
   ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
   const menuUser = {

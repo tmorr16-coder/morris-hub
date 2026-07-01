@@ -348,12 +348,38 @@ function AddReminderForm({
   onAdded: (r: Reminder) => void;
 }) {
   const [title, setTitle] = useState("");
-  const defaultWhen = new Date(Date.now() + 86_400_000); // tomorrow same time
+  const defaultWhen = new Date(Date.now() + 86_400_000);
   const [when, setWhen] = useState(toLocalDatetimeInput(defaultWhen, tz));
   const [recurrence, setRecurrence] = useState<Recurrence>("once");
   const [category, setCategory] = useState<Category>("general");
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  // ── Household task fields ────────────────────────────────────────
+  const [isHousehold, setIsHousehold] = useState(false);
+  const [assignedTo, setAssignedTo] = useState<string>("");
+  const [familyMembers, setFamilyMembers] = useState<{ id: string; name: string; email: string | null }[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+
+  async function toggleHousehold() {
+    const next = !isHousehold;
+    setIsHousehold(next);
+    if (next && familyMembers.length === 0) {
+      setLoadingMembers(true);
+      try {
+        const res = await fetch("/api/family/members");
+        const data = await res.json();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setFamilyMembers((data.circle ?? []).map((m: any) => ({
+          id: m.member_user_id,
+          name: m.display_name ?? m.full_name ?? m.email ?? "Family member",
+          email: m.email,
+        })));
+      } catch { /* family data unavailable */ }
+      finally { setLoadingMembers(false); }
+    }
+    if (!next) setAssignedTo("");
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -368,11 +394,10 @@ function AddReminderForm({
         recurrence,
         category,
         source_app: "hub",
+        is_household: isHousehold,
+        assigned_to: assignedTo || null,
       });
-      if (res.error) {
-        setError(res.error);
-        return;
-      }
+      if (res.error) { setError(res.error); return; }
       onAdded({
         id: tempId,
         user_id: "",
@@ -386,6 +411,8 @@ function AddReminderForm({
         snooze_until: null,
       });
       setTitle("");
+      setIsHousehold(false);
+      setAssignedTo("");
     });
   }
 
@@ -432,24 +459,63 @@ function AddReminderForm({
           <option value="yearly">Yearly</option>
         </select>
       </div>
+
+      {/* ── Household task toggle ── */}
+      <button
+        type="button"
+        onClick={toggleHousehold}
+        style={{
+          display: "flex", alignItems: "center", gap: 7,
+          padding: "5px 10px", borderRadius: 6, alignSelf: "flex-start",
+          border: isHousehold ? "1.5px solid var(--color-accent)" : "1px solid var(--color-rule)",
+          background: isHousehold ? "var(--color-accent-soft)" : "transparent",
+          color: isHousehold ? "var(--color-accent)" : "var(--color-ink-4)",
+          fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+        }}
+      >
+        🏠 {isHousehold ? "Household task" : "Make household"}
+      </button>
+
+      {/* ── Assign to family member ── */}
+      {isHousehold && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 11, color: "var(--color-ink-3)" }}>Assign to:</span>
+          {loadingMembers ? (
+            <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>Loading…</span>
+          ) : familyMembers.length === 0 ? (
+            <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
+              No family members —{" "}
+              <a href="/home/settings/family" style={{ color: "var(--color-accent)", textDecoration: "none" }}>invite someone</a>
+            </span>
+          ) : (
+            <select
+              value={assignedTo}
+              onChange={(e) => setAssignedTo(e.target.value)}
+              style={{ ...miniInput, maxWidth: 180 }}
+            >
+              <option value="">Anyone in circle</option>
+              {familyMembers.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
       {error && <span style={{ fontSize: 11, color: "var(--color-red)" }}>{error}</span>}
       <button
         type="submit"
         disabled={pending || !title.trim()}
         style={{
-          padding: "6px 12px",
-          borderRadius: 6,
+          padding: "6px 12px", borderRadius: 6,
           border: "1px solid var(--color-accent-dark)",
-          background: "var(--color-accent)",
-          color: "#FFFDF8",
-          fontSize: 12,
-          fontWeight: 500,
-          fontFamily: "inherit",
+          background: "var(--color-accent)", color: "#FFFDF8",
+          fontSize: 12, fontWeight: 500, fontFamily: "inherit",
           cursor: pending || !title.trim() ? "not-allowed" : "pointer",
           alignSelf: "flex-start",
         }}
       >
-        {pending ? "Adding…" : "Add reminder"}
+        {pending ? "Adding…" : isHousehold ? "Add household task" : "Add reminder"}
       </button>
     </form>
   );

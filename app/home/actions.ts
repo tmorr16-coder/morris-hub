@@ -148,10 +148,12 @@ export async function savePreferences(data: {
 export async function addReminder(data: {
   title: string;
   notes?: string | null;
-  due_at: string;                      // ISO timestamp
+  due_at: string;                        // ISO timestamp
   recurrence?: Recurrence;
   category?: Category;
   source_app?: SourceApp;
+  assigned_to?: string | null;           // Phase 2b: assign to a family member
+  is_household?: boolean;               // Phase 2b: visible to whole family circle
 }): Promise<{ error?: string }> {
   const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
@@ -167,6 +169,8 @@ export async function addReminder(data: {
     recurrence: data.recurrence ?? "once",
     category: data.category ?? "general",
     source_app: data.source_app ?? "hub",
+    assigned_to: data.assigned_to ?? null,
+    is_household: data.is_household ?? false,
   });
 
   if (error) return { error: error.message };

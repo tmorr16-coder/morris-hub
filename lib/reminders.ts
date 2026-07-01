@@ -185,6 +185,28 @@ export async function getAllUpcomingReminders(
   return all;
 }
 
+/**
+ * Fetch reminders assigned TO this user by OTHER family members.
+ * Requires Phase 2a/2b RLS policy "assigned users read reminders".
+ */
+export async function getAssignedReminders(userId: string, daysAhead = 30): Promise<Reminder[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const horizon = new Date(Date.now() + daysAhead * 86_400_000).toISOString();
+
+  const { data } = await service
+    .schema("hub")
+    .from("reminders")
+    .select("*")
+    .eq("assigned_to", userId)
+    .neq("user_id", userId)          // exclude own reminders (already fetched above)
+    .is("completed_at", null)
+    .lte("due_at", horizon)
+    .order("due_at", { ascending: true });
+
+  return (data ?? []) as Reminder[];
+}
+
 export function formatDueLabel(dueAtIso: string, tz: string): string {
   const due = new Date(dueAtIso);
   const now = new Date();

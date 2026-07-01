@@ -29,6 +29,7 @@ interface Props {
 
 const MODULE_DOT: Record<string, string> = {
   hub:              "var(--color-accent)",
+  family:           "#E07B39",   // Phase 2b: assigned household tasks
   health:           "#4D6B3A",
   finance:          "#8B6A47",
   investments:      "#C97A3A",
@@ -50,6 +51,7 @@ const MODULE_BADGE: Record<string, string> = {
   "student-success":"Kids",
   career:           "Career",
   workout:          "Health",
+  family:           "Family",  // Phase 2b: household tasks show "Family" badge
 };
 
 // Conflict: two timed events within 30 minutes of each other
