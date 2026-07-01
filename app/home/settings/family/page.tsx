@@ -1,67 +1,97 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { getPreferences } from "@/lib/prefs";
 import PlatformMenu from "@/components/PlatformMenu";
-import FamilyCircleClient from "./_components/FamilyCircleClient";
+import FamilyManagementClient from "./_components/FamilyManagementClient";
 
 export default async function FamilySettingsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/");
+  if (!user) redirect("/login");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
+  const prefs = await getPreferences(user.id);
 
-  // Fetch current family circle + all platform users via admin API
-  // (auth.admin.listUsers is authoritative — profiles table may not have every user)
-  const [{ data: members }, usersResult] = await Promise.all([
+  // Fetch everything in parallel
+  const [circleResult, sentResult, pendingResult, usersResult] = await Promise.all([
+    // My family members (who accepted my invites)
     service.schema("hub").from("family_members")
-      .select("id, member_user_id, nickname")
+      .select("id, member_user_id, role, display_name, nickname")
       .eq("user_id", user.id),
+    // Invitations I sent
+    service.schema("hub").from("family_invitations")
+      .select("id, invite_email, display_name, role, status, created_at, responded_at")
+      .eq("inviter_id", user.id)
+      .order("created_at", { ascending: false }),
+    // Invitations pending for me
+    service.schema("hub").from("family_invitations")
+      .select("id, inviter_id, display_name, role, created_at")
+      .eq("invite_email", user.email?.toLowerCase() ?? "")
+      .eq("status", "pending"),
+    // All platform users for name/email lookup
     service.auth.admin.listUsers({ perPage: 200 }),
   ]);
 
-  const circleIds = new Set(
-    ((members ?? []) as { member_user_id: string }[]).map((m) => m.member_user_id)
-  );
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const authUsers: any[] = (usersResult?.data?.users ?? []).filter((u: any) => u.id !== user.id);
-
+  const authUsers: any[] = usersResult?.data?.users ?? [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const everyone = authUsers.map((u: any) => ({
-    id: u.id,
+  const userMap = new Map(authUsers.map((u: any) => [u.id, {
     full_name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? null,
     email: u.email ?? null,
-    avatar_url: u.user_metadata?.avatar_url ?? u.user_metadata?.picture ?? null,
-    in_circle: circleIds.has(u.id),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    circle_id: ((members ?? []) as any[]).find((m) => m.member_user_id === u.id)?.id ?? null,
+  }]));
+
+  // Enrich circle members with auth user data
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const circle = ((circleResult.data ?? []) as any[]).map((m) => ({
+    id: m.id,
+    member_user_id: m.member_user_id,
+    role: m.role ?? "adult",
+    display_name: m.display_name ?? m.nickname ?? null,
+    full_name: userMap.get(m.member_user_id)?.full_name ?? null,
+    email: userMap.get(m.member_user_id)?.email ?? null,
+  }));
+
+  // Sent invitations
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sentInvites = (sentResult.data ?? []) as any[];
+
+  // Pending invitations addressed to this user — enrich with inviter info
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pendingInvites = ((pendingResult.data ?? []) as any[]).map((inv) => ({
+    id: inv.id,
+    inviter_email: userMap.get(inv.inviter_id)?.email ?? "Unknown",
+    inviter_name: userMap.get(inv.inviter_id)?.full_name ?? null,
+    display_name: inv.display_name,
+    role: inv.role,
   }));
 
   const menuUser = {
-    name: user.user_metadata?.full_name ?? null,
+    name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
     email: user.email,
-    avatarUrl: user.user_metadata?.avatar_url ?? null,
+    avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
+    appAccess: prefs.app_access ?? null,
   };
 
   return (
     <div>
       <PlatformMenu currentApp="hub" user={menuUser} />
-      <main style={{ maxWidth: 680, margin: "0 auto", padding: "32px 28px 100px" }}>
-        <Link href="/home/settings" style={{ fontSize: 12, color: "var(--color-ink-3)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4, marginBottom: 24 }}>
-          ← Settings
-        </Link>
-        <h1 style={{ fontSize: 32, fontWeight: 400, fontFamily: "var(--font-display)", marginBottom: 6, color: "var(--color-ink)" }}>
+      <main style={{ maxWidth: 680, margin: "0 auto", padding: "32px 20px 100px" }}>
+        <h1 className="serif" style={{ fontSize: 32, marginBottom: 6 }}>
           Family Circle
         </h1>
-        <p style={{ fontSize: 14, color: "var(--color-ink-3)", marginBottom: 32, lineHeight: 1.6 }}>
-          People in your family circle can share financial accounts, health data, and other information with you — and you with them. Each person you add must also add you back for two-way sharing.
+        <p style={{ fontSize: 14, color: "var(--color-ink-3)", marginBottom: 32, lineHeight: 1.6, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+          Invite family members, assign roles, and control what shared features are available to each person.
         </p>
-        <FamilyCircleClient initialEveryone={everyone} />
+
+        <FamilyManagementClient
+          circle={circle}
+          sentInvites={sentInvites}
+          pendingInvites={pendingInvites}
+          userId={user.id}
+        />
       </main>
     </div>
   );

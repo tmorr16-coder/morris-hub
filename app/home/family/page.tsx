@@ -48,7 +48,7 @@ export default async function FamilyPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
 
-  const [prefs, reminders, profileResult, careerGoalsResult] = await Promise.all([
+  const [prefs, reminders, profileResult, careerGoalsResult, circleResult, pendingResult] = await Promise.all([
     getPreferences(user.id),
     getAllUpcomingReminders(user.id),
     service.from("profiles").select("role").eq("id", user.id).maybeSingle(),
@@ -58,7 +58,50 @@ export default async function FamilyPage() {
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
       .eq("status", "active"),
+    // My family circle members
+    service.schema("hub").from("family_members")
+      .select("id, member_user_id, role, display_name, nickname")
+      .eq("user_id", user.id),
+    // Pending invites addressed to me
+    service.schema("hub").from("family_invitations")
+      .select("id, inviter_id, display_name, role")
+      .eq("invite_email", user.email?.toLowerCase() ?? "")
+      .eq("status", "pending"),
   ]);
+
+  // Enrich with auth user data for display
+  const memberIds = ((circleResult.data ?? []) as { member_user_id: string }[]).map((m) => m.member_user_id);
+  const inviterIds = ((pendingResult.data ?? []) as { inviter_id: string }[]).map((i) => i.inviter_id);
+  const allIds = [...new Set([...memberIds, ...inviterIds])];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userMap = new Map<string, { full_name: string | null; email: string | null; avatar_url: string | null }>();
+  if (allIds.length > 0) {
+    const { data: users } = await service.auth.admin.listUsers({ perPage: 200 });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const u of (users?.users ?? []) as any[]) {
+      userMap.set(u.id, {
+        full_name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? null,
+        email: u.email ?? null,
+        avatar_url: u.user_metadata?.avatar_url ?? null,
+      });
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const familyMembers = ((circleResult.data ?? []) as any[]).map((m) => ({
+    id: m.id,
+    member_user_id: m.member_user_id,
+    role: m.role ?? "adult",
+    display_name: m.display_name ?? m.nickname ?? null,
+    ...userMap.get(m.member_user_id),
+  }));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pendingInvites = ((pendingResult.data ?? []) as any[]).map((inv) => ({
+    id: inv.id,
+    inviter_name: userMap.get(inv.inviter_id)?.full_name ?? userMap.get(inv.inviter_id)?.email ?? "Someone",
+    role: inv.role,
+  }));
 
   const isAdmin = (profileResult.data as { role?: string } | null)?.role === "admin";
   const activeCareerGoals: number = careerGoalsResult.count ?? 0;
@@ -104,9 +147,64 @@ export default async function FamilyPage() {
         <h1 className="serif" style={{ fontSize: 36, marginBottom: 8, margin: "0 0 8px" }}>
           Family
         </h1>
-        <p style={{ fontSize: 14, color: "var(--color-ink-3)", marginBottom: 28, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+        <p style={{ fontSize: 14, color: "var(--color-ink-3)", marginBottom: 28, fontFamily: "var(--font-geist, system-hub), sans-serif" }}>
           Household schedule, shared responsibilities, and family circle.
         </p>
+
+        {/* ── Pending invitations ── */}
+        {pendingInvites.length > 0 && (
+          <div style={{ marginBottom: 28 }}>
+            {pendingInvites.map((inv) => (
+              <div key={inv.id} style={{
+                display: "flex", alignItems: "center", gap: 14, padding: "14px 18px",
+                background: "rgba(59,92,127,0.06)", border: "1px solid var(--color-accent-soft)",
+                borderRadius: 12, marginBottom: 8,
+              }}>
+                <span style={{ fontSize: 20 }}>💌</span>
+                <div style={{ flex: 1, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>
+                    {inv.inviter_name} invited you to their family circle
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 2 }}>
+                    Role: {inv.role} · Accept or decline in
+                    <a href="/home/settings/family" style={{ color: "var(--color-accent)", marginLeft: 4, textDecoration: "none" }}>Family Settings →</a>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Family circle members ── */}
+        {familyMembers.length > 0 && (
+          <div style={{ marginBottom: 28 }}>
+            <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", margin: "0 0 12px", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+              Family circle — {familyMembers.length}
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {familyMembers.map((m) => {
+                const name = m.display_name ?? m.full_name ?? m.email ?? "Member";
+                const initial = name.slice(0, 1).toUpperCase();
+                return (
+                  <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--color-accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "var(--color-accent)", flexShrink: 0 }}>
+                      {initial}
+                    </div>
+                    <div style={{ flex: 1, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>{name}</span>
+                      {m.email && name !== m.email && (
+                        <span style={{ fontSize: 11, color: "var(--color-ink-4)", marginLeft: 8 }}>{m.email}</span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "2px 7px", borderRadius: 8, background: m.role === "child" ? "rgba(107,91,149,0.1)" : "rgba(59,92,127,0.08)", color: m.role === "child" ? "#6B5B95" : "var(--color-accent)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+                      {m.role === "child" ? "Child" : "Adult"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Week-ahead */}
         <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", margin: "0 0 12px", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
@@ -155,16 +253,18 @@ export default async function FamilyPage() {
           )}
         </div>
 
-        {/* Family circle placeholder */}
+        {/* Family circle management link */}
         <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", margin: "0 0 12px", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
           Family circle
         </h2>
-        <div style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 12, padding: "20px 24px", boxShadow: "var(--shadow-card)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 12, padding: "16px 20px", boxShadow: "var(--shadow-card)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <p style={{ fontSize: 13, color: "var(--color-ink-3)", margin: 0, lineHeight: 1.5, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-            Members, invitations, assigned household tasks, and shared visibility coming in Phase 2.
+            {familyMembers.length === 0
+              ? "Invite family members to start sharing schedules and household responsibilities."
+              : `${familyMembers.length} member${familyMembers.length !== 1 ? "s" : ""} in your circle. Manage roles and invitations in settings.`}
           </p>
-          <a href="/home/settings/family" style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif", whiteSpace: "nowrap", flexShrink: 0 }}>
-            Manage circle →
+          <a href="/home/settings/family" style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif", whiteSpace: "nowrap", flexShrink: 0, fontWeight: 600 }}>
+            {familyMembers.length === 0 ? "Invite someone →" : "Manage circle →"}
           </a>
         </div>
 
