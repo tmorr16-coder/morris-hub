@@ -75,7 +75,7 @@ export default function BottomNav({
   );
 
   return (
-    <div className="md:hidden">
+    <div className="nav-mobile-bar">
       {/* Backdrop */}
       {moreOpen && (
         <div

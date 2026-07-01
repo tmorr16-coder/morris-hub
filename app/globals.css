@@ -113,3 +113,16 @@ html, body {
   --color-moss-soft:   #1f2920;
   --color-slate-soft:  #1d242c;
 }
+
+/* ── Navigation responsive breakpoints ──────────────────────────────────────
+   Explicit CSS fallback so desktop/mobile nav visibility is not dependent
+   on Tailwind class scanning. These mirror hidden/md:flex and md:hidden. */
+.nav-desktop-items { display: none; }
+.nav-mobile-bar    { display: block; }
+.nav-mobile-spacer { display: flex; flex: 1; }
+
+@media (min-width: 768px) {
+  .nav-desktop-items { display: flex; }
+  .nav-mobile-bar    { display: none; }
+  .nav-mobile-spacer { display: none; }
+}
