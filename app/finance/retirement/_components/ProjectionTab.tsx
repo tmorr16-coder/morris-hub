@@ -100,7 +100,11 @@ function project(
       for (const inc of incomes) {
         if (inc.type !== "bonus" && inc.type !== "stock_award") continue;
         const startAge = inc.start_age ?? profile.current_age;
-        const endAge = inc.end_age ?? (profile.retirement_age - 1);
+        const endAge = inc.end_age ?? (
+          inc.type === "stock_award" && inc.vest_years != null
+            ? startAge + inc.vest_years       // vest_years defines the window
+            : profile.retirement_age - 1      // default: through end of career
+        );
         if (age < startAge || age > endAge) continue;
         const yearsIntoGrant = age - startAge;
         const growthFactor = inc.annual_growth_pct
@@ -149,17 +153,31 @@ function project(
     // ── Per-age income/expense data for chart series ─────────────────────────
     const inflFactor = Math.pow(1 + profile.inflation_rate, yearsFromNow);
 
-    // Job income: salary (pre-ret) or part_time/bridge/other (post-ret)
+    // Job income: salary + stock_award + bonus pre-ret; part_time/bridge/other post-ret
     let jobIncome = 0;
     for (const inc of incomes) {
-      if (!["salary", "part_time", "other", "bonus"].includes(inc.type)) continue;
-      const start = inc.start_age ?? (inc.type === "salary" ? profile.current_age : profile.retirement_age);
-      const end = inc.end_age ?? (inc.type === "salary" ? profile.retirement_age - 1 : 999);
+      if (!["salary", "part_time", "other", "bonus", "stock_award"].includes(inc.type)) continue;
+      // Determine effective age window for this income stream
+      const start = inc.start_age ?? (
+        inc.type === "salary" || inc.type === "bonus" || inc.type === "stock_award"
+          ? profile.current_age
+          : profile.retirement_age
+      );
+      const end = inc.end_age ?? (
+        inc.type === "stock_award" && inc.vest_years != null
+          ? start + inc.vest_years          // stock awards: use vest_years as fallback
+          : inc.type === "salary" || inc.type === "bonus"
+            ? profile.retirement_age - 1   // salary/bonus: default end at retirement
+            : 999                           // part_time/other: no default end
+      );
       if (age < start || age > end) continue;
       const growth = inc.annual_growth_pct
         ? Math.pow(1 + inc.annual_growth_pct / 100, age - start)
         : 1;
-      const annual = inc.frequency === "annual" ? inc.monthly_amount : inc.monthly_amount * 12;
+      // stock_award and bonus store annual value in monthly_amount field
+      const annual = (inc.frequency === "annual" || inc.type === "stock_award" || inc.type === "bonus")
+        ? inc.monthly_amount
+        : inc.monthly_amount * 12;
       jobIncome += annual * growth * (isRetired ? inflFactor : 1);
     }
     jobIncomeByAge.set(age, Math.round(jobIncome));
