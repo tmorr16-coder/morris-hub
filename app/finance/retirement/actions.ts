@@ -136,23 +136,44 @@ async function fetchSavedAccounts(service: Svc, userId: string): Promise<SavedAc
 
 async function fetchSharedAccounts(service: Svc, userId: string): Promise<SharedAccountSuggestion[]> {
   const schema = db(service);
-  // Manual accounts shared with this user
+
+  // Manual accounts shared with this user.
+  // Include accepted=true AND accepted=null (pending) — exclude only explicit rejections (false).
   const { data: sharedManual } = await schema
     .from("manual_account_shares")
-    .select("account:manual_accounts(id, name, institution, account_type, balance), owner_user_id")
+    .select("account:manual_accounts(id, name, institution, account_type, balance), owner_user_id, accepted")
     .eq("recipient_user_id", userId)
-    .eq("accepted", true);
+    .neq("accepted", false);  // show unless explicitly rejected
 
-  return ((sharedManual ?? []) as any[])
+  // Plaid investment accounts shared with this user
+  const { data: sharedPlaid } = await schema
+    .from("account_shares")
+    .select("account:accounts(id, name, account_type:type, balance:current_balance), owner_user_id")
+    .eq("grantee_user_id", userId);
+
+  const manualSuggestions = ((sharedManual ?? []) as any[])
     .filter((r) => r.account)
     .map((r) => ({
       id: r.account.id,
       name: r.account.name,
-      institution: r.account.institution,
+      institution: r.account.institution ?? null,
       account_type: r.account.account_type ?? "other_investment",
       balance: r.account.balance ?? 0,
-      shared_by: "Shared account",
+      shared_by: "Shared with you",
     }));
+
+  const plaidSuggestions = ((sharedPlaid ?? []) as any[])
+    .filter((r) => r.account)
+    .map((r) => ({
+      id: r.account.id,
+      name: r.account.name,
+      institution: null,
+      account_type: r.account.account_type ?? "brokerage",
+      balance: r.account.balance ?? 0,
+      shared_by: "Shared with you",
+    }));
+
+  return [...manualSuggestions, ...plaidSuggestions];
 }
 
 export async function savePlan(data: {
