@@ -195,6 +195,30 @@ export default function AccountsTab({
     onAccountsChange(updated); // updates state + auto-saves
   }
 
+  // ── Quick inline edit ──────────────────────────────────────────────────────
+  const [quickEdit, setQuickEdit] = useState<{
+    id: string;
+    field: "balance" | "monthly_contribution";
+    value: string;
+  } | null>(null);
+
+  function startQuickEdit(acct: RetirementAccount, field: "balance" | "monthly_contribution") {
+    setQuickEdit({ id: acct.id, field, value: String(field === "balance" ? (acct.balance ?? 0) : acct.monthly_contribution) });
+  }
+
+  function commitQuickEdit() {
+    if (!quickEdit) return;
+    const parsed = parseFloat(quickEdit.value.replace(/[,$]/g, ""));
+    if (isNaN(parsed) || parsed < 0) { setQuickEdit(null); return; }
+    const updated = accounts.map((a) =>
+      a.id === quickEdit.id
+        ? { ...a, [quickEdit.field]: parsed }
+        : a
+    );
+    onAccountsChange(updated);
+    setQuickEdit(null);
+  }
+
   const selfAccounts = accounts.filter((a) => a.owner === "self");
   const spouseAccounts = accounts.filter((a) => a.owner === "spouse");
 
@@ -220,13 +244,34 @@ export default function AccountsTab({
                     </span>
                   )}
                 </div>
-                <div style={{ display: "flex", gap: 18, fontSize: 12, color: "var(--color-ink-3)" }}>
-                  <span>
-                    +{fmtMoney(acct.monthly_contribution)}/mo
-                    {acct.employer_match_pct > 0 && (
-                      <span style={{ color: "var(--color-green)" }}> +{acct.employer_match_pct}% match</span>
-                    )}
-                  </span>
+                {/* Contribution — click to quick-edit */}
+                <div style={{ display: "flex", gap: 18, fontSize: 12, color: "var(--color-ink-3)", alignItems: "center" }}>
+                  {quickEdit?.id === acct.id && quickEdit.field === "monthly_contribution" ? (
+                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      +<input
+                        autoFocus
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={quickEdit.value}
+                        onChange={(e) => setQuickEdit((q) => q ? { ...q, value: e.target.value } : q)}
+                        onBlur={commitQuickEdit}
+                        onKeyDown={(e) => { if (e.key === "Enter") commitQuickEdit(); if (e.key === "Escape") setQuickEdit(null); }}
+                        style={{ width: 90, padding: "2px 6px", border: "1.5px solid var(--color-accent)", borderRadius: 5, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+                      />/mo
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => startQuickEdit(acct, "monthly_contribution")}
+                      title="Click to edit contribution"
+                      style={{ background: "none", border: "none", cursor: "text", padding: 0, color: "var(--color-ink-3)", fontSize: 12, fontFamily: "inherit", textDecoration: "underline dotted", textUnderlineOffset: 2 }}
+                    >
+                      +{fmtMoney(acct.monthly_contribution)}/mo
+                    </button>
+                  )}
+                  {acct.employer_match_pct > 0 && (
+                    <span style={{ color: "var(--color-green)" }}>+{acct.employer_match_pct}% match</span>
+                  )}
                   <span>
                     {acct.return_override != null
                       ? `${(acct.return_override * 100).toFixed(1)}% return`
@@ -234,9 +279,30 @@ export default function AccountsTab({
                   </span>
                 </div>
               </div>
-              <div className="mono" style={{ fontSize: 20, fontWeight: 500, color: "var(--color-ink)" }}>
-                {fmtLarge(acct.balance ?? 0)}
-              </div>
+
+              {/* Balance — click to quick-edit */}
+              {quickEdit?.id === acct.id && quickEdit.field === "balance" ? (
+                <input
+                  autoFocus
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={quickEdit.value}
+                  onChange={(e) => setQuickEdit((q) => q ? { ...q, value: e.target.value } : q)}
+                  onBlur={commitQuickEdit}
+                  onKeyDown={(e) => { if (e.key === "Enter") commitQuickEdit(); if (e.key === "Escape") setQuickEdit(null); }}
+                  style={{ width: 120, padding: "4px 8px", border: "1.5px solid var(--color-accent)", borderRadius: 7, fontSize: 18, fontFamily: "var(--font-mono, monospace)", fontWeight: 500, outline: "none", textAlign: "right" }}
+                />
+              ) : (
+                <button
+                  onClick={() => startQuickEdit(acct, "balance")}
+                  title="Click to update balance"
+                  style={{ background: "none", border: "none", cursor: "text", padding: 0, fontFamily: "var(--font-mono, monospace)", fontSize: 20, fontWeight: 500, color: "var(--color-ink)", textDecoration: "underline dotted", textUnderlineOffset: 3 }}
+                >
+                  {fmtLarge(acct.balance ?? 0)}
+                </button>
+              )}
+
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={() => openEdit(acct)} style={{ padding: "5px 12px", borderRadius: 7, border: "1px solid var(--color-rule)", background: "var(--color-paper)", color: "var(--color-ink-2)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
                   Edit
