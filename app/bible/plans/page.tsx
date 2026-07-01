@@ -128,11 +128,16 @@ export default async function PlansPage() {
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink-2)" }}>👨‍👩‍👧 Family plans</div>
           </div>
           {familyPlans.length === 0 ? (
-            <div style={{ padding: "20px 16px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10, textAlign: "center" }}>
-              <div style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 8 }}>No family reading plans yet.</div>
-              <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
-                Start any reading plan, then share it with family from the plan&apos;s page to read together and track progress.
+            <div style={{ padding: "20px 16px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10 }}>
+              <div style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 6 }}>No family reading plans yet.</div>
+              <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginBottom: 12 }}>
+                Enroll in any reading plan below, then share it with your family to track progress together.
               </div>
+              <a href="#built-in"
+                style={{ fontSize: 12, fontWeight: 600, color: "var(--color-accent)", textDecoration: "none" }}
+                onClick={(e) => { e.preventDefault(); document.getElementById("built-in")?.scrollIntoView({ behavior: "smooth" }); }}>
+                Browse plans below →
+              </a>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

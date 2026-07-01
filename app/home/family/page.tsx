@@ -58,7 +58,7 @@ export default async function FamilyPage() {
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
       .eq("status", "active"),
-    // My family circle members
+    // My family circle members (include role for Kids section)
     service.schema("hub").from("family_members")
       .select("id, member_user_id, role, display_name, nickname")
       .eq("user_id", user.id),
@@ -106,6 +106,53 @@ export default async function FamilyPage() {
   const isAdmin = (profileResult.data as { role?: string } | null)?.role === "admin";
   const activeCareerGoals: number = careerGoalsResult.count ?? 0;
   const today = new Date();
+
+  // ── Phase 2b: Household reminders from ALL family circle members ──────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let householdReminders: any[] = [];
+  if (memberIds.length > 0) {
+    const horizon = new Date(today.getTime() + 30 * 86_400_000).toISOString();
+    const { data: hwData } = await service
+      .schema("hub")
+      .from("reminders")
+      .select("id, title, due_at, category, user_id, assigned_to")
+      .eq("is_household", true)
+      .is("completed_at", null)
+      .in("user_id", memberIds)
+      .lte("due_at", horizon)
+      .order("due_at", { ascending: true });
+    householdReminders = hwData ?? [];
+  }
+
+  // ── Phase 2b: Kids module — child members' upcoming courses/assignments ──
+  const childMembers = familyMembers.filter((m) => m.role === "child");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const kidsData: Array<{ memberId: string; name: string; courses: any[]; assignments: any[] }> = [];
+  for (const child of childMembers) {
+    const childName = child.display_name ?? child.full_name ?? child.email ?? "Child";
+    const nowStr = today.toISOString().slice(0, 10);
+    const horizonStr = new Date(today.getTime() + 30 * 86_400_000).toISOString().slice(0, 10);
+    const [cRes, aRes] = await Promise.all([
+      service.schema("student_support").from("courses")
+        .select("id, name, color_tag, instructor")
+        .eq("user_id", child.member_user_id)
+        .limit(5),
+      service.schema("student_support").from("course_reminders")
+        .select("id, type, title, due_date, is_completed, course:courses(name, color_tag)")
+        .eq("user_id", child.member_user_id)
+        .eq("is_completed", false)
+        .lte("due_date", horizonStr)
+        .gte("due_date", nowStr)
+        .order("due_date", { ascending: true })
+        .limit(5),
+    ]).catch(() => [{ data: [] }, { data: [] }]) as any;
+    kidsData.push({
+      memberId: child.member_user_id,
+      name: childName,
+      courses: cRes?.data ?? [],
+      assignments: aRes?.data ?? [],
+    });
+  }
   const todayStr = today.toLocaleDateString("sv", { timeZone: userTz });
 
   // Week-ahead reminders grouped by day
@@ -202,6 +249,79 @@ export default async function FamilyPage() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Household tasks from all circle members ── */}
+        {householdReminders.length > 0 && (
+          <div style={{ marginBottom: 28 }}>
+            <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", margin: "0 0 12px", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+              Household tasks
+            </h2>
+            <div style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 12, boxShadow: "var(--shadow-card)", overflow: "hidden" }}>
+              {householdReminders.map((r) => {
+                const assigneeName = r.assigned_to
+                  ? familyMembers.find((m) => m.member_user_id === r.assigned_to)?.display_name
+                    ?? familyMembers.find((m) => m.member_user_id === r.assigned_to)?.full_name
+                    ?? "A member"
+                  : null;
+                const ownerName = familyMembers.find((m) => m.member_user_id === r.user_id)?.display_name
+                  ?? familyMembers.find((m) => m.member_user_id === r.user_id)?.full_name
+                  ?? "Family";
+                const dueStr = new Date(r.due_at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: userTz });
+                return (
+                  <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 20px", borderBottom: "1px solid var(--color-rule-soft)" }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: WEEK_DOT[r.category] ?? "#E07B39", flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, color: "var(--color-ink-2)", fontFamily: "var(--font-geist, system-ui), sans-serif", flex: 1 }}>{r.title}</span>
+                    <span style={{ fontSize: 10, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif", flexShrink: 0 }}>
+                      {assigneeName ? `→ ${assigneeName}` : ownerName} · {dueStr}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Kids — child members' courses and upcoming deadlines ── */}
+        {kidsData.length > 0 && (
+          <div style={{ marginBottom: 28 }}>
+            <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", margin: "0 0 12px", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+              Kids
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {kidsData.map((kid) => (
+                <div key={kid.memberId} style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderLeft: "3px solid #6B5B95", borderRadius: 12, padding: "14px 18px", boxShadow: "var(--shadow-card)" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{kid.name}</span>
+                    <a href="/student-success" style={{ fontSize: 11, color: "#6B5B95", textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>View all →</a>
+                  </div>
+                  {kid.courses.length === 0 && kid.assignments.length === 0 ? (
+                    <p style={{ fontSize: 12, color: "var(--color-ink-4)", margin: 0, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>No active courses yet.</p>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                      {kid.assignments.length > 0
+                        ? kid.assignments.map((a: { id: string; title: string; type: string; due_date: string; course: { name: string } | null }) => (
+                          <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#6B5B95", flexShrink: 0 }} />
+                            <span style={{ color: "var(--color-ink-2)", flex: 1 }}>{a.title}</span>
+                            <span style={{ color: "var(--color-ink-4)", flexShrink: 0 }}>
+                              {a.course?.name ?? ""} · due {new Date(a.due_date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            </span>
+                          </div>
+                        ))
+                        : kid.courses.slice(0, 3).map((c: { id: string; name: string; instructor: string | null }) => (
+                          <div key={c.id} style={{ fontSize: 12, color: "var(--color-ink-3)", fontFamily: "var(--font-geist, system-ui), sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#6B5B95", flexShrink: 0 }} />
+                            {c.name}{c.instructor ? ` · ${c.instructor}` : ""}
+                          </div>
+                        ))
+                      }
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
