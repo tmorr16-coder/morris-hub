@@ -43,18 +43,27 @@ Rules:
 - For multi-book plans, transition smoothly between books
 - For thematic plans, choose passages that connect to the focus topic`;
 
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-5",
-    max_tokens: 8192,
+  // Scale max_tokens to duration — a 365-day plan needs far more than a
+  // fixed 8192-token cap, which was truncating the JSON mid-response and
+  // causing "Failed to parse plan from AI" on longer durations.
+  const maxTokens = Math.min(Math.max(duration * 80, 4096), 64000);
+
+  const stream = anthropic.messages.stream({
+    model: "claude-opus-4-8",
+    max_tokens: maxTokens,
     messages: [{ role: "user", content: prompt }],
   });
+  const response = await stream.finalMessage();
 
   const text = response.content[0].type === "text" ? response.content[0].text : "";
   let plan;
   try {
     plan = JSON.parse(text.replace(/```json\n?|\n?```/g, "").trim());
   } catch {
-    return new NextResponse("Failed to parse plan from AI", { status: 500 });
+    const reason = response.stop_reason === "max_tokens"
+      ? "Plan generation ran out of room — try a shorter duration."
+      : "Failed to parse plan from AI";
+    return new NextResponse(reason, { status: 500 });
   }
 
   const db = createServiceClient() as any;

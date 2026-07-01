@@ -138,8 +138,9 @@ export default function PlatformMenu({
         </div>
       </header>
 
-      {/* Mobile bottom nav — suppressed for apps with their own in-app nav (bible) */}
-      {user && currentApp !== "bible" && (
+      {/* Mobile bottom nav — BibleNav is a horizontal tab bar, not a substitute
+          for the platform-level bottom nav (Family/Kids/Me/Money/etc access) */}
+      {user && (
         <BottomNav
           currentApp={currentApp}
           appAccess={user.appAccess}
