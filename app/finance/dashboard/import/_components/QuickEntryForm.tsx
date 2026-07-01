@@ -110,7 +110,7 @@ export default function QuickEntryForm() {
         <input
           value={balance}
           onChange={(e) => setBalance(e.target.value)}
-          placeholder="e.g. 1,322,659.63"
+          placeholder="e.g. 54,320.00"
           style={{ ...inputStyle, fontSize: 20, fontFamily: "var(--font-mono)" }}
         />
       </div>
@@ -125,7 +125,7 @@ export default function QuickEntryForm() {
         <textarea
           value={historyText}
           onChange={(e) => setHistoryText(e.target.value)}
-          placeholder={"05-22-2026  $325,450.00  2.14%\n04-30-2026  $318,720.50  1.89%\n03-31-2026  $312,900.00  -1.22%"}
+          placeholder={"05-22-2026  $54,320.00  2.14%\n04-30-2026  $53,200.50  1.89%\n03-31-2026  $52,100.00  -1.22%"}
           rows={6}
           style={{ ...inputStyle, fontFamily: "var(--font-mono)", fontSize: 12, resize: "vertical" }}
         />

@@ -22,9 +22,25 @@ interface TxRow {
   personal_finance_category: any;
 }
 
-function categoryFromPFC(pfc: { primary?: string } | null | undefined): string {
-  if (!pfc?.primary) return "Uncategorized";
-  return pfc.primary
+// Primary categories to exclude from spending analysis.
+// These are transfers, payments, and balance adjustments — not true spending.
+const EXCLUDED_PRIMARIES = new Set([
+  "TRANSFER_IN", "TRANSFER_OUT", "LOAN_PAYMENTS",
+  "BANK_FEES", "INCOME", "BALANCE",
+  "transfer_in", "transfer_out", "loan_payments",
+  "bank_fees", "income", "balance",
+]);
+
+function categoryFromPFC(pfc: { primary?: string; detailed?: string } | string | null | undefined): string | null {
+  // Handle stringified JSON (some Plaid sync implementations store as string)
+  if (typeof pfc === "string") {
+    try { pfc = JSON.parse(pfc) as { primary?: string }; } catch { return null; }
+  }
+  const p = (pfc as { primary?: string } | null)?.primary;
+  if (!p) return null;
+  // Exclude non-spending categories — they distort the breakdown
+  if (EXCLUDED_PRIMARIES.has(p)) return null;
+  return p
     .toLowerCase()
     .split("_")
     .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -118,7 +134,7 @@ function detectRecurring(
 
     const merchant = sorted[0].merchant_name ?? sorted[0].name;
     const lastTx = sorted[sorted.length - 1];
-    const category = categoryFromPFC(lastTx.personal_finance_category);
+    const category = categoryFromPFC(lastTx.personal_finance_category) ?? "Other";
 
     // Monthly cost normalization
     const monthlyCost =
@@ -227,7 +243,7 @@ export default async function InsightsPage({
         date: t.date,
         merchant: t.merchant_name ?? t.name,
         amount: t.amount,
-        category: categoryFromPFC(t.personal_finance_category),
+        category: categoryFromPFC(t.personal_finance_category) ?? "Uncategorized",
         isIncome: t.amount < 0,
       })).sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)),
     }))
@@ -257,6 +273,7 @@ export default async function InsightsPage({
   for (const t of transactions) {
     if (t.amount <= 0) continue;
     const cat = categoryFromPFC(t.personal_finance_category);
+    if (!cat) continue; // skip transfers, income, balance adjustments
     const sub = detailedLabel(t.personal_finance_category);
     const mk = monthKey(t.date);
     if (mk === currentMonth) {
@@ -326,7 +343,7 @@ export default async function InsightsPage({
     if (!merchant) continue;
     const key = merchant.toLowerCase();
     if (!merchantsThisMonth.has(key)) {
-      merchantsThisMonth.set(key, { merchant, total: 0, count: 0, category: categoryFromPFC(t.personal_finance_category), txns: [] });
+      merchantsThisMonth.set(key, { merchant, total: 0, count: 0, category: categoryFromPFC(t.personal_finance_category) ?? "Uncategorized", txns: [] });
     }
     const m = merchantsThisMonth.get(key)!;
     m.total += t.amount;
