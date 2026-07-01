@@ -24,9 +24,8 @@ import FamilyTimeline from "./_components/FamilyTimeline";
 import type { TimelineItem } from "./_components/FamilyTimeline";
 import type { Todo } from "./actions";
 
-const PRIORITY_WIDGETS = new Set(["todos"]);    // personal tasks only → My Priorities
-// Family gets a dedicated WeekAhead component (not a widget-slot)
-// "reminders" falls into Insights as a full management widget
+// My Priorities: todos (personal tasks) + reminders (includes household task toggle)
+const PRIORITY_WIDGETS = new Set(["todos", "reminders"]);
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -563,9 +562,16 @@ export default async function HomePage() {
           <SectionHeader id="priorities-heading">My priorities</SectionHeader>
 
           {/* TodosWidget — always present, core My Priorities tool */}
-          <div style={{ marginBottom: myPriorities.length > 0 ? 12 : 0 }}>
+          <div style={{ marginBottom: 14 }}>
             <TodosWidget initialTodos={todos} />
           </div>
+
+          {/* RemindersWidget — includes 🏠 household task toggle */}
+          {priorityWids.filter((w) => w !== "todos").map((widgetId) => (
+            <div key={widgetId} style={{ marginBottom: 14 }}>
+              {renderWidget(widgetId, { todos, reminders, prefs, userTz, activeCareerGoals })}
+            </div>
+          ))}
 
           {/* Compact goal/health/family/wellness summary cards */}
           {myPriorities.length > 0 && (
