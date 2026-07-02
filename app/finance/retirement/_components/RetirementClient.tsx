@@ -13,7 +13,7 @@ import type {
   SharedAccountSuggestion,
   PlanSnapshot,
 } from "../types";
-import { savePlan } from "../actions";
+import { savePlan, refreshAccountBalances } from "../actions";
 import AccountsTab from "./AccountsTab";
 import IncomeTab from "./IncomeTab";
 import DebtsTab from "./DebtsTab";
@@ -228,6 +228,26 @@ export default function RetirementClient({
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const [refreshState, setRefreshState] = useState<"idle" | "refreshing" | "done" | "error">("idle");
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
+
+  async function handleRefreshBalances() {
+    setRefreshState("refreshing");
+    setRefreshMsg(null);
+    const result = await refreshAccountBalances();
+    if ("error" in result) {
+      setRefreshState("error");
+      setRefreshMsg(result.error);
+    } else {
+      setAccounts(result.accounts);
+      setRefreshState("done");
+      setRefreshMsg(result.updated > 0 ? `${result.updated} updated` : "up to date");
+    }
+    setTimeout(() => { setRefreshState("idle"); setRefreshMsg(null); }, 3000);
+  }
+
+  const hasLinkedAccounts = accounts.some((a) => a.plaid_account_id);
+
   async function handleSave(overrideAccounts?: RetirementAccount[]) {
     setSaveState("saving");
     setSaveError(null);
@@ -283,6 +303,36 @@ export default function RetirementClient({
         )}
         {saveState === "saved" && (
           <span style={{ fontSize: 12, color: "var(--color-green)" }}>Saved</span>
+        )}
+        {refreshMsg && (
+          <span style={{ fontSize: 12, color: refreshState === "error" ? "var(--color-red)" : "var(--color-green)" }}>
+            {refreshMsg}
+          </span>
+        )}
+        {hasLinkedAccounts && (
+          <button
+            onClick={handleRefreshBalances}
+            disabled={refreshState === "refreshing"}
+            title="Pull the latest balances from your linked Plaid accounts"
+            style={{
+              padding: "9px 18px",
+              borderRadius: 10,
+              border: "1px solid var(--color-rule)",
+              background: "var(--color-paper-card)",
+              color: "var(--color-ink-2)",
+              fontSize: 13,
+              fontWeight: 500,
+              fontFamily: "inherit",
+              cursor: refreshState === "refreshing" ? "wait" : "pointer",
+              opacity: refreshState === "refreshing" ? 0.6 : 1,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <span style={{ display: "inline-block", transform: refreshState === "refreshing" ? "rotate(360deg)" : "none", transition: "transform 0.6s" }}>↻</span>
+            {refreshState === "refreshing" ? "Refreshing…" : "Refresh balances"}
+          </button>
         )}
         <button
           onClick={() => handleSave()}

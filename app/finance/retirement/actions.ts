@@ -2,6 +2,7 @@
 
 import { requireFinanceAccess } from "@/lib/finance/access";
 import { createServiceClient } from "@/lib/supabase/server";
+import { syncAll } from "@/app/finance/dashboard/actions";
 import type {
   RetirementProfile,
   RetirementAccount,
@@ -285,6 +286,70 @@ async function verifyOwnership(profileId: string, userId: string): Promise<boole
     .eq("user_id", userId)
     .maybeSingle();
   return !!data;
+}
+
+/**
+ * Manual "refresh" for retirement accounts: pulls fresh balances from Plaid
+ * (same sync used on the finance dashboard), then updates any retirement
+ * account whose balance was originally sourced from a linked Plaid account.
+ * Accounts entered manually (no plaid_account_id) are left untouched.
+ */
+export async function refreshAccountBalances(): Promise<
+  { ok: true; updated: number; accounts: RetirementAccount[] } | { error: string }
+> {
+  const { user } = await requireFinanceAccess();
+  const service = createServiceClient();
+  const schema = db(service);
+
+  const syncResult = await syncAll();
+  if (!syncResult.ok && syncResult.error !== "no items to sync") {
+    return { error: syncResult.error ?? "Sync failed" };
+  }
+
+  const { data: profile } = await schema
+    .from("retirement_profiles")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!profile) return { ok: true, updated: 0, accounts: [] };
+
+  const { data: accounts } = await schema
+    .from("retirement_accounts")
+    .select("*")
+    .eq("profile_id", profile.id)
+    .order("sort_order");
+  const linked = ((accounts ?? []) as RetirementAccount[]).filter((a) => a.plaid_account_id);
+
+  if (linked.length === 0) {
+    return { ok: true, updated: 0, accounts: (accounts ?? []) as RetirementAccount[] };
+  }
+
+  const plaidIds = linked.map((a) => a.plaid_account_id as string);
+  const { data: plaidAccounts } = await schema
+    .from("accounts")
+    .select("id, current_balance")
+    .in("id", plaidIds);
+  const balanceMap = new Map(
+    ((plaidAccounts ?? []) as { id: string; current_balance: number | null }[])
+      .map((a) => [a.id, a.current_balance])
+  );
+
+  let updated = 0;
+  for (const a of linked) {
+    const freshBalance = balanceMap.get(a.plaid_account_id as string);
+    if (freshBalance != null && freshBalance !== a.balance) {
+      const { error } = await schema.from("retirement_accounts").update({ balance: freshBalance }).eq("id", a.id);
+      if (!error) updated++;
+    }
+  }
+
+  const { data: finalAccounts } = await schema
+    .from("retirement_accounts")
+    .select("*")
+    .eq("profile_id", profile.id)
+    .order("sort_order");
+
+  return { ok: true, updated, accounts: (finalAccounts ?? []) as RetirementAccount[] };
 }
 
 export async function deleteAccount(id: string): Promise<{ ok: true } | { error: string }> {
