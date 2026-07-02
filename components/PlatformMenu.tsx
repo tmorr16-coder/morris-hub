@@ -11,6 +11,8 @@ const NAV = [
   { key: "kids",   label: "Kids",        href: "/student-success",    accessKeys: ["student-success"] },
   { key: "me",     label: "Me",          href: "/health",             accessKeys: ["health"] },
   { key: "money",  label: "Money",       href: "/finance/dashboard",  accessKeys: ["finance", "investments"] },
+  { key: "career", label: "Career",      href: "/career",             accessKeys: ["career"] },
+  { key: "bible",  label: "Bible",       href: "/bible/dashboard",    accessKeys: ["bible"] },
   { key: "ask",    label: "Ask Morris",  href: "/home/ask",           accessKeys: [] as string[] },
 ];
 
@@ -29,7 +31,8 @@ function activeKeyFromApp(currentApp: string): string {
   if (currentApp === "health") return "me";
   if (currentApp === "finance" || currentApp === "investments") return "money";
   if (currentApp === "student-success") return "kids";
-  // bible and career have no top-level nav tab — return empty so nothing is highlighted
+  if (currentApp === "career") return "career";
+  if (currentApp === "bible") return "bible";
   return "";
 }
 
