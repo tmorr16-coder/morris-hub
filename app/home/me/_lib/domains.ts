@@ -6,6 +6,7 @@ export interface RecommendedAction {
   estimatedMinutes: number;
   fitAdjustedText: string;
   fitStatus: "fits-now" | "shortened" | "deferred";
+  href?: string;
 }
 
 export interface DomainCardData {
@@ -17,6 +18,7 @@ export interface DomainCardData {
   progressLabel: string;
   recommendedAction: RecommendedAction;
   disclaimer?: string;
+  secondaryLink?: { text: string; href: string };
 }
 
 interface FreeTimeWindow {
@@ -27,6 +29,7 @@ interface RawAction {
   text: string;
   estimatedMinutes: number;
   shortText?: string;
+  href?: string;
 }
 
 export const MIND_DISCLAIMER_TEXT =
@@ -289,7 +292,7 @@ async function getCoursesDomain(db: Svc, userId: string, now: Date, freeWindow: 
     return {
       key: "courses", label: DOMAIN_LABELS.courses, href: DOMAIN_HREFS.courses,
       goal: null, progressPct: null, progressLabel: "No courses added yet",
-      recommendedAction: applyCalendarFit({ text: "Add your courses", estimatedMinutes: 5 }, freeWindow),
+      recommendedAction: applyCalendarFit({ text: "Add your courses", estimatedMinutes: 5, href: DOMAIN_HREFS.courses }, freeWindow),
     };
   }
 
@@ -310,7 +313,7 @@ async function getCoursesDomain(db: Svc, userId: string, now: Date, freeWindow: 
   const completedThisWeek = weekRows.filter((r) => r.is_completed).length;
 
   const { data: nextReminder } = await db.schema("student_support").from("course_reminders")
-    .select("title, due_date")
+    .select("title, due_date, course_id")
     .eq("user_id", userId)
     .eq("is_completed", false)
     .gte("due_date", now.toISOString().slice(0, 10))
@@ -323,15 +326,25 @@ async function getCoursesDomain(db: Svc, userId: string, now: Date, freeWindow: 
     ? `${completedThisWeek} of ${totalThisWeek} assignments done this week`
     : `${courseRows.length} active course${courseRows.length === 1 ? "" : "s"}`;
 
+  // Most-recently-added course — used when there's no due assignment to link straight to.
+  const currentCourseId = courseRows[0]?.id;
+
   const action: RawAction = nextReminder
-    ? { text: `Next due: ${nextReminder.title}`, estimatedMinutes: 20, shortText: `Review "${nextReminder.title}"` }
-    : { text: "Add your next assignment", estimatedMinutes: 5 };
+    ? {
+        text: `Next due: ${nextReminder.title}`, estimatedMinutes: 20, shortText: `Review "${nextReminder.title}"`,
+        href: nextReminder.course_id ? `/home/me/courses/${nextReminder.course_id}` : DOMAIN_HREFS.courses,
+      }
+    : {
+        text: "Add your next assignment", estimatedMinutes: 5,
+        href: currentCourseId ? `/home/me/courses/${currentCourseId}` : DOMAIN_HREFS.courses,
+      };
 
   return {
     key: "courses", label: DOMAIN_LABELS.courses, href: DOMAIN_HREFS.courses,
     goal: `${courseRows.length} active course${courseRows.length === 1 ? "" : "s"}`,
     progressPct, progressLabel,
     recommendedAction: applyCalendarFit(action, freeWindow),
+    secondaryLink: { text: "+ Add a course", href: DOMAIN_HREFS.courses },
   };
 }
 

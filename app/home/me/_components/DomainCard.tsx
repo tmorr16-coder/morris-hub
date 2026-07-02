@@ -38,9 +38,17 @@ export default function DomainCard({ domain }: { domain: DomainCardData }) {
       )}
 
       {/* Recommended action — dominant element on the card */}
-      <div className="serif" style={{ fontSize: 20, color: "var(--color-ink)", marginBottom: 6, lineHeight: 1.3 }}>
-        {domain.recommendedAction.fitAdjustedText}
-      </div>
+      {domain.recommendedAction.href ? (
+        <a href={domain.recommendedAction.href} className="serif" style={{
+          display: "block", fontSize: 20, color: "var(--color-ink)", marginBottom: 6, lineHeight: 1.3, textDecoration: "none",
+        }}>
+          {domain.recommendedAction.fitAdjustedText}
+        </a>
+      ) : (
+        <div className="serif" style={{ fontSize: 20, color: "var(--color-ink)", marginBottom: 6, lineHeight: 1.3 }}>
+          {domain.recommendedAction.fitAdjustedText}
+        </div>
+      )}
       {domain.recommendedAction.fitStatus !== "deferred" && (
         <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginBottom: 12, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
           ~{domain.recommendedAction.estimatedMinutes} minutes
@@ -61,6 +69,15 @@ export default function DomainCard({ domain }: { domain: DomainCardData }) {
         <span style={{ flex: 1 }}>{domain.goal ?? "No goal set"}</span>
         <span>{domain.progressLabel}</span>
       </div>
+
+      {domain.secondaryLink && (
+        <a href={domain.secondaryLink.href} style={{
+          display: "inline-block", marginTop: 10, fontSize: 12, color: "var(--color-accent)",
+          textDecoration: "none", fontWeight: 600, fontFamily: "var(--font-geist, system-ui), sans-serif",
+        }}>
+          {domain.secondaryLink.text}
+        </a>
+      )}
     </div>
   );
 }
