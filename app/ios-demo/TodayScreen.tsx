@@ -7,7 +7,7 @@ import {
 } from "@/components/ios";
 import { Circle, Avatar } from "./ui";
 
-export default function TodayScreen() {
+export default function TodayScreen({ onOpenMoney, onOpenAsk }: { onOpenMoney?: () => void; onOpenAsk?: () => void }) {
   const [mode, setMode] = useState<"family" | "personal">("family");
 
   return (
@@ -33,10 +33,10 @@ export default function TodayScreen() {
         <GlanceTile label="Calendar" icon={<Icons.CalendarIcon />} value="Soccer" sub="Next · 4:30 PM" href="/home/family/calendar" />
         <GlanceTile label="Reminders" badge={3} value="3 due" sub="Duke Energy · 5 PM first" href="/home" accent="var(--ios-orange)" />
         <GlanceTile label="Health" icon={<Icons.HeartIcon />} value="8,240" sub="steps · Workout 6 PM" href="/health" accent="var(--ios-green)" />
-        <GlanceTile label="Money" icon={<Icons.WalletIcon />} value="$482,300" sub="+$1,240 today" href="/finance/dashboard" accent="var(--ios-finance)" />
+        <GlanceTile label="Money" icon={<Icons.WalletIcon />} value="$482,300" sub="+$1,240 today" href="/finance/dashboard" onClick={onOpenMoney} accent="var(--ios-finance)" />
       </GlanceGrid>
 
-      <AskMorrisPill />
+      <AskMorrisPill onClick={onOpenAsk} />
 
       <Group header="Needs attention" id="needs-attention">
         <Cell lead={<IconBadge color="var(--ios-red)"><Icons.DumbbellIcon /></IconBadge>} title="Missed Upper Body workout" subtitle={<><SeverityBadge level="urgent" /> · was scheduled Jul 1</>} href="/health/train" />

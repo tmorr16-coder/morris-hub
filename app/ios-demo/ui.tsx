@@ -51,6 +51,34 @@ export function Rings({ move = 0.72, exercise = 0.55, stand = 0.9, size = 96 }: 
   );
 }
 
+/** Area sparkline with gradient fill and an emphasized endpoint. */
+export function Sparkline({ points, color = "var(--ios-green)", width = 320, height = 72 }: { points: number[]; color?: string; width?: number; height?: number }) {
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const span = max - min || 1;
+  const pad = 4;
+  const x = (i: number) => (i / (points.length - 1)) * (width - pad * 2) + pad;
+  const y = (v: number) => height - pad - ((v - min) / span) * (height - pad * 2);
+  const line = points.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const area = `${line} L${x(points.length - 1).toFixed(1)},${height} L${x(0).toFixed(1)},${height} Z`;
+  const id = `sg-${points.length}-${Math.round(points[0])}`;
+  const ex = x(points.length - 1);
+  const ey = y(points[points.length - 1]);
+  return (
+    <svg width="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ display: "block" }} aria-hidden>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.24" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${id})`} />
+      <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      <circle cx={ex} cy={ey} r="3.2" fill={color} />
+    </svg>
+  );
+}
+
 /** Horizontal week strip with a selected day and per-day event dots. */
 export function WeekStrip({ days }: { days: { label: string; date: number; selected?: boolean; dots?: string[] }[] }) {
   return (

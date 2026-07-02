@@ -1,6 +1,6 @@
 // iOS-native design system — morrisai.family
 // Token layer: app/ios.css (scoped under [data-ui="ios"]).
-export { IOSScreen, LargeTitle } from "./Screen";
+export { IOSScreen, LargeTitle, NavBar } from "./Screen";
 export { Group, List } from "./GroupedList";
 export { Cell, IconBadge } from "./Cell";
 export type { CellProps } from "./Cell";

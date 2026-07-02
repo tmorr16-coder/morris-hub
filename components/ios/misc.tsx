@@ -33,11 +33,31 @@ export function Chip({
 }
 
 /** Promoted Ask-Morris entry pill. */
-export function AskMorrisPill({ href = "/home/ask", placeholder = "Ask Morris anything…" }: { href?: string; placeholder?: string }) {
-  return (
-    <a className="ios-ask" href={href}>
+export function AskMorrisPill({
+  href = "/home/ask",
+  placeholder = "Ask Morris anything…",
+  onClick,
+}: {
+  href?: string;
+  placeholder?: string;
+  onClick?: () => void;
+}) {
+  const inner = (
+    <>
       <SparkleIcon style={{ width: 18, height: 18, color: "var(--ios-tint)" }} />
       <span style={{ flex: 1 }}>{placeholder}</span>
+    </>
+  );
+  if (onClick) {
+    return (
+      <button type="button" className="ios-ask" onClick={onClick} style={{ width: "calc(100% - 32px)", textAlign: "left" }}>
+        {inner}
+      </button>
+    );
+  }
+  return (
+    <a className="ios-ask" href={href}>
+      {inner}
     </a>
   );
 }

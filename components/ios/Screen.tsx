@@ -1,5 +1,22 @@
 import type { ReactNode } from "react";
-import { ComposeIcon } from "./icons";
+import { ComposeIcon, ChevronLeft } from "./icons";
+
+/**
+ * Compact top nav bar for pushed detail screens — a back button (with the
+ * previous screen's name) on the leading edge, optional centered title.
+ */
+export function NavBar({ back, title, trailing }: { back: { label: string; onBack: () => void }; title?: string; trailing?: ReactNode }) {
+  return (
+    <div className="ios-navbar">
+      <button className="ios-back" onClick={back.onBack} aria-label={`Back to ${back.label}`}>
+        <ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
+        {back.label}
+      </button>
+      {title && <span className="ios-navbar-title ios-headline">{title}</span>}
+      <span className="ios-navbar-trail">{trailing}</span>
+    </div>
+  );
+}
 
 /**
  * Root of an iOS-native screen. Sets the `data-ui="ios"` scope (activating the

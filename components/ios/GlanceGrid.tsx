@@ -14,6 +14,7 @@ export function GlanceTile({
   badge,
   accent,
   href,
+  onClick,
 }: {
   label: string;
   icon?: ReactNode;
@@ -24,9 +25,11 @@ export function GlanceTile({
   /** Tints the label + icon (defaults to the brand tint). */
   accent?: string;
   href: string;
+  /** When provided, the tile acts as a button (in-app nav) instead of a link. */
+  onClick?: () => void;
 }) {
-  return (
-    <Link className="ios-tile" href={href} style={accent ? ({ "--tile-accent": accent } as React.CSSProperties) : undefined}>
+  const inner = (
+    <>
       <span className="ios-tile-top">
         <span className="ios-tile-label" style={{ color: accent ?? "var(--ios-tint)" }}>
           {label}
@@ -39,6 +42,19 @@ export function GlanceTile({
       </span>
       <span className="ios-tile-value ios-num">{value}</span>
       {sub != null && <span className="ios-tile-sub">{sub}</span>}
+    </>
+  );
+  const style = accent ? ({ "--tile-accent": accent } as React.CSSProperties) : undefined;
+  if (onClick) {
+    return (
+      <button type="button" className="ios-tile" onClick={onClick} style={style}>
+        {inner}
+      </button>
+    );
+  }
+  return (
+    <Link className="ios-tile" href={href} style={style}>
+      {inner}
     </Link>
   );
 }

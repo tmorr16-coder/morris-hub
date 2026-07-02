@@ -60,6 +60,9 @@ export const BriefcaseIcon = (p: P) => (
 export const ChevronRight = (p: P) => (
   <svg {...base(p)} strokeWidth={2.2}><path d="M9 5l7 7-7 7" /></svg>
 );
+export const ChevronLeft = (p: P) => (
+  <svg {...base(p)} strokeWidth={2.4}><path d="M15 5l-7 7 7 7" /></svg>
+);
 export const ComposeIcon = (p: P) => (
   <svg {...base(p)}><path d="M4 20h16M6 16.5l9.5-9.5a2 2 0 0 1 3 3L9 19.5l-4 1 1-4Z" /></svg>
 );
