@@ -47,9 +47,9 @@ export default async function ChildWorkspacePage({
           <Link href="/children" style={{ fontSize: 12, color: "var(--color-ink-3)", textDecoration: "none" }}>← All children</Link>
         </div>
       )}
-      {workspace.ageTier === "elementary" && <ElementaryWorkspace data={workspace} />}
-      {workspace.ageTier === "teen" && <TeenWorkspace data={workspace} />}
-      {workspace.ageTier === "college" && <CollegeWorkspace data={workspace} />}
+      {workspace.ageTier === "elementary" && <ElementaryWorkspace data={workspace} viewerUserId={user.id} />}
+      {workspace.ageTier === "teen" && <TeenWorkspace data={workspace} viewerUserId={user.id} />}
+      {workspace.ageTier === "college" && <CollegeWorkspace data={workspace} viewerUserId={user.id} />}
     </div>
   );
 }

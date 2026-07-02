@@ -1,15 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import type { ChildWorkspaceData } from "../_lib/children";
+import { createClient } from "@/lib/supabase/client";
+import type { ChildWorkspaceData, ChildHealthNote } from "../_lib/children";
+import AddHealthNoteForm from "./AddHealthNoteForm";
 
 const TABS = ["Academics", "Money", "Wellness", "Career", "Important dates"] as const;
 type Tab = (typeof TABS)[number];
 
-export default function CollegeWorkspace({ data }: { data: ChildWorkspaceData }) {
+export default function CollegeWorkspace({ data, viewerUserId }: { data: ChildWorkspaceData; viewerUserId: string }) {
   const [activeTab, setActiveTab] = useState<Tab>("Academics");
+  const [healthNotes, setHealthNotes] = useState<ChildHealthNote[]>(data.healthNotes);
   const academics = data.academicsSummary;
-  const unresolvedNotes = data.healthNotes.filter((h) => !h.resolved);
+  const unresolvedNotes = healthNotes.filter((h) => !h.resolved);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createClient() as any;
+
+  async function resolveNote(id: string) {
+    setHealthNotes((prev) => prev.map((h) => (h.id === id ? { ...h, resolved: true } : h)));
+    await db.schema("hub").from("child_health_notes").update({ resolved: true }).eq("id", id);
+  }
 
   return (
     <main style={{ maxWidth: 720, margin: "0 auto", padding: "32px 20px 100px" }}>
@@ -61,17 +71,21 @@ export default function CollegeWorkspace({ data }: { data: ChildWorkspaceData })
       {activeTab === "Money" && <div style={{ fontSize: 13, color: "var(--color-ink-4)" }}>Nothing shared yet.</div>}
 
       {activeTab === "Wellness" && (
-        unresolvedNotes.length === 0 ? (
-          <div style={{ fontSize: 13, color: "var(--color-ink-4)" }}>No notes for their next visit.</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {unresolvedNotes.map((h) => (
-              <div key={h.id} style={{ fontSize: 13, color: "var(--color-ink-2)", padding: "10px 14px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 8 }}>
-                {h.note}
-              </div>
-            ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {unresolvedNotes.length === 0 ? (
+            <div style={{ fontSize: 13, color: "var(--color-ink-4)" }}>No notes for their next visit.</div>
+          ) : unresolvedNotes.map((h) => (
+            <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 13, color: "var(--color-ink-2)", padding: "10px 14px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 8 }}>
+              <span style={{ flex: 1 }}>{h.note}{h.targetVisitDate ? ` · ${new Date(`${h.targetVisitDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}</span>
+              <button onClick={() => resolveNote(h.id)} style={{ fontSize: 11, color: "var(--color-ink-4)", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>
+                Resolve
+              </button>
+            </div>
+          ))}
+          <div style={{ marginTop: 4 }}>
+            <AddHealthNoteForm childId={data.childId} viewerUserId={viewerUserId} onAdded={(h) => setHealthNotes((prev) => [...prev, h])} />
           </div>
-        )
+        </div>
       )}
 
       {activeTab === "Career" && <div style={{ fontSize: 13, color: "var(--color-ink-4)" }}>Nothing shared yet.</div>}

@@ -2,18 +2,26 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { ChildWorkspaceData, ChildActivity } from "../_lib/children";
+import type { ChildWorkspaceData, ChildActivity, ChildHealthNote } from "../_lib/children";
+import AddActivityForm from "./AddActivityForm";
+import AddHealthNoteForm from "./AddHealthNoteForm";
 
 const CATEGORY_EMOJI: Record<string, string> = { school: "📚", sports: "⚽", church: "🕊️", other: "⭐" };
 
-export default function ElementaryWorkspace({ data }: { data: ChildWorkspaceData }) {
+export default function ElementaryWorkspace({ data, viewerUserId }: { data: ChildWorkspaceData; viewerUserId: string }) {
   const [activities, setActivities] = useState<ChildActivity[]>(data.activities);
+  const [healthNotes, setHealthNotes] = useState<ChildHealthNote[]>(data.healthNotes);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createClient() as any;
 
   async function complete(id: string) {
     setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, completed: true } : a)));
     await db.schema("hub").from("child_activities").update({ completed: true }).eq("id", id);
+  }
+
+  async function resolveNote(id: string) {
+    setHealthNotes((prev) => prev.map((h) => (h.id === id ? { ...h, resolved: true } : h)));
+    await db.schema("hub").from("child_health_notes").update({ resolved: true }).eq("id", id);
   }
 
   const today = activities.filter((a) => !a.completed);
@@ -46,6 +54,14 @@ export default function ElementaryWorkspace({ data }: { data: ChildWorkspaceData
         </div>
       )}
 
+      <div style={{ marginBottom: 28 }}>
+        <AddActivityForm
+          childId={data.childId}
+          viewerUserId={viewerUserId}
+          onAdded={(a) => setActivities((prev) => [...prev, a])}
+        />
+      </div>
+
       {done.length > 0 && (
         <>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--color-ink)", marginBottom: 14 }}>Achievements 🌟</h2>
@@ -62,6 +78,19 @@ export default function ElementaryWorkspace({ data }: { data: ChildWorkspaceData
           </div>
         </>
       )}
+
+      <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--color-ink)", margin: "28px 0 14px" }}>Health notes for next visit</h2>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {healthNotes.filter((h) => !h.resolved).map((h) => (
+          <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14, color: "var(--color-ink-2)", padding: "12px 16px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10 }}>
+            <span style={{ flex: 1 }}>{h.note}{h.targetVisitDate ? ` · ${new Date(`${h.targetVisitDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}</span>
+            <button onClick={() => resolveNote(h.id)} style={{ fontSize: 12, color: "var(--color-ink-4)", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>
+              Resolve
+            </button>
+          </div>
+        ))}
+        <AddHealthNoteForm childId={data.childId} viewerUserId={viewerUserId} onAdded={(h) => setHealthNotes((prev) => [...prev, h])} />
+      </div>
     </main>
   );
 }

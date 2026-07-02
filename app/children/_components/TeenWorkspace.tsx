@@ -3,20 +3,27 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { ChildWorkspaceData, ChildActivity, ChildHealthNote } from "../_lib/children";
+import AddActivityForm from "./AddActivityForm";
+import AddHealthNoteForm from "./AddHealthNoteForm";
 
 const TABS = ["Today", "Assignments", "Activities", "Responsibilities", "Goals", "Wellness"] as const;
 type Tab = (typeof TABS)[number];
 
-export default function TeenWorkspace({ data }: { data: ChildWorkspaceData }) {
+export default function TeenWorkspace({ data, viewerUserId }: { data: ChildWorkspaceData; viewerUserId: string }) {
   const [activeTab, setActiveTab] = useState<Tab>("Today");
   const [activities, setActivities] = useState<ChildActivity[]>(data.activities);
-  const [healthNotes] = useState<ChildHealthNote[]>(data.healthNotes);
+  const [healthNotes, setHealthNotes] = useState<ChildHealthNote[]>(data.healthNotes);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createClient() as any;
 
   async function toggle(id: string, completed: boolean) {
     setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, completed: !completed } : a)));
     await db.schema("hub").from("child_activities").update({ completed: !completed }).eq("id", id);
+  }
+
+  async function resolveNote(id: string) {
+    setHealthNotes((prev) => prev.map((h) => (h.id === id ? { ...h, resolved: true } : h)));
+    await db.schema("hub").from("child_health_notes").update({ resolved: true }).eq("id", id);
   }
 
   const assignments = activities.filter((a) => a.category === "school");
@@ -72,8 +79,22 @@ export default function TeenWorkspace({ data }: { data: ChildWorkspaceData }) {
       </div>
 
       {activeTab === "Today" && renderList(dueToday)}
-      {activeTab === "Assignments" && renderList(assignments)}
-      {activeTab === "Activities" && renderList(otherActivities)}
+      {activeTab === "Assignments" && (
+        <div>
+          {renderList(assignments)}
+          <div style={{ marginTop: 10 }}>
+            <AddActivityForm childId={data.childId} viewerUserId={viewerUserId} defaultCategory="school" onAdded={(a) => setActivities((prev) => [...prev, a])} />
+          </div>
+        </div>
+      )}
+      {activeTab === "Activities" && (
+        <div>
+          {renderList(otherActivities)}
+          <div style={{ marginTop: 10 }}>
+            <AddActivityForm childId={data.childId} viewerUserId={viewerUserId} defaultCategory="sports" onAdded={(a) => setActivities((prev) => [...prev, a])} />
+          </div>
+        </div>
+      )}
       {activeTab === "Responsibilities" && <div style={{ fontSize: 13, color: "var(--color-ink-4)" }}>Household responsibilities appear on the Family calendar.</div>}
       {activeTab === "Goals" && <div style={{ fontSize: 13, color: "var(--color-ink-4)" }}>No goals set yet.</div>}
       {activeTab === "Wellness" && (
@@ -81,10 +102,16 @@ export default function TeenWorkspace({ data }: { data: ChildWorkspaceData }) {
           {healthNotes.filter((h) => !h.resolved).length === 0 ? (
             <div style={{ fontSize: 13, color: "var(--color-ink-4)" }}>No notes for your next visit.</div>
           ) : healthNotes.filter((h) => !h.resolved).map((h) => (
-            <div key={h.id} style={{ fontSize: 13, color: "var(--color-ink-2)", padding: "10px 14px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 8 }}>
-              {h.note}
+            <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 13, color: "var(--color-ink-2)", padding: "10px 14px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 8 }}>
+              <span style={{ flex: 1 }}>{h.note}{h.targetVisitDate ? ` · ${new Date(`${h.targetVisitDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}</span>
+              <button onClick={() => resolveNote(h.id)} style={{ fontSize: 11, color: "var(--color-ink-4)", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>
+                Resolve
+              </button>
             </div>
           ))}
+          <div style={{ marginTop: 4 }}>
+            <AddHealthNoteForm childId={data.childId} viewerUserId={viewerUserId} onAdded={(h) => setHealthNotes((prev) => [...prev, h])} />
+          </div>
         </div>
       )}
     </main>
