@@ -30,7 +30,7 @@ interface WorkoutTrackerProps {
 }
 
 export default function WorkoutTracker({ initialExercises, initialWarmup, initialCooldown, initialCardio }: WorkoutTrackerProps = {}) {
-  const exercises = initialExercises ?? EXERCISE_LIBRARY;
+  const [exercises, setExercises] = useState(initialExercises ?? EXERCISE_LIBRARY);
   const router = useRouter();
   const [, startTransition] = useTransition();
   const createdRef = useRef(false);
@@ -66,6 +66,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   const [paused,         setPaused]         = useState(false);
   const [showMenu,       setShowMenu]       = useState(false);
   const [confirmDelete,  setConfirmDelete]  = useState(false);
+  const [showReorder,    setShowReorder]    = useState(false);
 
   // Inline set editing
   const [editingSet,     setEditingSet]     = useState<{ exIdx: number; setIdx: number } | null>(null);
@@ -245,6 +246,25 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
     setActiveSetIdx(next === -1 ? exercises[i].target.sets - 1 : next);
   };
 
+  // Reorder exercises before or during the session — logged sets travel
+  // with the exercise they belong to, and the active exercise stays active.
+  const moveExercise = (i: number, dir: -1 | 1) => {
+    const swap = i + dir;
+    if (swap < 0 || swap >= exercises.length) return;
+
+    setExercises((prev) => {
+      const next = [...prev];
+      [next[i], next[swap]] = [next[swap], next[i]];
+      return next;
+    });
+    setSetLogs((prev) => {
+      const next = [...prev];
+      [next[i], next[swap]] = [next[swap], next[i]];
+      return next;
+    });
+    setCurrentExIdx((prev) => (prev === i ? swap : prev === swap ? i : prev));
+  };
+
   // ── early returns ─────────────────────────────────────────────────────────
 
   if (showSummary) {
@@ -348,6 +368,17 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
         {/* Session control menu */}
         {showMenu && (
           <div style={{ borderTop: "1px solid var(--color-line)", background: "var(--color-bg-raised)", padding: "10px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+            {/* Reorder exercises — always available, before or during the session */}
+            {exercises.length > 1 && (
+              <button
+                onClick={() => { setShowReorder((v) => !v); setShowMenu(false); }}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--color-line)", background: "var(--color-bg-sunk)", color: "var(--color-ink)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+              >
+                <span style={{ fontSize: 16 }}>↕</span>
+                Reorder exercises
+              </button>
+            )}
+
             {/* Pause / Resume — only once workout is active */}
             {completedSets > 0 && (
               <button
@@ -395,6 +426,45 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Reorder panel */}
+        {showReorder && (
+          <div style={{ borderTop: "1px solid var(--color-line)", background: "var(--color-bg-raised)", padding: "10px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ ...eyebrow, marginBottom: 2 }}>Reorder exercises</div>
+            {exercises.map((ex, i) => {
+              const done = setLogs[i].filter(Boolean).length === ex.target.sets;
+              return (
+                <div key={ex.name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, background: "var(--color-bg-sunk)" }}>
+                  <span style={{ fontSize: 13, color: done ? "var(--color-moss)" : "var(--color-ink)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {done ? "✓ " : ""}{ex.name}
+                  </span>
+                  <button
+                    onClick={() => moveExercise(i, -1)}
+                    disabled={i === 0}
+                    aria-label="Move up"
+                    style={{ background: "none", border: "none", color: i === 0 ? "var(--color-line-2)" : "var(--color-ink-3)", cursor: i === 0 ? "default" : "pointer", fontSize: 15, padding: "0 4px" }}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    onClick={() => moveExercise(i, 1)}
+                    disabled={i === exercises.length - 1}
+                    aria-label="Move down"
+                    style={{ background: "none", border: "none", color: i === exercises.length - 1 ? "var(--color-line-2)" : "var(--color-ink-3)", cursor: i === exercises.length - 1 ? "default" : "pointer", fontSize: 15, padding: "0 4px" }}
+                  >
+                    ↓
+                  </button>
+                </div>
+              );
+            })}
+            <button
+              onClick={() => setShowReorder(false)}
+              style={{ marginTop: 4, padding: "8px 0", borderRadius: 8, border: "1px solid var(--color-line)", background: "transparent", color: "var(--color-ink-3)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              Done
+            </button>
           </div>
         )}
 

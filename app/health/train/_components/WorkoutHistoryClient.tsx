@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition, useState } from "react";
+import Link from "next/link";
 import { deleteWorkoutSession } from "../../workout/log/actions";
 
 export interface UnifiedWorkout {
@@ -86,8 +87,9 @@ export default function WorkoutHistoryClient({ groups: initialGroups }: Props) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {items.map((w) => (
-              <div
+              <Link
                 key={w.id}
+                href={`/health/train/${w.id}?source=${w.source}`}
                 style={{
                   background: "var(--color-bg-raised)",
                   border: "1px solid var(--color-line)",
@@ -98,6 +100,7 @@ export default function WorkoutHistoryClient({ groups: initialGroups }: Props) {
                   gap: 12,
                   opacity: deleting === w.id ? 0.4 : 1,
                   transition: "opacity 150ms",
+                  textDecoration: "none",
                 }}
               >
                 {/* Source badge */}
@@ -140,9 +143,11 @@ export default function WorkoutHistoryClient({ groups: initialGroups }: Props) {
                   )}
                 </div>
 
+                <span style={{ fontSize: 16, color: "var(--color-ink-4)", flexShrink: 0 }}>›</span>
+
                 {w.source === "manual" && (
                   <button
-                    onClick={() => handleDelete(w.id)}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(w.id); }}
                     disabled={deleting === w.id}
                     title="Delete workout"
                     style={{
@@ -165,7 +170,7 @@ export default function WorkoutHistoryClient({ groups: initialGroups }: Props) {
                     ×
                   </button>
                 )}
-              </div>
+              </Link>
             ))}
           </div>
         </div>

@@ -245,6 +245,16 @@ export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorko
   const removeExercise = (i: number) =>
     setEditedPlan((prev) => prev!.filter((_, idx) => idx !== i));
 
+  const moveExercise = (i: number, dir: -1 | 1) =>
+    setEditedPlan((prev) => {
+      const list = prev!;
+      const swap = i + dir;
+      if (swap < 0 || swap >= list.length) return prev;
+      const next = [...list];
+      [next[i], next[swap]] = [next[swap], next[i]];
+      return next;
+    });
+
   const buildEncoded = () => {
     const exercises = plan.map((ex) => ({
       name: ex.name, sets: ex.sets, reps: ex.reps, primary: ex.primary,
@@ -337,15 +347,34 @@ export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorko
 
           {/* Editable exercise list */}
           <div style={{ ...S.tileBare, marginBottom: 14 }}>
-            <div style={{ ...S.eyebrow, marginBottom: 8 }}>Exercises · tap −/+ to adjust</div>
+            <div style={{ ...S.eyebrow, marginBottom: 8 }}>Exercises · tap −/+ to adjust, ↑↓ to reorder</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {plan.map((ex, i) => (
                 <div key={i} style={{ padding: 10, background: 'var(--color-bg-sunk)', borderRadius: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                     <span style={{ width: 14, color: 'var(--color-ink-4)', fontSize: 11, ...S.num }}>{i + 1}</span>
                     <div style={{ flex: 1, fontSize: 13.5, fontWeight: 500 }}>{ex.name}</div>
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      <button
+                        onClick={() => moveExercise(i, -1)}
+                        disabled={i === 0}
+                        aria-label="Move up"
+                        style={{ background: 'none', border: 'none', color: i === 0 ? 'var(--color-line-2)' : 'var(--color-ink-3)', cursor: i === 0 ? 'default' : 'pointer', fontSize: 14, padding: '0 3px', lineHeight: 1 }}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        onClick={() => moveExercise(i, 1)}
+                        disabled={i === plan.length - 1}
+                        aria-label="Move down"
+                        style={{ background: 'none', border: 'none', color: i === plan.length - 1 ? 'var(--color-line-2)' : 'var(--color-ink-3)', cursor: i === plan.length - 1 ? 'default' : 'pointer', fontSize: 14, padding: '0 3px', lineHeight: 1 }}
+                      >
+                        ↓
+                      </button>
+                    </div>
                     <button
                       onClick={() => removeExercise(i)}
+                      aria-label="Remove"
                       style={{ background: 'none', border: 'none', color: 'var(--color-ink-4)', cursor: 'pointer', fontSize: 16, padding: 0, lineHeight: 1 }}
                     >
                       ×

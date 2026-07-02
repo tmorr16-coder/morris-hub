@@ -42,6 +42,37 @@ export default function JournalClient({ initialEntries, userId }: { initialEntri
     await db.schema("hub").from("journal_entries").delete().eq("id", id);
   }
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
+  function startEdit(e: JournalEntry) {
+    setEditingId(e.id);
+    setEditTitle(e.title ?? "");
+    setEditContent(e.content);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+  }
+
+  async function saveEdit(id: string) {
+    if (!editContent.trim()) return;
+    setEditSaving(true);
+    const updated_at = new Date().toISOString();
+    const { data, error } = await db.schema("hub").from("journal_entries")
+      .update({ title: editTitle.trim() || null, content: editContent.trim(), updated_at })
+      .eq("id", id)
+      .select("id, title, content, mood, created_at, updated_at")
+      .single();
+    setEditSaving(false);
+    if (!error && data) {
+      setEntries((prev) => prev.map((e) => (e.id === id ? data : e)));
+      setEditingId(null);
+    }
+  }
+
   return (
     <main style={{ maxWidth: 680, margin: "0 auto", padding: "28px 20px 100px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
@@ -99,19 +130,54 @@ export default function JournalClient({ initialEntries, userId }: { initialEntri
               background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 12,
               padding: "16px 20px", boxShadow: "var(--shadow-card)",
             }}>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
-                <div>
-                  {e.title && <div style={{ fontWeight: 600, fontSize: 15, color: "var(--color-ink)" }}>{e.title}</div>}
-                  <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
-                    {new Date(e.created_at).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+              {editingId === e.id ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <input
+                    value={editTitle}
+                    onChange={(ev) => setEditTitle(ev.target.value)}
+                    placeholder="Title (optional)"
+                    style={{ padding: "9px 12px", border: "1px solid var(--color-rule)", borderRadius: 8, fontSize: 14, fontFamily: "inherit" }}
+                  />
+                  <textarea
+                    value={editContent}
+                    onChange={(ev) => setEditContent(ev.target.value)}
+                    style={{ minHeight: 140, padding: "10px 12px", border: "1px solid var(--color-rule)", borderRadius: 8, fontSize: 14, fontFamily: "inherit", resize: "vertical" }}
+                  />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => saveEdit(e.id)} disabled={editSaving || !editContent.trim()}
+                      style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                      {editSaving ? "Saving…" : "Save"}
+                    </button>
+                    <button onClick={cancelEdit}
+                      style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-3)", fontSize: 13, cursor: "pointer" }}>
+                      Cancel
+                    </button>
                   </div>
                 </div>
-                <button onClick={() => remove(e.id)}
-                  style={{ fontSize: 11, padding: "4px 10px", borderRadius: 7, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-4)", cursor: "pointer", flexShrink: 0 }}>
-                  Delete
-                </button>
-              </div>
-              <p style={{ fontSize: 14, color: "var(--color-ink-2)", lineHeight: 1.6, whiteSpace: "pre-wrap", margin: 0 }}>{e.content}</p>
+              ) : (
+                <>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
+                    <div>
+                      {e.title && <div style={{ fontWeight: 600, fontSize: 15, color: "var(--color-ink)" }}>{e.title}</div>}
+                      <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
+                        {new Date(e.created_at).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+                        {e.updated_at !== e.created_at && " · edited"}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => startEdit(e)}
+                        style={{ fontSize: 11, padding: "4px 10px", borderRadius: 7, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-3)", cursor: "pointer" }}>
+                        Edit
+                      </button>
+                      <button onClick={() => remove(e.id)}
+                        style={{ fontSize: 11, padding: "4px 10px", borderRadius: 7, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-4)", cursor: "pointer" }}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: 14, color: "var(--color-ink-2)", lineHeight: 1.6, whiteSpace: "pre-wrap", margin: 0 }}>{e.content}</p>
+                </>
+              )}
             </div>
           ))}
         </div>
