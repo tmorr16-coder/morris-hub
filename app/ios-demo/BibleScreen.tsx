@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { NavBar, LargeTitle, Group, Cell, IconBadge, AskMorrisPill, Icons } from "@/components/ios";
 
 export default function BibleScreen({ onBack }: { onBack: () => void }) {
@@ -13,7 +14,7 @@ export default function BibleScreen({ onBack }: { onBack: () => void }) {
         <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Today · Day 42</div>
         <div className="ios-title-2" style={{ marginTop: 4 }}>Romans 8</div>
         <div className="ios-subhead" style={{ color: "var(--ios-label-2)", marginTop: 4 }}>“There is now no condemnation for those who are in Christ Jesus.”</div>
-        <a href="/bible/read/romans/8" className="ios-btn ios-btn--primary" style={{ marginTop: 14 }}>Continue reading</a>
+        <Link href="/bible/read/romans/8" className="ios-btn ios-btn--primary" style={{ marginTop: 14 }}>Continue reading</Link>
       </div>
 
       <Group header="Plan">

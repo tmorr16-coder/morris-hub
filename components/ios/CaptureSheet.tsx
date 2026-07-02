@@ -70,10 +70,6 @@ export function CaptureSheet({
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 120);
-    else {
-      setError(null);
-      setSaving(false);
-    }
   }, [open]);
 
   useEffect(() => {
@@ -156,7 +152,7 @@ export function CaptureSheet({
           rows={1}
           placeholder="What do you need to remember?"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => { setTitle(e.target.value); if (error) setError(null); }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || !e.shiftKey)) {
               e.preventDefault();

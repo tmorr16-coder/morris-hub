@@ -31,7 +31,8 @@ export interface TodayHubProps {
   family: FamilyRow[];
   onOpenMoney?: () => void;
   onOpenAsk?: () => void;
-  onToggleTodo?: (id: string) => void;
+  /** Called with the todo id and its NEW completed state. */
+  onToggleTodo?: (id: string, completed: boolean) => void;
 }
 
 // category → SF-symbol-style icon + accent color
@@ -141,7 +142,7 @@ export default function TodayHubIOS({
           {priorities.map((p) => (
             <Cell
               key={p.id}
-              lead={<TodoCircle checked={p.done} onClick={onToggleTodo ? () => onToggleTodo(p.id) : undefined} />}
+              lead={<TodoCircle checked={p.done} onClick={onToggleTodo ? () => onToggleTodo(p.id, !p.done) : undefined} />}
               title={p.done ? <s style={{ color: "var(--ios-label-2)" }}>{p.title}</s> : p.title}
               subtitle={p.flag ? <span style={{ color: "var(--ios-red)" }}>{p.flag}</span> : undefined}
               chevron={false}
