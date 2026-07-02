@@ -19,9 +19,28 @@ export default async function PreviewPickerPage() {
     .select("member_user_id, display_name, nickname")
     .eq("user_id", user.id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const members = ((circleData ?? []) as any[]).map((m) => ({
+  const circleRows = (circleData ?? []) as any[];
+
+  const memberIds = circleRows.map((m) => m.member_user_id as string);
+  const userMap = new Map<string, { full_name: string | null; email: string | null }>();
+  if (memberIds.length > 0) {
+    const { data: users } = await service.auth.admin.listUsers({ perPage: 200 });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const u of (users?.users ?? []) as any[]) {
+      userMap.set(u.id, {
+        full_name: u.user_metadata?.full_name ?? u.user_metadata?.name ?? null,
+        email: u.email ?? null,
+      });
+    }
+  }
+
+  const members = circleRows.map((m) => ({
     id: m.member_user_id as string,
-    label: (m.display_name ?? m.nickname ?? "Member") as string,
+    label: (m.display_name
+      ?? m.nickname
+      ?? userMap.get(m.member_user_id)?.full_name
+      ?? userMap.get(m.member_user_id)?.email
+      ?? "Member") as string,
   }));
 
   const menuUser = {

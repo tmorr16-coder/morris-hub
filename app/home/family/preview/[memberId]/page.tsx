@@ -24,7 +24,15 @@ export default async function PreviewAsMemberPage({
     .select("member_user_id, display_name, nickname")
     .eq("user_id", user.id).eq("member_user_id", memberId).maybeSingle();
   if (!memberRow) notFound();
-  const memberLabel = memberRow.display_name ?? memberRow.nickname ?? "This person";
+
+  let memberLabel: string = memberRow.display_name ?? memberRow.nickname ?? "This person";
+  if (!memberRow.display_name && !memberRow.nickname) {
+    const { data: authUser } = await service.auth.admin.getUserById(memberId);
+    memberLabel = authUser?.user?.user_metadata?.full_name
+      ?? authUser?.user?.user_metadata?.name
+      ?? authUser?.user?.email
+      ?? "This person";
+  }
 
   const { data: myFamilyPlanIds } = await service.schema("bible").from("family_plans")
     .select("id").eq("created_by", user.id);
