@@ -13,9 +13,12 @@ import MoneyScreen from "./MoneyScreen";
 import AskScreen from "./AskScreen";
 import InvestmentsScreen from "./InvestmentsScreen";
 import NewsScreen from "./NewsScreen";
+import CareerScreen from "./CareerScreen";
+import BibleScreen from "./BibleScreen";
+import SettingsScreen from "./SettingsScreen";
 
 type Tab = "today" | "family" | "health" | "more";
-type Screen = Tab | "money" | "ask" | "invest" | "news";
+type Screen = Tab | "money" | "ask" | "invest" | "news" | "career" | "bible" | "settings";
 
 const MEMBERS = [
   { id: "sarah", label: "Sarah" },
@@ -49,11 +52,17 @@ export default function IOSDemo() {
             onOpenAsk={() => push("ask")}
             onOpenInvest={() => push("invest")}
             onOpenNews={() => push("news")}
+            onOpenCareer={() => push("career")}
+            onOpenBible={() => push("bible")}
+            onOpenSettings={() => push("settings")}
           />
         )}
         {screen === "money" && <MoneyScreen onBack={back} onOpenInvest={() => push("invest")} />}
         {screen === "invest" && <InvestmentsScreen onBack={back} />}
         {screen === "news" && <NewsScreen onBack={back} />}
+        {screen === "career" && <CareerScreen onBack={back} />}
+        {screen === "bible" && <BibleScreen onBack={back} />}
+        {screen === "settings" && <SettingsScreen onBack={back} />}
         {screen === "ask" && <AskScreen onBack={back} />}
       </div>
       {showTabBar && (

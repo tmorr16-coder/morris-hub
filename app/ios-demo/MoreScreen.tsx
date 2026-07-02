@@ -2,7 +2,7 @@
 
 import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 
-export default function MoreScreen({ onOpenMoney, onOpenAsk, onOpenInvest, onOpenNews }: { onOpenMoney?: () => void; onOpenAsk?: () => void; onOpenInvest?: () => void; onOpenNews?: () => void }) {
+export default function MoreScreen({ onOpenMoney, onOpenAsk, onOpenInvest, onOpenNews, onOpenCareer, onOpenBible, onOpenSettings }: { onOpenMoney?: () => void; onOpenAsk?: () => void; onOpenInvest?: () => void; onOpenNews?: () => void; onOpenCareer?: () => void; onOpenBible?: () => void; onOpenSettings?: () => void }) {
   return (
     <>
       <LargeTitle title="More" avatarInitial="T" />
@@ -14,9 +14,9 @@ export default function MoreScreen({ onOpenMoney, onOpenAsk, onOpenInvest, onOpe
       </Group>
 
       <Group header="Learn & grow">
-        <Cell lead={<IconBadge color="#2A6049"><Icons.BriefcaseIcon /></IconBadge>} title="Career" subtitle="Advisor · goals · certifications" href="/career" />
+        <Cell lead={<IconBadge color="#2A6049"><Icons.BriefcaseIcon /></IconBadge>} title="Career" subtitle="Advisor · goals · certifications" onClick={onOpenCareer} />
         <Cell lead={<IconBadge color="#6B5B95"><Icons.BookIcon /></IconBadge>} title="Student success" subtitle="Courses · LSAT prep" href="/home/me/courses" />
-        <Cell lead={<IconBadge color="#3B5C7F"><Icons.BookIcon /></IconBadge>} title="Bible" subtitle="Reading plans · notes · chat" href="/bible/dashboard" />
+        <Cell lead={<IconBadge color="#3B5C7F"><Icons.BookIcon /></IconBadge>} title="Bible" subtitle="Reading plans · notes · chat" onClick={onOpenBible} />
       </Group>
 
       <Group header="Stay informed">
@@ -26,7 +26,7 @@ export default function MoreScreen({ onOpenMoney, onOpenAsk, onOpenInvest, onOpe
 
       <Group header="Account">
         <Cell lead={<IconBadge color="#8E8E93"><Icons.PeopleIcon /></IconBadge>} title="Family & sharing" href="/home/settings/family" />
-        <Cell lead={<IconBadge color="#8E8E93"><Icons.GearIcon /></IconBadge>} title="Settings" href="/home/settings" />
+        <Cell lead={<IconBadge color="#8E8E93"><Icons.GearIcon /></IconBadge>} title="Settings" onClick={onOpenSettings} />
       </Group>
 
       <div style={{ height: 12 }} />

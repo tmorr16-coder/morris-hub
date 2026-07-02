@@ -1,82 +1,48 @@
 "use client";
 
-import { useState } from "react";
-import {
-  LargeTitle, Group, Cell, IconBadge,
-  GlanceGrid, GlanceTile, Segmented, SeverityBadge, AskMorrisPill, Icons,
-} from "@/components/ios";
-import { Circle, Avatar } from "./ui";
+// Demo wrapper: feeds mock props into the PRODUCTION TodayHubIOS component
+// (app/home/_components/TodayHubIOS) that the real /home route will render.
+
+import TodayHubIOS from "@/app/home/_components/TodayHubIOS";
 
 export default function TodayScreen({ onOpenMoney, onOpenAsk }: { onOpenMoney?: () => void; onOpenAsk?: () => void }) {
-  const [mode, setMode] = useState<"family" | "personal">("family");
-
   return (
-    <>
-      <LargeTitle
-        title="Today"
-        subtitle="Wednesday, July 2 · Good morning, Terry"
-        avatarInitial="T"
-        onCompose={() => {}}
-      />
-
-      <Segmented
-        ariaLabel="Scope"
-        value={mode}
-        onChange={setMode}
-        options={[
-          { value: "family", label: "Family" },
-          { value: "personal", label: "Personal" },
-        ]}
-      />
-
-      <GlanceGrid>
-        <GlanceTile label="Calendar" icon={<Icons.CalendarIcon />} value="Soccer" sub="Next · 4:30 PM" href="/home/family/calendar" />
-        <GlanceTile label="Reminders" badge={3} value="3 due" sub="Duke Energy · 5 PM first" href="/home" accent="var(--ios-orange)" />
-        <GlanceTile label="Health" icon={<Icons.HeartIcon />} value="8,240" sub="steps · Workout 6 PM" href="/health" accent="var(--ios-green)" />
-        <GlanceTile label="Money" icon={<Icons.WalletIcon />} value="$482,300" sub="+$1,240 today" href="/finance/dashboard" onClick={onOpenMoney} accent="var(--ios-finance)" />
-      </GlanceGrid>
-
-      <AskMorrisPill onClick={onOpenAsk} />
-
-      <Group header="Needs attention" id="needs-attention">
-        <Cell lead={<IconBadge color="var(--ios-red)"><Icons.DumbbellIcon /></IconBadge>} title="Missed Upper Body workout" subtitle={<><SeverityBadge level="urgent" /> · was scheduled Jul 1</>} href="/health/train" />
-        <Cell lead={<IconBadge color="var(--ios-orange)"><Icons.CalendarIcon /></IconBadge>} title="Overlapping events today" subtitle={<><SeverityBadge level="today" /> · 2 events within 30 min</>} href="/home" />
-        <Cell lead={<IconBadge color="var(--ios-finance)"><Icons.WalletIcon /></IconBadge>} title="Duke Energy bill" subtitle={<><SeverityBadge level="today" /> · payment due today · 5:00 PM</>} href="/finance/dashboard" />
-        <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.BriefcaseIcon /></IconBadge>} title="Emma's Biology quiz" subtitle={<><SeverityBadge level="week" /> · due Jul 5</>} href="/home/me/courses" />
-      </Group>
-
-      <Group header="Today's plan" id="today-plan">
-        {[
-          { t: "8:00 AM", l: "Take Mounjaro", c: "var(--ios-green)", icon: <Icons.PillIcon /> },
-          { t: "9:30 AM", l: "Standup", c: "var(--ios-tint)", icon: <Icons.BriefcaseIcon /> },
-          { t: "4:30 PM", l: "Soccer practice — Emma", c: "var(--ios-orange)", icon: <Icons.PeopleIcon /> },
-          { t: "6:00 PM", l: "Upper Body workout", c: "var(--ios-green)", icon: <Icons.DumbbellIcon /> },
-        ].map((r) => (
-          <Cell key={r.l} insetSeparator lead={<span className="ios-num ios-footnote" style={{ width: 62, color: "var(--ios-label-2)" }}>{r.t}</span>} title={r.l} trailing={<IconBadge color={r.c}>{r.icon}</IconBadge>} chevron={false} />
-        ))}
-        <Cell insetSeparator lead={<span className="ios-footnote" style={{ width: 62, color: "var(--ios-label-2)" }}>Due today</span>} title="Renew car registration" chevron={false} />
-      </Group>
-
-      <Group header="My priorities" id="priorities">
-        <Cell lead={<Circle />} title="Call plumber about leak" subtitle={<span style={{ color: "var(--ios-red)" }}>High priority</span>} chevron={false} />
-        <Cell lead={<Circle />} title="Review Q3 budget" chevron={false} />
-        <Cell lead={<Circle checked />} title={<s style={{ color: "var(--ios-label-2)" }}>Buy Emma&apos;s birthday gift</s>} chevron={false} />
-      </Group>
-
-      {mode === "family" && (
-        <Group header="Family" id="family">
-          {[
-            { n: "Terry (you)", s: "2 tasks today", c: "var(--ios-tint)", i: "T" },
-            { n: "Sarah", s: "All clear", c: "#B565A7", i: "S" },
-            { n: "Emma", s: "Quiz Jul 5 · soccer 4:30", c: "#E8607A", i: "E" },
-            { n: "Jack", s: "All clear", c: "var(--ios-green)", i: "J" },
-          ].map((m) => (
-            <Cell key={m.n} lead={<Avatar color={m.c} initial={m.i} />} title={m.n} subtitle={m.s} href="/home/family" />
-          ))}
-        </Group>
-      )}
-
-      <div style={{ height: 12 }} />
-    </>
+    <TodayHubIOS
+      firstName="Terry"
+      dateLabel="Wednesday, July 2"
+      greeting="Good morning"
+      onOpenMoney={onOpenMoney}
+      onOpenAsk={onOpenAsk}
+      glance={{
+        calendar: { value: "Soccer", sub: "Next · 4:30 PM", href: "/home/family/calendar" },
+        reminders: { value: "3 due", sub: "Duke Energy · 5 PM first", badge: 3, href: "/home" },
+        health: { value: "8,240", sub: "steps · Workout 6 PM", href: "/health" },
+        money: { value: "$482,300", sub: "+$1,240 today", href: "/finance/dashboard" },
+      }}
+      attention={[
+        { id: "a1", severity: "urgent", title: "Missed Upper Body workout", context: "was scheduled Jul 1", category: "workout", href: "/health/train" },
+        { id: "a2", severity: "today", title: "Overlapping events today", context: "2 events within 30 min", category: "calendar", href: "/home" },
+        { id: "a3", severity: "today", title: "Duke Energy bill", context: "payment due today · 5:00 PM", category: "bill", href: "/finance/dashboard" },
+        { id: "a4", severity: "week", title: "Emma's Biology quiz", context: "due Jul 5", category: "course", href: "/home/me/courses" },
+      ]}
+      timeline={[
+        { id: "t1", time: "8:00 AM", label: "Take Mounjaro", category: "medication" },
+        { id: "t2", time: "9:30 AM", label: "Standup", category: "work" },
+        { id: "t3", time: "4:30 PM", label: "Soccer practice — Emma", category: "family" },
+        { id: "t4", time: "6:00 PM", label: "Upper Body workout", category: "workout" },
+        { id: "t5", time: "Due today", label: "Renew car registration", category: "todo" },
+      ]}
+      priorities={[
+        { id: "p1", title: "Call plumber about leak", flag: "High priority" },
+        { id: "p2", title: "Review Q3 budget" },
+        { id: "p3", title: "Buy Emma's birthday gift", done: true },
+      ]}
+      family={[
+        { id: "me", name: "Terry (you)", status: "2 tasks today", color: "var(--ios-tint)", initial: "T", href: "/home/me" },
+        { id: "sarah", name: "Sarah", status: "All clear", color: "#B565A7", initial: "S", href: "/home/family" },
+        { id: "emma", name: "Emma", status: "Quiz Jul 5 · soccer 4:30", color: "#E8607A", initial: "E", href: "/home/family" },
+        { id: "jack", name: "Jack", status: "All clear", color: "#34A56F", initial: "J", href: "/home/family" },
+      ]}
+    />
   );
 }
