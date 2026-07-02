@@ -8,7 +8,7 @@ import {
   type PlannedExercise, type Difficulty,
 } from '../../_lib/build-plan';
 import { scheduleWorkout } from '../../actions';
-import { EXERCISE_TEMPLATES, templateToExercise } from '../../exercise-library';
+import { EXERCISE_TEMPLATES, templateToExercise, type ExerciseTemplate } from '../../exercise-library';
 import type { LastWorkout } from '../../_lib/last-workout';
 
 type WorkoutMode = 'strength' | 'cardio' | 'mixed';
@@ -185,9 +185,42 @@ export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorko
       prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
     );
 
+  // Exercises picked by hand from the library during selection (distinct from
+  // the auto-generated plan) — merged into basePlan so they carry through to review.
+  const [manualAdditions, setManualAdditions] = useState<PlannedExercise[]>([]);
+  const [libSearch, setLibSearch] = useState('');
+
+  const selectedMuscleLabels = useMemo(
+    () => new Set(selected.map((g) => MUSCLE_LABELS[g])),
+    [selected]
+  );
+
+  const libResults = useMemo(() => {
+    const q = libSearch.trim().toLowerCase();
+    if (q.length >= 2) {
+      return EXERCISE_TEMPLATES.filter(
+        (t) => t.name.toLowerCase().includes(q) || t.muscles.some((m) => m.toLowerCase().includes(q))
+      ).slice(0, 10);
+    }
+    if (selectedMuscleLabels.size === 0) return [];
+    return EXERCISE_TEMPLATES.filter((t) => t.muscles.some((m) => selectedMuscleLabels.has(m))).slice(0, 10);
+  }, [libSearch, selectedMuscleLabels]);
+
+  const addManualExercise = (t: ExerciseTemplate) => {
+    const ex = templateToExercise(t);
+    setManualAdditions((prev) =>
+      prev.some((e) => e.name === ex.name)
+        ? prev
+        : [...prev, { name: ex.name, sets: ex.target.sets, reps: ex.target.reps, primary: [], secondary: [], _score: 0 }]
+    );
+  };
+
+  const removeManualExercise = (name: string) =>
+    setManualAdditions((prev) => prev.filter((e) => e.name !== name));
+
   const basePlan = useMemo(
-    () => applyLevel(buildPlan(selected), difficulty),
-    [selected, difficulty]
+    () => [...applyLevel(buildPlan(selected), difficulty), ...manualAdditions],
+    [selected, difficulty, manualAdditions]
   );
   const plan     = editedPlan ?? basePlan;
   const duration = estimateDuration(plan);
@@ -580,7 +613,7 @@ export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorko
 
         {/* Body diagram */}
         {(mode === 'strength' || mode === 'mixed') && (
-        <div style={{ ...S.tile, padding: '14px 14px 10px', marginBottom: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+        <div id="body-picker" style={{ ...S.tile, padding: '14px 14px 10px', marginBottom: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', scrollMarginTop: 16 }}>
           <div style={{ display: 'flex', background: 'var(--color-bg-sunk)', borderRadius: 10, padding: 3, gap: 2, position: 'absolute', top: 14, right: 14 }}>
             <SegBtn active={view === 'front'} onClick={() => setView('front')}>Front</SegBtn>
             <SegBtn active={view === 'back'}  onClick={() => setView('back')}>Back</SegBtn>
@@ -666,7 +699,7 @@ export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorko
         )}
 
         {/* Live plan preview */}
-        {(mode === 'strength' || mode === 'mixed') && n > 0 && (
+        {(mode === 'strength' || mode === 'mixed') && (n > 0 || manualAdditions.length > 0) && (
           <div style={{ ...S.tileBare, marginBottom: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <div style={S.eyebrow}>Plan preview</div>
@@ -683,6 +716,57 @@ export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorko
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Exercise library — pick specific exercises for the muscles you selected */}
+        {(mode === 'strength' || mode === 'mixed') && (
+          <div style={{ ...S.tileBare, marginBottom: 14 }}>
+            <div style={{ ...S.eyebrow, marginBottom: 8 }}>
+              Exercise library (120+) {n > 0 && !libSearch && '· for your selection'}
+            </div>
+            <div style={{ position: 'relative' }}>
+              <input
+                value={libSearch}
+                onChange={(e) => setLibSearch(e.target.value)}
+                placeholder={n > 0 ? 'Search, or browse exercises for your selected muscles…' : 'Search by name or muscle — e.g. bench press, hamstrings…'}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 9, border: '1px solid var(--color-line)', background: 'var(--color-bg-sunk)', color: 'var(--color-ink)', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const }}
+              />
+            </div>
+            {libResults.length > 0 ? (
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
+                {libResults.map((t) => {
+                  const added = manualAdditions.some((e) => e.name === t.name);
+                  return (
+                    <button
+                      key={t.name}
+                      onClick={() => (added ? removeManualExercise(t.name) : addManualExercise(t))}
+                      style={{
+                        width: '100%', textAlign: 'left', padding: '9px 10px', borderRadius: 8,
+                        border: `1px solid ${added ? 'var(--color-accent)' : 'var(--color-line)'}`,
+                        background: added ? 'var(--color-accent-soft)' : 'var(--color-bg-sunk)',
+                        cursor: 'pointer', fontFamily: 'inherit',
+                        display: 'flex', alignItems: 'center', gap: 10,
+                      }}
+                    >
+                      <span style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: added ? 'var(--color-accent)' : 'var(--color-ink)' }}>{t.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--color-ink-4)', marginTop: 2 }}>
+                          {t.muscles.join(', ')} · {t.equipment} · {t.defaultSets}×{t.defaultReps}
+                        </div>
+                      </span>
+                      <span style={{ fontSize: 16, color: added ? 'var(--color-accent)' : 'var(--color-ink-4)', flexShrink: 0 }}>
+                        {added ? '✓' : '+'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ ...S.meta, fontSize: 11.5, marginTop: 8, fontStyle: 'italic' }}>
+                {n > 0 ? 'No matches — try a search above.' : 'Tap a muscle group above, or search for an exercise by name.'}
+              </div>
+            )}
           </div>
         )}
 
@@ -758,12 +842,12 @@ export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorko
         {/* CTA */}
         <button
           onClick={enterReview}
-          disabled={mode === 'cardio' ? false : !n}
+          disabled={mode === 'cardio' ? false : !n && manualAdditions.length === 0}
           style={{
             width: '100%', padding: '14px 16px', borderRadius: 10, border: 'none',
             background: 'var(--color-ink)', color: 'var(--color-bg)',
-            fontSize: 15, fontWeight: 500, cursor: (mode === 'cardio' || n) ? 'pointer' : 'default',
-            fontFamily: 'inherit', opacity: (mode === 'cardio' || n) ? 1 : 0.4, transition: 'opacity 160ms',
+            fontSize: 15, fontWeight: 500, cursor: (mode === 'cardio' || n || manualAdditions.length > 0) ? 'pointer' : 'default',
+            fontFamily: 'inherit', opacity: (mode === 'cardio' || n || manualAdditions.length > 0) ? 1 : 0.4, transition: 'opacity 160ms',
           }}
         >
           {mode === 'cardio' ? 'Start cardio' : `Review plan${n > 0 ? ` · ${plan.length} exercises` : ''}`}

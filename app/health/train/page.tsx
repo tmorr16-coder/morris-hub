@@ -3,14 +3,9 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
-import { EXERCISE_LIBRARY } from "../workout/exercise-library";
-import Body, { type MuscleGroup } from "../_components/Body";
 import ChatWidget from "../_components/ChatWidget";
 import WorkoutHistoryClient, { type UnifiedWorkout } from "./_components/WorkoutHistoryClient";
 import ScheduledWorkoutCard, { type ScheduledWorkout } from "./_components/ScheduledWorkoutCard";
-
-const PRIMARY_MUSCLES: MuscleGroup[] = ["quads", "glutes", "hamstrings"];
-const SECONDARY_MUSCLES: MuscleGroup[] = ["calves"];
 
 function toDateStr(d: Date): string {
   return d.toLocaleDateString("sv");
@@ -38,8 +33,6 @@ export default async function TrainPage() {
 
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-  const todayShort = new Date().toLocaleDateString("en-US", { weekday: "short" });
 
   const today = toDateStr(new Date());
 
@@ -185,136 +178,11 @@ export default async function TrainPage() {
       {/* Scheduled workouts */}
       <ScheduledWorkoutCard workouts={scheduledWorkouts} />
 
-      {/* Hero tile */}
-      <div
-        style={{
-          background: "var(--color-bg-raised)",
-          border: "1px solid var(--color-line)",
-          borderRadius: 14,
-          overflow: "hidden",
-          marginBottom: 12,
-          boxShadow: "var(--shadow-card)",
-        }}
-      >
-        <div style={{ padding: "16px 18px 14px" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 10,
-            }}
-          >
-            <span
-              style={{
-                display: "inline-block",
-                padding: "3px 10px",
-                borderRadius: 999,
-                background: "var(--color-accent-soft)",
-                color: "var(--color-accent)",
-                fontSize: 11,
-                fontWeight: 500,
-              }}
-            >
-              Up next · 45–55 min
-            </span>
-            <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
-              Today, {todayShort}
-            </span>
-          </div>
-
-          <div
-            style={{
-              fontSize: 20,
-              fontWeight: 600,
-              letterSpacing: "-0.01em",
-              color: "var(--color-ink)",
-              marginBottom: 14,
-            }}
-          >
-            Lower Body Power
-          </div>
-
-          <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-            <div style={{ flexShrink: 0, paddingTop: 4 }}>
-              <Body primary={PRIMARY_MUSCLES} secondary={SECONDARY_MUSCLES} view="front" size={96} />
-            </div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
-              {EXERCISE_LIBRARY.map((ex, i) => (
-                <div
-                  key={ex.name}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "7px 10px",
-                    background: "var(--color-bg-sunk)",
-                    borderRadius: 8,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 16,
-                      color: "var(--color-ink-4)",
-                      fontSize: 10,
-                      fontFamily: "var(--font-mono)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {i + 1}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 12.5,
-                      fontWeight: 500,
-                      color: "var(--color-ink)",
-                      flex: 1,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {ex.name}
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: 11,
-                      color: "var(--color-ink-3)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {ex.target.sets}×{ex.target.reps}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <Link
-          href="/health/workout"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-            width: "100%",
-            padding: "14px 18px",
-            background: "var(--color-ink)",
-            color: "var(--color-bg)",
-            textDecoration: "none",
-            fontSize: 14,
-            fontWeight: 600,
-          }}
-        >
-          ▸ Start Workout
-        </Link>
-      </div>
-
-      {/* Custom workout — same visual weight as Start Workout */}
+      {/* Custom workout — build the plan first (muscles, cardio, stretching)
+          before ever landing on the tracker; jumps straight to the body-part
+          picker, past the "repeat last workout" shortcut */}
       <Link
-        href="/health/workout/builder"
+        href="/health/workout/builder#body-picker"
         style={{
           display: "flex",
           alignItems: "center",

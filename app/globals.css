@@ -126,3 +126,14 @@ html, body {
   .nav-mobile-bar    { display: none; }
   .nav-mobile-spacer { display: none; }
 }
+
+/* ── Section sub-nav responsive breakpoints ──────────────────────────────────
+   Horizontal tab rows (Health/Career/Money) become a dropdown on narrow
+   screens instead of silently overflowing with no visual cue. */
+.subnav-desktop { display: none; }
+.subnav-mobile  { display: block; }
+
+@media (min-width: 768px) {
+  .subnav-desktop { display: block; }
+  .subnav-mobile  { display: none; }
+}
