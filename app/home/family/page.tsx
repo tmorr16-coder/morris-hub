@@ -209,6 +209,8 @@ export default async function FamilyPage() {
       ?? userMap.get(id)?.full_name
       ?? "Family";
   }
+  const circleNameMap: Record<string, string> = {};
+  for (const id of circleIds) circleNameMap[id] = nameForId(id);
 
   const menuUser = {
     name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
@@ -318,8 +320,8 @@ export default async function FamilyPage() {
         )}
 
         {/* ── Shopping, Household goals, Meal plan ── */}
-        <ShoppingList initialItems={shoppingItems} userId={user.id} nameForId={nameForId} />
-        <HouseholdGoals initialGoals={householdGoals} userId={user.id} nameForId={nameForId} />
+        <ShoppingList initialItems={shoppingItems} userId={user.id} nameMap={circleNameMap} />
+        <HouseholdGoals initialGoals={householdGoals} userId={user.id} nameMap={circleNameMap} />
         <MealPlan initialMeals={mealPlan} userId={user.id} />
 
         {/* ── Household tasks from all circle members ── */}

@@ -13,11 +13,11 @@ interface ShoppingItem {
 }
 
 export default function ShoppingList({
-  initialItems, userId, nameForId,
+  initialItems, userId, nameMap,
 }: {
   initialItems: ShoppingItem[];
   userId: string;
-  nameForId: (id: string) => string;
+  nameMap: Record<string, string>;
 }) {
   const [items, setItems] = useState(initialItems);
   const [text, setText] = useState("");
@@ -95,7 +95,7 @@ export default function ShoppingList({
               }}>
                 {i.item}{i.quantity ? ` · ${i.quantity}` : ""}
               </span>
-              <span style={{ fontSize: 10, color: "var(--color-ink-4)", flexShrink: 0 }}>{nameForId(i.added_by)}</span>
+              <span style={{ fontSize: 10, color: "var(--color-ink-4)", flexShrink: 0 }}>{nameMap[i.added_by] ?? "Family"}</span>
               <button onClick={() => remove(i.id)} aria-label="Remove"
                 style={{ background: "none", border: "none", color: "var(--color-ink-4)", cursor: "pointer", fontSize: 13, flexShrink: 0 }}>
                 ✕

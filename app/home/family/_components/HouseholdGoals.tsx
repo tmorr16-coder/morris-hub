@@ -14,11 +14,11 @@ interface Goal {
 }
 
 export default function HouseholdGoals({
-  initialGoals, userId, nameForId,
+  initialGoals, userId, nameMap,
 }: {
   initialGoals: Goal[];
   userId: string;
-  nameForId: (id: string) => string;
+  nameMap: Record<string, string>;
 }) {
   const [goals, setGoals] = useState(initialGoals);
   const [title, setTitle] = useState("");
@@ -111,7 +111,7 @@ export default function HouseholdGoals({
                   {g.title}
                 </div>
                 <div style={{ fontSize: 10, color: "var(--color-ink-4)" }}>
-                  Started by {nameForId(g.created_by)}{g.target_date ? ` · target ${new Date(`${g.target_date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+                  Started by {nameMap[g.created_by] ?? "Family"}{g.target_date ? ` · target ${new Date(`${g.target_date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
                 </div>
               </div>
               <button onClick={() => remove(g.id)} aria-label="Remove"
