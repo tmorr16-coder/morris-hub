@@ -79,7 +79,7 @@ export default async function PlansPage() {
         )}
 
         {/* Built-in plans */}
-        <div style={{ marginBottom: 28 }}>
+        <div id="built-in" style={{ marginBottom: 28 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink-2)", marginBottom: 12 }}>Curated plans</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
             {BUILT_IN_PLANS.map((plan) => (
@@ -136,8 +136,7 @@ export default async function PlansPage() {
                 Enroll in any reading plan below, then share it with your family to track progress together.
               </div>
               <a href="#built-in"
-                style={{ fontSize: 12, fontWeight: 600, color: "var(--color-accent)", textDecoration: "none" }}
-                onClick={(e) => { e.preventDefault(); document.getElementById("built-in")?.scrollIntoView({ behavior: "smooth" }); }}>
+                style={{ fontSize: 12, fontWeight: 600, color: "var(--color-accent)", textDecoration: "none" }}>
                 Browse plans below →
               </a>
             </div>

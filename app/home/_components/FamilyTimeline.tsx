@@ -1,20 +1,11 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { findConflicts, type TimelineItem } from "./timelineConflicts";
+
+export type { TimelineItem };
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-export interface TimelineItem {
-  id: string;
-  sortKey: string;       // ISO timestamp for sorting; "T99:99" suffix = all-day/due-today
-  timeLabel: string;     // "2:00 PM" | "Due today"
-  label: string;
-  module: string;        // "hub" | "health" | "finance" | "student-success" | "career"
-  category: string;
-  href?: string;
-  person?: string;       // "me" | family member_user_id (Phase 2b)
-  personLabel?: string;  // display name for the person (e.g. "Alicia")
-}
 
 export interface FamilyMember {
   id: string;
@@ -54,24 +45,6 @@ export const MODULE_BADGE: Record<string, string> = {
   workout:          "Health",
   family:           "Family",  // Phase 2b: household tasks show "Family" badge
 };
-
-// Conflict: two timed events within 30 minutes of each other
-export function findConflicts(items: TimelineItem[]): Set<string> {
-  const conflicting = new Set<string>();
-  const timed = items.filter((i) => !i.sortKey.includes("T99:99"));
-
-  for (let i = 0; i < timed.length; i++) {
-    for (let j = i + 1; j < timed.length; j++) {
-      const a = new Date(timed[i].sortKey).getTime();
-      const b = new Date(timed[j].sortKey).getTime();
-      if (Math.abs(b - a) < 30 * 60 * 1000) {
-        conflicting.add(timed[i].id);
-        conflicting.add(timed[j].id);
-      }
-    }
-  }
-  return conflicting;
-}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
