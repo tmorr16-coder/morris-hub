@@ -331,9 +331,6 @@ export default async function FamilyPage() {
           </div>
         )}
 
-        {/* ── Community — household workout/meal activity, moved from Health ── */}
-        <CommunityFeed />
-
         {/* ── Children — slim summary, full profiles live at /children ── */}
         {childMembers.length > 0 && (
           <div style={{ marginBottom: 28 }}>
@@ -425,6 +422,11 @@ export default async function FamilyPage() {
           <a href="/home/settings/family" style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif", whiteSpace: "nowrap", flexShrink: 0, fontWeight: 600 }}>
             {familyMembers.length === 0 ? "Invite someone →" : "Manage circle →"}
           </a>
+        </div>
+
+        {/* ── Community — household workout/meal activity, moved from Health ── */}
+        <div style={{ marginTop: 28 }}>
+          <CommunityFeed />
         </div>
 
       </main>
