@@ -16,7 +16,14 @@ export default async function MePage() {
   const prefs = await getPreferences(user.id);
   const domainData = await getMeDomainData(user.id, new Date(), prefs.app_access ?? []);
 
-  const order = (prefs.me_domain_order?.length ? prefs.me_domain_order : [...ME_DOMAINS]) as MeDomainKey[];
+  const savedOrder = (prefs.me_domain_order?.length ? prefs.me_domain_order : [...ME_DOMAINS]) as MeDomainKey[];
+  // A saved order can predate a domain added after the user last customized —
+  // append anything present in the actual data but missing from the saved
+  // order, instead of silently dropping it.
+  const order = [
+    ...savedOrder,
+    ...domainData.map((d) => d.key).filter((k) => !savedOrder.includes(k)),
+  ];
   const disabled = prefs.me_domains_disabled ?? [];
 
   const orderedDomains = order
