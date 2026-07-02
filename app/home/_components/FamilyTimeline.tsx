@@ -56,7 +56,7 @@ export const MODULE_BADGE: Record<string, string> = {
 };
 
 // Conflict: two timed events within 30 minutes of each other
-function findConflicts(items: TimelineItem[]): Set<string> {
+export function findConflicts(items: TimelineItem[]): Set<string> {
   const conflicting = new Set<string>();
   const timed = items.filter((i) => !i.sortKey.includes("T99:99"));
 

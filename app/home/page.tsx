@@ -20,8 +20,10 @@ import SportsWidget from "./_components/SportsWidget";
 import ClaudeTipCard from "./_components/ClaudeTipCard";
 import NewsSubscriptionsWidget from "./_components/NewsSubscriptionsWidget";
 import CollapsibleSection from "./_components/CollapsibleSection";
-import FamilyTimeline from "./_components/FamilyTimeline";
+import FamilyTimeline, { findConflicts } from "./_components/FamilyTimeline";
 import type { TimelineItem } from "./_components/FamilyTimeline";
+import FamilyStatus from "./_components/FamilyStatus";
+import { getFamilyCalendarEvents } from "@/lib/familyCalendar";
 import type { Todo } from "./actions";
 
 // My Priorities: todos (personal tasks) + reminders (includes household task toggle)
@@ -85,7 +87,7 @@ export default async function HomePage() {
     getAssignedReminders(user.id),
     // Family circle members for FamilyTimeline filter chips
     service.schema("hub").from("family_members")
-      .select("member_user_id, display_name, nickname")
+      .select("member_user_id, display_name, nickname, role")
       .eq("user_id", user.id),
   ]);
 
@@ -97,24 +99,59 @@ export default async function HomePage() {
   const circleMembers = ((circleResult.data ?? []) as any[]).map((m) => ({
     id: m.member_user_id as string,
     label: (m.display_name ?? m.nickname ?? "Member") as string,
+    role: (m.role ?? "adult") as string,
   }));
   const memberIds = circleMembers.map((m) => m.id);
+  const childMemberIds = circleMembers.filter((m) => m.role === "child").map((m) => m.id);
 
-  // Fetch household reminders from circle members (requires Phase 2b RLS)
+  // Fetch household reminders from circle members, overdue/due-soon course
+  // reminders (mine + children's), missed workouts, and unowned household
+  // items — all needed for the Needs Attention and Family Status sections.
+  const dueSoonHorizon = new Date(today.getTime() + 2 * 86_400_000).toISOString().slice(0, 10);
+  const overdueHorizon = new Date(today.getTime() - 7 * 86_400_000).toISOString().slice(0, 10);
+  const [hwResult, courseResult, missedWorkoutsResult, unownedRemindersResult, unownedTodosResult] = await Promise.all([
+    memberIds.length > 0
+      ? service.schema("hub").from("reminders")
+          .select("id, title, due_at, category, source_app, user_id, assigned_to")
+          .eq("is_household", true).is("completed_at", null)
+          .in("user_id", memberIds)
+          .lte("due_at", new Date(today.getTime() + 7 * 86_400_000).toISOString())
+          .order("due_at", { ascending: true })
+      : Promise.resolve({ data: [] }),
+    service.schema("student_support").from("course_reminders")
+      .select("id, type, title, due_date, user_id, courses:course_id(name)")
+      .in("user_id", [user.id, ...childMemberIds])
+      .eq("is_completed", false)
+      .gte("due_date", overdueHorizon).lte("due_date", dueSoonHorizon)
+      .order("due_date", { ascending: true }),
+    service.from("scheduled_workouts")
+      .select("id, label, scheduled_date")
+      .eq("user_id", user.id).eq("completed", false)
+      .lt("scheduled_date", todayStr)
+      .order("scheduled_date", { ascending: false })
+      .limit(3),
+    service.schema("hub").from("reminders")
+      .select("id, title, due_at, category")
+      .eq("is_household", true).is("assigned_to", null).is("completed_at", null)
+      .in("user_id", [user.id, ...memberIds])
+      .order("due_at", { ascending: true }).limit(3),
+    service.schema("hub").from("todos")
+      .select("id, title, due_date")
+      .eq("is_household", true).is("assigned_to", null).eq("completed", false)
+      .in("user_id", [user.id, ...memberIds])
+      .order("due_date", { ascending: true }).limit(3),
+  ]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let familyHouseholdReminders: any[] = [];
-  if (memberIds.length > 0) {
-    const { data: hwData } = await service
-      .schema("hub")
-      .from("reminders")
-      .select("id, title, due_at, category, source_app, user_id, assigned_to")
-      .eq("is_household", true)
-      .is("completed_at", null)
-      .in("user_id", memberIds)
-      .lte("due_at", new Date(Date.now() + 7 * 86_400_000).toISOString())
-      .order("due_at", { ascending: true });
-    familyHouseholdReminders = hwData ?? [];
-  }
+  const familyHouseholdReminders = (hwResult.data ?? []) as any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const courseAttentionItems = (courseResult.data ?? []) as any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const missedWorkouts = (missedWorkoutsResult.data ?? []) as any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const unownedReminders = (unownedRemindersResult.data ?? []) as any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const unownedTodos = (unownedTodosResult.data ?? []) as any[];
+  const circleLabel = (id: string) => (id === user.id ? "You" : circleMembers.find((m) => m.id === id)?.label ?? "Family");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const careerGoals = (careerGoalsResult.data ?? []) as Array<{ id: string; title: string; target_date: string | null; horizon: string; category: string }>;
   const activeCareerGoals = careerGoals.length;
@@ -160,12 +197,98 @@ export default async function HomePage() {
     return localDate === todayStr && r.category === "bill";
   });
 
+  // Today's plan timeline items — built here (before attentionItems) so
+  // schedule conflicts can be detected and surfaced as an attention item.
+  const todayDueTodos = todos.filter((t) => !t.completed && t.due_date === todayStr);
+
+  const timelineItems: TimelineItem[] = [
+    // Reminders (cross-module via source_app: hub, health, finance, student-success, etc.)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...(reminders as any[])
+      .filter((r) => {
+        const localDate = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
+        return localDate === todayStr;
+      })
+      .map((r) => ({
+        id: `rem-${r.id}`,
+        sortKey: r.due_at,
+        timeLabel: new Date(r.due_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: userTz }),
+        label: r.title,
+        module: (r.source_app ?? "hub") as string,
+        category: (r.category ?? "general") as string,
+        href: MODULE_HREF[r.source_app as string],
+      })),
+    // Scheduled workouts from the health module
+    ...scheduledWorkouts.map((w) => ({
+      id: `wkt-${w.id}`,
+      sortKey: w.scheduled_time ? `${todayStr}T${w.scheduled_time}` : `${todayStr}T23:00`,
+      timeLabel: w.scheduled_time
+        ? new Date(`${todayStr}T${w.scheduled_time}`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: userTz })
+        : "Today",
+      label: w.label || "Workout",
+      module: "health",
+      category: "workout",
+      href: "/health/train",
+    })),
+    // Todos due today (no specific time — rendered after timed items)
+    ...todayDueTodos.map((t) => ({
+      id: `todo-${t.id}`,
+      sortKey: `${todayStr}T99:99`,
+      timeLabel: "Due today",
+      label: t.title,
+      module: "hub",
+      category: "todo",
+      href: undefined,
+    })),
+    // Reminders assigned to this user by family members (Phase 2b)
+    ...assignedReminders
+      .filter((r) => {
+        const localDate = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
+        return localDate === todayStr;
+      })
+      .map((r) => ({
+        id: `assigned-${r.id}`,
+        sortKey: r.due_at,
+        timeLabel: new Date(r.due_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: userTz }),
+        label: `${r.title} — assigned to you`,
+        module: "family",
+        category: "appointment",
+        href: "/home/family",
+        person: "me",
+      })),
+    // Household reminders from family circle members (visible via Phase 2b RLS)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...familyHouseholdReminders
+      .filter((r: any) => {
+        const localDate = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
+        return localDate === todayStr;
+      })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((r: any) => {
+        const owner = circleMembers.find((m) => m.id === r.user_id);
+        return {
+          id: `family-hw-${r.id}`,
+          sortKey: r.due_at,
+          timeLabel: new Date(r.due_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: userTz }),
+          label: r.title,
+          module: "family",
+          category: r.category ?? "general",
+          href: "/home/family",
+          person: r.user_id as string,   // filter chip uses member_user_id
+          personLabel: owner?.label,
+        };
+      }),
+  ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+  const todayConflicts = findConflicts(timelineItems);
+
   interface AttentionItem {
     id: string;
     severity: "Urgent" | "Today" | "This week" | "Informational";
     title: string;
     context: string;
     who: string;
+    person?: string;
     primaryAction: { label: string; href: string };
     secondaryAction?: { label: string; href: string };
   }
@@ -185,8 +308,59 @@ export default async function HomePage() {
     investments: "/investments", "student-success": "/student-success",
     career: "/career", bible: "/bible", hub: "/home",
   };
+  const COURSE_TYPE_LABEL: Record<string, string> = {
+    test: "Test", assignment: "Assignment", quiz: "Quiz",
+    practice: "Practice", extra_credit: "Extra credit",
+  };
 
   const attentionItems: AttentionItem[] = [
+    // Schedule conflicts — overlapping events within 30 minutes today
+    ...(todayConflicts.size > 0 ? [{
+      id: "conflict-today",
+      severity: "Today" as const,
+      title: "You have overlapping events today",
+      context: `${todayConflicts.size} events overlap within 30 minutes of each other`,
+      who: "You",
+      person: "me",
+      primaryAction: { label: "View today's plan", href: "#today-plan-heading" },
+    }] : []),
+    // Overdue/due-soon assignments (mine + children's) — also stands in for "required forms"
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...courseAttentionItems.slice(0, 2).map((c: any) => {
+      const isMine = c.user_id === user.id;
+      const childName = isMine ? null : circleLabel(c.user_id);
+      const isOverdue = c.due_date < todayStr;
+      return {
+        id: `course-${c.id}`,
+        severity: (isOverdue ? "Today" : "This week") as "Today" | "This week",
+        title: `${childName ? `${childName}’s` : "Your"} ${c.courses?.name ? `${c.courses.name} ` : ""}${(COURSE_TYPE_LABEL[c.type] ?? "assignment").toLowerCase()}`,
+        context: `${COURSE_TYPE_LABEL[c.type] ?? "Assignment"} · ${isOverdue ? "was due" : "due"} ${fmtDueDate(c.due_date)}`,
+        who: childName ?? "You",
+        person: (isMine ? "me" : c.user_id) as string,
+        primaryAction: { label: "Review", href: "/student-success" },
+      };
+    }),
+    // Missed health commitments — past scheduled workouts never completed
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...missedWorkouts.slice(0, 2).map((w: any) => ({
+      id: `missed-workout-${w.id}`,
+      severity: "Urgent" as const,
+      title: `Missed ${w.label || "workout"}`,
+      context: `Workout · was scheduled ${fmtDueDate(w.scheduled_date)}`,
+      who: "You",
+      person: "me",
+      primaryAction: { label: "View", href: "/health/train" },
+    })),
+    // Responsibilities without an owner — household items nobody has claimed
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...[...unownedReminders, ...unownedTodos].slice(0, 2).map((item: any) => ({
+      id: `unowned-${item.id}`,
+      severity: "This week" as const,
+      title: item.title,
+      context: `Household ${CATEGORY_CONTEXT[item.category] ?? "task"} · not yet assigned to anyone`,
+      who: "Family",
+      primaryAction: { label: "Assign", href: "/home/family" },
+    })),
     // Overdue todos → Urgent
     ...overdueTodos.slice(0, 2).map((t) => ({
       id: `t-overdue-${t.id}`,
@@ -231,7 +405,9 @@ export default async function HomePage() {
   }).slice(0, 5);
 
   // Track total for "View all" link
-  const totalAttentionCount = overdueTodos.length + overdueReminders.length + billsDueToday.length + urgentTodos.length;
+  const totalAttentionCount = overdueTodos.length + overdueReminders.length + billsDueToday.length + urgentTodos.length
+    + (todayConflicts.size > 0 ? 1 : 0) + courseAttentionItems.length + missedWorkouts.length
+    + unownedReminders.length + unownedTodos.length;
 
   // ── My Priorities — four categories, one item each ──────────────────────────
   interface MyPriority {
@@ -338,106 +514,40 @@ export default async function HomePage() {
     });
   }
 
-  // Week ahead: reminders for the next 7 days (tomorrow → +7d), grouped by date
-  const weekAheadItems = (() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const upcoming = (reminders as any[]).filter((r) => {
-      if (r.completed_at) return false;
-      const localDate = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
-      return localDate > todayStr; // strictly after today
+  // ── Family Status — one compact row per family member ───────────────────────
+  const weekEndStr = new Date(today.getTime() + 6 * 86_400_000).toLocaleDateString("sv", { timeZone: userTz });
+  const { events: familyStatusEvents } = await getFamilyCalendarEvents(user.id, todayStr, weekEndStr, userTz);
+  const eventsByPerson = new Map<string, typeof familyStatusEvents>();
+  for (const e of familyStatusEvents) {
+    if (!eventsByPerson.has(e.person)) eventsByPerson.set(e.person, []);
+    eventsByPerson.get(e.person)!.push(e);
+  }
+  function relDateLabel(dateStr: string): string {
+    if (dateStr === todayStr) return "today";
+    const tomorrowStr = new Date(today.getTime() + 86_400_000).toLocaleDateString("sv", { timeZone: userTz });
+    if (dateStr === tomorrowStr) return "tomorrow";
+    return fmtDueDate(dateStr);
+  }
+  const familyStatusRows = [{ id: "me", label: firstName }, ...circleMembers].map((m) => {
+    const events = (eventsByPerson.get(m.id) ?? []).slice().sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      if (!a.time && !b.time) return 0;
+      if (!a.time) return 1;
+      if (!b.time) return -1;
+      return a.time < b.time ? -1 : 1;
     });
-    const byDay: Record<string, Array<{ id: string; title: string; category: string; source_app: string }>> = {};
-    for (const r of upcoming) {
-      const dateKey = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
-      if (!byDay[dateKey]) byDay[dateKey] = [];
-      if (byDay[dateKey].length < 4) byDay[dateKey].push({ id: r.id, title: r.title, category: r.category, source_app: r.source_app });
-    }
-    return Object.entries(byDay)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(0, 5); // cap at 5 days
-  })();
-
-  // Today's plan timeline items
-  const todayDueTodos = todos.filter((t) => !t.completed && t.due_date === todayStr);
-
-  const timelineItems: TimelineItem[] = [
-    // Reminders (cross-module via source_app: hub, health, finance, student-success, etc.)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...(reminders as any[])
-      .filter((r) => {
-        const localDate = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
-        return localDate === todayStr;
-      })
-      .map((r) => ({
-        id: `rem-${r.id}`,
-        sortKey: r.due_at,
-        timeLabel: new Date(r.due_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: userTz }),
-        label: r.title,
-        module: (r.source_app ?? "hub") as string,
-        category: (r.category ?? "general") as string,
-        href: MODULE_HREF[r.source_app as string],
-      })),
-    // Scheduled workouts from the health module
-    ...scheduledWorkouts.map((w) => ({
-      id: `wkt-${w.id}`,
-      sortKey: w.scheduled_time ? `${todayStr}T${w.scheduled_time}` : `${todayStr}T23:00`,
-      timeLabel: w.scheduled_time
-        ? new Date(`${todayStr}T${w.scheduled_time}`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: userTz })
-        : "Today",
-      label: w.label || "Workout",
-      module: "health",
-      category: "workout",
-      href: "/health/train",
-    })),
-    // Todos due today (no specific time — rendered after timed items)
-    ...todayDueTodos.map((t) => ({
-      id: `todo-${t.id}`,
-      sortKey: `${todayStr}T99:99`,
-      timeLabel: "Due today",
-      label: t.title,
-      module: "hub",
-      category: "todo",
-      href: undefined,
-    })),
-    // Reminders assigned to this user by family members (Phase 2b)
-    ...assignedReminders
-      .filter((r) => {
-        const localDate = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
-        return localDate === todayStr;
-      })
-      .map((r) => ({
-        id: `assigned-${r.id}`,
-        sortKey: r.due_at,
-        timeLabel: new Date(r.due_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: userTz }),
-        label: `${r.title} — assigned to you`,
-        module: "family",
-        category: "appointment",
-        href: "/home/family",
-        person: "me",
-      })),
-    // Household reminders from family circle members (visible via Phase 2b RLS)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...familyHouseholdReminders
-      .filter((r: any) => {
-        const localDate = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
-        return localDate === todayStr;
-      })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((r: any) => {
-        const owner = circleMembers.find((m) => m.id === r.user_id);
-        return {
-          id: `family-hw-${r.id}`,
-          sortKey: r.due_at,
-          timeLabel: new Date(r.due_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: userTz }),
-          label: r.title,
-          module: "family",
-          category: r.category ?? "general",
-          href: "/home/family",
-          person: r.user_id as string,   // filter chip uses member_user_id
-          personLabel: owner?.label,
-        };
-      }),
-  ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+    const next = events[0];
+    const second = events[1];
+    return {
+      id: m.id,
+      name: m.label,
+      nextEvent: next
+        ? { title: next.title, timeLabel: `${relDateLabel(next.date)}${next.time ? ` ${next.timeLabel}` : ""}`, href: next.href }
+        : null,
+      status: second ? `${second.title} ${relDateLabel(second.date)}` : null,
+      hasAttention: attentionItems.some((a) => a.person === m.id),
+    };
+  });
 
   const menuUser = {
     name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
@@ -595,17 +705,40 @@ export default async function HomePage() {
           <FamilyTimeline items={timelineItems} members={circleMembers} />
         </section>
 
-        {/* ══ SECTION 3: Family Status ══════════════════════════════════════════ */}
-        <section aria-labelledby="family-heading" style={{ marginBottom: 28 }}>
-          <SectionHeader id="family-heading">Family</SectionHeader>
-          <WeekAhead
-            weekItems={weekAheadItems}
-            today={today}
-            userTz={userTz}
-            activeCareerGoals={activeCareerGoals}
-            appAccess={prefs.app_access ?? []}
-          />
-        </section>
+        {/* ══ SECTION 3: Family Status — hidden entirely when there's no circle ══ */}
+        {circleMembers.length > 0 && (
+          <section aria-labelledby="family-heading" style={{ marginBottom: 28 }}>
+            <SectionHeader id="family-heading">Family</SectionHeader>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <FamilyStatus rows={familyStatusRows} />
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {prefs.app_access?.includes("student-success") && (
+                  <a href="/student-success" style={{ ...summaryChipStyle, borderColor: "#6B5B95", color: "#6B5B95" }}>
+                    Kids →
+                  </a>
+                )}
+                {prefs.app_access?.includes("health") && (
+                  <a href="/health" style={{ ...summaryChipStyle, borderColor: "#4D6B3A", color: "#4D6B3A" }}>
+                    Health →
+                  </a>
+                )}
+                {(prefs.app_access?.includes("finance") || prefs.app_access?.includes("investments")) && (
+                  <a href="/finance/dashboard" style={{ ...summaryChipStyle, borderColor: "#8B6A47", color: "#8B6A47" }}>
+                    Finance →
+                  </a>
+                )}
+                {activeCareerGoals > 0 && prefs.app_access?.includes("career") && (
+                  <a href="/career/goals" style={{ ...summaryChipStyle, borderColor: "#2A6049", color: "#2A6049" }}>
+                    {activeCareerGoals} career goal{activeCareerGoals !== 1 ? "s" : ""} →
+                  </a>
+                )}
+                <a href="/home/settings/family" style={summaryChipStyle}>
+                  Manage circle →
+                </a>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ══ SECTION 4: My Priorities ══════════════════════════════════════════ */}
         <section aria-labelledby="priorities-heading" style={{ marginBottom: 28 }}>
@@ -690,173 +823,6 @@ export default async function HomePage() {
           <HubChat firstName={firstName} />
         </section>
       </main>
-    </div>
-  );
-}
-
-// ── Week-ahead family view ───────────────────────────────────────────────────
-
-const WEEK_DOT: Record<string, string> = {
-  appointment: "var(--color-accent)",
-  medication:  "#4D6B3A",
-  workout:     "#C97A3A",
-  bill:        "var(--color-amber)",
-  personal:    "var(--color-ink-3)",
-  general:     "var(--color-ink-3)",
-};
-
-const WEEK_MODULE_LABEL: Record<string, string> = {
-  health:           "Health",
-  finance:          "Finance",
-  "student-success":"Kids",
-  career:           "Career",
-};
-
-function weekDayLabel(dateStr: string, today: Date, userTz: string): string {
-  const d = new Date(`${dateStr}T12:00:00`);
-  const tomorrowStr = new Date(today.getTime() + 86_400_000)
-    .toLocaleDateString("sv", { timeZone: userTz });
-  if (dateStr === tomorrowStr) return "Tomorrow";
-  return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
-}
-
-function WeekAhead({
-  weekItems,
-  today,
-  userTz,
-  activeCareerGoals,
-  appAccess,
-}: {
-  weekItems: Array<[string, Array<{ id: string; title: string; category: string; source_app: string }>]>;
-  today: Date;
-  userTz: string;
-  activeCareerGoals: number;
-  appAccess: string[];
-}) {
-  const hasItems = weekItems.length > 0;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {/* Week-ahead reminders grouped by day */}
-      {hasItems ? (
-        <div
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 12,
-            boxShadow: "var(--shadow-card)",
-            overflow: "hidden",
-          }}
-        >
-          {weekItems.map(([dateStr, items], di) => (
-            <div key={dateStr}>
-              {/* Day header */}
-              <div
-                style={{
-                  padding: "9px 20px 6px",
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: "0.12em",
-                  textTransform: "uppercase",
-                  color: "var(--color-ink-4)",
-                  fontFamily: "var(--font-geist, system-ui), sans-serif",
-                  background: di % 2 === 0 ? "transparent" : "rgba(0,0,0,0.015)",
-                  borderTop: di > 0 ? "1px solid var(--color-rule-soft)" : "none",
-                }}
-              >
-                {weekDayLabel(dateStr, today, userTz)}
-              </div>
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "8px 20px",
-                    background: di % 2 === 0 ? "transparent" : "rgba(0,0,0,0.015)",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: WEEK_DOT[item.category] ?? "var(--color-ink-3)",
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: 13,
-                      color: "var(--color-ink-2)",
-                      fontFamily: "var(--font-geist, system-ui), sans-serif",
-                      flex: 1,
-                    }}
-                  >
-                    {item.title}
-                  </span>
-                  {WEEK_MODULE_LABEL[item.source_app] && (
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 600,
-                        letterSpacing: "0.06em",
-                        textTransform: "uppercase",
-                        color: "var(--color-ink-4)",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {WEEK_MODULE_LABEL[item.source_app]}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 12,
-            padding: "20px 24px",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <p style={{ fontSize: 13, color: "var(--color-ink-4)", margin: 0, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-            Nothing coming up this week.
-          </p>
-        </div>
-      )}
-
-      {/* Module summary links */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        {appAccess.includes("student-success") && (
-          <a href="/student-success" style={{ ...summaryChipStyle, borderColor: "#6B5B95", color: "#6B5B95" }}>
-            Kids →
-          </a>
-        )}
-        {appAccess.includes("health") && (
-          <a href="/health" style={{ ...summaryChipStyle, borderColor: "#4D6B3A", color: "#4D6B3A" }}>
-            Health →
-          </a>
-        )}
-        {(appAccess.includes("finance") || appAccess.includes("investments")) && (
-          <a href="/finance/dashboard" style={{ ...summaryChipStyle, borderColor: "#8B6A47", color: "#8B6A47" }}>
-            Finance →
-          </a>
-        )}
-        {activeCareerGoals > 0 && appAccess.includes("career") && (
-          <a href="/career/goals" style={{ ...summaryChipStyle, borderColor: "#2A6049", color: "#2A6049" }}>
-            {activeCareerGoals} career goal{activeCareerGoals !== 1 ? "s" : ""} →
-          </a>
-        )}
-        <a href="/home/settings/family" style={{ ...summaryChipStyle }}>
-          Manage circle →
-        </a>
-      </div>
     </div>
   );
 }

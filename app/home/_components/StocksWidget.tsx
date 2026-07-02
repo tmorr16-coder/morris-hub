@@ -24,11 +24,11 @@ export default async function StocksWidget({ tickers }: { tickers: string[] }) {
       ) : quotes.length === 0 ? (
         <div style={{ padding: "16px 0", textAlign: "center" }}>
           <p style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 8 }}>
-            Quote provider unreachable (Yahoo rate-limited Vercel).
+            Stock quotes are temporarily unavailable.
           </p>
           <p style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
             Tickers: {tickers.join(" · ")}<br />
-            Refresh in a few minutes — cache will retry.
+            Try again in a few minutes.
           </p>
         </div>
       ) : (
