@@ -4,6 +4,7 @@
 import QuickAddReminder from "./QuickAddReminder";
 import ProfileMenu from "./ProfileMenu";
 import BottomNav from "./BottomNav";
+import ModeSwitcher from "./ModeSwitcher";
 
 const NAV = [
   { key: "today",  label: "Today",       href: "/home",               accessKeys: [] as string[] },
@@ -93,6 +94,9 @@ export default function PlatformMenu({
             morrisai
             <span style={{ fontStyle: "italic", color: "var(--color-ink-3)" }}>.family</span>
           </a>
+
+          {/* Family/Personal mode switcher — always visible, both mobile and desktop */}
+          {user && <ModeSwitcher />}
 
           {/* Desktop nav — visible on md+, hidden on mobile via globals.css */}
           <div className="nav-desktop-items" style={{ alignItems: "center", gap: 2, flex: 1 }}>

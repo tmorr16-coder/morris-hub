@@ -23,6 +23,7 @@ import CollapsibleSection from "./_components/CollapsibleSection";
 import FamilyTimeline from "./_components/FamilyTimeline";
 import { findConflicts, type TimelineItem } from "./_components/timelineConflicts";
 import FamilyStatus from "./_components/FamilyStatus";
+import ModeSection from "./_components/ModeSection";
 import { getFamilyCalendarEvents } from "@/lib/familyCalendar";
 import type { Todo } from "./actions";
 
@@ -313,7 +314,7 @@ export default async function HomePage() {
     practice: "Practice", extra_credit: "Extra credit",
   };
 
-  const attentionItems: AttentionItem[] = [
+  const sortedAttentionItems: AttentionItem[] = [
     // Schedule conflicts — overlapping events within 30 minutes today
     ...(todayConflicts.size > 0 ? [{
       id: "conflict-today",
@@ -402,7 +403,15 @@ export default async function HomePage() {
   ].sort((a, b) => {
     const ord: Record<string, number> = { Urgent: 0, Today: 1, "This week": 2, Informational: 3 };
     return ord[a.severity] - ord[b.severity];
-  }).slice(0, 5);
+  });
+
+  // Personal mode only ever shows items that concern you — not household-wide
+  // or other family members' items.
+  const personalAttentionItemsSorted = sortedAttentionItems.filter(
+    (i) => i.person === "me" || (!i.person && i.who === "You")
+  );
+  const attentionItems = sortedAttentionItems.slice(0, 5);
+  const personalAttentionItems = personalAttentionItemsSorted.slice(0, 5);
 
   // Track total for "View all" link
   const totalAttentionCount = overdueTodos.length + overdueReminders.length + billsDueToday.length + urgentTodos.length
@@ -545,7 +554,7 @@ export default async function HomePage() {
         ? { title: next.title, timeLabel: `${relDateLabel(next.date)}${next.time ? ` ${next.timeLabel}` : ""}`, href: next.href }
         : null,
       status: second ? `${second.title} ${relDateLabel(second.date)}` : null,
-      hasAttention: attentionItems.some((a) => a.person === m.id),
+      hasAttention: sortedAttentionItems.some((a) => a.person === m.id),
     };
   });
 
@@ -560,6 +569,111 @@ export default async function HomePage() {
   // todos → My Priorities; everything else (including reminders) → Insights
   const priorityWids = prefs.visible_widgets.filter((w) => PRIORITY_WIDGETS.has(w));
   const insightWids  = prefs.visible_widgets.filter((w) => !PRIORITY_WIDGETS.has(w));
+
+  function renderAttentionSection(items: AttentionItem[], totalCount: number, idSuffix: string) {
+    if (items.length === 0) return null;
+    return (
+      <section aria-label="Needs attention" style={{ marginBottom: 28 }}>
+        <SectionHeader id={`needs-attention-heading-${idSuffix}`}>Needs attention</SectionHeader>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {items.map((item) => {
+            const severityColor =
+              item.severity === "Urgent" ? "var(--color-red)"
+              : item.severity === "Today" ? "var(--color-amber)"
+              : item.severity === "This week" ? "var(--color-ink-3)"
+              : "var(--color-ink-4)";
+            return (
+              <div
+                key={item.id}
+                style={{
+                  background: "var(--color-bg-card)",
+                  border: `1px solid var(--color-rule)`,
+                  borderLeft: `3px solid ${severityColor}`,
+                  borderRadius: 10,
+                  padding: "12px 16px",
+                  boxShadow: "var(--shadow-card)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
+                {/* Title row with severity badge */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      color: severityColor,
+                      flexShrink: 0,
+                      fontFamily: "var(--font-geist, system-ui), sans-serif",
+                    }}
+                    aria-label={`Severity: ${item.severity}`}
+                  >
+                    {item.severity}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: "var(--color-ink)",
+                      fontFamily: "var(--font-geist, system-ui), sans-serif",
+                      flex: 1,
+                    }}
+                  >
+                    {item.title}
+                  </span>
+                  <span style={{ fontSize: 11, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif", flexShrink: 0 }}>
+                    {item.who}
+                  </span>
+                </div>
+                {/* Context */}
+                <div style={{ fontSize: 12, color: "var(--color-ink-3)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+                  {item.context}
+                </div>
+                {/* Actions */}
+                <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
+                  <a
+                    href={item.primaryAction.href}
+                    style={{
+                      fontSize: 12, fontWeight: 600, padding: "5px 12px",
+                      borderRadius: 7, background: "var(--color-accent)", color: "#FFFDF8",
+                      textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif",
+                    }}
+                  >
+                    {item.primaryAction.label}
+                  </a>
+                  {item.secondaryAction && (
+                    <a
+                      href={item.secondaryAction.href}
+                      style={{
+                        fontSize: 12, fontWeight: 500, padding: "5px 12px",
+                        borderRadius: 7, border: "1px solid var(--color-rule)",
+                        color: "var(--color-ink-2)", textDecoration: "none",
+                        fontFamily: "var(--font-geist, system-ui), sans-serif",
+                        background: "transparent",
+                      }}
+                    >
+                      {item.secondaryAction.label}
+                    </a>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {totalCount > 5 && (
+            <a
+              href="/home"
+              style={{ fontSize: 12, color: "var(--color-ink-3)", textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif", padding: "4px 0" }}
+            >
+              View all {totalCount} items →
+            </a>
+          )}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <div>
@@ -596,108 +710,11 @@ export default async function HomePage() {
           </h1>
         </section>
 
-        {/* ══ SECTION 1: Needs Attention ════════════════════════════════════════ */}
-        {attentionItems.length > 0 && (
-          <section aria-labelledby="needs-attention-heading" style={{ marginBottom: 28 }}>
-            <SectionHeader id="needs-attention-heading">Needs attention</SectionHeader>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {attentionItems.map((item) => {
-                const severityColor =
-                  item.severity === "Urgent" ? "var(--color-red)"
-                  : item.severity === "Today" ? "var(--color-amber)"
-                  : item.severity === "This week" ? "var(--color-ink-3)"
-                  : "var(--color-ink-4)";
-                return (
-                  <div
-                    key={item.id}
-                    style={{
-                      background: "var(--color-bg-card)",
-                      border: `1px solid var(--color-rule)`,
-                      borderLeft: `3px solid ${severityColor}`,
-                      borderRadius: 10,
-                      padding: "12px 16px",
-                      boxShadow: "var(--shadow-card)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 6,
-                    }}
-                  >
-                    {/* Title row with severity badge */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span
-                        style={{
-                          fontSize: 9,
-                          fontWeight: 700,
-                          letterSpacing: "0.1em",
-                          textTransform: "uppercase",
-                          color: severityColor,
-                          flexShrink: 0,
-                          fontFamily: "var(--font-geist, system-ui), sans-serif",
-                        }}
-                        aria-label={`Severity: ${item.severity}`}
-                      >
-                        {item.severity}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: "var(--color-ink)",
-                          fontFamily: "var(--font-geist, system-ui), sans-serif",
-                          flex: 1,
-                        }}
-                      >
-                        {item.title}
-                      </span>
-                      <span style={{ fontSize: 11, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif", flexShrink: 0 }}>
-                        {item.who}
-                      </span>
-                    </div>
-                    {/* Context */}
-                    <div style={{ fontSize: 12, color: "var(--color-ink-3)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-                      {item.context}
-                    </div>
-                    {/* Actions */}
-                    <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
-                      <a
-                        href={item.primaryAction.href}
-                        style={{
-                          fontSize: 12, fontWeight: 600, padding: "5px 12px",
-                          borderRadius: 7, background: "var(--color-accent)", color: "#FFFDF8",
-                          textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif",
-                        }}
-                      >
-                        {item.primaryAction.label}
-                      </a>
-                      {item.secondaryAction && (
-                        <a
-                          href={item.secondaryAction.href}
-                          style={{
-                            fontSize: 12, fontWeight: 500, padding: "5px 12px",
-                            borderRadius: 7, border: "1px solid var(--color-rule)",
-                            color: "var(--color-ink-2)", textDecoration: "none",
-                            fontFamily: "var(--font-geist, system-ui), sans-serif",
-                            background: "transparent",
-                          }}
-                        >
-                          {item.secondaryAction.label}
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              {totalAttentionCount > 5 && (
-                <a
-                  href="/home"
-                  style={{ fontSize: 12, color: "var(--color-ink-3)", textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif", padding: "4px 0" }}
-                >
-                  View all {totalAttentionCount} items →
-                </a>
-              )}
-            </div>
-          </section>
-        )}
+        {/* ══ SECTION 1: Needs Attention — Family shows everyone, Personal shows only you ══ */}
+        <ModeSection
+          family={renderAttentionSection(attentionItems, totalAttentionCount, "family")}
+          personal={renderAttentionSection(personalAttentionItems, personalAttentionItemsSorted.length, "personal")}
+        />
 
         {/* ══ SECTION 2: Today's Plan ════════════════════════════════════════════ */}
         <section aria-labelledby="today-plan-heading" style={{ marginBottom: 28 }}>
@@ -705,40 +722,74 @@ export default async function HomePage() {
           <FamilyTimeline items={timelineItems} members={circleMembers} />
         </section>
 
-        {/* ══ SECTION 3: Family Status — hidden entirely when there's no circle ══ */}
-        {circleMembers.length > 0 && (
-          <section aria-labelledby="family-heading" style={{ marginBottom: 28 }}>
-            <SectionHeader id="family-heading">Family</SectionHeader>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <FamilyStatus rows={familyStatusRows} />
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {prefs.app_access?.includes("student-success") && (
-                  <a href="/student-success" style={{ ...summaryChipStyle, borderColor: "#6B5B95", color: "#6B5B95" }}>
-                    Kids →
+        {/* ══ SECTION 3: Family Status (Family mode) / Personal quick links (Personal mode) ══ */}
+        <ModeSection
+          family={circleMembers.length > 0 && (
+            <section aria-labelledby="family-heading" style={{ marginBottom: 28 }}>
+              <SectionHeader id="family-heading">Family</SectionHeader>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <FamilyStatus rows={familyStatusRows} />
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {prefs.app_access?.includes("student-success") && (
+                    <a href="/student-success" style={{ ...summaryChipStyle, borderColor: "#6B5B95", color: "#6B5B95" }}>
+                      Kids →
+                    </a>
+                  )}
+                  {prefs.app_access?.includes("health") && (
+                    <a href="/health" style={{ ...summaryChipStyle, borderColor: "#4D6B3A", color: "#4D6B3A" }}>
+                      Health →
+                    </a>
+                  )}
+                  {(prefs.app_access?.includes("finance") || prefs.app_access?.includes("investments")) && (
+                    <a href="/finance/dashboard" style={{ ...summaryChipStyle, borderColor: "#8B6A47", color: "#8B6A47" }}>
+                      Finance →
+                    </a>
+                  )}
+                  {activeCareerGoals > 0 && prefs.app_access?.includes("career") && (
+                    <a href="/career/goals" style={{ ...summaryChipStyle, borderColor: "#2A6049", color: "#2A6049" }}>
+                      {activeCareerGoals} career goal{activeCareerGoals !== 1 ? "s" : ""} →
+                    </a>
+                  )}
+                  <a href="/home/settings/family" style={summaryChipStyle}>
+                    Manage circle →
                   </a>
+                </div>
+              </div>
+            </section>
+          )}
+          personal={
+            <section aria-labelledby="personal-heading" style={{ marginBottom: 28 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <SectionHeader id="personal-heading">Personal</SectionHeader>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
+                  padding: "2px 8px", borderRadius: 8, background: "rgba(59,92,127,0.1)", color: "var(--color-accent)",
+                  fontFamily: "var(--font-geist, system-ui), sans-serif", marginBottom: 12,
+                }}>
+                  🔒 Private to you
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {prefs.app_access?.includes("career") && (
+                  <a href="/career" style={{ ...summaryChipStyle, borderColor: "#2A6049", color: "#2A6049" }}>Career →</a>
                 )}
                 {prefs.app_access?.includes("health") && (
-                  <a href="/health" style={{ ...summaryChipStyle, borderColor: "#4D6B3A", color: "#4D6B3A" }}>
-                    Health →
-                  </a>
+                  <a href="/health" style={{ ...summaryChipStyle, borderColor: "#4D6B3A", color: "#4D6B3A" }}>Health →</a>
                 )}
+                {prefs.app_access?.includes("health") && (
+                  <a href="/health/wellness" style={{ ...summaryChipStyle, borderColor: "#4D6B3A", color: "#4D6B3A" }}>Mental wellness →</a>
+                )}
+                {prefs.app_access?.includes("bible") && (
+                  <a href="/bible/dashboard" style={{ ...summaryChipStyle, borderColor: "#7B5EA7", color: "#7B5EA7" }}>Spiritual development →</a>
+                )}
+                <a href="/home/journal" style={summaryChipStyle}>Journal →</a>
                 {(prefs.app_access?.includes("finance") || prefs.app_access?.includes("investments")) && (
-                  <a href="/finance/dashboard" style={{ ...summaryChipStyle, borderColor: "#8B6A47", color: "#8B6A47" }}>
-                    Finance →
-                  </a>
+                  <a href="/finance/dashboard" style={{ ...summaryChipStyle, borderColor: "#8B6A47", color: "#8B6A47" }}>Personal finances →</a>
                 )}
-                {activeCareerGoals > 0 && prefs.app_access?.includes("career") && (
-                  <a href="/career/goals" style={{ ...summaryChipStyle, borderColor: "#2A6049", color: "#2A6049" }}>
-                    {activeCareerGoals} career goal{activeCareerGoals !== 1 ? "s" : ""} →
-                  </a>
-                )}
-                <a href="/home/settings/family" style={summaryChipStyle}>
-                  Manage circle →
-                </a>
               </div>
-            </div>
-          </section>
-        )}
+            </section>
+          }
+        />
 
         {/* ══ SECTION 4: My Priorities ══════════════════════════════════════════ */}
         <section aria-labelledby="priorities-heading" style={{ marginBottom: 28 }}>

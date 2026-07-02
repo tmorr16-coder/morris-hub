@@ -71,6 +71,23 @@ export default async function SettingsPage() {
             </div>
             <span style={{ fontSize: 18, color: "var(--color-ink-4)" }}>›</span>
           </Link>
+          <Link
+            href="/home/settings/privacy"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "16px 18px", background: "var(--color-bg-card)",
+              border: "1px solid var(--color-rule)", borderRadius: 10, marginTop: 10,
+              textDecoration: "none", color: "var(--color-ink)", transition: "background 0.15s",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>Sharing &amp; Privacy</div>
+              <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 2 }}>
+                See exactly what&apos;s shared and what&apos;s private, for every data type
+              </div>
+            </div>
+            <span style={{ fontSize: 18, color: "var(--color-ink-4)" }}>›</span>
+          </Link>
         </div>
       </main>
     </div>

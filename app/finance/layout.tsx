@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
 import PlatformMenu from "@/components/PlatformMenu";
+import PrivateIndicator from "@/components/PrivateIndicator";
 import MoneySubNav from "./_components/MoneySubNav";
 import PinGate from "./_components/PinGate";
 
@@ -43,6 +44,7 @@ export default async function FinanceLayout({ children }: { children: React.Reac
       <MoneySubNav />
       <PinGate enabled={!!financePin} correctPin={financePin ?? ""}>
         <div data-section="finance" style={{ paddingBottom: 100 }}>
+          <div style={{ maxWidth: 1280, margin: "0 auto", padding: "16px 20px 0" }}><PrivateIndicator /></div>
           {children}
         </div>
       </PinGate>

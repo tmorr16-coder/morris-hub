@@ -5,6 +5,9 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
 import { getAllUpcomingReminders } from "@/lib/reminders";
 import PlatformMenu from "@/components/PlatformMenu";
+import ShoppingList from "./_components/ShoppingList";
+import HouseholdGoals from "./_components/HouseholdGoals";
+import MealPlan from "./_components/MealPlan";
 
 const userTz = "America/Indiana/Indianapolis";
 
@@ -125,6 +128,28 @@ export default async function FamilyPage() {
     householdReminders = hwData ?? [];
   }
 
+  // ── Household mode: shopping list, household goals, meal plan ──────────────
+  const circleIds = [user.id, ...memberIds];
+  const mealHorizonStr = today.toLocaleDateString("sv", { timeZone: userTz });
+  const [shoppingResult, goalsResult, mealsResult] = await Promise.all([
+    service.schema("hub").from("shopping_items")
+      .select("id, item, quantity, checked, added_by, created_at")
+      .in("circle_owner_id", circleIds)
+      .order("created_at", { ascending: true }),
+    service.schema("hub").from("household_goals")
+      .select("id, title, description, target_date, status, created_by, created_at")
+      .in("circle_owner_id", circleIds)
+      .order("created_at", { ascending: false }),
+    service.schema("hub").from("meal_plan")
+      .select("id, date, meal_type, name, notes, created_by, created_at")
+      .in("circle_owner_id", circleIds)
+      .gte("date", mealHorizonStr)
+      .order("date", { ascending: true }),
+  ]);
+  const shoppingItems = shoppingResult.data ?? [];
+  const householdGoals = goalsResult.data ?? [];
+  const mealPlan = mealsResult.data ?? [];
+
   // ── Phase 2b: Kids module — child members' upcoming courses/assignments ──
   const childMembers = familyMembers.filter((m) => m.role === "child");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -177,6 +202,14 @@ export default async function FamilyPage() {
     .sort(([a], [b]) => a.localeCompare(b))
     .slice(0, 7);
 
+  const myUserId = user.id;
+  function nameForId(id: string): string {
+    if (id === myUserId) return "You";
+    return familyMembers.find((m) => m.member_user_id === id)?.display_name
+      ?? userMap.get(id)?.full_name
+      ?? "Family";
+  }
+
   const menuUser = {
     name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
     email: user.email,
@@ -203,17 +236,30 @@ export default async function FamilyPage() {
               Household schedule, shared responsibilities, and family circle.
             </p>
           </div>
-          <a
-            href="/home/family/calendar"
-            style={{
-              padding: "7px 16px", borderRadius: 9, border: "1px solid var(--color-rule)",
-              background: "var(--color-bg-card)", color: "var(--color-accent)",
-              fontSize: 13, fontWeight: 600, textDecoration: "none",
-              fontFamily: "var(--font-geist, system-ui), sans-serif", flexShrink: 0,
-            }}
-          >
-            Calendar →
-          </a>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            <a
+              href="/home/family/preview"
+              style={{
+                padding: "7px 16px", borderRadius: 9, border: "1px solid var(--color-rule)",
+                background: "var(--color-bg-card)", color: "var(--color-ink-3)",
+                fontSize: 13, fontWeight: 600, textDecoration: "none",
+                fontFamily: "var(--font-geist, system-ui), sans-serif",
+              }}
+            >
+              Preview as…
+            </a>
+            <a
+              href="/home/family/calendar"
+              style={{
+                padding: "7px 16px", borderRadius: 9, border: "1px solid var(--color-rule)",
+                background: "var(--color-bg-card)", color: "var(--color-accent)",
+                fontSize: 13, fontWeight: 600, textDecoration: "none",
+                fontFamily: "var(--font-geist, system-ui), sans-serif",
+              }}
+            >
+              Calendar →
+            </a>
+          </div>
         </div>
 
         {/* ── Pending invitations ── */}
@@ -270,6 +316,11 @@ export default async function FamilyPage() {
             </div>
           </div>
         )}
+
+        {/* ── Shopping, Household goals, Meal plan ── */}
+        <ShoppingList initialItems={shoppingItems} userId={user.id} nameForId={nameForId} />
+        <HouseholdGoals initialGoals={householdGoals} userId={user.id} nameForId={nameForId} />
+        <MealPlan initialMeals={mealPlan} userId={user.id} />
 
         {/* ── Household tasks from all circle members ── */}
         {householdReminders.length > 0 && (

@@ -12,6 +12,7 @@ interface CircleMember {
   full_name: string | null;
   email: string | null;
   birth_year: number | null;
+  appAccess: string[] | null; // only populated for role="child"
 }
 
 interface SentInvite {
@@ -52,6 +53,12 @@ const ROLE_ACCESS: Record<string, string[]> = {
   adult: ["Today", "Family", "Kids", "Me (Health)", "Money", "Career", "Bible", "Ask Morris"],
   child: ["Today", "Kids", "Me (Health)", "Bible", "Ask Morris"],
 };
+
+const MODULE_LABELS: Record<string, string> = {
+  hub: "Today / Hub", health: "Health", finance: "Finance", investments: "Investments",
+  career: "Career", "student-success": "Kids / School", bible: "Bible",
+};
+const EDITABLE_MODULES = ["hub", "health", "student-success", "bible", "career", "finance", "investments"];
 
 function initials(name: string | null, email: string | null): string {
   const src = name ?? email ?? "?";
@@ -101,6 +108,45 @@ export default function FamilyManagementClient({
 
   // Pending response state
   const [responding, setResponding] = useState<string | null>(null);
+
+  // Child access editor state
+  const [editingAccessId, setEditingAccessId] = useState<string | null>(null);
+  const [draftAccess, setDraftAccess] = useState<string[]>([]);
+  const [savingAccess, setSavingAccess] = useState(false);
+  const [promoting, setPromoting] = useState<string | null>(null);
+
+  function openAccessEditor(member: CircleMember) {
+    setEditingAccessId(member.member_user_id);
+    setDraftAccess(member.appAccess ?? []);
+  }
+
+  function toggleDraftModule(mod: string) {
+    setDraftAccess((prev) => prev.includes(mod) ? prev.filter((m) => m !== mod) : [...prev, mod]);
+  }
+
+  async function saveAccess(memberUserId: string) {
+    setSavingAccess(true);
+    const res = await fetch(`/api/family/members/${memberUserId}/access`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ app_access: draftAccess }),
+    });
+    setSavingAccess(false);
+    if (res.ok) {
+      setCircle((prev) => prev.map((m) => m.member_user_id === memberUserId ? { ...m, appAccess: draftAccess } : m));
+      setEditingAccessId(null);
+    }
+  }
+
+  async function promoteToAdult(memberUserId: string) {
+    if (!confirm("Give this person full adult privacy? Their access resets to everything, and parent visibility into their school data ends.")) return;
+    setPromoting(memberUserId);
+    const res = await fetch(`/api/family/members/${memberUserId}/promote-adult`, { method: "PATCH" });
+    setPromoting(null);
+    if (res.ok) {
+      setCircle((prev) => prev.map((m) => m.member_user_id === memberUserId ? { ...m, role: "adult", appAccess: null } : m));
+    }
+  }
 
   async function sendInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -225,22 +271,87 @@ export default function FamilyManagementClient({
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {circle.map((m) => {
               const name = m.display_name ?? m.full_name ?? m.email ?? "Unknown";
+              const memberAge = age(m.birth_year);
+              const isCollegeAge = m.role === "child" && memberAge !== null && memberAge >= 18;
               return (
-                <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10 }}>
-                  <div style={avatarStyle("var(--color-accent-soft)")}>{initials(name, m.email)}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{name}</div>
-                    <div style={{ fontSize: 11, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{m.email}</div>
+                <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10 }}>
+                    <div style={avatarStyle("var(--color-accent-soft)")}>{initials(name, m.email)}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{name}</div>
+                      <div style={{ fontSize: 11, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{m.email}</div>
+                    </div>
+                    <span style={chip(ROLE_LABELS[m.role] ?? m.role, m.role === "child" ? "#6B5B95" : "var(--color-accent)")}>
+                      {ROLE_LABELS[m.role] ?? m.role}{memberAge !== null && ` · ${memberAge}`}
+                    </span>
+                    {m.role === "child" && (
+                      <button
+                        onClick={() => editingAccessId === m.member_user_id ? setEditingAccessId(null) : openAccessEditor(m)}
+                        style={{ fontSize: 11, padding: "5px 12px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-3)", cursor: "pointer", fontFamily: "inherit" }}
+                      >
+                        {editingAccessId === m.member_user_id ? "Cancel" : "Edit access"}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => removeMember(m.id)}
+                      style={{ fontSize: 11, padding: "5px 12px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-3)", cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      Remove
+                    </button>
                   </div>
-                  <span style={chip(ROLE_LABELS[m.role] ?? m.role, m.role === "child" ? "#6B5B95" : "var(--color-accent)")}>
-                    {ROLE_LABELS[m.role] ?? m.role}{age(m.birth_year) !== null && ` · ${age(m.birth_year)}`}
-                  </span>
-                  <button
-                    onClick={() => removeMember(m.id)}
-                    style={{ fontSize: 11, padding: "5px 12px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-3)", cursor: "pointer", fontFamily: "inherit" }}
-                  >
-                    Remove
-                  </button>
+
+                  {isCollegeAge && (
+                    <div style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                      padding: "10px 16px", background: "rgba(184,138,46,0.08)", border: "1px solid var(--color-amber)", borderRadius: 10,
+                    }}>
+                      <span style={{ fontSize: 12, color: "var(--color-ink-2)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+                        {name} turned {memberAge} — consider switching to adult privacy.
+                      </span>
+                      <button
+                        onClick={() => promoteToAdult(m.member_user_id)}
+                        disabled={promoting === m.member_user_id}
+                        style={{ fontSize: 11, fontWeight: 600, padding: "5px 12px", borderRadius: 7, border: "none", background: "var(--color-amber)", color: "#fff", cursor: "pointer", flexShrink: 0 }}
+                      >
+                        {promoting === m.member_user_id ? "…" : "Give adult privacy"}
+                      </button>
+                    </div>
+                  )}
+
+                  {editingAccessId === m.member_user_id && (
+                    <div style={{ padding: "14px 16px", background: "var(--color-bg-deep)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-ink-4)" }}>
+                        {name}&apos;s access
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {EDITABLE_MODULES.map((mod) => {
+                          const checked = draftAccess.includes(mod);
+                          return (
+                            <button
+                              key={mod}
+                              type="button"
+                              onClick={() => toggleDraftModule(mod)}
+                              style={{
+                                padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer",
+                                border: checked ? "1.5px solid var(--color-accent)" : "1px solid var(--color-rule)",
+                                background: checked ? "var(--color-accent-soft)" : "transparent",
+                                color: checked ? "var(--color-accent)" : "var(--color-ink-3)",
+                              }}
+                            >
+                              {checked ? "✓ " : ""}{MODULE_LABELS[mod] ?? mod}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <button
+                        onClick={() => saveAccess(m.member_user_id)}
+                        disabled={savingAccess}
+                        style={{ alignSelf: "flex-start", fontSize: 12, fontWeight: 600, padding: "7px 16px", borderRadius: 8, border: "none", background: "var(--color-accent)", color: "#FFFDF8", cursor: "pointer" }}
+                      >
+                        {savingAccess ? "Saving…" : "Save access"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -43,6 +43,22 @@ export default async function FamilySettingsPage() {
     email: u.email ?? null,
   }]));
 
+  // Fetch app_access for child members so the parent can edit it
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const childIds = ((circleResult.data ?? []) as any[])
+    .filter((m) => m.role === "child")
+    .map((m) => m.member_user_id as string);
+  const childAccessMap = new Map<string, string[]>();
+  if (childIds.length > 0) {
+    const { data: childPrefs } = await service.schema("hub").from("preferences")
+      .select("user_id, app_access")
+      .in("user_id", childIds);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const p of (childPrefs ?? []) as any[]) {
+      childAccessMap.set(p.user_id, p.app_access ?? []);
+    }
+  }
+
   // Enrich circle members with auth user data
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const circle = ((circleResult.data ?? []) as any[]).map((m) => ({
@@ -53,6 +69,7 @@ export default async function FamilySettingsPage() {
     full_name: userMap.get(m.member_user_id)?.full_name ?? null,
     email: userMap.get(m.member_user_id)?.email ?? null,
     birth_year: m.birth_year ?? null,
+    appAccess: m.role === "child" ? (childAccessMap.get(m.member_user_id) ?? []) : null,
   }));
 
   // Sent invitations

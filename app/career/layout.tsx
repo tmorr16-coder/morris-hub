@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import PlatformMenu from "@/components/PlatformMenu";
+import PrivateIndicator from "@/components/PrivateIndicator";
 import { createClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
 import CareerSubNav from "./_components/CareerSubNav";
@@ -33,6 +34,7 @@ export default async function CareerLayout({
       <PlatformMenu currentApp="career" user={menuUser} />
       <CareerSubNav />
       <div style={{ maxWidth: 1180, margin: "0 auto", padding: "24px 28px 100px" }}>
+        <div style={{ marginBottom: 16 }}><PrivateIndicator /></div>
         {children}
       </div>
     </>
