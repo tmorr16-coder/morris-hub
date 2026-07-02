@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { RateLimitErrorBoundary } from "@/components/RateLimitErrorBoundary";
 import "./globals.css";
+import "./ios.css";
 
 const geist = Geist({
   variable: "--font-geist",
