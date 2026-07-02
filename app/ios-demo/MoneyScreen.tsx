@@ -10,7 +10,7 @@ const SERIES: Record<string, number[]> = {
   All: [180, 210, 245, 288, 322, 360, 402, 462, 482.3],
 };
 
-export default function MoneyScreen({ onBack }: { onBack: () => void }) {
+export default function MoneyScreen({ onBack, onOpenInvest }: { onBack: () => void; onOpenInvest?: () => void }) {
   const [range, setRange] = useState<"1M" | "1Y" | "All">("1M");
 
   return (
@@ -41,7 +41,7 @@ export default function MoneyScreen({ onBack }: { onBack: () => void }) {
       <Group header="Accounts">
         <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.WalletIcon /></IconBadge>} title="Checking" subtitle="Chase ····4021" trailing={<span className="ios-num">$12,430</span>} href="/finance/dashboard" />
         <Cell lead={<IconBadge color="var(--ios-green)"><Icons.WalletIcon /></IconBadge>} title="Savings" subtitle="Ally ····8890" trailing={<span className="ios-num">$48,200</span>} href="/finance/dashboard" />
-        <Cell lead={<IconBadge color="#C97A3A"><Icons.TrendUpIcon /></IconBadge>} title="Investments" subtitle="Fidelity · brokerage" trailing={<span className="ios-num">$291,500</span>} href="/investments" />
+        <Cell lead={<IconBadge color="#C97A3A"><Icons.TrendUpIcon /></IconBadge>} title="Investments" subtitle="Fidelity · brokerage" trailing={<span className="ios-num">$291,500</span>} onClick={onOpenInvest} />
         <Cell lead={<IconBadge color="#8B6A47"><Icons.ChartIcon /></IconBadge>} title="Retirement" subtitle="401(k) + IRA" trailing={<span className="ios-num">$118,900</span>} href="/finance/retirement" />
         <Cell lead={<IconBadge color="var(--ios-red)"><Icons.WalletIcon /></IconBadge>} title="Credit card" subtitle="Amex · due Jul 12" trailing={<span className="ios-num" style={{ color: "var(--ios-red)" }}>–$2,340</span>} href="/finance/dashboard" />
       </Group>

@@ -2,14 +2,14 @@
 
 import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 
-export default function MoreScreen({ onOpenMoney, onOpenAsk }: { onOpenMoney?: () => void; onOpenAsk?: () => void }) {
+export default function MoreScreen({ onOpenMoney, onOpenAsk, onOpenInvest, onOpenNews }: { onOpenMoney?: () => void; onOpenAsk?: () => void; onOpenInvest?: () => void; onOpenNews?: () => void }) {
   return (
     <>
       <LargeTitle title="More" avatarInitial="T" />
 
       <Group header="Money">
         <Cell lead={<IconBadge color="var(--ios-finance)"><Icons.WalletIcon /></IconBadge>} title="Finances" subtitle="Net worth $482,300 · +$1,240 today" onClick={onOpenMoney} />
-        <Cell lead={<IconBadge color="#C97A3A"><Icons.TrendUpIcon /></IconBadge>} title="Investments" subtitle="Portfolio · research · paper trading" href="/investments" />
+        <Cell lead={<IconBadge color="#C97A3A"><Icons.TrendUpIcon /></IconBadge>} title="Investments" subtitle="Portfolio · research · paper trading" onClick={onOpenInvest} />
         <Cell lead={<IconBadge color="#8B6A47"><Icons.ChartIcon /></IconBadge>} title="Retirement" href="/finance/retirement" />
       </Group>
 
@@ -20,7 +20,7 @@ export default function MoreScreen({ onOpenMoney, onOpenAsk }: { onOpenMoney?: (
       </Group>
 
       <Group header="Stay informed">
-        <Cell lead={<IconBadge color="#9A3B2A"><Icons.NewsIcon /></IconBadge>} title="News" subtitle="Topics · local · company" href="/news" />
+        <Cell lead={<IconBadge color="#9A3B2A"><Icons.NewsIcon /></IconBadge>} title="News" subtitle="Topics · local · company" onClick={onOpenNews} />
         <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.SparkleIcon /></IconBadge>} title="Ask Morris" subtitle="Your AI across everything" onClick={onOpenAsk} />
       </Group>
 
