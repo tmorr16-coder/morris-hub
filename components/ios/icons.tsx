@@ -63,3 +63,33 @@ export const ChevronRight = (p: P) => (
 export const ComposeIcon = (p: P) => (
   <svg {...base(p)}><path d="M4 20h16M6 16.5l9.5-9.5a2 2 0 0 1 3 3L9 19.5l-4 1 1-4Z" /></svg>
 );
+export const CartIcon = (p: P) => (
+  <svg {...base(p)}><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h6.8a2 2 0 0 0 2-1.6L21 8H6" /><circle cx="9.5" cy="20" r="1.2" fill="currentColor" stroke="none" /><circle cx="17" cy="20" r="1.2" fill="currentColor" stroke="none" /></svg>
+);
+export const ForkKnifeIcon = (p: P) => (
+  <svg {...base(p)}><path d="M7 3v7a2 2 0 0 0 4 0V3M9 10v11M16 3c-1.5 0-2.5 2-2.5 4.5S15 12 16 12v9" /></svg>
+);
+export const ChecklistIcon = (p: P) => (
+  <svg {...base(p)}><path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 10M4 18l1.5 1.5L8 16M11 6h9M11 12h9M11 18h9" /></svg>
+);
+export const HomeIcon = (p: P) => (
+  <svg {...base(p)}><path d="M4 11l8-6 8 6M6 10v9h12v-9" /></svg>
+);
+export const NewsIcon = (p: P) => (
+  <svg {...base(p)}><rect x="3.5" y="5" width="17" height="14" rx="2.5" /><path d="M7 9h6M7 12.5h6M7 16h4M16.5 9h1v7h-1" /></svg>
+);
+export const BookIcon = (p: P) => (
+  <svg {...base(p)}><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5Z" /><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20" /></svg>
+);
+export const GearIcon = (p: P) => (
+  <svg {...base(p)}><circle cx="12" cy="12" r="3" /><path d="M12 3v2.5M12 18.5V21M4.2 7l2.1 1.2M17.7 15.8l2.1 1.2M4.2 17l2.1-1.2M17.7 8.2l2.1-1.2" /></svg>
+);
+export const ChartIcon = (p: P) => (
+  <svg {...base(p)}><path d="M4 20V4M4 20h16M8 16l3-4 3 2 4-6" /></svg>
+);
+export const TrendUpIcon = (p: P) => (
+  <svg {...base(p)}><path d="M4 15l5-5 3 3 8-8M15 5h5v5" /></svg>
+);
+export const MoonIcon = (p: P) => (
+  <svg {...base(p)}><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" /></svg>
+);

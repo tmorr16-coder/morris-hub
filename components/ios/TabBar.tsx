@@ -31,12 +31,15 @@ export function TabBar({
   currentUserId,
   sourceApp = "hub",
   tabs = DEFAULT_TABS,
+  onSelect,
 }: {
   current: TabKey;
   members?: FamilyMember[];
   currentUserId?: string;
   sourceApp?: string;
   tabs?: { key: TabKey; label: string; href: string }[];
+  /** When provided, tabs switch in place (call this) instead of navigating. */
+  onSelect?: (key: TabKey) => void;
 }) {
   const [captureOpen, setCaptureOpen] = useState(false);
   const half = Math.ceil(tabs.length / 2);
@@ -45,8 +48,23 @@ export function TabBar({
 
   const tab = (t: { key: TabKey; label: string; href: string }) => {
     const Icon = ICON[t.key];
+    const isCurrent = t.key === current;
+    if (onSelect) {
+      return (
+        <button
+          key={t.key}
+          type="button"
+          className="ios-tab"
+          aria-current={isCurrent ? "page" : undefined}
+          onClick={() => onSelect(t.key)}
+        >
+          <Icon aria-hidden />
+          {t.label}
+        </button>
+      );
+    }
     return (
-      <Link key={t.key} href={t.href} className="ios-tab" aria-current={t.key === current ? "page" : undefined}>
+      <Link key={t.key} href={t.href} className="ios-tab" aria-current={isCurrent ? "page" : undefined}>
         <Icon aria-hidden />
         {t.label}
       </Link>

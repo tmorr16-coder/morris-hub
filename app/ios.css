@@ -161,7 +161,7 @@
 }
 button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed); }
 .ios-cell-lead  { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
-.ios-cell-body  { flex: 1 1 auto; min-width: 0; }
+.ios-cell-body  { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .ios-cell-title { font-size: 17px; line-height: 22px; }
 .ios-cell-sub   { font-size: 13px; line-height: 17px; color: var(--ios-label-2); margin-top: 1px; }
 .ios-cell-trail { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; color: var(--ios-label-2); font-size: 17px; }

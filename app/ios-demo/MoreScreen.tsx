@@ -1,0 +1,35 @@
+"use client";
+
+import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
+
+export default function MoreScreen() {
+  return (
+    <>
+      <LargeTitle title="More" avatarInitial="T" />
+
+      <Group header="Money">
+        <Cell lead={<IconBadge color="var(--ios-finance)"><Icons.WalletIcon /></IconBadge>} title="Finances" subtitle="Net worth $482,300 · +$1,240 today" href="/finance/dashboard" />
+        <Cell lead={<IconBadge color="#C97A3A"><Icons.TrendUpIcon /></IconBadge>} title="Investments" subtitle="Portfolio · research · paper trading" href="/investments" />
+        <Cell lead={<IconBadge color="#8B6A47"><Icons.ChartIcon /></IconBadge>} title="Retirement" href="/finance/retirement" />
+      </Group>
+
+      <Group header="Learn & grow">
+        <Cell lead={<IconBadge color="#2A6049"><Icons.BriefcaseIcon /></IconBadge>} title="Career" subtitle="Advisor · goals · certifications" href="/career" />
+        <Cell lead={<IconBadge color="#6B5B95"><Icons.BookIcon /></IconBadge>} title="Student success" subtitle="Courses · LSAT prep" href="/home/me/courses" />
+        <Cell lead={<IconBadge color="#3B5C7F"><Icons.BookIcon /></IconBadge>} title="Bible" subtitle="Reading plans · notes · chat" href="/bible/dashboard" />
+      </Group>
+
+      <Group header="Stay informed">
+        <Cell lead={<IconBadge color="#9A3B2A"><Icons.NewsIcon /></IconBadge>} title="News" subtitle="Topics · local · company" href="/news" />
+        <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.SparkleIcon /></IconBadge>} title="Ask Morris" subtitle="Your AI across everything" href="/home/ask" />
+      </Group>
+
+      <Group header="Account">
+        <Cell lead={<IconBadge color="#8E8E93"><Icons.PeopleIcon /></IconBadge>} title="Family & sharing" href="/home/settings/family" />
+        <Cell lead={<IconBadge color="#8E8E93"><Icons.GearIcon /></IconBadge>} title="Settings" href="/home/settings" />
+      </Group>
+
+      <div style={{ height: 12 }} />
+    </>
+  );
+}
