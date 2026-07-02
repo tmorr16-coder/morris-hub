@@ -11,6 +11,10 @@ export const DEFAULT_REMINDER_CATEGORIES = [
   "bill", "medication", "workout", "appointment", "personal", "general",
 ];
 
+export const ME_DOMAINS = ["career", "health", "mind", "spirit"] as const;
+
+export type MeDomainKey = typeof ME_DOMAINS[number];
+
 // ── News subscription sources (client-safe — no server imports) ───────────────
 export interface NewsSource {
   id: string;

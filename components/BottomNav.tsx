@@ -6,7 +6,7 @@ const TABS = [
   { key: "today",  label: "Today",  href: "/home" },
   { key: "family", label: "Family", href: "/home/family" },
   { key: "kids",   label: "Kids",   href: "/student-success" },
-  { key: "me",     label: "Me",     href: "/health" },
+  { key: "me",     label: "Me",     href: "/home/me" },
 ];
 
 const MORE_ITEMS = [

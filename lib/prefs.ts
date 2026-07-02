@@ -1,8 +1,8 @@
 import { createServiceClient } from "./supabase/server";
-import { ALL_WIDGETS, DEFAULT_REMINDER_CATEGORIES, DEFAULT_NEWS_SOURCES } from "./prefs-shared";
-import type { WidgetId, NewsSource } from "./prefs-shared";
-export { ALL_WIDGETS, DEFAULT_REMINDER_CATEGORIES, DEFAULT_NEWS_SOURCES };
-export type { WidgetId, NewsSource };
+import { ALL_WIDGETS, DEFAULT_REMINDER_CATEGORIES, DEFAULT_NEWS_SOURCES, ME_DOMAINS } from "./prefs-shared";
+import type { WidgetId, NewsSource, MeDomainKey } from "./prefs-shared";
+export { ALL_WIDGETS, DEFAULT_REMINDER_CATEGORIES, DEFAULT_NEWS_SOURCES, ME_DOMAINS };
+export type { WidgetId, NewsSource, MeDomainKey };
 
 export interface Preferences {
   user_id: string;
@@ -25,6 +25,8 @@ export interface Preferences {
   phone_number?: string | null;
   sms_notifications_enabled?: boolean;
   reminder_lead_days?: number;
+  me_domain_order: string[];
+  me_domains_disabled: string[];
 }
 
 export async function getPreferences(userId: string): Promise<Preferences> {
@@ -76,6 +78,8 @@ export async function getPreferences(userId: string): Promise<Preferences> {
     // access via Settings → Modules rather than silently at login.
     if (!p.news_sources?.length) p.news_sources = DEFAULT_NEWS_SOURCES;
     if (!p.watched_stocks?.length) p.watched_stocks = [];
+    if (!p.me_domain_order?.length) p.me_domain_order = [...ME_DOMAINS];
+    if (!p.me_domains_disabled) p.me_domains_disabled = [];
     return p;
   }
 
@@ -111,5 +115,7 @@ export async function getPreferences(userId: string): Promise<Preferences> {
     phone_number: null,
     sms_notifications_enabled: true,
     reminder_lead_days: 3,
+    me_domain_order: [...ME_DOMAINS],
+    me_domains_disabled: [],
   };
 }

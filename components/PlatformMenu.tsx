@@ -10,7 +10,7 @@ const NAV = [
   { key: "today",  label: "Today",       href: "/home",               accessKeys: [] as string[] },
   { key: "family", label: "Family",      href: "/home/family",        accessKeys: [] as string[] },
   { key: "kids",   label: "Kids",        href: "/student-success",    accessKeys: ["student-success"] },
-  { key: "me",     label: "Me",          href: "/health",             accessKeys: ["health"] },
+  { key: "me",     label: "Me",          href: "/home/me",            accessKeys: ["health"] },
   { key: "money",  label: "Money",       href: "/finance/dashboard",  accessKeys: ["finance", "investments"] },
   { key: "career", label: "Career",      href: "/career",             accessKeys: ["career"] },
   { key: "bible",  label: "Bible",       href: "/bible/dashboard",    accessKeys: ["bible"] },

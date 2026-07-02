@@ -126,6 +126,8 @@ export async function savePreferences(data: {
   phone_number?: string | null;
   sms_notifications_enabled?: boolean;
   reminder_lead_days?: number;
+  me_domain_order?: string[];
+  me_domains_disabled?: string[];
 }): Promise<{ error?: string }> {
   const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };
@@ -140,6 +142,7 @@ export async function savePreferences(data: {
   if (error) return { error: error.message };
   revalidatePath("/home");
   revalidatePath("/home/settings");
+  revalidatePath("/home/me");
   return {};
 }
 
