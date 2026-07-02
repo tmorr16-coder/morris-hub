@@ -5,7 +5,7 @@ import { useState, useRef, useEffect } from "react";
 const TABS = [
   { key: "today",  label: "Today",  href: "/home" },
   { key: "family", label: "Family", href: "/home/family" },
-  { key: "kids",   label: "Kids",   href: "/student-success" },
+  { key: "children", label: "Children", href: "/children" },
   { key: "me",     label: "Me",     href: "/home/me" },
 ];
 
@@ -21,7 +21,7 @@ function activeKeyFromApp(currentApp: string): string | null {
   if (currentApp === "hub") return "today";
   if (currentApp === "family") return "family";
   if (currentApp === "health") return "me";
-  if (currentApp === "student-success") return "kids";
+  if (currentApp === "children") return "children";
   return null;
 }
 
@@ -260,7 +260,7 @@ function TabIcon({ name, active }: { name: string; active: boolean }) {
           <path d="M2 19c0-3 2.5-5.5 5.5-5.5h7C17.5 13.5 20 16 20 19" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
         </>
       )}
-      {name === "kids" && (
+      {name === "children" && (
         <>
           <circle cx="11" cy="8" r="3" stroke={color} strokeWidth="1.5" />
           <path d="M5 19c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke={color} strokeWidth="1.5" strokeLinecap="round" />

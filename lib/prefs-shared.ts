@@ -11,7 +11,7 @@ export const DEFAULT_REMINDER_CATEGORIES = [
   "bill", "medication", "workout", "appointment", "personal", "general",
 ];
 
-export const ME_DOMAINS = ["career", "health", "mind", "spirit"] as const;
+export const ME_DOMAINS = ["career", "health", "mind", "spirit", "courses"] as const;
 
 export type MeDomainKey = typeof ME_DOMAINS[number];
 

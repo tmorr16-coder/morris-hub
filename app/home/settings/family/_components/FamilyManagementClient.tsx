@@ -6,7 +6,7 @@ import { useState } from "react";
 
 interface CircleMember {
   id: string;           // hub.family_members.id
-  member_user_id: string;
+  member_user_id: string | null; // null for a managed (no-login) child profile
   role: string;
   display_name: string | null;
   full_name: string | null;
@@ -116,6 +116,7 @@ export default function FamilyManagementClient({
   const [promoting, setPromoting] = useState<string | null>(null);
 
   function openAccessEditor(member: CircleMember) {
+    if (!member.member_user_id) return; // managed children have no access flags to edit
     setEditingAccessId(member.member_user_id);
     setDraftAccess(member.appAccess ?? []);
   }
@@ -169,6 +170,28 @@ export default function FamilyManagementClient({
     setInviteSuccess(true);
     setSent((prev) => [data.invite, ...prev.filter((i) => i.invite_email !== inviteEmail)]);
     setInviteEmail(""); setInviteName(""); setInviteBirthYear("");
+  }
+
+  // Managed (no-login) child profile — for elementary-age kids with no email of their own.
+  const [managedName, setManagedName] = useState("");
+  const [managedBirthYear, setManagedBirthYear] = useState("");
+  const [addingManaged, setAddingManaged] = useState(false);
+  const [managedError, setManagedError] = useState<string | null>(null);
+
+  async function addManagedChild(e: React.FormEvent) {
+    e.preventDefault();
+    setAddingManaged(true);
+    setManagedError(null);
+    const res = await fetch("/api/family/managed-children", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ display_name: managedName, birth_year: managedBirthYear || null }),
+    });
+    const data = await res.json();
+    setAddingManaged(false);
+    if (!res.ok) { setManagedError(data.error ?? "Failed to add child"); return; }
+    setCircle((prev) => [...prev, data.member]);
+    setManagedName(""); setManagedBirthYear("");
   }
 
   async function cancelInvite(id: string) {
@@ -272,7 +295,7 @@ export default function FamilyManagementClient({
             {circle.map((m) => {
               const name = m.display_name ?? m.full_name ?? m.email ?? "Unknown";
               const memberAge = age(m.birth_year);
-              const isCollegeAge = m.role === "child" && memberAge !== null && memberAge >= 18;
+              const isCollegeAge = m.role === "child" && !!m.member_user_id && memberAge !== null && memberAge >= 18;
               return (
                 <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10 }}>
@@ -284,7 +307,10 @@ export default function FamilyManagementClient({
                     <span style={chip(ROLE_LABELS[m.role] ?? m.role, m.role === "child" ? "#6B5B95" : "var(--color-accent)")}>
                       {ROLE_LABELS[m.role] ?? m.role}{memberAge !== null && ` · ${memberAge}`}
                     </span>
-                    {m.role === "child" && (
+                    {m.role === "child" && !m.member_user_id && (
+                      <span style={{ fontSize: 10, color: "var(--color-ink-4)", fontStyle: "italic" }}>Managed profile</span>
+                    )}
+                    {m.role === "child" && m.member_user_id && (
                       <button
                         onClick={() => editingAccessId === m.member_user_id ? setEditingAccessId(null) : openAccessEditor(m)}
                         style={{ fontSize: 11, padding: "5px 12px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-3)", cursor: "pointer", fontFamily: "inherit" }}
@@ -309,7 +335,7 @@ export default function FamilyManagementClient({
                         {name} turned {memberAge} — consider switching to adult privacy.
                       </span>
                       <button
-                        onClick={() => promoteToAdult(m.member_user_id)}
+                        onClick={() => promoteToAdult(m.member_user_id as string)}
                         disabled={promoting === m.member_user_id}
                         style={{ fontSize: 11, fontWeight: 600, padding: "5px 12px", borderRadius: 7, border: "none", background: "var(--color-amber)", color: "#fff", cursor: "pointer", flexShrink: 0 }}
                       >
@@ -318,7 +344,7 @@ export default function FamilyManagementClient({
                     </div>
                   )}
 
-                  {editingAccessId === m.member_user_id && (
+                  {!!m.member_user_id && editingAccessId === m.member_user_id && (
                     <div style={{ padding: "14px 16px", background: "var(--color-bg-deep)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 10 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-ink-4)" }}>
                         {name}&apos;s access
@@ -344,7 +370,7 @@ export default function FamilyManagementClient({
                         })}
                       </div>
                       <button
-                        onClick={() => saveAccess(m.member_user_id)}
+                        onClick={() => saveAccess(m.member_user_id as string)}
                         disabled={savingAccess}
                         style={{ alignSelf: "flex-start", fontSize: 12, fontWeight: 600, padding: "7px 16px", borderRadius: 8, border: "none", background: "var(--color-accent)", color: "#FFFDF8", cursor: "pointer" }}
                       >
@@ -357,6 +383,38 @@ export default function FamilyManagementClient({
             })}
           </div>
         )}
+      </section>
+
+      {/* ── Section 1b: Managed (no-login) child profile ── */}
+      <section>
+        <SH>Add a managed child profile</SH>
+        <p style={{ fontSize: 12, color: "var(--color-ink-4)", margin: "0 0 12px", fontFamily: "var(--font-geist, system-ui), sans-serif", lineHeight: 1.5 }}>
+          For younger kids with no email of their own — you&apos;ll manage everything on their behalf. Older kids who want their own login should use the invite form below instead.
+        </p>
+        <form onSubmit={addManagedChild} style={{ display: "flex", flexDirection: "column", gap: 10, background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 12, padding: "18px 20px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-ink-3)", display: "block", marginBottom: 5, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>Name *</label>
+              <input type="text" required value={managedName} onChange={(e) => setManagedName(e.target.value)} placeholder="e.g. Emma" style={inp} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-ink-3)", display: "block", marginBottom: 5, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>Birth year</label>
+              <input
+                type="number"
+                value={managedBirthYear}
+                onChange={(e) => setManagedBirthYear(e.target.value)}
+                placeholder="e.g. 2018"
+                min={new Date().getFullYear() - 100}
+                max={new Date().getFullYear()}
+                style={inp}
+              />
+            </div>
+          </div>
+          {managedError && <div style={{ fontSize: 12, color: "var(--color-red)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{managedError}</div>}
+          <button type="submit" disabled={addingManaged} style={{ padding: "9px 20px", borderRadius: 9, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 13, fontWeight: 600, cursor: addingManaged ? "wait" : "pointer", fontFamily: "inherit", alignSelf: "flex-start", opacity: addingManaged ? 0.7 : 1 }}>
+            {addingManaged ? "Adding…" : "Add child"}
+          </button>
+        </form>
       </section>
 
       {/* ── Section 2: Invite form ── */}

@@ -27,8 +27,8 @@ interface CircleMember {
 
 const MODULE_HREF: Record<string, string> = {
   hub: "/home", health: "/health", finance: "/finance/dashboard",
-  investments: "/investments", "student-success": "/student-success",
-  career: "/career", bible: "/bible",
+  investments: "/investments", "student-success": "/home/me/courses",
+  career: "/career", bible: "/bible", children: "/children",
 };
 
 function localDateKey(iso: string, tz: string): string {
@@ -83,18 +83,33 @@ export async function getFamilyCalendarEvents(
   const { data: circleData } = await service
     .schema("hub")
     .from("family_members")
-    .select("member_user_id, role, display_name, nickname")
+    .select("id, member_user_id, role, display_name, nickname")
     .eq("user_id", userId);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const members: CircleMember[] = ((circleData ?? []) as any[]).map((m) => ({
-    id: m.member_user_id as string,
-    role: (m.role ?? "adult") as string,
-    label: (m.display_name ?? m.nickname ?? "Member") as string,
-  }));
+  const members: CircleMember[] = ((circleData ?? []) as any[])
+    .filter((m) => m.member_user_id)
+    .map((m) => ({
+      id: m.member_user_id as string,
+      role: (m.role ?? "adult") as string,
+      label: (m.display_name ?? m.nickname ?? "Member") as string,
+    }));
   const memberIds = members.map((m) => m.id);
   const childIds = members.filter((m) => m.role === "child").map((m) => m.id);
   const memberLabel = (id: string) => members.find((m) => m.id === id)?.label;
+
+  // hub.family_members.id (the stable anchor) for every child, whether or
+  // not they have a login. Used to query hub.child_activities, which is
+  // keyed on family_members.id rather than member_user_id.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const childFamilyMemberIds = ((circleData ?? []) as any[])
+    .filter((m) => m.role === "child")
+    .map((m) => m.id as string);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const childFamilyMemberMap = new Map<string, any>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ((circleData ?? []) as any[]).filter((m) => m.role === "child").map((m) => [m.id as string, m])
+  );
 
   const [
     myReminders,
@@ -107,6 +122,7 @@ export async function getFamilyCalendarEvents(
     workouts,
     myCourseReminders,
     childCourseReminders,
+    childActivities,
   ] = await Promise.all([
     service.schema("hub").from("reminders")
       .select("id, title, due_at, category, source_app")
@@ -155,6 +171,12 @@ export async function getFamilyCalendarEvents(
           .select("id, type, title, due_date, due_time, user_id, courses:course_id (name)")
           .in("user_id", childIds).eq("is_completed", false)
           .gte("due_date", startDate).lte("due_date", endDate)
+      : Promise.resolve({ data: [] }),
+    childFamilyMemberIds.length > 0
+      ? service.schema("hub").from("child_activities")
+          .select("id, child_id, category, title, due_at")
+          .in("child_id", childFamilyMemberIds).eq("completed", false)
+          .gte("due_at", rangeStartIso).lte("due_at", rangeEndIso)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -252,6 +274,31 @@ export async function getFamilyCalendarEvents(
       title: c.courses?.name ? `${c.title} (${c.courses.name})` : c.title,
       module: "student-success", category: c.type ?? "general",
       href: "/student-success", person: c.user_id, personLabel: memberLabel(c.user_id),
+    });
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const a of (childActivities.data ?? []) as any[]) {
+    const childId = a.child_id as string;
+    const childMember = childFamilyMemberMap.get(childId);
+    // Managed children (no login) have no member_user_id, so there's no
+    // auth user id to use as the person filter value. Fall back to the
+    // family_members.id anchor itself — CalendarClient's person filter
+    // chips are built from the same `members` list keyed the same way
+    // for account-holding children, and this id is still unique/stable
+    // per child, so it works as a filter key even without a real user.
+    const personId: string = childMember?.member_user_id ?? childId;
+    const personLabel: string | undefined = childMember?.display_name ?? childMember?.nickname ?? undefined;
+    events.push({
+      id: `child-act-${a.id}`,
+      date: localDateKey(a.due_at, tz),
+      time: null,
+      timeLabel: localTimeLabel(a.due_at, tz),
+      title: a.title,
+      module: "children",
+      category: a.category,
+      href: `/children/${childId}`,
+      person: personId,
+      personLabel,
     });
   }
 

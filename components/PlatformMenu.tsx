@@ -9,7 +9,7 @@ import ModeSwitcher from "./ModeSwitcher";
 const NAV = [
   { key: "today",  label: "Today",       href: "/home",               accessKeys: [] as string[] },
   { key: "family", label: "Family",      href: "/home/family",        accessKeys: [] as string[] },
-  { key: "kids",   label: "Kids",        href: "/student-success",    accessKeys: ["student-success"] },
+  { key: "children", label: "Children",  href: "/children",           accessKeys: ["children"] },
   { key: "me",     label: "Me",          href: "/home/me",            accessKeys: ["health"] },
   { key: "money",  label: "Money",       href: "/finance/dashboard",  accessKeys: ["finance", "investments"] },
   { key: "career", label: "Career",      href: "/career",             accessKeys: ["career"] },
@@ -31,7 +31,7 @@ function activeKeyFromApp(currentApp: string): string {
   if (currentApp === "ask") return "ask";
   if (currentApp === "health") return "me";
   if (currentApp === "finance" || currentApp === "investments") return "money";
-  if (currentApp === "student-success") return "kids";
+  if (currentApp === "children") return "children";
   if (currentApp === "career") return "career";
   if (currentApp === "bible") return "bible";
   return "";
@@ -41,7 +41,7 @@ export default function PlatformMenu({
   currentApp,
   user,
 }: {
-  currentApp: "hub" | "family" | "ask" | "health" | "finance" | "investments" | "student-success" | "bible" | "career";
+  currentApp: "hub" | "family" | "ask" | "health" | "finance" | "investments" | "student-success" | "bible" | "career" | "children";
   user?: MenuUser | null;
 }) {
   const activeKey = activeKeyFromApp(currentApp);

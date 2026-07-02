@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 
-const ALL_MODULES = ["hub", "health", "finance", "investments", "career", "student-success", "bible"];
+const ALL_MODULES = ["hub", "health", "finance", "investments", "career", "student-success", "children", "bible"];
 
 // PATCH — a parent gives a child (typically one who's turned 18) full
 // adult-style privacy: role flips to 'adult' and their app_access resets to

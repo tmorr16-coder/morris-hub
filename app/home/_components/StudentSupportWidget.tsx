@@ -15,7 +15,7 @@ export default function StudentSupportWidget() {
       }}
     >
       <h2 className="serif" style={{ fontSize: 24, marginBottom: 4 }}>
-        📚 Student Support
+        📚 Courses
       </h2>
       <p style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 20, flex: 1 }}>
         Manage courses, track assignments, create reminders, and organize flashcards.
@@ -23,7 +23,7 @@ export default function StudentSupportWidget() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <Link
-          href="/student-success"
+          href="/home/me/courses"
           style={{
             padding: "12px 16px",
             borderRadius: 8,
@@ -37,7 +37,7 @@ export default function StudentSupportWidget() {
             cursor: "pointer",
           }}
         >
-          Go to Student Success
+          Go to Courses
         </Link>
       </div>
     </div>

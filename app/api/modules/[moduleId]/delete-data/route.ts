@@ -32,6 +32,7 @@ export async function DELETE(
         ]);
         break;
       case "student-success":
+      case "children":
       case "bible":
       case "health":
       case "finance":

@@ -12,6 +12,8 @@ const NAV_LINKS = [
   { href: "/career/10", label: "10% Learning" },
   { href: "/career/profile", label: "Profile & Assessment" },
   { href: "/career/advisor", label: "Career Advisor" },
+  { href: "/career/certifications", label: "Certifications" },
+  { href: "/career/lsat", label: "LSAT Prep" },
   { href: "/career/settings", label: "⚙ Settings" },
 ];
 

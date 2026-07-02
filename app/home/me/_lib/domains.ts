@@ -37,6 +37,7 @@ const DOMAIN_LABELS: Record<MeDomainKey, string> = {
   health: "Health",
   mind: "Mind",
   spirit: "Spirit",
+  courses: "Courses",
 };
 
 const DOMAIN_HREFS: Record<MeDomainKey, string> = {
@@ -44,6 +45,7 @@ const DOMAIN_HREFS: Record<MeDomainKey, string> = {
   health: "/health",
   mind: "/home/journal",
   spirit: "/bible/dashboard",
+  courses: "/home/me/courses",
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -276,7 +278,64 @@ async function getSpiritDomain(db: Svc, userId: string, freeWindow: FreeTimeWind
   };
 }
 
-export async function getMeDomainData(userId: string, now: Date): Promise<DomainCardData[]> {
+async function getCoursesDomain(db: Svc, userId: string, now: Date, freeWindow: FreeTimeWindow): Promise<DomainCardData> {
+  const { data: courses } = await db.schema("student_support").from("courses")
+    .select("id, name")
+    .eq("user_id", userId);
+
+  const courseRows: { id: string; name: string }[] = courses ?? [];
+
+  if (courseRows.length === 0) {
+    return {
+      key: "courses", label: DOMAIN_LABELS.courses, href: DOMAIN_HREFS.courses,
+      goal: null, progressPct: null, progressLabel: "No courses added yet",
+      recommendedAction: applyCalendarFit({ text: "Add your courses", estimatedMinutes: 5 }, freeWindow),
+    };
+  }
+
+  const dow = now.getDay();
+  const weekStart = new Date(now.getTime() - dow * 86_400_000);
+  const weekEnd = new Date(weekStart.getTime() + 6 * 86_400_000);
+  const weekStartStr = weekStart.toISOString().slice(0, 10);
+  const weekEndStr = weekEnd.toISOString().slice(0, 10);
+
+  const { data: weekReminders } = await db.schema("student_support").from("course_reminders")
+    .select("id, title, due_date, is_completed")
+    .eq("user_id", userId)
+    .gte("due_date", weekStartStr)
+    .lte("due_date", weekEndStr);
+
+  const weekRows: { id: string; title: string; due_date: string; is_completed: boolean }[] = weekReminders ?? [];
+  const totalThisWeek = weekRows.length;
+  const completedThisWeek = weekRows.filter((r) => r.is_completed).length;
+
+  const { data: nextReminder } = await db.schema("student_support").from("course_reminders")
+    .select("title, due_date")
+    .eq("user_id", userId)
+    .eq("is_completed", false)
+    .gte("due_date", now.toISOString().slice(0, 10))
+    .order("due_date", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  const progressPct = totalThisWeek > 0 ? Math.round((completedThisWeek / totalThisWeek) * 100) : null;
+  const progressLabel = totalThisWeek > 0
+    ? `${completedThisWeek} of ${totalThisWeek} assignments done this week`
+    : `${courseRows.length} active course${courseRows.length === 1 ? "" : "s"}`;
+
+  const action: RawAction = nextReminder
+    ? { text: `Next due: ${nextReminder.title}`, estimatedMinutes: 20, shortText: `Review "${nextReminder.title}"` }
+    : { text: "Add your next assignment", estimatedMinutes: 5 };
+
+  return {
+    key: "courses", label: DOMAIN_LABELS.courses, href: DOMAIN_HREFS.courses,
+    goal: `${courseRows.length} active course${courseRows.length === 1 ? "" : "s"}`,
+    progressPct, progressLabel,
+    recommendedAction: applyCalendarFit(action, freeWindow),
+  };
+}
+
+export async function getMeDomainData(userId: string, now: Date, userAppAccess: string[] = []): Promise<DomainCardData[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
   const freeWindow = await getFreeTimeWindow(db, userId, now);
@@ -288,5 +347,22 @@ export async function getMeDomainData(userId: string, now: Date): Promise<Domain
     getSpiritDomain(db, userId, freeWindow),
   ]);
 
-  return [career, health, mind, spirit];
+  const domains: DomainCardData[] = [career, health, mind, spirit];
+
+  // Courses is an optional Me-dashboard domain: only include it if the user has
+  // been granted the student-success module, or already has at least one course
+  // (so existing course data doesn't silently disappear if access was revoked).
+  let includeCourses = userAppAccess.includes("student-success");
+  if (!includeCourses) {
+    const { count } = await db.schema("student_support").from("courses")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId);
+    includeCourses = (count ?? 0) >= 1;
+  }
+
+  if (includeCourses) {
+    domains.push(await getCoursesDomain(db, userId, now, freeWindow));
+  }
+
+  return domains;
 }

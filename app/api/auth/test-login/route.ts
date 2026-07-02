@@ -60,7 +60,7 @@ export async function PUT(req: NextRequest) {
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 400 });
     try {
       await admin.schema("hub").from("preferences").upsert(
-        { user_id: existing.id, onboarding_completed: true, app_access: ["hub", "health", "finance", "investments", "career", "student-success", "bible"] },
+        { user_id: existing.id, onboarding_completed: true, app_access: ["hub", "health", "finance", "investments", "career", "student-success", "children", "bible"] },
         { onConflict: "user_id" }
       );
     } catch { /* ignore */ }
@@ -82,7 +82,7 @@ export async function PUT(req: NextRequest) {
   // Create hub.preferences row so the user bypasses onboarding
   try {
     await admin.schema("hub").from("preferences").upsert(
-      { user_id: data.user.id, onboarding_completed: true, app_access: ["hub", "health", "finance", "investments", "career", "student-success", "bible"] },
+      { user_id: data.user.id, onboarding_completed: true, app_access: ["hub", "health", "finance", "investments", "career", "student-success", "children", "bible"] },
       { onConflict: "user_id" }
     );
   } catch { /* ignore if table not ready */ }

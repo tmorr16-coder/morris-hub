@@ -118,7 +118,7 @@ export default async function TenPercentPage() {
           </h2>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <Link
-              href="/student-success/certifications"
+              href="/career/certifications"
               style={{
                 fontSize: 13,
                 color: "var(--color-accent)",
@@ -129,7 +129,7 @@ export default async function TenPercentPage() {
               Browse all certifications →
             </Link>
             <Link
-              href="/student-success/certifications/new"
+              href="/career/certifications/new"
               style={{
                 background: "var(--color-accent)",
                 color: "#fff",
@@ -158,7 +158,7 @@ export default async function TenPercentPage() {
             }}
           >
             No certifications tracked yet.{" "}
-            <Link href="/student-success/certifications/new" style={{ color: "var(--color-accent)" }}>
+            <Link href="/career/certifications/new" style={{ color: "var(--color-accent)" }}>
               Add one in Student Success
             </Link>
             .
@@ -174,7 +174,7 @@ export default async function TenPercentPage() {
             {certExams.map((cert) => (
               <Link
                 key={cert.id}
-                href={`/student-success/certifications/${cert.id}`}
+                href={`/career/certifications/${cert.id}`}
                 style={{ textDecoration: "none" }}
               >
                 <div

@@ -4,10 +4,12 @@ import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
 import { getAllUpcomingReminders } from "@/lib/reminders";
+import { getFamilyCalendarEvents, getWeekRange } from "@/lib/familyCalendar";
 import PlatformMenu from "@/components/PlatformMenu";
 import ShoppingList from "./_components/ShoppingList";
 import HouseholdGoals from "./_components/HouseholdGoals";
 import MealPlan from "./_components/MealPlan";
+import CalendarClient from "./calendar/_components/CalendarClient";
 
 const userTz = "America/Indiana/Indianapolis";
 
@@ -31,12 +33,10 @@ const WEEK_DOT: Record<string, string> = {
 const MODULE_LABEL: Record<string, string> = {
   health:           "Health",
   finance:          "Finance",
-  "student-success":"Kids",
   career:           "Career",
 };
 
 const MODULE_LINKS: Record<string, { label: string; href: string; color: string }> = {
-  "student-success": { label: "Kids →",    href: "/student-success",    color: "#6B5B95" },
   "health":          { label: "Health →",  href: "/health",             color: "#4D6B3A" },
   "finance":         { label: "Finance →", href: "/finance/dashboard",  color: "#8B6A47" },
   "investments":     { label: "Invest →",  href: "/investments",        color: "#C97A3A" },
@@ -150,38 +150,13 @@ export default async function FamilyPage() {
   const householdGoals = goalsResult.data ?? [];
   const mealPlan = mealsResult.data ?? [];
 
-  // ── Phase 2b: Kids module — child members' upcoming courses/assignments ──
   const childMembers = familyMembers.filter((m) => m.role === "child");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const kidsData: Array<{ memberId: string; name: string; age: number | null; courses: any[]; assignments: any[] }> = [];
-  for (const child of childMembers) {
-    const childName = child.display_name ?? child.full_name ?? child.email ?? "Child";
-    const childAge = child.birth_year ? today.getFullYear() - child.birth_year : null;
-    const nowStr = today.toISOString().slice(0, 10);
-    const horizonStr = new Date(today.getTime() + 30 * 86_400_000).toISOString().slice(0, 10);
-    const [cRes, aRes] = await Promise.all([
-      service.schema("student_support").from("courses")
-        .select("id, name, color_tag, instructor")
-        .eq("user_id", child.member_user_id)
-        .limit(5),
-      service.schema("student_support").from("course_reminders")
-        .select("id, type, title, due_date, is_completed, course:courses(name, color_tag)")
-        .eq("user_id", child.member_user_id)
-        .eq("is_completed", false)
-        .lte("due_date", horizonStr)
-        .gte("due_date", nowStr)
-        .order("due_date", { ascending: true })
-        .limit(5),
-    ]).catch(() => [{ data: [] }, { data: [] }]) as any;
-    kidsData.push({
-      memberId: child.member_user_id,
-      name: childName,
-      age: childAge,
-      courses: cRes?.data ?? [],
-      assignments: aRes?.data ?? [],
-    });
-  }
   const todayStr = today.toLocaleDateString("sv", { timeZone: userTz });
+
+  // ── Embedded week calendar ──────────────────────────────────────────
+  const { start: weekStart, end: weekEnd } = getWeekRange(todayStr);
+  const { events: weekCalendarEvents, members: calendarMembers } =
+    await getFamilyCalendarEvents(user.id, weekStart, weekEnd, userTz);
 
   // Week-ahead reminders grouped by day
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -259,7 +234,7 @@ export default async function FamilyPage() {
                 fontFamily: "var(--font-geist, system-ui), sans-serif",
               }}
             >
-              Calendar →
+              Full calendar →
             </a>
           </div>
         </div>
@@ -355,47 +330,36 @@ export default async function FamilyPage() {
           </div>
         )}
 
-        {/* ── Kids — child members' courses and upcoming deadlines ── */}
-        {kidsData.length > 0 && (
+        {/* ── Children — slim summary, full profiles live at /children ── */}
+        {childMembers.length > 0 && (
           <div style={{ marginBottom: 28 }}>
-            <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", margin: "0 0 12px", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-              Kids
-            </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {kidsData.map((kid) => (
-                <div key={kid.memberId} style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderLeft: "3px solid #6B5B95", borderRadius: 12, padding: "14px 18px", boxShadow: "var(--shadow-card)" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{kid.name}{kid.age !== null ? ` (${kid.age})` : ""}</span>
-                    <a href="/student-success" style={{ fontSize: 11, color: "#6B5B95", textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>View all →</a>
-                  </div>
-                  {kid.courses.length === 0 && kid.assignments.length === 0 ? (
-                    <p style={{ fontSize: 12, color: "var(--color-ink-4)", margin: 0, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>No active courses yet.</p>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                      {kid.assignments.length > 0
-                        ? kid.assignments.map((a: { id: string; title: string; type: string; due_date: string; course: { name: string } | null }) => (
-                          <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#6B5B95", flexShrink: 0 }} />
-                            <span style={{ color: "var(--color-ink-2)", flex: 1 }}>{a.title}</span>
-                            <span style={{ color: "var(--color-ink-4)", flexShrink: 0 }}>
-                              {a.course?.name ?? ""} · due {new Date(a.due_date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                            </span>
-                          </div>
-                        ))
-                        : kid.courses.slice(0, 3).map((c: { id: string; name: string; instructor: string | null }) => (
-                          <div key={c.id} style={{ fontSize: 12, color: "var(--color-ink-3)", fontFamily: "var(--font-geist, system-ui), sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#6B5B95", flexShrink: 0 }} />
-                            {c.name}{c.instructor ? ` · ${c.instructor}` : ""}
-                          </div>
-                        ))
-                      }
-                    </div>
-                  )}
-                </div>
-              ))}
+            <div style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderLeft: "3px solid #6B5B95", borderRadius: 12, padding: "14px 18px", boxShadow: "var(--shadow-card)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <span style={{ fontSize: 13, color: "var(--color-ink-2)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+                {childMembers.length} child{childMembers.length !== 1 ? "ren" : ""}
+              </span>
+              <a href="/children" style={{ fontSize: 12, fontWeight: 600, color: "#6B5B95", textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+                Manage →
+              </a>
             </div>
           </div>
         )}
+
+        {/* ── Calendar — embedded week view, full month at /home/family/calendar ── */}
+        <div style={{ marginBottom: 28 }}>
+          <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", margin: "0 0 12px", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+            Calendar
+          </h2>
+          <CalendarClient
+            embedded
+            view="week"
+            anchorDate={todayStr}
+            todayStr={todayStr}
+            rangeStart={weekStart}
+            rangeEnd={weekEnd}
+            events={weekCalendarEvents}
+            members={calendarMembers.map((m) => ({ id: m.id, label: m.label }))}
+          />
+        </div>
 
         {/* Week-ahead */}
         <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", margin: "0 0 12px", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>

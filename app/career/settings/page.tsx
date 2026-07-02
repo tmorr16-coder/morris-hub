@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import CareerSettingsClient from "./_components/CareerSettingsClient";
+import LsatSettingsClient from "./_components/LsatSettingsClient";
 
 // Career layout already provides PlatformMenu + CareerSubNav + container padding
 export default async function CareerSettingsPage({ searchParams }: { searchParams: Promise<{ linkedin?: string }> }) {
@@ -16,6 +17,11 @@ export default async function CareerSettingsPage({ searchParams }: { searchParam
   const { data: profile } = await service
     .schema("career").from("career_profile")
     .select("linkedin_url, linkedin_connected, linkedin_connected_at, linkedin_name, linkedin_picture_url")
+    .eq("user_id", user.id).maybeSingle();
+
+  const { data: studentSettings } = await service
+    .schema("student_support").from("student_settings")
+    .select("lsat_enabled, lsat_target_score")
     .eq("user_id", user.id).maybeSingle();
 
   const params = await searchParams;
@@ -37,6 +43,10 @@ export default async function CareerSettingsPage({ searchParams }: { searchParam
         flashMessage={linkedinStatus === "connected" ? "LinkedIn connected — profile data imported." : linkedinStatus === "error" ? "LinkedIn connection failed. Try again." : null}
         flashType={linkedinStatus === "connected" ? "success" : "error"}
         linkedinConfigured={!!process.env.LINKEDIN_CLIENT_ID}
+      />
+      <LsatSettingsClient
+        lsatEnabled={!!studentSettings?.lsat_enabled}
+        lsatTargetScore={studentSettings?.lsat_target_score ?? null}
       />
     </div>
   );

@@ -306,7 +306,7 @@ export default async function HomePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const MODULE_ACTION_HREF: Record<string, string> = {
     health: "/health", finance: "/finance/dashboard",
-    investments: "/investments", "student-success": "/student-success",
+    investments: "/investments", "student-success": "/home/me/courses",
     career: "/career", bible: "/bible", hub: "/home",
   };
   const COURSE_TYPE_LABEL: Record<string, string> = {
@@ -338,7 +338,7 @@ export default async function HomePage() {
         context: `${COURSE_TYPE_LABEL[c.type] ?? "Assignment"} · ${isOverdue ? "was due" : "due"} ${fmtDueDate(c.due_date)}`,
         who: childName ?? "You",
         person: (isMine ? "me" : c.user_id) as string,
-        primaryAction: { label: "Review", href: "/student-success" },
+        primaryAction: { label: "Review", href: "/home/me/courses" },
       };
     }),
     // Missed health commitments — past scheduled workouts never completed
@@ -731,7 +731,7 @@ export default async function HomePage() {
                 <FamilyStatus rows={familyStatusRows} />
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   {prefs.app_access?.includes("student-success") && (
-                    <a href="/student-success" style={{ ...summaryChipStyle, borderColor: "#6B5B95", color: "#6B5B95" }}>
+                    <a href="/home/me/courses" style={{ ...summaryChipStyle, borderColor: "#6B5B95", color: "#6B5B95" }}>
                       Kids →
                     </a>
                   )}
@@ -896,7 +896,7 @@ const MODULE_HREF: Record<string, string> = {
   health:           "/health",
   finance:          "/finance/dashboard",
   investments:      "/investments",
-  "student-success":"/student-success",
+  "student-success":"/home/me/courses",
   career:           "/career",
   bible:            "/bible",
 };

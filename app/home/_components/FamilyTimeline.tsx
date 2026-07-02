@@ -26,6 +26,7 @@ export const MODULE_DOT: Record<string, string> = {
   finance:          "#8B6A47",
   investments:      "#C97A3A",
   "student-success":"#6B5B95",
+  children:         "#C97A9B",
   career:           "#2A6049",
   bible:            "#7B5EA7",
   appointment:      "var(--color-accent)",
@@ -40,7 +41,8 @@ export const MODULE_DOT: Record<string, string> = {
 export const MODULE_BADGE: Record<string, string> = {
   health:           "Health",
   finance:          "Finance",
-  "student-success":"Kids",
+  "student-success":"Courses",
+  children:         "Children",
   career:           "Career",
   workout:          "Health",
   family:           "Family",  // Phase 2b: household tasks show "Family" badge

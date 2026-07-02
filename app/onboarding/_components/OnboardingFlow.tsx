@@ -13,7 +13,7 @@ interface Profile {
   locationName: string;
 }
 
-type ModuleKey = "health" | "finance" | "investments" | "career" | "student-success" | "bible";
+type ModuleKey = "health" | "finance" | "investments" | "career" | "student-success" | "children" | "bible";
 
 // ── Persona definitions ───────────────────────────────────────────────────────
 
@@ -24,7 +24,7 @@ const PERSONAS: { key: Persona; label: string; emoji: string; tagline: string; d
     emoji: "⌂",
     tagline: "Managing family life",
     description: "Overseeing family finances, tracking health for yourself and your household, investment research, and career development.",
-    defaultModules: ["health", "finance", "investments", "career"],
+    defaultModules: ["health", "finance", "investments", "career", "children"],
   },
   {
     key: "student",
@@ -51,7 +51,8 @@ const MODULES: { key: ModuleKey; label: string; dot: string; icon: string; descr
   { key: "finance",         label: "Finance",         dot: "#8B6A47", icon: "$", description: "Family accounts, net worth, Plaid-connected, family sharing" },
   { key: "investments",     label: "Investments",     dot: "#C97A3A", icon: "↗", description: "Stock research, AI deep analysis, live charts, paper trading" },
   { key: "career",          label: "Career",          dot: "#2A6049", icon: "◈", description: "AI advisor, goal tracking, learning log, relationship mapping" },
-  { key: "student-success", label: "Student Success", dot: "#6B5B95", icon: "✦", description: "LSAT prep, certifications, course tracking, performance analytics" },
+  { key: "student-success", label: "Courses",         dot: "#6B5B95", icon: "✦", description: "College course tracking, assignments, and grades — lives on your Me dashboard" },
+  { key: "children",        label: "Children",        dot: "#C97A9B", icon: "⌘", description: "Profile cards, activities, and support for each of your kids" },
   { key: "bible",           label: "Bible",           dot: "#6B3B7C", icon: "✟", description: "Scripture study, daily plans, notes, challenges" },
 ];
 
@@ -66,7 +67,7 @@ const INTEGRATIONS: Record<Persona, { key: string; label: string; description: s
   ],
   student: [
     { key: "oura",      label: "Oura Ring", icon: "💍", description: "Track sleep and recovery — critical for academic performance", href: "/health/settings", available: true },
-    { key: "lsat",      label: "LSAT Prep", icon: "📝", description: "Set up your LSAT practice schedule and target score", href: "/student-success/lsat", available: true },
+    { key: "lsat",      label: "LSAT Prep", icon: "📝", description: "Set up your LSAT practice schedule and target score", href: "/career/lsat", available: true },
     { key: "career",    label: "Career Profile", icon: "◈", description: "Upload your resume and complete the career assessment", href: "/career/profile", available: true },
   ],
   individual: [

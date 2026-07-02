@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 
-const VALID_MODULES = ["hub", "health", "finance", "investments", "career", "student-success", "bible"];
+const VALID_MODULES = ["hub", "health", "finance", "investments", "career", "student-success", "children", "bible"];
 
 // PATCH — a parent edits which modules a child circle member can access.
 // [id] is the child's auth.users id (member_user_id on the parent's circle row).

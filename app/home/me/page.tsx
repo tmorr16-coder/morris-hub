@@ -14,7 +14,7 @@ export default async function MePage() {
   if (!user) redirect("/login");
 
   const prefs = await getPreferences(user.id);
-  const domainData = await getMeDomainData(user.id, new Date());
+  const domainData = await getMeDomainData(user.id, new Date(), prefs.app_access ?? []);
 
   const order = (prefs.me_domain_order?.length ? prefs.me_domain_order : [...ME_DOMAINS]) as MeDomainKey[];
   const disabled = prefs.me_domains_disabled ?? [];

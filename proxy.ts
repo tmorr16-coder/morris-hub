@@ -55,7 +55,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/health") ||
     pathname.startsWith("/finance") ||
     pathname.startsWith("/investments") ||
-    pathname.startsWith("/student-success");
+    pathname.startsWith("/student-success") ||
+    pathname.startsWith("/children");
 
   if (!user && isProtected) {
     return NextResponse.redirect(new URL("/", request.url));
@@ -70,5 +71,6 @@ export const config = {
     "/finance/:path*",
     "/investments/:path*",
     "/student-success/:path*",
+    "/children/:path*",
   ],
 };

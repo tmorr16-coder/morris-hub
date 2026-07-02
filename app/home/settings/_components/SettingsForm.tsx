@@ -67,7 +67,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
     initialPrefs.visible_widgets ?? [...ALL_WIDGETS]
   );
   const [appAccess, setAppAccess] = useState<string[]>(
-    initialPrefs.app_access ?? ["hub", "health", "finance", "student-success", "investments"]
+    initialPrefs.app_access ?? ["hub", "health", "finance", "student-success", "children", "investments"]
   );
   const [newsSources, setNewsSources] = useState<NewsSource[]>(
     initialPrefs.news_sources?.length ? initialPrefs.news_sources : DEFAULT_NEWS_SOURCES
@@ -93,7 +93,8 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
     { id: "finance",         label: "Finance",         description: "Accounts, net worth, and spending insights" },
     { id: "investments",     label: "Investments",     description: "Stock research, deep analysis, and paper trading" },
     { id: "career",          label: "Career",          description: "AI advisor, goal tracking, and 70/20/10 logging" },
-    { id: "student-success", label: "Student Success", description: "LSAT prep, certifications, and course tracking" },
+    { id: "student-success", label: "Courses",         description: "College course tracking — lives on your Me dashboard" },
+    { id: "children",        label: "Children",        description: "Profile cards, activities, and support for each of your kids" },
     { id: "bible",           label: "Bible",           description: "Scripture reading, plans, notes, and family challenges" },
   ];
 

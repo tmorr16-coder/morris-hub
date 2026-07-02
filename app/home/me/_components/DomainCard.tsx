@@ -1,7 +1,7 @@
 import type { DomainCardData } from "../_lib/domains";
 
 const DOMAIN_EMOJI: Record<string, string> = {
-  career: "💼", health: "🏃", mind: "🧠", spirit: "🕊️",
+  career: "💼", health: "🏃", mind: "🧠", spirit: "🕊️", courses: "📚",
 };
 
 export default function DomainCard({ domain }: { domain: DomainCardData }) {

@@ -5,7 +5,7 @@ import { Resend } from "resend";
 import { requireAdmin } from "@/lib/supabase/auth-utils";
 import { logEvent } from "@/lib/usage";
 
-export type AppKey = "hub" | "health" | "finance" | "student-success" | "investments" | "bible" | "career";
+export type AppKey = "hub" | "health" | "finance" | "student-success" | "children" | "investments" | "bible" | "career";
 
 async function sendUserEmail(to: string, subject: string, html: string, userId?: string) {
   if (!process.env.RESEND_API_KEY || !to) return;

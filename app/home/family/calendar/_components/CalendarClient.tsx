@@ -29,6 +29,10 @@ interface Props {
   rangeEnd: string;
   events: CalendarEvent[];
   members: Member[];
+  /** When true, renders inline (e.g. on the Family page) without the
+   *  prev/next/today nav arrows or Month/Week view toggle — just the
+   *  calendar grid and person filter chips. Defaults to false. */
+  embedded?: boolean;
 }
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -51,7 +55,7 @@ function navHref(view: "month" | "week", date: string): string {
   return `/home/family/calendar?view=${view}&date=${date}`;
 }
 
-export default function CalendarClient({ view, anchorDate, todayStr, rangeStart, rangeEnd, events, members }: Props) {
+export default function CalendarClient({ view, anchorDate, todayStr, rangeStart, rangeEnd, events, members, embedded = false }: Props) {
   const [personFilter, setPersonFilter] = useState<string>("everyone");
   const [selectedDate, setSelectedDate] = useState<string | null>(view === "week" ? null : todayStr);
 
@@ -99,20 +103,22 @@ export default function CalendarClient({ view, anchorDate, todayStr, rangeStart,
   return (
     <div>
       {/* ── Header: nav + view toggle ── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <a href={navHref(view, prevAnchor)} aria-label="Previous" style={navBtn}>‹</a>
-          <span style={{ fontSize: 16, fontWeight: 600, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif", minWidth: 160, textAlign: "center" }}>
-            {view === "month" ? monthLabel(anchorDate) : `Week of ${new Date(`${rangeStart}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
-          </span>
-          <a href={navHref(view, nextAnchor)} aria-label="Next" style={navBtn}>›</a>
-          <a href={navHref(view, todayStr)} style={{ ...navBtn, width: "auto", padding: "0 12px", fontSize: 12 }}>Today</a>
+      {!embedded && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <a href={navHref(view, prevAnchor)} aria-label="Previous" style={navBtn}>‹</a>
+            <span style={{ fontSize: 16, fontWeight: 600, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif", minWidth: 160, textAlign: "center" }}>
+              {view === "month" ? monthLabel(anchorDate) : `Week of ${new Date(`${rangeStart}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
+            </span>
+            <a href={navHref(view, nextAnchor)} aria-label="Next" style={navBtn}>›</a>
+            <a href={navHref(view, todayStr)} style={{ ...navBtn, width: "auto", padding: "0 12px", fontSize: 12 }}>Today</a>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <a href={navHref("month", anchorDate)} style={toggleBtn(view === "month")}>Month</a>
+            <a href={navHref("week", anchorDate)} style={toggleBtn(view === "week")}>Week</a>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          <a href={navHref("month", anchorDate)} style={toggleBtn(view === "month")}>Month</a>
-          <a href={navHref("week", anchorDate)} style={toggleBtn(view === "week")}>Week</a>
-        </div>
-      </div>
+      )}
 
       {/* ── Person filter chips ── */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>

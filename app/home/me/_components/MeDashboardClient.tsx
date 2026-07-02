@@ -13,7 +13,7 @@ interface Props {
 }
 
 const DOMAIN_LABELS: Record<MeDomainKey, string> = {
-  career: "Career", health: "Health", mind: "Mind", spirit: "Spirit",
+  career: "Career", health: "Health", mind: "Mind", spirit: "Spirit", courses: "Courses",
 };
 
 export default function MeDashboardClient({ domains, order: initialOrder, disabled: initialDisabled }: Props) {

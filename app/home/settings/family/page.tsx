@@ -46,7 +46,7 @@ export default async function FamilySettingsPage() {
   // Fetch app_access for child members so the parent can edit it
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const childIds = ((circleResult.data ?? []) as any[])
-    .filter((m) => m.role === "child")
+    .filter((m) => m.role === "child" && m.member_user_id)
     .map((m) => m.member_user_id as string);
   const childAccessMap = new Map<string, string[]>();
   if (childIds.length > 0) {

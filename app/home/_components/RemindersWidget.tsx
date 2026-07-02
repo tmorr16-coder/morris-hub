@@ -247,7 +247,7 @@ export default function RemindersWidget({
                       {/* Course badge */}
                       {isCourse && r.course_name && (
                         <a
-                          href={`/student-success/courses/${r.course_id}`}
+                          href={`/home/me/courses/${r.course_id}`}
                           style={{
                             fontSize: 9,
                             fontWeight: 600,
