@@ -19,7 +19,7 @@ const AVAILABLE_TOPICS = [
   { id: "sports", label: "Sports" },
 ];
 
-const WIDGET_LABELS: Record<WidgetId, string> = {
+export const WIDGET_LABELS: Record<WidgetId, string> = {
   health:             "Health Summary",
   weather:            "Weather",
   reminders:          "Reminders",

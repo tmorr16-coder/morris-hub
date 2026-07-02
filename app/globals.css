@@ -80,7 +80,7 @@ html, body {
 /* ── Health section tokens ───────────────────────────────────────────── */
 [data-section="health"] {
   --color-bg:          #f4f1ec;
-  --color-bg-raised:   #ffffff;
+  --color-bg-raised:   #FFFDF8;
   --color-bg-sunk:     #ece8e1;
   --color-ink:         #16140f;
   --color-ink-2:       #3a3630;

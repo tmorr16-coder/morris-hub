@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/health/auth";
 import PlatformMenu from "@/components/PlatformMenu";
 import PrivateIndicator from "@/components/PrivateIndicator";
+import HealthSubNav from "./_components/HealthSubNav";
 // Health-specific BottomNav removed — platform BottomNav (in PlatformMenu) handles mobile nav
 
 export default async function DashboardLayout({
@@ -53,6 +54,7 @@ export default async function DashboardLayout({
   return (
     <>
       <PlatformMenu currentApp="health" user={menuUser} />
+      <HealthSubNav />
       <div data-section="health" style={{ paddingBottom: 100 }}>
         <div style={{ maxWidth: 1280, margin: "0 auto", padding: "16px 20px 0" }}><PrivateIndicator /></div>
         {children}

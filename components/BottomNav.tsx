@@ -11,6 +11,8 @@ const TABS = [
 
 const MORE_ITEMS = [
   { label: "Money",       href: "/finance/dashboard",                      accessKey: "finance" },
+  { label: "Health",      href: "/health",                                 accessKey: "health" },
+  { label: "News",        href: "/news",                                   accessKey: null },
   { label: "Ask Morris",  href: "/home/ask",                                accessKey: null },
   { label: "Bible",       href: "/bible/dashboard",                        accessKey: "bible" },
   { label: "Career",      href: "/career",                                 accessKey: "career" },

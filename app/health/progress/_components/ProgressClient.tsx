@@ -282,7 +282,8 @@ export default function ProgressClient({
             background: streak > 0 ? "var(--color-ink)" : "var(--color-bg-raised)",
             border: `1px solid ${streak > 0 ? "transparent" : "var(--color-line)"}`,
             borderRadius: 14,
-            padding: "16px",
+            padding: "16px 18px",
+            boxShadow: "var(--shadow-card)",
           }}
         >
           <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: streak > 0 ? "rgba(244,241,236,0.45)" : "var(--color-ink-3)", marginBottom: 6 }}>
@@ -300,7 +301,8 @@ export default function ProgressClient({
             background: "var(--color-bg-raised)",
             border: "1px solid var(--color-line)",
             borderRadius: 14,
-            padding: "16px",
+            padding: "16px 18px",
+            boxShadow: "var(--shadow-card)",
           }}
         >
           <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>
@@ -324,6 +326,7 @@ export default function ProgressClient({
             borderRadius: 14,
             padding: "14px 16px",
             marginBottom: 14,
+            boxShadow: "var(--shadow-card)",
           }}
         >
           <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 12 }}>
@@ -363,8 +366,9 @@ export default function ProgressClient({
             background: "var(--color-bg-raised)",
             border: "1px solid var(--color-line)",
             borderRadius: 14,
-            padding: 16,
+            padding: "16px 18px",
             marginBottom: 14,
+            boxShadow: "var(--shadow-card)",
           }}
         >
           <TrendChart
@@ -387,8 +391,9 @@ export default function ProgressClient({
             background: "var(--color-bg-raised)",
             border: "1px solid var(--color-line)",
             borderRadius: 14,
-            padding: 16,
+            padding: "16px 18px",
             marginBottom: 14,
+            boxShadow: "var(--shadow-card)",
           }}
         >
           <div
@@ -470,8 +475,9 @@ export default function ProgressClient({
             background: "var(--color-bg-raised)",
             border: "1px solid var(--color-line)",
             borderRadius: 14,
-            padding: 16,
+            padding: "16px 18px",
             marginBottom: 14,
+            boxShadow: "var(--shadow-card)",
           }}
         >
           <div
@@ -541,7 +547,8 @@ export default function ProgressClient({
             background: "var(--color-bg-raised)",
             border: "1px solid var(--color-line)",
             borderRadius: 14,
-            padding: 14,
+            padding: "14px 16px",
+            boxShadow: "var(--shadow-card)",
           }}
         >
           <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 5 }}>
@@ -582,7 +589,8 @@ export default function ProgressClient({
             background: "var(--color-bg-raised)",
             border: "1px solid var(--color-line)",
             borderRadius: 14,
-            padding: 14,
+            padding: "14px 16px",
+            boxShadow: "var(--shadow-card)",
           }}
         >
           <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 5 }}>
@@ -604,7 +612,8 @@ export default function ProgressClient({
             background: "var(--color-bg-raised)",
             border: "1px solid var(--color-line)",
             borderRadius: 14,
-            padding: 14,
+            padding: "14px 16px",
+            boxShadow: "var(--shadow-card)",
           }}
         >
           <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 5 }}>
@@ -626,7 +635,8 @@ export default function ProgressClient({
             background: "var(--color-bg-raised)",
             border: "1px solid var(--color-line)",
             borderRadius: 14,
-            padding: 14,
+            padding: "14px 16px",
+            boxShadow: "var(--shadow-card)",
           }}
         >
           <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 5 }}>
@@ -664,7 +674,7 @@ export default function ProgressClient({
                   <div style={{ fontSize: 10, color: "var(--color-ink-4)", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 500, marginBottom: 6 }}>{day}</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                     {items.map((item) => (
-                      <div key={item.id} style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+                      <div key={item.id} style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, boxShadow: "var(--shadow-card)" }}>
                         <div style={{ width: 30, height: 30, borderRadius: 7, background: item.type === "workout" ? "var(--color-accent-soft)" : "var(--color-bg-sunk)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>
                           {item.icon}
                         </div>

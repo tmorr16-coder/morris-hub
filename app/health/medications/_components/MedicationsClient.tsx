@@ -146,6 +146,7 @@ function ZepboundCard() {
         borderRadius: 14,
         overflow: "hidden",
         marginBottom: 12,
+        boxShadow: "var(--shadow-card)",
       }}
     >
       {/* Header */}
@@ -776,6 +777,7 @@ export default function MedicationsClient({ initialMeds }: { initialMeds: Med[] 
           border: "1px solid var(--color-line)",
           borderRadius: 14,
           overflow: "hidden",
+          boxShadow: "var(--shadow-card)",
         }}
       >
         {/* Tile header */}
@@ -984,9 +986,10 @@ export default function MedicationsClient({ initialMeds }: { initialMeds: Med[] 
           onClick={enableZepbound}
           style={{
             width: "100%", display: "flex", alignItems: "center", gap: 12,
-            padding: "12px 16px", marginBottom: 12, borderRadius: 14,
+            padding: "14px 16px", marginBottom: 12, borderRadius: 14,
             background: "var(--color-bg-raised)", border: "1px dashed var(--color-line-2)",
             cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+            boxShadow: "var(--shadow-card)",
           }}
         >
           <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--color-accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>

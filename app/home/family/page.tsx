@@ -9,6 +9,7 @@ import PlatformMenu from "@/components/PlatformMenu";
 import ShoppingList from "./_components/ShoppingList";
 import HouseholdGoals from "./_components/HouseholdGoals";
 import MealPlan from "./_components/MealPlan";
+import CommunityFeed from "./_components/CommunityFeed";
 import CalendarClient from "./calendar/_components/CalendarClient";
 
 const userTz = "America/Indiana/Indianapolis";
@@ -329,6 +330,9 @@ export default async function FamilyPage() {
             </div>
           </div>
         )}
+
+        {/* ── Community — household workout/meal activity, moved from Health ── */}
+        <CommunityFeed />
 
         {/* ── Children — slim summary, full profiles live at /children ── */}
         {childMembers.length > 0 && (

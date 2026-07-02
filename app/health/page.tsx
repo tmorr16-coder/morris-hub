@@ -6,9 +6,8 @@ import { getCurrentUserId, getCurrentUserName } from "@/lib/health/auth";
 import ScoreRings from "./_components/ScoreRings";
 import Greeting from "./_components/Greeting";
 import ActivityCard from "./_components/ActivityCard";
-import RecentWorkoutsCard, { type WorkoutRow } from "./_components/RecentWorkoutsCard";
+import ActivityHistoryCard, { type CombinedWorkoutRow } from "./_components/ActivityHistoryCard";
 import ChatWidget from "./_components/ChatWidget";
-import CommunityFeed from "./_components/CommunityFeed";
 import MetricTrendsCard, { type TrendMetric, type TrendPoint } from "./_components/MetricTrendsCard";
 import SyncButton from "./_components/SyncButton";
 
@@ -19,8 +18,6 @@ const SCORE_FALLBACKS = [
   { label: "Activity",  value: 74, color: "var(--color-accent)" },
   { label: "Recovery",  value: 88, color: "var(--color-slate)" },
 ];
-
-const WEEK_DAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -55,15 +52,6 @@ function toLocalDate(d: Date): string {
   return d.toLocaleDateString("sv");
 }
 
-function getMondayOf(d: Date): Date {
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const mon = new Date(d);
-  mon.setDate(d.getDate() + diff);
-  mon.setHours(0, 0, 0, 0);
-  return mon;
-}
-
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
@@ -88,10 +76,6 @@ export default async function DashboardPage() {
   const thirtyDaysAgo = new Date(todayStart);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 14); // 14 days reduces egress vs 30
 
-  const monday    = getMondayOf(todayStart);
-  const nextMonday = new Date(monday);
-  nextMonday.setDate(monday.getDate() + 7);
-
   const [
     { data: appleLastRow },
     { data: ouraLastSyncRow },
@@ -101,9 +85,8 @@ export default async function DashboardPage() {
     { data: distanceRows },
     { data: hrRows },
     { data: mealRows },
-    { data: recentWorkoutRows },
-    { data: weekSessionRows },
-    { data: weekAppleRows },
+    { data: recentAppleWorkoutRows },
+    { data: recentSessionRows },
     { data: hrvRows },
     { data: restingHrRows },
     { data: sleepScoreRows },
@@ -150,24 +133,20 @@ export default async function DashboardPage() {
       .select("calories_est")
       .eq("user_id", userId)
       .eq("date", new Date().toLocaleDateString("sv")),
-    // Recent workouts (last 7 days)
+    // Recent workouts (last 7 days) — device-synced
     db.from("apple_health_workouts")
       .select("id, timestamp, workout_type, duration_sec, distance_m, calories")
       .eq("user_id", userId)
       .gte("timestamp", sevenDaysAgo.toISOString())
       .order("timestamp", { ascending: false })
       .limit(50),
-    // This week's workout sessions
+    // Recent workouts (last 7 days) — manually logged
     db.from("workout_sessions")
-      .select("date")
+      .select("id, date, type, duration_min, distance_miles")
       .eq("user_id", userId)
-      .gte("date", toLocalDate(monday))
-      .lt("date", toLocalDate(nextMonday)),
-    db.from("apple_health_workouts")
-      .select("timestamp")
-      .eq("user_id", userId)
-      .gte("timestamp", monday.toISOString())
-      .lt("timestamp", nextMonday.toISOString()),
+      .gte("date", toLocalDate(sevenDaysAgo))
+      .order("date", { ascending: false })
+      .limit(50),
     // 14-day trend data — capped at 200 rows each to bound egress
     db.from("apple_health_metrics")
       .select("timestamp, value")
@@ -268,19 +247,32 @@ export default async function DashboardPage() {
   const todayCalories = mealData.reduce((sum, m) => sum + (m.calories_est ?? 0), 0);
   const mealCount = mealData.length;
 
-  const recentWorkouts: WorkoutRow[] = (recentWorkoutRows as WorkoutRow[] | null) ?? [];
-
-  // This week active days
-  const activeDays = new Set<number>();
-  (weekSessionRows as { date: string }[] | null)?.forEach((r) => {
-    const d = new Date(r.date + "T00:00:00");
-    activeDays.add((d.getDay() + 6) % 7);
-  });
-  (weekAppleRows as { timestamp: string }[] | null)?.forEach((r) => {
-    const d = new Date(r.timestamp);
-    activeDays.add((d.getDay() + 6) % 7);
-  });
-  const todayIdx = (todayStart.getDay() + 6) % 7;
+  // Combine device-synced + manually-logged workouts into one list so the
+  // activity grid and the workout list below it always agree — previously
+  // manually-logged workout_sessions lit up the "active" grid but never
+  // appeared in the recent-workouts list, which only read apple_health_workouts.
+  type AppleWorkoutRow = { id: string; timestamp: string; workout_type: string; duration_sec: number | null; distance_m: number | null; calories: number | null };
+  type SessionRow = { id: string; date: string; type: string; duration_min: number | null; distance_miles: number | null };
+  const appleWorkouts: CombinedWorkoutRow[] = ((recentAppleWorkoutRows as AppleWorkoutRow[] | null) ?? []).map((w) => ({
+    id: w.id,
+    timestamp: w.timestamp,
+    workout_type: w.workout_type,
+    duration_sec: w.duration_sec,
+    distance_m: w.distance_m,
+    calories: w.calories,
+    source: "apple_health" as const,
+  }));
+  const manualWorkouts: CombinedWorkoutRow[] = ((recentSessionRows as SessionRow[] | null) ?? []).map((s) => ({
+    id: s.id,
+    timestamp: `${s.date}T12:00:00`,
+    workout_type: s.type,
+    duration_sec: s.duration_min != null ? s.duration_min * 60 : null,
+    distance_m: s.distance_miles != null ? s.distance_miles * 1609.344 : null,
+    calories: null,
+    source: "manual" as const,
+  }));
+  const recentWorkouts: CombinedWorkoutRow[] = [...appleWorkouts, ...manualWorkouts]
+    .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
   // ── 30-day trend metrics ─────────────────────────────────────────────────
 
@@ -408,68 +400,6 @@ export default async function DashboardPage() {
 
         {/* Quick-start workout — replaced by Train page */}
 
-        {/* This week */}
-        <div
-          style={{
-            background: "var(--color-bg-raised)",
-            border: "1px solid var(--color-line)",
-            borderRadius: 14,
-            padding: "14px 16px",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 500,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: "var(--color-ink-3)",
-              marginBottom: 12,
-            }}
-          >
-            This week
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 4 }}>
-            {WEEK_DAYS.map((label, i) => {
-              const isActive = activeDays.has(i);
-              const isToday  = i === todayIdx;
-              return (
-                <div
-                  key={i}
-                  style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}
-                >
-                  <div
-                    style={{
-                      fontSize: 9,
-                      fontWeight: 600,
-                      letterSpacing: "0.1em",
-                      textTransform: "uppercase",
-                      color: isToday ? "var(--color-ink-2)" : "var(--color-ink-4)",
-                    }}
-                  >
-                    {label}
-                  </div>
-                  <div
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 8,
-                      background: isActive ? "var(--color-moss)" : isToday ? "var(--color-bg-sunk)" : "transparent",
-                      border: isToday && !isActive ? "1.5px solid var(--color-line-2)" : "1.5px solid transparent",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      transition: "background 150ms",
-                    }}
-                  >
-                    {isActive && <span style={{ color: "#fff", fontSize: 12, lineHeight: 1 }}>✓</span>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
         {/* Activity + Scores */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
           <ActivityCard
@@ -487,6 +417,7 @@ export default async function DashboardPage() {
                 border: "1px solid var(--color-line)",
                 borderRadius: 14,
                 padding: "16px",
+                boxShadow: "var(--shadow-card)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -544,6 +475,7 @@ export default async function DashboardPage() {
               border: "1px solid var(--color-line)",
               borderRadius: 14,
               padding: "16px 18px",
+              boxShadow: "var(--shadow-card)",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
@@ -587,6 +519,7 @@ export default async function DashboardPage() {
             border: "1px solid var(--color-line)",
             borderRadius: 14,
             padding: "16px",
+            boxShadow: "var(--shadow-card)",
           }}
         >
           <div
@@ -609,11 +542,8 @@ export default async function DashboardPage() {
           />
         </div>
 
-        {/* Community feed */}
-        <CommunityFeed />
-
-        {/* Recent Workouts */}
-        <RecentWorkoutsCard workouts={recentWorkouts} />
+        {/* Activity — combined days-active grid + recent workouts */}
+        <ActivityHistoryCard workouts={recentWorkouts} now={now} />
 
       </div>
     </div>

@@ -1,5 +1,10 @@
 import BuilderClient from './_components/BuilderClient';
+import { getLastWorkout } from '../_lib/last-workout';
+import { getCurrentUserId } from '@/lib/health/auth';
 
-export default function BuilderPage() {
-  return <BuilderClient />;
+export default async function BuilderPage() {
+  const userId = await getCurrentUserId();
+  const lastWorkout = await getLastWorkout(userId);
+
+  return <BuilderClient lastWorkout={lastWorkout} />;
 }

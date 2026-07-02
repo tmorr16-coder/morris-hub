@@ -82,55 +82,60 @@ export default async function CommunityFeed() {
   if (items.length === 0) items.push({ icon: "👋", text: "Be the first to log activity today!" });
 
   return (
-    <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, overflow: "hidden" }}>
+    <div style={{ marginBottom: 28 }}>
+      <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", margin: "0 0 12px", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+        Community
+      </h2>
+      <div style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 12, boxShadow: "var(--shadow-card)", overflow: "hidden" }}>
 
-      {/* Header */}
-      <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid var(--color-line)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)" }}>Community</div>
-        <div style={{ fontSize: 10, color: "var(--color-ink-4)" }}>{members.length} member{members.length !== 1 ? "s" : ""}</div>
-      </div>
+        {/* Header */}
+        <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid var(--color-rule-soft)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>Household activity</div>
+          <div style={{ fontSize: 10, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{members.length} member{members.length !== 1 ? "s" : ""}</div>
+        </div>
 
-      {/* Activity blurbs */}
-      <div style={{ borderBottom: "1px solid var(--color-line)" }}>
-        {items.map((item, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 16px", borderBottom: i < items.length - 1 ? "1px solid var(--color-line)" : undefined }}>
-            <div style={{ width: 34, height: 34, borderRadius: 9, background: "var(--color-bg-sunk)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
-              {item.icon}
-            </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)" }}>{item.text}</div>
-              {item.sub && <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 1 }}>{item.sub}</div>}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Members */}
-      {members.length > 0 && (
-        <div>
-          <div style={{ padding: "10px 16px 6px", fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-4)" }}>
-            Members
-          </div>
-          {members.map((m, i) => (
-            <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", borderTop: i === 0 ? undefined : "1px solid var(--color-line)" }}>
-              {m.avatarUrl ? (
-                <Image src={m.avatarUrl} alt={m.name} width={32} height={32} style={{ borderRadius: "50%", flexShrink: 0 }} />
-              ) : (
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--color-ink)", color: "var(--color-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
-                  {m.name[0]?.toUpperCase()}
-                </div>
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</div>
-                <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
-                  {m.workouts > 0 ? `${m.workouts} workout${m.workouts !== 1 ? "s" : ""} this month` : "No workouts yet"}
-                  {m.lastDate && ` · active ${relTime(m.lastDate + "T12:00:00")}`}
-                </div>
+        {/* Activity blurbs */}
+        <div style={{ borderBottom: "1px solid var(--color-rule-soft)" }}>
+          {items.map((item, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 16px", borderBottom: i < items.length - 1 ? "1px solid var(--color-rule-soft)" : undefined }}>
+              <div style={{ width: 34, height: 34, borderRadius: 9, background: "var(--color-bg-deep)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
+                {item.icon}
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{item.text}</div>
+                {item.sub && <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 1, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{item.sub}</div>}
               </div>
             </div>
           ))}
         </div>
-      )}
+
+        {/* Members */}
+        {members.length > 0 && (
+          <div>
+            <div style={{ padding: "10px 16px 6px", fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+              Members
+            </div>
+            {members.map((m, i) => (
+              <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", borderTop: i === 0 ? undefined : "1px solid var(--color-rule-soft)" }}>
+                {m.avatarUrl ? (
+                  <Image src={m.avatarUrl} alt={m.name} width={32} height={32} style={{ borderRadius: "50%", flexShrink: 0 }} />
+                ) : (
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--color-ink)", color: "var(--color-bg-card)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
+                    {m.name[0]?.toUpperCase()}
+                  </div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{m.name}</div>
+                  <div style={{ fontSize: 11, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+                    {m.workouts > 0 ? `${m.workouts} workout${m.workouts !== 1 ? "s" : ""} this month` : "No workouts yet"}
+                    {m.lastDate && ` · active ${relTime(m.lastDate + "T12:00:00")}`}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

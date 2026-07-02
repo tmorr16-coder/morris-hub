@@ -56,8 +56,9 @@ export default function WellnessClient({ initialEntries, userId }: { initialEntr
 
       {!loggedToday && (
         <form onSubmit={logToday} style={{
-          background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 12,
-          padding: "18px 20px", marginBottom: 24, display: "flex", flexDirection: "column", gap: 12,
+          background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 12,
+          padding: "20px 22px", marginBottom: 24, display: "flex", flexDirection: "column", gap: 12,
+          boxShadow: "var(--shadow-card)",
         }}>
           <div>
             <label style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-ink-3)", display: "block", marginBottom: 8 }}>
@@ -68,7 +69,7 @@ export default function WellnessClient({ initialEntries, userId }: { initialEntr
                 <button key={m} type="button" onClick={() => setMood(m)}
                   style={{
                     fontSize: 24, padding: "8px 12px", borderRadius: 10, cursor: "pointer",
-                    border: `2px solid ${mood === m ? "var(--color-accent)" : "var(--color-rule)"}`,
+                    border: `2px solid ${mood === m ? "var(--color-accent)" : "var(--color-line)"}`,
                     background: mood === m ? "var(--color-accent-soft)" : "transparent",
                   }}>
                   {MOOD_EMOJI[m]}
@@ -80,7 +81,7 @@ export default function WellnessClient({ initialEntries, userId }: { initialEntr
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Anything on your mind? (optional)"
-            style={{ minHeight: 70, padding: "10px 12px", border: "1px solid var(--color-rule)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", resize: "vertical" }}
+            style={{ minHeight: 70, padding: "10px 12px", border: "1px solid var(--color-line)", borderRadius: 8, fontSize: 13, fontFamily: "inherit", resize: "vertical" }}
           />
           <button type="submit" disabled={saving}
             style={{ alignSelf: "flex-start", padding: "9px 18px", borderRadius: 8, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
@@ -98,8 +99,9 @@ export default function WellnessClient({ initialEntries, userId }: { initialEntr
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {entries.map((e) => (
             <div key={e.id} style={{
-              display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 16px",
-              background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10,
+              display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px",
+              background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 10,
+              boxShadow: "var(--shadow-card)",
             }}>
               <span style={{ fontSize: 22 }}>{e.mood ? MOOD_EMOJI[e.mood] : "—"}</span>
               <div style={{ flex: 1 }}>

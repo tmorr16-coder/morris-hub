@@ -9,6 +9,7 @@ import {
 } from '../../_lib/build-plan';
 import { scheduleWorkout } from '../../actions';
 import { EXERCISE_TEMPLATES, templateToExercise } from '../../exercise-library';
+import type { LastWorkout } from '../../_lib/last-workout';
 
 type WorkoutMode = 'strength' | 'cardio' | 'mixed';
 
@@ -114,9 +115,35 @@ const PRESETS: { label: string; groups: MuscleGroup[] }[] = [
 const CARDIO_TYPES = ['Running', 'Walking', 'Cycling', 'Other'] as const;
 type CardioType = typeof CARDIO_TYPES[number];
 
-export default function BuilderClient() {
+interface DecodedPlan {
+  exercises: { name: string; sets: number; reps: number }[];
+  cardio?: { type: string; durationMin: number };
+}
+
+function decodePlan(planEncoded: string): DecodedPlan | null {
+  try {
+    return JSON.parse(atob(planEncoded));
+  } catch {
+    return null;
+  }
+}
+
+export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorkout | null }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [repeatPending, startRepeatTransition] = useTransition();
+
+  const lastWorkoutPlan = useMemo(
+    () => (lastWorkout ? decodePlan(lastWorkout.planEncoded) : null),
+    [lastWorkout]
+  );
+
+  const handleRepeatLast = () => {
+    if (!lastWorkout) return;
+    startRepeatTransition(() => {
+      router.push(`/health/workout?plan=${lastWorkout.planEncoded}`);
+    });
+  };
 
   const [step, setStep]           = useState<'select' | 'review'>('select');
   const [view, setView]           = useState<'front' | 'back'>('front');
@@ -482,6 +509,36 @@ export default function BuilderClient() {
         <p style={{ ...S.meta, marginBottom: 14, marginTop: 0 }}>
           Tap muscle groups on the body. We'll build the plan.
         </p>
+
+        {/* Repeat last workout */}
+        {lastWorkout && lastWorkoutPlan && (
+          <button
+            onClick={handleRepeatLast}
+            disabled={repeatPending}
+            style={{
+              ...S.tile, width: '100%', textAlign: 'left', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20,
+              opacity: repeatPending ? 0.6 : 1, transition: 'opacity 160ms',
+              fontFamily: 'inherit',
+            }}
+          >
+            <span style={{ fontSize: 20 }}>↻</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 500, marginBottom: 2 }}>
+                Repeat last workout
+              </div>
+              <div style={{ ...S.meta, fontSize: 11.5 }}>
+                {lastWorkout.label}
+                {lastWorkoutPlan.exercises.length > 0 && (
+                  <> · <span style={S.num}>{lastWorkoutPlan.exercises.length}</span> exercises</>
+                )}
+                {lastWorkoutPlan.cardio && (
+                  <> · {lastWorkoutPlan.cardio.type} <span style={S.num}>{lastWorkoutPlan.cardio.durationMin}</span> min</>
+                )}
+              </div>
+            </div>
+          </button>
+        )}
 
         {/* ── Mode selector ─────────────────────────────────────────────────────── */}
         <div style={{ marginBottom: 20 }}>

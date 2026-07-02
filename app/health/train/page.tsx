@@ -193,6 +193,7 @@ export default async function TrainPage() {
           borderRadius: 14,
           overflow: "hidden",
           marginBottom: 12,
+          boxShadow: "var(--shadow-card)",
         }}
       >
         <div style={{ padding: "16px 18px 14px" }}>
@@ -345,6 +346,7 @@ export default async function TrainPage() {
               display: "flex",
               alignItems: "center",
               gap: 12,
+              boxShadow: "var(--shadow-card)",
             }}
           >
             <div
@@ -380,8 +382,9 @@ export default async function TrainPage() {
           background: "var(--color-bg-raised)",
           border: "1px solid var(--color-line)",
           borderRadius: 14,
-          padding: "16px",
+          padding: "16px 18px",
           marginBottom: 20,
+          boxShadow: "var(--shadow-card)",
         }}
       >
         <div

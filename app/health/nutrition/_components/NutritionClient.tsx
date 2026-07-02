@@ -457,8 +457,9 @@ export default function NutritionClient({ date, meals: initialMeals, favorites: 
           style={{
             background: "var(--color-ink)",
             borderRadius: 14,
-            padding: "16px 18px",
+            padding: "20px 22px",
             marginBottom: 16,
+            boxShadow: "var(--shadow-card)",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
@@ -524,8 +525,9 @@ export default function NutritionClient({ date, meals: initialMeals, favorites: 
             background: "var(--color-bg-raised)",
             border: "1px solid var(--color-line)",
             borderRadius: 14,
-            padding: "12px 16px",
+            padding: "14px 16px",
             marginBottom: 16,
+            boxShadow: "var(--shadow-card)",
           }}
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -582,6 +584,7 @@ export default function NutritionClient({ date, meals: initialMeals, favorites: 
                 border: "1px solid var(--color-line)",
                 borderRadius: 14,
                 overflow: "hidden",
+                boxShadow: "var(--shadow-card)",
               }}
             >
               {/* Section header */}
@@ -708,8 +711,9 @@ export default function NutritionClient({ date, meals: initialMeals, favorites: 
           background: "var(--color-bg-raised)",
           border: "1px solid var(--color-line)",
           borderRadius: 14,
-          padding: "16px",
+          padding: "16px 18px",
           marginBottom: 8,
+          boxShadow: "var(--shadow-card)",
         }}
       >
         <div style={{ ...eyebrow, marginBottom: 12 }}>Nutrition coach</div>
