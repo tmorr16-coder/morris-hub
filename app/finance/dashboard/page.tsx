@@ -61,17 +61,6 @@ function fmtMoney(n: number | null, currency = "USD"): string {
   }).format(n);
 }
 
-function fmtMoneyLarge(n: number): { whole: string; cents: string } {
-  const sign = n < 0 ? "−" : "";
-  const abs = Math.abs(n);
-  const whole = Math.floor(abs);
-  const cents = Math.round((abs - whole) * 100).toString().padStart(2, "0");
-  return {
-    whole: `${sign}$${whole.toLocaleString()}`,
-    cents: `.${cents}`,
-  };
-}
-
 function relativeTime(iso: string | null): string {
   if (!iso) return "never";
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
@@ -351,7 +340,7 @@ export default async function DashboardPage() {
   });
   return (
     <div className="ios-scroll">
-      <LargeTitle title="Money" subtitle={`${todayDisplay} · ${greeting}`} avatarInitial={(name || "T")[0]?.toUpperCase()} />
+      <LargeTitle brand title="Money" subtitle={`${todayDisplay} · ${greeting}`} avatarInitial={(name || "T")[0]?.toUpperCase()} />
 
       {/* Net position hero — metrics only. The actual balance is deliberately
           kept out of this glanceable top slot; see the accounts below. */}

@@ -36,6 +36,18 @@ export function IOSScreen({ children, theme }: { children: ReactNode; theme?: "l
  * accessory (avatar, compose button). Not sticky-collapsing yet — that lands
  * with the scroll behavior in a later pass.
  */
+/** The morrisai.family wordmark — a small brand eyebrow. */
+export function BrandMark({ style }: { style?: React.CSSProperties }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, ...style }}>
+      <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--ios-tint)", flexShrink: 0 }} />
+      <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.01em", color: "var(--ios-label-2)" }}>
+        morrisai<span style={{ color: "var(--ios-tint)" }}>.family</span>
+      </span>
+    </span>
+  );
+}
+
 export function LargeTitle({
   title,
   subtitle,
@@ -44,6 +56,7 @@ export function LargeTitle({
   composeIcon,
   composeLabel = "Compose",
   trailing,
+  brand = false,
 }: {
   title: string;
   subtitle?: ReactNode;
@@ -54,10 +67,13 @@ export function LargeTitle({
   /** Accessible label for the compose affordance. */
   composeLabel?: string;
   trailing?: ReactNode;
+  /** Show the morrisai.family wordmark above the title (key/hub screens). */
+  brand?: boolean;
 }) {
   return (
     <div className="ios-title-block" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
       <div style={{ minWidth: 0 }}>
+        {brand && <BrandMark style={{ marginBottom: 5 }} />}
         <h1 className="ios-large-title">{title}</h1>
         {subtitle != null && <div className="ios-subhead ios-title-sub">{subtitle}</div>}
       </div>

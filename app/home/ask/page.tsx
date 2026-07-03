@@ -16,6 +16,7 @@ export default async function AskPage() {
   return (
     <IOSScreen>
       <LargeTitle
+        brand
         title="Ask Morris"
         subtitle="Your AI across your day, family, health, finances & career"
         avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()}

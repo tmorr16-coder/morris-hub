@@ -33,7 +33,7 @@ export default async function TasksPage() {
 
   return (
     <IOSScreen>
-      <LargeTitle title="Tasks & reminders" subtitle="Add, complete, edit, or delete — all in one place" />
+      <LargeTitle brand title="Tasks & reminders" subtitle="Add, complete, edit, or delete — all in one place" />
 
       <div style={{ padding: "0 16px" }}>
         <RemindersWidget initialReminders={reminders} tz="America/Indiana/Indianapolis" categories={prefs.reminder_categories} />

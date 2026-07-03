@@ -71,7 +71,7 @@ export default function ResearchLayout({ watchedTickers }: ResearchLayoutProps) 
       {/* Live ticker — only shown when stocks are watched */}
       {localWatched.length > 0 && <TickerBar symbols={localWatched} />}
 
-      <LargeTitle title="Stocks" subtitle="Research · watchlist · paper trading" />
+      <LargeTitle brand title="Stocks" subtitle="Research · watchlist · paper trading" />
 
       {watchError && (
         <div

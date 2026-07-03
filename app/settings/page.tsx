@@ -53,7 +53,7 @@ export default async function SettingsHubPage() {
 
   return (
     <div className="ios-scroll">
-      <LargeTitle title="Settings" subtitle="Everything in one place" />
+      <LargeTitle brand title="Settings" subtitle="Everything in one place" />
 
       {/* Profile card */}
       <div className="ios-list" style={{ margin: "8px 16px 0", padding: 16, display: "flex", alignItems: "center", gap: 14 }}>

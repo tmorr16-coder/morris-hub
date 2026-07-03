@@ -42,7 +42,7 @@ export default async function ChildrenPage() {
     const cards = await listChildrenForParent(user.id, new Date());
     return (
       <IOSScreen>
-        <LargeTitle title="Children" subtitle="Support each of your kids" avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()} />
+        <LargeTitle brand title="Children" subtitle="Support each of your kids" avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()} />
 
         <Group header={`Kids · ${cards.length}`} footer="Tap a child to open their workspace.">
           {cards.map((c, i) => (
@@ -85,7 +85,7 @@ export default async function ChildrenPage() {
 
   return (
     <IOSScreen>
-      <LargeTitle title="Children" avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()} />
+      <LargeTitle brand title="Children" avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()} />
 
       <Group
         header="No children yet"

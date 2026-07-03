@@ -38,7 +38,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="ios-scroll">
-      <LargeTitle title="Bible" subtitle={`Good ${getTimeOfDay()}, ${firstName} · ${dateLabel}`} avatarInitial={firstName[0]?.toUpperCase()} />
+      <LargeTitle brand title="Bible" subtitle={`Good ${getTimeOfDay()}, ${firstName} · ${dateLabel}`} avatarInitial={firstName[0]?.toUpperCase()} />
 
       {/* Streak hero — number + 10-week heatmap */}
       <div className="ios-list" style={{ margin: "8px 16px 0", padding: "16px 0 8px" }}>

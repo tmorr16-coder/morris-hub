@@ -18,7 +18,7 @@ export default async function MorePage() {
 
   return (
     <IOSScreen>
-      <LargeTitle title="More" avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()} />
+      <LargeTitle brand title="More" avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()} />
 
       <Group header="Money">
         {can("finance") && <Cell lead={<IconBadge color="var(--ios-finance)"><Icons.WalletIcon /></IconBadge>} title="Finances" subtitle="Net worth · accounts · spending" href="/finance/dashboard" />}

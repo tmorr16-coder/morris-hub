@@ -50,7 +50,7 @@ export default async function CareerPage() {
 
   return (
     <div className="ios-scroll">
-      <LargeTitle title="Career" subtitle="Your development plan · 70 · 20 · 10" avatarInitial={(user.user_metadata?.full_name ?? "T")[0]} />
+      <LargeTitle brand title="Career" subtitle="Your development plan · 70 · 20 · 10" avatarInitial={(user.user_metadata?.full_name ?? "T")[0]} />
 
       <GlanceGrid>
         <GlanceTile label="Goals" value={activeGoals.length} sub="active" href="/career/goals" />

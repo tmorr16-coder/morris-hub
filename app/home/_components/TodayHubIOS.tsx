@@ -74,6 +74,7 @@ export default function TodayHubIOS({
   return (
     <>
       <LargeTitle
+        brand
         title="Today"
         subtitle={`${dateLabel} · ${greeting}, ${firstName}`}
         avatarInitial={firstName[0]?.toUpperCase()}

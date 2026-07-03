@@ -348,7 +348,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="ios-scroll">
-      <LargeTitle title="Health" subtitle={`${today} · ${getGreeting()}${firstName ? `, ${firstName}` : ""}`} avatarInitial={(userName || "T")[0]?.toUpperCase()} />
+      <LargeTitle brand title="Health" subtitle={`${today} · ${getGreeting()}${firstName ? `, ${firstName}` : ""}`} avatarInitial={(userName || "T")[0]?.toUpperCase()} />
 
       {/* Scores hero — radial gauges */}
       <div className="ios-list" style={{ margin: "8px 16px 0", padding: "18px 8px", display: "flex", justifyContent: "space-around" }}>

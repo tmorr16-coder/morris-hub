@@ -28,7 +28,7 @@ export default async function NewsPage() {
 
   return (
     <div className="ios-scroll">
-      <LargeTitle title="News" subtitle="Topics, subscriptions, sports & company" />
+      <LargeTitle brand title="News" subtitle="Topics, subscriptions, sports & company" />
 
       {newsWids.length === 0 ? (
         <Group header="Your feed" footer="You've turned off all news widgets.">

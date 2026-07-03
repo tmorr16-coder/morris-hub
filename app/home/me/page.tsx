@@ -33,6 +33,7 @@ export default async function MePage() {
   return (
     <IOSScreen>
       <LargeTitle
+        brand
         title="Me"
         subtitle="Career, Health, Mind & Spirit — one step at a time"
         avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()}
