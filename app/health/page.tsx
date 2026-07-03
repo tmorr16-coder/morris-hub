@@ -1,4 +1,7 @@
-export const revalidate = 3600; // cache for 1 hour
+// Personal, frequently-updated health data — always render fresh so a manual
+// Apple Health export (or a new sync) shows immediately instead of being masked
+// by a stale ISR cache.
+export const dynamic = "force-dynamic";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId, getCurrentUserName } from "@/lib/health/auth";
@@ -89,8 +92,6 @@ export default async function DashboardPage() {
   todayStart.setHours(0, 0, 0, 0);
   const tomorrowStart = new Date(todayStart);
   tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-  // Rolling 72-hour window — ensures data pushed up to 3 days ago still shows on the dashboard
-  const rollingWindowStart = new Date(now.getTime() - 72 * 60 * 60 * 1000);
   const sevenDaysAgo = new Date(todayStart);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const thirtyDaysAgo = new Date(todayStart);
@@ -125,22 +126,23 @@ export default async function DashboardPage() {
       .select("created_at")
       .eq("user_id", userId).eq("source", "withings")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    // Activity — rolling 28h window so delayed Apple Health pushes still populate the cards
+    // Activity — TODAY's totals only. These metrics are summed, so a multi-day
+    // window (e.g. after a backfill) would overcount vs. what the watch shows.
     db.from("apple_health_metrics")
       .select("value, source")
       .eq("user_id", userId).eq("source", "apple_health")
       .in("metric_name", ["step_count", "steps", "Step Count", "Steps"])
-      .gte("timestamp", rollingWindowStart.toISOString()),
+      .gte("timestamp", todayStart.toISOString()),
     db.from("apple_health_metrics")
       .select("value")
       .eq("user_id", userId).eq("source", "apple_health")
       .in("metric_name", ["active_energy", "active_energy_burned", "calories", "Active Energy", "Active Energy Burned"])
-      .gte("timestamp", rollingWindowStart.toISOString()),
+      .gte("timestamp", todayStart.toISOString()),
     db.from("apple_health_metrics")
       .select("value, unit")
       .eq("user_id", userId).eq("source", "apple_health")
       .in("metric_name", ["walking_running_distance", "Walking + Running Distance", "Walking Running Distance"])
-      .gte("timestamp", rollingWindowStart.toISOString()),
+      .gte("timestamp", todayStart.toISOString()),
     // Heart rate — try instantaneous first, fall back to resting
     db.from("apple_health_metrics")
       .select("value, metric_name")
