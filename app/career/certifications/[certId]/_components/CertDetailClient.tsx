@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
+import { Segmented, Group, Cell, IconBadge, Icons } from "@/components/ios";
 import OverviewTab from "./OverviewTab";
 import MaterialsTab from "./MaterialsTab";
 import CertFlashcardsTab from "./CertFlashcardsTab";
@@ -74,55 +76,29 @@ export default function CertDetailClient({
 }: CertDetailClientProps) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
 
-  const tabs: { id: TabType; label: string }[] = [
-    { id: "overview",   label: "Overview" },
-    { id: "study",      label: "📖 Study" },
-    { id: "materials",  label: "Materials" },
-    { id: "flashcards", label: "Flashcards" },
-    { id: "practice",   label: "Practice" },
-    { id: "chat",       label: "Chat" },
+  const tabs: { value: TabType; label: string }[] = [
+    { value: "overview",   label: "Overview" },
+    { value: "study",      label: "Study" },
+    { value: "materials",  label: "Materials" },
+    { value: "flashcards", label: "Flashcards" },
+    { value: "practice",   label: "Practice" },
+    { value: "chat",       label: "Chat" },
   ];
 
   return (
     <div>
-      {/* Tab bar */}
-      <div
-        style={{
-          display: "flex",
-          gap: 0,
-          borderBottom: "1px solid var(--color-rule)",
-          marginBottom: 32,
-          overflowX: "auto",
-        }}
-      >
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: "12px 22px",
-              fontSize: 14,
-              fontWeight: activeTab === tab.id ? 600 : 400,
-              color:
-                activeTab === tab.id ? exam.color_tag : "var(--color-ink-2)",
-              background: "transparent",
-              border: "none",
-              borderBottom:
-                activeTab === tab.id
-                  ? `2px solid ${exam.color_tag}`
-                  : "2px solid transparent",
-              cursor: "pointer",
-              transition: "color 0.15s, border-color 0.15s",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Tab switcher */}
+      <div style={{ padding: "0 16px 20px", overflowX: "auto" }}>
+        <Segmented
+          options={tabs}
+          value={activeTab}
+          onChange={setActiveTab}
+          ariaLabel="Certification sections"
+        />
       </div>
 
       {/* Tab content */}
-      <div>
+      <div style={{ padding: "0 16px" }}>
         {activeTab === "overview" && (
           <OverviewTab
             exam={exam}
@@ -209,72 +185,62 @@ function PracticeTabPanel({ exam, initialQuestionCount, openSessions }: { exam: 
 
       {/* Paused sessions — resume cards */}
       {openSessions.length > 0 && (
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-3)", marginBottom: 10 }}>
-            Paused sessions
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {openSessions.map((s) => (
-              <div key={s.id} style={{ background: "var(--color-bg-raised)", border: `1.5px solid ${exam.color_tag}60`, borderRadius: 10, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", marginBottom: 2 }}>
-                    {modeLabel[s.mode] ?? s.mode}
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--color-ink-3)" }}>
-                    Started {new Date(s.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · {s.question_count} questions
-                  </div>
-                </div>
-                <Link
-                  href={`/career/certifications/${exam.id}/practice/${s.id}`}
-                  style={{ padding: "8px 18px", borderRadius: 8, background: exam.color_tag, color: "white", fontSize: 13, fontWeight: 600, textDecoration: "none", flexShrink: 0 }}
-                >
-                  Resume →
-                </Link>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Group header="Paused sessions">
+          {openSessions.map((s) => (
+            <Cell
+              key={s.id}
+              lead={<IconBadge color="var(--ios-orange)"><Icons.TodayIcon /></IconBadge>}
+              title={modeLabel[s.mode] ?? s.mode}
+              subtitle={`Started ${new Date(s.started_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · ${s.question_count} questions`}
+              trailing={<span className="ios-subhead" style={{ color: "var(--ios-tint)", fontWeight: 600 }}>Resume</span>}
+              href={`/career/certifications/${exam.id}/practice/${s.id}`}
+            />
+          ))}
+        </Group>
       )}
 
       {/* Question bank status */}
-      <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 12, padding: "20px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-3)", marginBottom: 4 }}>Question bank</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: "var(--color-ink)" }}>{questionCount}</div>
-          <div style={{ fontSize: 13, color: "var(--color-ink-3)" }}>questions available</div>
-        </div>
-        <button
-          onClick={handleGenerate}
-          disabled={generating}
-          style={{ padding: "10px 22px", borderRadius: 9, border: "none", background: generating ? "var(--color-bg-sunk)" : exam.color_tag, color: "white", fontSize: 14, fontWeight: 600, cursor: generating ? "wait" : "pointer", opacity: generating ? 0.7 : 1 }}
-        >
-          {generating ? "Generating…" : "+ Generate 10 more questions"}
-        </button>
-      </div>
+      <Group header="Question bank" footer="Claude generates questions from the exam domains — no source material required.">
+        <Cell
+          lead={<IconBadge color={exam.color_tag}><Icons.ChecklistIcon /></IconBadge>}
+          title="Questions available"
+          trailing={<span className="ios-title-3 ios-num" style={{ color: "var(--ios-label)", fontWeight: 700 }}>{questionCount}</span>}
+          chevron={false}
+        />
+      </Group>
+
+      <button
+        type="button"
+        className="ios-btn ios-btn--primary"
+        onClick={handleGenerate}
+        disabled={generating}
+        style={{ opacity: generating ? 0.6 : 1 }}
+      >
+        {generating ? "Generating…" : "Generate 10 more questions"}
+      </button>
 
       {genError && (
-        <div style={{ background: "rgba(154,59,42,0.08)", border: "1px solid rgba(154,59,42,0.3)", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "var(--color-red)" }}>
-          {genError}
-        </div>
+        <p className="ios-footnote" style={{ color: "var(--ios-red)", margin: 0 }}>{genError}</p>
       )}
 
       {/* Start practice */}
       {questionCount > 0 ? (
-        <Link
-          href={`/career/certifications/${exam.id}/practice`}
-          style={{ display: "block", textDecoration: "none" }}
-        >
-          <div style={{ background: exam.color_tag, borderRadius: 12, padding: "28px 32px", textAlign: "center", color: "white", cursor: "pointer" }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>🎯</div>
-            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>Start Practice Session</div>
-            <div style={{ fontSize: 13, opacity: 0.85 }}>Choose Practice, Timed Mock, or Domain Drill →</div>
+        <Link href={`/career/certifications/${exam.id}/practice`} style={{ textDecoration: "none" }}>
+          <div className="ios-list" style={{ margin: 0, padding: "24px 20px", display: "flex", alignItems: "center", gap: 16 }}>
+            <IconBadge color={exam.color_tag}><Icons.ChartIcon /></IconBadge>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="ios-headline" style={{ color: "var(--ios-label)" }}>Start practice session</div>
+              <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>Choose Practice, Timed Mock, or Domain Drill</div>
+            </div>
+            <Icons.ChevronRight style={{ width: 18, height: 18, color: "var(--ios-label-3)" }} />
           </div>
         </Link>
       ) : (
-        <div style={{ background: "var(--color-bg-raised)", border: "1px dashed var(--color-line)", borderRadius: 12, padding: "32px", textAlign: "center", color: "var(--color-ink-3)" }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>📝</div>
-          <div style={{ fontSize: 14, fontWeight: 500, color: "var(--color-ink-2)", marginBottom: 6 }}>No questions yet</div>
-          <div style={{ fontSize: 13 }}>Click "Generate 10 more questions" above to build your question bank. No source material needed — Claude generates questions from the exam domains.</div>
+        <div className="ios-list" style={{ margin: 0, padding: "32px 24px", textAlign: "center" }}>
+          <div className="ios-headline" style={{ color: "var(--ios-label)", marginBottom: 6 }}>No questions yet</div>
+          <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: 0, lineHeight: 1.5 }}>
+            Tap &ldquo;Generate 10 more questions&rdquo; above to build your question bank.
+          </p>
         </div>
       )}
     </div>

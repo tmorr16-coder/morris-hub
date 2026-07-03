@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Chip, IconBadge, Icons } from "@/components/ios";
 
 interface QuestionType {
   id: string;
@@ -9,6 +10,20 @@ interface QuestionType {
   category: string;
   subcategory: string | null;
 }
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "11px 14px",
+  borderRadius: 10,
+  border: "var(--ios-hair) solid var(--ios-separator)",
+  background: "var(--ios-cell)",
+  color: "var(--ios-label)",
+  fontSize: 16,
+  outline: "none",
+  fontFamily: "inherit",
+  boxSizing: "border-box",
+  colorScheme: "light dark",
+};
 
 export default function GenerateQuestionsButton({ questionTypes }: { questionTypes: QuestionType[] }) {
   const router = useRouter();
@@ -43,47 +58,47 @@ export default function GenerateQuestionsButton({ questionTypes }: { questionTyp
 
   const lrTypes = questionTypes.filter((t) => t.section === "LR");
   const rcTypes = questionTypes.filter((t) => t.section === "RC");
+  const canGenerate = !!selectedTypeId && !loading;
 
   return (
-    <div>
+    <>
       <button
+        type="button"
+        className="ios-btn ios-btn--primary"
         onClick={() => { setOpen(!open); setResult(null); setError(null); }}
-        style={{
-          padding: "8px 18px", borderRadius: 8, fontSize: 13, fontWeight: 500,
-          border: "1px solid var(--color-rule)", background: open ? "var(--color-accent-soft)" : "var(--color-bg-card)",
-          color: open ? "var(--color-accent)" : "var(--color-ink-2)", cursor: "pointer",
-        }}
       >
-        ✨ Generate Questions
+        <Icons.SparkleIcon style={{ width: 18, height: 18 }} aria-hidden="true" />
+        Generate Questions
       </button>
 
       {open && (
-        <div style={{
-          marginTop: 12, padding: "20px 22px",
-          background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
-          borderRadius: 14, boxShadow: "var(--shadow-card)",
-        }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", marginBottom: 4 }}>
-            AI Question Generator
-          </div>
-          <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginBottom: 16, lineHeight: 1.5 }}>
-            Morris generates realistic LSAT-style questions, tags trap types on each wrong answer, and stores them in the database. Questions are marked <code style={{ fontSize: 10, background: "var(--color-bg-deep)", padding: "1px 5px", borderRadius: 4 }}>AI-generated</code> — distinct from any official PrepTest questions you add manually.
-          </div>
-
-          {/* Question type picker */}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-ink-3)", marginBottom: 8 }}>
-              Question Type
+        <>
+          <div className="ios-sheet-backdrop" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div className="ios-sheet" role="dialog" aria-modal="true" aria-label="Generate LSAT questions">
+            <div className="ios-grabber" />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <button type="button" className="ios-btn--plain" onClick={() => setOpen(false)} disabled={loading}>Cancel</button>
+              <span className="ios-headline">Generate Questions</span>
+              <span style={{ width: 52 }} />
             </div>
-            <select
-              value={selectedTypeId}
-              onChange={(e) => setSelectedTypeId(e.target.value)}
-              style={{
-                width: "100%", padding: "8px 10px", borderRadius: 8,
-                border: "1px solid var(--color-rule)", fontSize: 13,
-                background: "var(--color-bg)", color: "var(--color-ink)", fontFamily: "inherit",
-              }}
-            >
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0 16px" }}>
+              <IconBadge color="var(--ios-tint)"><Icons.SparkleIcon /></IconBadge>
+              <div>
+                <div className="ios-headline">AI Question Generator</div>
+                <div className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>Realistic LSAT-style questions with trap tags</div>
+              </div>
+            </div>
+
+            <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: "0 0 4px", lineHeight: 1.5 }}>
+              Morris generates realistic LSAT-style questions, tags trap types on each wrong answer, and stores them in the database. Questions are marked{" "}
+              <span className="ios-num" style={{ background: "var(--ios-fill)", padding: "1px 6px", borderRadius: 5, fontSize: 12 }}>AI-generated</span>{" "}
+              — distinct from any official PrepTest questions you add manually.
+            </p>
+
+            {/* Question type picker */}
+            <div className="ios-group-header" style={{ padding: "16px 0 8px" }}>Question Type</div>
+            <select value={selectedTypeId} onChange={(e) => setSelectedTypeId(e.target.value)} style={inputStyle}>
               <option value="">Select a question type…</option>
               <optgroup label="Logical Reasoning (LR)">
                 {lrTypes.map((t) => (
@@ -100,58 +115,39 @@ export default function GenerateQuestionsButton({ questionTypes }: { questionTyp
                 ))}
               </optgroup>
             </select>
-          </div>
 
-          {/* Count picker */}
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-ink-3)", marginBottom: 8 }}>
-              How many?
-            </div>
+            {/* Count picker */}
+            <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>How many?</div>
             <div style={{ display: "flex", gap: 8 }}>
               {[3, 5, 10].map((n) => (
-                <button key={n} onClick={() => setCount(n)} style={{
-                  padding: "6px 16px", borderRadius: 7, fontSize: 13,
-                  border: `1px solid ${count === n ? "var(--color-accent)" : "var(--color-rule)"}`,
-                  background: count === n ? "var(--color-accent-soft)" : "transparent",
-                  color: count === n ? "var(--color-accent)" : "var(--color-ink-2)",
-                  cursor: "pointer", fontWeight: count === n ? 600 : 400,
-                }}>
-                  {n}
-                </button>
+                <Chip key={n} small selected={count === n} onClick={() => setCount(n)}>{n}</Chip>
               ))}
             </div>
-            <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 6 }}>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-3)", marginTop: 8 }}>
               Each question takes ~3–5 seconds. Generating {count} will take ~{count * 4}s.
             </div>
+
+            {error && (
+              <p className="ios-footnote" style={{ color: "var(--ios-red)", padding: "14px 0 0" }}>{error}</p>
+            )}
+            {result && (
+              <p className="ios-footnote" style={{ color: "var(--ios-green)", padding: "14px 0 0" }}>
+                Generated {result.generated} question{result.generated !== 1 ? "s" : ""} — they&apos;re now available in your practice sessions.
+              </p>
+            )}
+
+            <button
+              type="button"
+              className="ios-btn ios-btn--primary"
+              style={{ marginTop: 22, opacity: canGenerate ? 1 : 0.5 }}
+              onClick={generate}
+              disabled={!canGenerate}
+            >
+              {loading ? `Generating ${count} questions… (may take ~${count * 7}s)` : `Generate ${count} Questions`}
+            </button>
           </div>
-
-          {error && (
-            <div style={{ padding: "8px 12px", background: "rgba(154,59,42,0.08)", border: "1px solid var(--color-red)", borderRadius: 8, fontSize: 12, color: "var(--color-red)", marginBottom: 12 }}>
-              {error}
-            </div>
-          )}
-
-          {result && (
-            <div style={{ padding: "8px 12px", background: "rgba(74,107,58,0.08)", border: "1px solid var(--color-green)", borderRadius: 8, fontSize: 12, color: "var(--color-green)", marginBottom: 12 }}>
-              ✓ Generated {result.generated} question{result.generated !== 1 ? "s" : ""} — they&apos;re now available in your practice sessions.
-            </div>
-          )}
-
-          <button
-            onClick={generate}
-            disabled={!selectedTypeId || loading}
-            style={{
-              width: "100%", padding: "11px", borderRadius: 8, border: "none",
-              background: selectedTypeId && !loading ? "var(--color-accent)" : "var(--color-rule)",
-              color: selectedTypeId && !loading ? "#fff" : "var(--color-ink-4)",
-              fontSize: 14, fontWeight: 600, cursor: selectedTypeId && !loading ? "pointer" : "default",
-              fontFamily: "inherit",
-            }}
-          >
-            {loading ? `Generating ${count} questions… (may take ~${count * 7}s)` : `Generate ${count} Questions`}
-          </button>
-        </div>
+        </>
       )}
-    </div>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { Segmented, Chip, RadialGauge, Icons } from "@/components/ios";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Profile = Record<string, any> | null;
@@ -25,10 +26,10 @@ const HORIZON_LABELS: Record<string, string> = {
   long: "Long-term",
 };
 
-const HORIZON_COLORS: Record<string, { bg: string; text: string }> = {
-  short: { bg: "#e6f0e0", text: "#3a5c2a" },
-  medium: { bg: "#f5edd8", text: "#7a5a2a" },
-  long: { bg: "#dde5ee", text: "#2a3f5c" },
+const HORIZON_TINTS: Record<string, string> = {
+  short: "var(--ios-green)",
+  medium: "var(--ios-orange)",
+  long: "var(--ios-tint)",
 };
 
 const Q6_OPTIONS = [
@@ -258,614 +259,476 @@ export default function CareerProfileClient({ profile }: { profile: Profile }) {
   const showSummary = assessmentCompleted && summary && !retaking;
 
   return (
-    <div data-section="career">
-      <main style={{ maxWidth: 860, margin: "0 auto", padding: "40px 28px 80px" }}>
-        {/* Header */}
-        <div style={{ marginBottom: 32 }}>
-          <h1
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: 36,
-              fontWeight: 400,
-              margin: "0 0 6px",
-              color: "var(--color-ink)",
-            }}
-          >
-            Profile & Assessment
-          </h1>
-          <p style={{ fontSize: 14, color: "var(--color-ink-3)", margin: 0 }}>
-            Build your professional foundation and get a personalized career profile.
-          </p>
-        </div>
+    <div data-section="career" style={{ paddingBottom: 44 }}>
+      {/* Tab switcher */}
+      <div style={{ padding: "4px 16px 8px" }}>
+        <Segmented
+          ariaLabel="Profile section"
+          options={[
+            { value: "background", label: "Background" },
+            { value: "assessment", label: "Assessment" },
+          ]}
+          value={activeTab}
+          onChange={setActiveTab}
+        />
+      </div>
 
-        {/* Tab switcher */}
-        <div
-          style={{
-            display: "flex",
-            borderBottom: "1px solid var(--color-line)",
-            marginBottom: 36,
-          }}
-        >
-          {(["background", "assessment"] as const).map((tab) => {
-            const labels = { background: "Professional Background", assessment: "Interest Assessment" };
-            const active = activeTab === tab;
-            return (
+      {/* ── Tab 1: Professional Background ── */}
+      {activeTab === "background" && (
+        <div>
+          {/* Section: Current Role */}
+          <FormSection title="Current role">
+            <Field label="Current title">
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                style={inputStyle}
+                placeholder="e.g. Senior Product Manager"
+              />
+            </Field>
+            <Field label="Current company">
+              <input
+                type="text"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                style={inputStyle}
+                placeholder="e.g. Acme Corp"
+              />
+            </Field>
+            <Field label="Years of experience">
+              <input
+                type="number"
+                min={0}
+                max={40}
+                value={yearsExp}
+                onChange={(e) => setYearsExp(Number(e.target.value))}
+                style={{ ...inputStyle, maxWidth: 140 }}
+                className="ios-num"
+              />
+            </Field>
+            <Field label="Industry">
+              <input
+                type="text"
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                style={inputStyle}
+                placeholder="e.g. Technology, Healthcare, Finance"
+              />
+            </Field>
+          </FormSection>
+
+          {/* Section: Resume & Bio */}
+          <FormSection title="Resume & bio">
+            <Field label="Resume text">
+              <textarea
+                value={resumeText}
+                onChange={(e) => setResumeText(e.target.value)}
+                rows={10}
+                style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+                placeholder="Paste your resume text here, or upload a PDF below..."
+              />
+            </Field>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleUploadResume(file);
+                }}
+              />
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadLoading}
+                className="ios-btn"
                 style={{
-                  padding: "10px 20px",
-                  fontSize: 14,
-                  fontWeight: active ? 600 : 400,
-                  color: active ? "var(--color-accent)" : "var(--color-ink-2)",
-                  background: "none",
-                  border: "none",
-                  borderBottom: active ? "2px solid var(--color-accent)" : "2px solid transparent",
-                  marginBottom: -1,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
+                  minHeight: 0,
+                  padding: "9px 16px",
+                  borderRadius: 10,
+                  fontSize: 15,
+                  background: "var(--ios-fill)",
+                  color: "var(--ios-tint)",
+                  cursor: uploadLoading ? "not-allowed" : "pointer",
+                  opacity: uploadLoading ? 0.6 : 1,
                 }}
               >
-                {labels[tab]}
+                <Icons.PlusIcon width={15} height={15} />
+                {uploadLoading ? "Parsing PDF…" : "Upload PDF"}
               </button>
-            );
-          })}
-        </div>
-
-        {/* ── Tab 1: Professional Background ── */}
-        {activeTab === "background" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
-            {/* Section: Current Role */}
-            <Section title="Current Role">
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 16,
-                }}
-              >
-                <Field label="Current title">
-                  <input
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    style={inputStyle}
-                    placeholder="e.g. Senior Product Manager"
-                  />
-                </Field>
-                <Field label="Current company">
-                  <input
-                    type="text"
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
-                    style={inputStyle}
-                    placeholder="e.g. Acme Corp"
-                  />
-                </Field>
-                <Field label="Years of experience">
-                  <input
-                    type="number"
-                    min={0}
-                    max={40}
-                    value={yearsExp}
-                    onChange={(e) => setYearsExp(Number(e.target.value))}
-                    style={inputStyle}
-                  />
-                </Field>
-                <Field label="Industry">
-                  <input
-                    type="text"
-                    value={industry}
-                    onChange={(e) => setIndustry(e.target.value)}
-                    style={inputStyle}
-                    placeholder="e.g. Technology, Healthcare, Finance, Education, Consulting"
-                  />
-                </Field>
-              </div>
-            </Section>
-
-            {/* Section: Resume & Bio */}
-            <Section title="Resume & Bio">
-              <Field label="Resume text">
-                <textarea
-                  value={resumeText}
-                  onChange={(e) => setResumeText(e.target.value)}
-                  rows={10}
-                  style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
-                  placeholder="Paste your resume text here, or upload a PDF below..."
-                />
-              </Field>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf"
-                  style={{ display: "none" }}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleUploadResume(file);
-                  }}
-                />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadLoading}
-                  style={{
-                    padding: "8px 14px",
-                    fontSize: 13,
-                    background: "var(--color-bg-raised)",
-                    border: "1px solid var(--color-line)",
-                    borderRadius: 6,
-                    cursor: uploadLoading ? "not-allowed" : "pointer",
-                    color: "var(--color-ink-2)",
-                    opacity: uploadLoading ? 0.6 : 1,
-                  }}
-                >
-                  {uploadLoading ? "Parsing PDF..." : "Upload PDF"}
-                </button>
-                <span style={{ fontSize: 12, color: "var(--color-ink-4)" }}>
-                  PDF text will be extracted and filled in above
-                </span>
-              </div>
-              <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-                <Field label="LinkedIn URL">
-                  <input
-                    type="text"
-                    value={linkedinUrl}
-                    onChange={(e) => setLinkedinUrl(e.target.value)}
-                    style={inputStyle}
-                    placeholder="https://linkedin.com/in/your-profile"
-                  />
-                </Field>
-                <Field label="LinkedIn About section">
-                  <textarea
-                    value={linkedinAbout}
-                    onChange={(e) => setLinkedinAbout(e.target.value)}
-                    rows={5}
-                    style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
-                    placeholder="Paste your LinkedIn About section here"
-                  />
-                </Field>
-              </div>
-            </Section>
-
-            {/* Section: Interests & Targets */}
-            <Section title="Interests & Targets">
-              <Field label="Career interests">
-                <div
-                  style={{
-                    border: "1px solid var(--color-line)",
-                    borderRadius: 8,
-                    padding: "8px 10px",
-                    background: "var(--color-bg-raised)",
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 6,
-                    alignItems: "center",
-                  }}
-                >
-                  {interests.map((chip, i) => (
-                    <Chip
-                      key={i}
-                      label={chip}
-                      onRemove={() => removeChip(i, interests, setInterests)}
-                    />
-                  ))}
-                  <input
-                    type="text"
-                    value={interestInput}
-                    onChange={(e) => setInterestInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === ",") {
-                        e.preventDefault();
-                        addChip(interestInput, interests, setInterests, setInterestInput);
-                      }
-                    }}
-                    onBlur={() => addChip(interestInput, interests, setInterests, setInterestInput)}
-                    placeholder={interests.length === 0 ? "Type and press Enter to add..." : ""}
-                    style={{
-                      border: "none",
-                      outline: "none",
-                      background: "transparent",
-                      fontSize: 14,
-                      color: "var(--color-ink)",
-                      minWidth: 120,
-                      flex: 1,
-                    }}
-                  />
-                </div>
-              </Field>
-
-              <Field label="Target roles">
-                <div
-                  style={{
-                    border: "1px solid var(--color-line)",
-                    borderRadius: 8,
-                    padding: "8px 10px",
-                    background: "var(--color-bg-raised)",
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 6,
-                    alignItems: "center",
-                  }}
-                >
-                  {targetRoles.map((chip, i) => (
-                    <Chip
-                      key={i}
-                      label={chip}
-                      onRemove={() => removeChip(i, targetRoles, setTargetRoles)}
-                    />
-                  ))}
-                  <input
-                    type="text"
-                    value={targetInput}
-                    onChange={(e) => setTargetInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === ",") {
-                        e.preventDefault();
-                        addChip(targetInput, targetRoles, setTargetRoles, setTargetInput);
-                      }
-                    }}
-                    onBlur={() =>
-                      addChip(targetInput, targetRoles, setTargetRoles, setTargetInput)
-                    }
-                    placeholder={targetRoles.length === 0 ? "Type and press Enter to add..." : ""}
-                    style={{
-                      border: "none",
-                      outline: "none",
-                      background: "transparent",
-                      fontSize: 14,
-                      color: "var(--color-ink)",
-                      minWidth: 120,
-                      flex: 1,
-                    }}
-                  />
-                </div>
-              </Field>
-            </Section>
-
-            {/* Save */}
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <button
-                onClick={handleSaveBackground}
-                disabled={bgSaving}
-                style={{
-                  padding: "11px 28px",
-                  background: "var(--color-accent)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: bgSaving ? "not-allowed" : "pointer",
-                  opacity: bgSaving ? 0.7 : 1,
-                }}
-              >
-                {bgSaving ? "Saving..." : "Save"}
-              </button>
-              {bgSaved && (
-                <span style={{ fontSize: 13, color: "var(--color-moss)" }}>Saved</span>
-              )}
-              {bgError && (
-                <span style={{ fontSize: 13, color: "#c0392b" }}>{bgError}</span>
-              )}
+              <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
+                PDF text will be extracted above
+              </span>
             </div>
-          </div>
-        )}
+            <Field label="LinkedIn URL">
+              <input
+                type="text"
+                value={linkedinUrl}
+                onChange={(e) => setLinkedinUrl(e.target.value)}
+                style={inputStyle}
+                placeholder="https://linkedin.com/in/your-profile"
+              />
+            </Field>
+            <Field label="LinkedIn About section">
+              <textarea
+                value={linkedinAbout}
+                onChange={(e) => setLinkedinAbout(e.target.value)}
+                rows={5}
+                style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+                placeholder="Paste your LinkedIn About section here"
+              />
+            </Field>
+          </FormSection>
 
-        {/* ── Tab 2: Interest Assessment ── */}
-        {activeTab === "assessment" && (
-          <div>
-            {/* Summary view */}
-            {showSummary && summary && (
-              <div style={{ marginBottom: 40 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 20,
-                  }}
+          {/* Section: Interests & Targets */}
+          <FormSection title="Interests & targets">
+            <Field label="Career interests">
+              <ChipInput
+                chips={interests}
+                inputValue={interestInput}
+                setInputValue={setInterestInput}
+                onAdd={() => addChip(interestInput, interests, setInterests, setInterestInput)}
+                onRemove={(i) => removeChip(i, interests, setInterests)}
+                placeholder={interests.length === 0 ? "Type and press Enter to add…" : ""}
+              />
+            </Field>
+
+            <Field label="Target roles">
+              <ChipInput
+                chips={targetRoles}
+                inputValue={targetInput}
+                setInputValue={setTargetInput}
+                onAdd={() => addChip(targetInput, targetRoles, setTargetRoles, setTargetInput)}
+                onRemove={(i) => removeChip(i, targetRoles, setTargetRoles)}
+                placeholder={targetRoles.length === 0 ? "Type and press Enter to add…" : ""}
+              />
+            </Field>
+          </FormSection>
+
+          {/* Save */}
+          <div style={{ padding: "24px 16px 0" }}>
+            <button
+              type="button"
+              onClick={handleSaveBackground}
+              disabled={bgSaving}
+              className="ios-btn ios-btn--primary"
+              style={{ cursor: bgSaving ? "not-allowed" : "pointer", opacity: bgSaving ? 0.7 : 1 }}
+            >
+              {bgSaving ? "Saving…" : "Save"}
+            </button>
+            {bgSaved && (
+              <p className="ios-footnote" style={{ color: "var(--ios-green)", textAlign: "center", marginTop: 10 }}>
+                Saved
+              </p>
+            )}
+            {bgError && (
+              <p className="ios-footnote" style={{ color: "var(--ios-red)", textAlign: "center", marginTop: 10 }}>
+                {bgError}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Tab 2: Interest Assessment ── */}
+      {activeTab === "assessment" && (
+        <div>
+          {/* Summary view */}
+          {showSummary && summary && (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 16px 6px" }}>
+                <h2 className="ios-group-header" style={{ padding: 0 }}>
+                  Your career profile
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setRetaking(true)}
+                  className="ios-btn--plain"
+                  style={{ padding: 0 }}
                 >
-                  <h2
-                    style={{
-                      fontSize: 20,
-                      fontWeight: 600,
-                      margin: 0,
-                      color: "var(--color-ink)",
-                    }}
-                  >
-                    Your Career Profile Summary
-                  </h2>
-                  <button
-                    onClick={() => setRetaking(true)}
-                    style={{
-                      padding: "7px 14px",
-                      fontSize: 12,
-                      background: "var(--color-bg-raised)",
-                      border: "1px solid var(--color-line)",
-                      borderRadius: 6,
-                      cursor: "pointer",
-                      color: "var(--color-ink-2)",
-                    }}
-                  >
-                    Retake assessment
-                  </button>
-                </div>
-                <AssessmentSummaryCard summary={summary} />
+                  Retake
+                </button>
               </div>
-            )}
+              <AssessmentSummaryCard summary={summary} />
+            </div>
+          )}
 
-            {/* Assessment form — shown when not completed or retaking */}
-            {(!showSummary) && (
-              <>
-                {/* Progress */}
+          {/* Assessment form — shown when not completed or retaking */}
+          {!showSummary && (
+            <>
+              {/* Progress meter */}
+              <div style={{ padding: "8px 16px 0" }}>
                 <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: 28,
-                  }}
+                  className="ios-list"
+                  style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px", margin: 0 }}
                 >
-                  <span style={{ fontSize: 13, color: "var(--color-ink-2)" }}>
-                    {answeredCount} of 12 questions answered
-                  </span>
-                  {assessmentCompleted && (
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: "var(--color-moss)",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Assessment complete
-                    </span>
-                  )}
-                </div>
-
-                {/* Progress bar */}
-                <div
-                  style={{
-                    height: 4,
-                    background: "var(--color-line)",
-                    borderRadius: 2,
-                    marginBottom: 36,
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${(answeredCount / 12) * 100}%`,
-                      background: "var(--color-accent)",
-                      borderRadius: 2,
-                      transition: "width 0.3s ease",
-                    }}
+                  <RadialGauge
+                    value={answeredCount / 12}
+                    color="var(--ios-tint)"
+                    size={64}
+                    center={
+                      <span className="ios-num" style={{ fontSize: 17, fontWeight: 600, color: "var(--ios-label)" }}>
+                        {answeredCount}/12
+                      </span>
+                    }
                   />
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 36 }}>
-                  {/* Scale questions */}
-                  {SCALE_QUESTIONS.map((q) => (
-                    <div key={q.id}>
-                      <div
-                        style={{
-                          fontSize: 15,
-                          fontWeight: 600,
-                          color: "var(--color-ink)",
-                          marginBottom: 14,
-                        }}
-                      >
-                        {q.label}
-                      </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                        {q.options.map((opt) => {
-                          const current = answers[q.id];
-                          const selected = q.multi
-                            ? Array.isArray(current) && current.includes(opt)
-                            : current === opt;
-                          return (
-                            <button
-                              key={opt}
-                              onClick={() =>
-                                q.multi ? toggleMulti(q.id, opt) : setScaleAnswer(q.id, opt)
-                              }
-                              style={{
-                                padding: "8px 16px",
-                                fontSize: 13,
-                                borderRadius: 20,
-                                border: selected
-                                  ? "2px solid var(--color-accent)"
-                                  : "1px solid var(--color-line)",
-                                background: selected
-                                  ? "var(--color-accent-soft)"
-                                  : "var(--color-bg-raised)",
-                                color: selected ? "var(--color-accent)" : "var(--color-ink-2)",
-                                fontWeight: selected ? 600 : 400,
-                                cursor: "pointer",
-                                transition: "all 0.15s",
-                              }}
-                            >
-                              {opt}
-                            </button>
-                          );
-                        })}
-                      </div>
+                  <div style={{ flex: 1 }}>
+                    <div className="ios-headline">Questions answered</div>
+                    <div className="ios-subhead" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>
+                      {assessmentCompleted
+                        ? "Assessment complete — update your answers anytime"
+                        : "Answer at least 6 to generate your profile"}
                     </div>
-                  ))}
-
-                  {/* Text questions */}
-                  {TEXT_QUESTIONS.map((q) => (
-                    <div key={q.id}>
-                      <div
-                        style={{
-                          fontSize: 15,
-                          fontWeight: 600,
-                          color: "var(--color-ink)",
-                          marginBottom: 10,
-                        }}
-                      >
-                        {q.label}
-                      </div>
-                      <textarea
-                        rows={q.rows}
-                        value={(answers[q.id] as string) ?? ""}
-                        onChange={(e) => setTextAnswer(q.id, e.target.value)}
-                        style={{
-                          ...inputStyle,
-                          resize: "vertical",
-                          lineHeight: 1.6,
-                        }}
-                        placeholder="Your answer..."
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* Generate button */}
-                <div style={{ marginTop: 40 }}>
-                  {analyzeError && (
-                    <p style={{ fontSize: 13, color: "#c0392b", marginBottom: 12 }}>
-                      {analyzeError}
-                    </p>
-                  )}
-                  <button
-                    onClick={handleGenerateProfile}
-                    disabled={analyzing || answeredCount < 6}
-                    style={{
-                      padding: "12px 32px",
-                      background: "var(--color-accent)",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: 8,
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: analyzing || answeredCount < 6 ? "not-allowed" : "pointer",
-                      opacity: analyzing || answeredCount < 6 ? 0.6 : 1,
-                    }}
-                  >
-                    {analyzing ? "Generating your career profile..." : "Generate my career profile"}
-                  </button>
-                  {answeredCount < 6 && (
-                    <p style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 8 }}>
-                      Answer at least 6 questions to generate your profile.
-                    </p>
-                  )}
-                </div>
-
-                {/* Show summary inline after generating, if not retaking */}
-                {!retaking && summary && (
-                  <div style={{ marginTop: 48 }}>
-                    <AssessmentSummaryCard summary={summary} />
                   </div>
+                </div>
+              </div>
+
+              {/* Scale questions */}
+              <FormSection title="Preferences">
+                {SCALE_QUESTIONS.map((q) => (
+                  <div key={q.id}>
+                    <div className="ios-subhead" style={{ fontWeight: 600, color: "var(--ios-label)", marginBottom: 10 }}>
+                      {q.label}
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {q.options.map((opt) => {
+                        const current = answers[q.id];
+                        const selected = q.multi
+                          ? Array.isArray(current) && current.includes(opt)
+                          : current === opt;
+                        return (
+                          <Chip
+                            key={opt}
+                            small
+                            selected={selected}
+                            onClick={() =>
+                              q.multi ? toggleMulti(q.id, opt) : setScaleAnswer(q.id, opt)
+                            }
+                          >
+                            {opt}
+                          </Chip>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </FormSection>
+
+              {/* Text questions */}
+              <FormSection title="In your words">
+                {TEXT_QUESTIONS.map((q) => (
+                  <div key={q.id}>
+                    <div className="ios-subhead" style={{ fontWeight: 600, color: "var(--ios-label)", marginBottom: 8 }}>
+                      {q.label}
+                    </div>
+                    <textarea
+                      rows={q.rows}
+                      value={(answers[q.id] as string) ?? ""}
+                      onChange={(e) => setTextAnswer(q.id, e.target.value)}
+                      style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
+                      placeholder="Your answer…"
+                    />
+                  </div>
+                ))}
+              </FormSection>
+
+              {/* Generate button */}
+              <div style={{ padding: "24px 16px 0" }}>
+                {analyzeError && (
+                  <p className="ios-footnote" style={{ color: "var(--ios-red)", marginBottom: 12 }}>
+                    {analyzeError}
+                  </p>
                 )}
-              </>
-            )}
-          </div>
-        )}
-      </main>
+                <button
+                  type="button"
+                  onClick={handleGenerateProfile}
+                  disabled={analyzing || answeredCount < 6}
+                  className="ios-btn ios-btn--primary"
+                  style={{
+                    cursor: analyzing || answeredCount < 6 ? "not-allowed" : "pointer",
+                    opacity: analyzing || answeredCount < 6 ? 0.6 : 1,
+                  }}
+                >
+                  {analyzing ? "Generating your career profile…" : "Generate my career profile"}
+                </button>
+                {answeredCount < 6 && (
+                  <p className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 10, textAlign: "center" }}>
+                    Answer at least 6 questions to generate your profile.
+                  </p>
+                )}
+              </div>
+
+              {/* Show summary inline after generating, if not retaking */}
+              {!retaking && summary && (
+                <div style={{ marginTop: 32 }}>
+                  <h2 className="ios-group-header">Your career profile</h2>
+                  <AssessmentSummaryCard summary={summary} />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div>
-      <h2
-        style={{
-          fontSize: 16,
-          fontWeight: 700,
-          color: "var(--color-ink)",
-          marginBottom: 18,
-          paddingBottom: 10,
-          borderBottom: "1px solid var(--color-line)",
-        }}
+    <section style={{ marginTop: 20 }}>
+      <h2 className="ios-group-header">{title}</h2>
+      <div
+        className="ios-list"
+        style={{ margin: "0 16px", padding: "16px", display: "flex", flexDirection: "column", gap: 18 }}
       >
-        {title}
-      </h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>{children}</div>
-    </div>
+        {children}
+      </div>
+    </section>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label
-        style={{
-          display: "block",
-          fontSize: 12,
-          fontWeight: 600,
-          color: "var(--color-ink-2)",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-          marginBottom: 6,
-        }}
-      >
-        {label}
-      </label>
+      <div style={fieldLabel}>{label}</div>
       {children}
     </div>
   );
 }
 
-function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
+function ChipInput({
+  chips,
+  inputValue,
+  setInputValue,
+  onAdd,
+  onRemove,
+  placeholder,
+}: {
+  chips: string[];
+  inputValue: string;
+  setInputValue: (v: string) => void;
+  onAdd: () => void;
+  onRemove: (idx: number) => void;
+  placeholder: string;
+}) {
+  return (
+    <div
+      style={{
+        border: "var(--ios-hair) solid var(--ios-separator)",
+        borderRadius: 10,
+        padding: "8px 10px",
+        background: "var(--ios-cell)",
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 6,
+        alignItems: "center",
+        colorScheme: "light dark",
+      }}
+    >
+      {chips.map((chip, i) => (
+        <TagChip key={i} label={chip} onRemove={() => onRemove(i)} />
+      ))}
+      <input
+        type="text"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === ",") {
+            e.preventDefault();
+            onAdd();
+          }
+        }}
+        onBlur={onAdd}
+        placeholder={placeholder}
+        style={{
+          border: "none",
+          outline: "none",
+          background: "transparent",
+          fontSize: 16,
+          color: "var(--ios-label)",
+          minWidth: 120,
+          flex: 1,
+          fontFamily: "inherit",
+        }}
+      />
+    </div>
+  );
+}
+
+function TagChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
     <span
       style={{
         display: "inline-flex",
         alignItems: "center",
         gap: 5,
-        padding: "3px 10px 3px 10px",
-        background: "var(--color-accent-soft)",
-        color: "var(--color-accent-dark)",
-        borderRadius: 12,
-        fontSize: 12,
+        padding: "4px 5px 4px 11px",
+        background: "var(--ios-fill)",
+        color: "var(--ios-label)",
+        borderRadius: 14,
+        fontSize: 13,
         fontWeight: 500,
       }}
     >
       {label}
       <button
+        type="button"
         onClick={onRemove}
+        aria-label={`Remove ${label}`}
         style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          color: "var(--color-accent)",
-          padding: 0,
-          lineHeight: 1,
-          fontSize: 14,
           display: "flex",
           alignItems: "center",
+          justifyContent: "center",
+          width: 18,
+          height: 18,
+          borderRadius: 9,
+          background: "var(--ios-fill-2)",
+          color: "var(--ios-label-2)",
+          border: "none",
+          cursor: "pointer",
+          padding: 0,
         }}
-        aria-label={`Remove ${label}`}
       >
-        &times;
+        <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" aria-hidden>
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
       </button>
+    </span>
+  );
+}
+
+function Tag({ children, color }: { children: React.ReactNode; color: string }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "5px 12px",
+        background: "var(--ios-fill)",
+        color,
+        borderRadius: 14,
+        fontSize: 13,
+        fontWeight: 500,
+      }}
+    >
+      {children}
     </span>
   );
 }
 
 function AssessmentSummaryCard({ summary }: { summary: AssessmentSummary }) {
   return (
-    <div
-      style={{
-        background: "var(--color-bg-raised)",
-        border: "1px solid var(--color-line)",
-        borderRadius: 12,
-        padding: 28,
-        display: "flex",
-        flexDirection: "column",
-        gap: 24,
-      }}
-    >
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Summary paragraphs */}
       {summary.summary?.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div className="ios-list" style={{ margin: "0 16px", padding: "16px", display: "flex", flexDirection: "column", gap: 12 }}>
           {summary.summary.map((para, i) => (
-            <p key={i} style={{ fontSize: 14, color: "var(--color-ink)", margin: 0, lineHeight: 1.7 }}>
+            <p key={i} className="ios-body" style={{ color: "var(--ios-label)", margin: 0, lineHeight: 1.6 }}>
               {para}
             </p>
           ))}
@@ -874,150 +737,105 @@ function AssessmentSummaryCard({ summary }: { summary: AssessmentSummary }) {
 
       {/* Strengths */}
       {summary.strengths?.length > 0 && (
-        <div>
-          <div
-            style={{ fontSize: 11, fontWeight: 700, color: "var(--color-moss)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}
-          >
-            Strengths
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-            {summary.strengths.map((s, i) => (
-              <span
-                key={i}
-                style={{
-                  padding: "4px 12px",
-                  background: "#e6f2e8",
-                  color: "#2e6b3a",
-                  borderRadius: 14,
-                  fontSize: 12,
-                  fontWeight: 500,
-                }}
-              >
-                {s}
-              </span>
-            ))}
-          </div>
-        </div>
+        <TagGroup title="Strengths" titleColor="var(--ios-green)">
+          {summary.strengths.map((s, i) => (
+            <Tag key={i} color="var(--ios-green)">{s}</Tag>
+          ))}
+        </TagGroup>
       )}
 
       {/* Growth areas */}
       {summary.growth_areas?.length > 0 && (
-        <div>
-          <div
-            style={{ fontSize: 11, fontWeight: 700, color: "#b8760a", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}
-          >
-            Growth Areas
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-            {summary.growth_areas.map((s, i) => (
-              <span
-                key={i}
-                style={{
-                  padding: "4px 12px",
-                  background: "#fef3e0",
-                  color: "#8a5c10",
-                  borderRadius: 14,
-                  fontSize: 12,
-                  fontWeight: 500,
-                }}
-              >
-                {s}
-              </span>
-            ))}
-          </div>
-        </div>
+        <TagGroup title="Growth areas" titleColor="var(--ios-orange)">
+          {summary.growth_areas.map((s, i) => (
+            <Tag key={i} color="var(--ios-orange)">{s}</Tag>
+          ))}
+        </TagGroup>
       )}
 
       {/* Career themes */}
       {summary.career_themes?.length > 0 && (
-        <div>
-          <div
-            style={{ fontSize: 11, fontWeight: 700, color: "var(--color-accent)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}
-          >
-            Career Themes
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-            {summary.career_themes.map((s, i) => (
-              <span
-                key={i}
-                style={{
-                  padding: "4px 12px",
-                  background: "var(--color-accent-soft)",
-                  color: "var(--color-accent-dark)",
-                  borderRadius: 14,
-                  fontSize: 12,
-                  fontWeight: 500,
-                }}
-              >
-                {s}
-              </span>
-            ))}
-          </div>
-        </div>
+        <TagGroup title="Career themes" titleColor="var(--ios-tint)">
+          {summary.career_themes.map((s, i) => (
+            <Tag key={i} color="var(--ios-tint)">{s}</Tag>
+          ))}
+        </TagGroup>
       )}
 
       {/* Suggested directions */}
       {summary.suggested_directions?.length > 0 && (
-        <div>
-          <div
-            style={{ fontSize: 11, fontWeight: 700, color: "var(--color-ink-2)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}
-          >
-            Suggested Directions
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <section>
+          <h3 className="ios-group-header">Suggested directions</h3>
+          <div className="ios-list" style={{ margin: "0 16px", display: "flex", flexDirection: "column" }}>
             {summary.suggested_directions.map((dir, i) => {
-              const hc = HORIZON_COLORS[dir.horizon] ?? { bg: "#f0ede6", text: "#8a8278" };
+              const tint = HORIZON_TINTS[dir.horizon] ?? "var(--ios-label-2)";
               return (
                 <div
                   key={i}
-                  style={{
-                    background: "var(--color-bg-sunk)",
-                    borderRadius: 8,
-                    padding: "14px 16px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 6,
-                  }}
+                  className="ios-cell"
+                  style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>
-                      {dir.title}
-                    </span>
+                    <span className="ios-headline" style={{ flex: 1 }}>{dir.title}</span>
                     <span
                       style={{
-                        padding: "2px 8px",
-                        background: hc.bg,
-                        color: hc.text,
-                        borderRadius: 4,
-                        fontSize: 10,
-                        fontWeight: 700,
-                        textTransform: "capitalize",
+                        padding: "2px 9px",
+                        borderRadius: 6,
+                        border: `1px solid ${tint}`,
+                        color: tint,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.02em",
+                        whiteSpace: "nowrap",
                       }}
                     >
                       {HORIZON_LABELS[dir.horizon] ?? dir.horizon}
                     </span>
                   </div>
-                  <p style={{ fontSize: 13, color: "var(--color-ink-2)", margin: 0, lineHeight: 1.5 }}>
+                  <p className="ios-subhead" style={{ color: "var(--ios-label-2)", margin: 0, lineHeight: 1.5 }}>
                     {dir.description}
                   </p>
                 </div>
               );
             })}
           </div>
-        </div>
+        </section>
       )}
     </div>
   );
 }
 
+function TagGroup({ title, titleColor, children }: { title: string; titleColor: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <h3 className="ios-group-header" style={{ color: titleColor }}>{title}</h3>
+      <div className="ios-list" style={{ margin: "0 16px", padding: "14px 16px", display: "flex", flexWrap: "wrap", gap: 7 }}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "9px 12px",
-  fontSize: 14,
-  border: "1px solid var(--color-line)",
-  borderRadius: 7,
-  background: "var(--color-bg-raised)",
-  color: "var(--color-ink)",
+  padding: "11px 14px",
+  borderRadius: 10,
+  border: "var(--ios-hair) solid var(--ios-separator)",
+  background: "var(--ios-cell)",
+  color: "var(--ios-label)",
+  fontSize: 16,
   outline: "none",
+  fontFamily: "inherit",
   boxSizing: "border-box",
+  colorScheme: "light dark",
+};
+
+const fieldLabel: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 400,
+  color: "var(--ios-label-2)",
+  textTransform: "uppercase",
+  letterSpacing: "0.02em",
+  marginBottom: 6,
 };

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Cell, Segmented, Chip, IconBadge, Icons } from "@/components/ios";
 
 interface QuestionType {
   id: string;
@@ -24,6 +25,14 @@ const MODE_OPTIONS = [
   { value: "timed_section", label: "Timed Section",  desc: "35-minute section under test conditions. One section of LR or RC." },
   { value: "blind_review",  label: "Blind Review",   desc: "Re-examine flagged questions without seeing the answer — the highest-yield study method." },
 ];
+
+function CheckMark() {
+  return (
+    <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="var(--ios-tint)" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
+  );
+}
 
 export default function PracticeSetupClient({ userId, lrTypes, rcTypes, countByType, initialMode, initialSection }: Props) {
   const router = useRouter();
@@ -71,34 +80,25 @@ export default function PracticeSetupClient({ userId, lrTypes, rcTypes, countByT
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 22, paddingBottom: 24 }}>
       {/* Mode selector */}
       <section>
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-3)", marginBottom: 12 }}>
-          Session Mode
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div className="ios-group-header" style={{ padding: "0 0 8px" }}>Session Mode</div>
+        <div className="ios-list" style={{ margin: 0 }}>
           {MODE_OPTIONS.map((opt) => (
-            <button
+            <Cell
               key={opt.value}
               onClick={() => setMode(opt.value)}
-              style={{
-                padding: "14px 18px", borderRadius: 10, textAlign: "left",
-                border: `2px solid ${mode === opt.value ? "var(--color-accent)" : "var(--color-rule)"}`,
-                background: mode === opt.value ? "var(--color-accent-soft)" : "var(--color-bg-card)",
-                cursor: "pointer", display: "flex", alignItems: "flex-start", gap: 12,
-              }}
-            >
-              <div style={{
-                width: 20, height: 20, borderRadius: "50%", border: `2px solid ${mode === opt.value ? "var(--color-accent)" : "var(--color-ink-4)"}`,
-                background: mode === opt.value ? "var(--color-accent)" : "transparent",
-                flexShrink: 0, marginTop: 2,
-              }} />
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>{opt.label}</div>
-                <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 2 }}>{opt.desc}</div>
-              </div>
-            </button>
+              chevron={false}
+              lead={
+                <IconBadge color={opt.value === "drill" ? "#2E7D46" : opt.value === "timed_section" ? "var(--ios-tint)" : "var(--ios-orange)"}>
+                  {opt.value === "drill" ? <Icons.ChecklistIcon /> : opt.value === "timed_section" ? <Icons.ChartIcon /> : <Icons.TrendUpIcon />}
+                </IconBadge>
+              }
+              title={opt.label}
+              subtitle={opt.desc}
+              trailing={mode === opt.value ? <CheckMark /> : undefined}
+            />
           ))}
         </div>
       </section>
@@ -107,32 +107,26 @@ export default function PracticeSetupClient({ userId, lrTypes, rcTypes, countByT
       {mode === "drill" && (
         <>
           <section>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-3)", marginBottom: 12 }}>
-              Section
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              {["LR", "RC"].map((s) => (
-                <button key={s} onClick={() => { setSection(s); setSelectedTypeIds([]); }}
-                  style={{
-                    flex: 1, padding: "10px", borderRadius: 8, fontWeight: 600, fontSize: 14,
-                    border: `2px solid ${section === s ? "var(--color-accent)" : "var(--color-rule)"}`,
-                    background: section === s ? "var(--color-accent-soft)" : "transparent",
-                    color: section === s ? "var(--color-accent)" : "var(--color-ink-2)",
-                    cursor: "pointer",
-                  }}>
-                  {s === "LR" ? "Logical Reasoning" : "Reading Comprehension"}
-                </button>
-              ))}
-            </div>
+            <div className="ios-group-header" style={{ padding: "0 0 8px" }}>Section</div>
+            <Segmented
+              ariaLabel="Section"
+              style={{ margin: 0 }}
+              value={section as "LR" | "RC"}
+              onChange={(v) => { setSection(v); setSelectedTypeIds([]); }}
+              options={[
+                { value: "LR", label: "Logical Reasoning" },
+                { value: "RC", label: "Reading Comprehension" },
+              ]}
+            />
           </section>
 
           <section>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-3)" }}>
-                Question Types <span style={{ fontWeight: 400, color: "var(--color-ink-4)" }}>(all = leave empty)</span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0 0 8px" }}>
+              <div className="ios-group-header" style={{ padding: 0 }}>
+                Question Types <span style={{ textTransform: "none", color: "var(--ios-label-3)" }}>(all = leave empty)</span>
               </div>
               {selectedTypeIds.length > 0 && (
-                <button onClick={() => setSelectedTypeIds([])} style={{ fontSize: 11, color: "var(--color-accent)", background: "none", border: "none", cursor: "pointer" }}>
+                <button onClick={() => setSelectedTypeIds([])} className="ios-btn--plain" style={{ fontSize: 13, padding: 0 }}>
                   Clear
                 </button>
               )}
@@ -142,49 +136,35 @@ export default function PracticeSetupClient({ userId, lrTypes, rcTypes, countByT
                 const label = t.subcategory ? `${t.category} (${t.subcategory})` : t.category;
                 const count = countByType[t.id] ?? 0;
                 const selected = selectedTypeIds.includes(t.id);
+                if (count === 0) {
+                  return (
+                    <span key={t.id} className="ios-chip ios-chip--sm" style={{ opacity: 0.4 }}>
+                      {label} ({count})
+                    </span>
+                  );
+                }
                 return (
-                  <button
-                    key={t.id}
-                    onClick={() => toggleType(t.id)}
-                    disabled={count === 0}
-                    style={{
-                      padding: "6px 12px", borderRadius: 20, fontSize: 12, fontWeight: 500,
-                      border: `1px solid ${selected ? "var(--color-accent)" : "var(--color-rule)"}`,
-                      background: selected ? "var(--color-accent)" : "transparent",
-                      color: selected ? "#fff" : count === 0 ? "var(--color-ink-4)" : "var(--color-ink-2)",
-                      cursor: count === 0 ? "default" : "pointer",
-                      opacity: count === 0 ? 0.5 : 1,
-                    }}
-                  >
-                    {label}
-                    <span style={{ marginLeft: 5, opacity: 0.7 }}>({count})</span>
-                  </button>
+                  <Chip key={t.id} small selected={selected} onClick={() => toggleType(t.id)}>
+                    {label} <span style={{ opacity: 0.7 }}>({count})</span>
+                  </Chip>
                 );
               })}
             </div>
           </section>
 
           <section>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-3)", marginBottom: 12 }}>
-              Number of Questions
-            </div>
+            <div className="ios-group-header" style={{ padding: "0 0 8px" }}>Number of Questions</div>
             <div style={{ display: "flex", gap: 8 }}>
-              {[5, 10, 20, "All"].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => setQuestionCount(n === "All" ? Math.min(totalAvailable, 50) : n as number)}
-                  style={{
-                    padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 500,
-                    border: `1px solid ${questionCount === (n === "All" ? Math.min(totalAvailable, 50) : n) ? "var(--color-accent)" : "var(--color-rule)"}`,
-                    background: questionCount === (n === "All" ? Math.min(totalAvailable, 50) : n) ? "var(--color-accent-soft)" : "transparent",
-                    color: questionCount === (n === "All" ? Math.min(totalAvailable, 50) : n) ? "var(--color-accent)" : "var(--color-ink-2)",
-                    cursor: "pointer",
-                  }}>
-                  {n}
-                </button>
-              ))}
+              {[5, 10, 20, "All"].map((n) => {
+                const target = n === "All" ? Math.min(totalAvailable, 50) : (n as number);
+                return (
+                  <Chip key={n} small selected={questionCount === target} onClick={() => setQuestionCount(target)}>
+                    {n}
+                  </Chip>
+                );
+              })}
             </div>
-            <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 8 }}>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-3)", marginTop: 8 }}>
               {totalAvailable} questions available for selected types
             </div>
           </section>
@@ -192,25 +172,23 @@ export default function PracticeSetupClient({ userId, lrTypes, rcTypes, countByT
       )}
 
       {error && (
-        <div style={{ padding: "10px 14px", background: "rgba(154,59,42,0.08)", border: "1px solid var(--color-red)", borderRadius: 8, fontSize: 13, color: "var(--color-red)" }}>
+        <div className="ios-footnote" style={{ color: "var(--ios-red)" }}>
           {error}
         </div>
       )}
 
       {totalAvailable === 0 && mode === "drill" && (
-        <div style={{ padding: "12px 16px", background: "rgba(184,138,46,0.08)", border: "1px solid var(--color-amber)", borderRadius: 8, fontSize: 13, color: "var(--color-amber)" }}>
+        <div className="ios-footnote" style={{ color: "var(--ios-orange)" }}>
           No questions available for the selected types yet. More questions can be generated by the AI.
         </div>
       )}
 
       <button
+        type="button"
         onClick={start}
         disabled={isPending || (mode === "drill" && totalAvailable === 0)}
-        style={{
-          padding: "14px", borderRadius: 10, background: isPending ? "var(--color-rule)" : "var(--color-accent)",
-          color: "#fff", fontSize: 15, fontWeight: 600, cursor: isPending ? "default" : "pointer",
-          border: "none", fontFamily: "inherit",
-        }}
+        className="ios-btn ios-btn--primary"
+        style={{ opacity: isPending || (mode === "drill" && totalAvailable === 0) ? 0.5 : 1 }}
       >
         {isPending ? "Starting…" : mode === "blind_review" ? "Start Blind Review" : "Start Session"}
       </button>

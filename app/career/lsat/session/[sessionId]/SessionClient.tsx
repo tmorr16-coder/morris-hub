@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Chip, Icons } from "@/components/ios";
 
 interface Choice { id: string; label: string; body: string; }
 interface Question {
@@ -11,7 +12,30 @@ interface Question {
 }
 
 const CONFIDENCE_LABELS = ["", "Very Unsure", "Unsure", "Neutral", "Confident", "Very Confident"];
-const CONFIDENCE_COLORS = ["", "var(--color-red)", "var(--color-amber)", "var(--color-ink-3)", "var(--color-green)", "var(--color-green)"];
+const CONFIDENCE_COLORS = ["", "var(--ios-red)", "var(--ios-orange)", "var(--ios-label-2)", "var(--ios-green)", "var(--ios-green)"];
+
+function CheckSvg({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
+  );
+}
+function XSvg({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M18 6L6 18M6 6l12 12" />
+    </svg>
+  );
+}
+function FlagSvg({ size = 15 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+      <line x1="4" y1="22" x2="4" y2="15" />
+    </svg>
+  );
+}
 
 export default function SessionClient({
   session,
@@ -92,32 +116,31 @@ export default function SessionClient({
   if (sessionComplete) {
     const correct = answeredRows.filter((a) => a.is_correct).length;
     const total = answeredRows.length;
+    const flaggedTotal = answeredRows.filter((a) => a.flagged).length;
     return (
-      <div style={{ textAlign: "center", paddingTop: 60 }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
-        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 400, marginBottom: 8 }}>
-          Session Complete
-        </h1>
-        <div style={{ fontSize: 16, color: "var(--color-ink-2)", marginBottom: 4 }}>
-          {correct} / {total} correct — {total > 0 ? Math.round(correct / total * 100) : 0}%
+      <div style={{ textAlign: "center", paddingTop: 56 }}>
+        <div style={{
+          width: 68, height: 68, borderRadius: "50%", margin: "0 auto 20px",
+          background: "var(--ios-green)", color: "#fff",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <CheckSvg size={36} />
         </div>
-        {answeredRows.filter((a) => a.flagged).length > 0 && (
-          <div style={{ fontSize: 14, color: "var(--color-amber)", marginBottom: 24 }}>
-            🚩 {answeredRows.filter((a) => a.flagged).length} questions flagged for blind review
+        <h1 className="ios-title-1" style={{ margin: "0 0 8px" }}>Session Complete</h1>
+        <div className="ios-body" style={{ color: "var(--ios-label-2)", marginBottom: 4 }}>
+          <span className="ios-num">{correct} / {total}</span> correct — <span className="ios-num">{total > 0 ? Math.round(correct / total * 100) : 0}%</span>
+        </div>
+        {flaggedTotal > 0 && (
+          <div className="ios-subhead" style={{ color: "var(--ios-orange)", marginBottom: 24, display: "inline-flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+            <FlagSvg /> {flaggedTotal} question{flaggedTotal !== 1 ? "s" : ""} flagged for blind review
           </div>
         )}
-        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 24 }}>
-          <Link href="/career/lsat/review" style={{
-            padding: "10px 22px", borderRadius: 8, border: "1px solid var(--color-rule)",
-            textDecoration: "none", fontSize: 14, color: "var(--color-ink-2)",
-          }}>
-            Review Flagged
-          </Link>
-          <Link href="/career/lsat" style={{
-            padding: "10px 22px", borderRadius: 8, background: "var(--color-accent)",
-            textDecoration: "none", fontSize: 14, fontWeight: 600, color: "#fff",
-          }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 320, margin: "28px auto 0" }}>
+          <Link href="/career/lsat" className="ios-btn ios-btn--primary" style={{ textDecoration: "none" }}>
             Back to LSAT Prep
+          </Link>
+          <Link href="/career/lsat/review" className="ios-btn ios-btn--plain" style={{ textDecoration: "none" }}>
+            Review Flagged
           </Link>
         </div>
       </div>
@@ -125,51 +148,55 @@ export default function SessionClient({
   }
 
   const qtype = nextQuestion?.lsat_question_types;
+  const timeFraction = timeLeft !== null && session.time_limit_s
+    ? Math.max(0, Math.min(1, timeLeft / session.time_limit_s))
+    : null;
+  const lowTime = timeLeft !== null && timeLeft < 300;
 
   return (
     <div>
       {/* Header bar */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Link href="/career/lsat" style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none" }}>← Exit</Link>
-          <span style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <Link href="/career/lsat" className="ios-subhead" style={{ display: "inline-flex", alignItems: "center", gap: 2, color: "var(--ios-tint)", textDecoration: "none", fontWeight: 500 }}>
+            <Icons.ChevronLeft style={{ width: 15, height: 15 }} /> Exit
+          </Link>
+          <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
             {modeLabel}{session.section ? ` · ${session.section}` : ""} · Q{totalAnswered + 1}
           </span>
           {qtype && (
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-accent)", background: "var(--color-accent-soft)", padding: "2px 8px", borderRadius: 10 }}>
+            <span className="ios-chip ios-chip--sm">
               {qtype.category}{qtype.subcategory ? ` (${qtype.subcategory})` : ""}
             </span>
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {timeLeft !== null && (
-            <span style={{
-              fontSize: 14, fontWeight: 700, fontFamily: "var(--font-mono)",
-              color: timeLeft < 300 ? "var(--color-red)" : "var(--color-ink-2)",
-            }}>
+            <span className="ios-num" style={{ fontSize: 15, fontWeight: 700, color: lowTime ? "var(--ios-red)" : "var(--ios-label)" }}>
               {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, "0")}
             </span>
           )}
-          <button onClick={endSession} disabled={isPending} style={{
-            padding: "5px 12px", borderRadius: 6, border: "1px solid var(--color-rule)",
-            background: "transparent", fontSize: 12, cursor: "pointer", color: "var(--color-ink-3)",
-          }}>
-            End Session
+          <button onClick={endSession} disabled={isPending} className="ios-btn--plain" style={{ fontSize: 14, color: "var(--ios-label-2)" }}>
+            End
           </button>
         </div>
       </div>
 
+      {/* Timer progress */}
+      {timeFraction !== null && (
+        <div style={{ height: 4, borderRadius: 2, background: "var(--ios-fill)", overflow: "hidden", marginBottom: 20 }}>
+          <div style={{ height: "100%", width: `${timeFraction * 100}%`, background: lowTime ? "var(--ios-red)" : "var(--ios-tint)", borderRadius: 2, transition: "width 1s linear" }} />
+        </div>
+      )}
+
       {/* Question stem */}
-      <div style={{
-        background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
-        borderRadius: 14, padding: "24px 28px", marginBottom: 20, boxShadow: "var(--shadow-card)",
-      }}>
-        <div style={{ fontSize: 15, lineHeight: 1.7, color: "var(--color-ink)", whiteSpace: "pre-line" }}>
+      <div className="ios-list" style={{ margin: 0, padding: "20px 18px", marginBottom: 20 }}>
+        <div className="ios-body" style={{ lineHeight: 1.7, color: "var(--ios-label)", whiteSpace: "pre-line" }}>
           {nextQuestion?.stem}
         </div>
         {session.mode === "blind_review" && (
-          <div style={{ marginTop: 12, fontSize: 12, color: "var(--color-amber)", fontWeight: 500 }}>
-            🚩 This was flagged during a previous session — choose what you believe is correct before revealing the answer.
+          <div className="ios-footnote" style={{ marginTop: 12, color: "var(--ios-orange)", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+            <FlagSvg /> This was flagged during a previous session — choose what you believe is correct before revealing the answer.
           </div>
         )}
       </div>
@@ -180,34 +207,37 @@ export default function SessionClient({
           const isSelected = selectedId === c.id;
           const isCorrect = submitted && result?.correctId === c.id;
           const isWrong = submitted && isSelected && !result?.isCorrect;
+          const accent = isCorrect ? "var(--ios-green)" : isWrong ? "var(--ios-red)" : isSelected ? "var(--ios-tint)" : "var(--ios-separator)";
+          const filled = isCorrect || isWrong || isSelected;
 
           return (
             <button
               key={c.id}
               onClick={() => !submitted && setSelectedId(c.id)}
               style={{
-                padding: "14px 18px", borderRadius: 10, textAlign: "left", cursor: submitted ? "default" : "pointer",
-                border: `2px solid ${isCorrect ? "var(--color-green)" : isWrong ? "var(--color-red)" : isSelected ? "var(--color-accent)" : "var(--color-rule)"}`,
-                background: isCorrect ? "rgba(74,107,58,0.08)" : isWrong ? "rgba(154,59,42,0.08)" : isSelected ? "var(--color-accent-soft)" : "var(--color-bg-card)",
+                padding: "14px 16px", borderRadius: 12, textAlign: "left", cursor: submitted ? "default" : "pointer",
+                border: `1.5px solid ${accent}`,
+                background: isCorrect ? "color-mix(in srgb, var(--ios-green) 10%, var(--ios-cell))" : isWrong ? "color-mix(in srgb, var(--ios-red) 10%, var(--ios-cell))" : isSelected ? "color-mix(in srgb, var(--ios-tint) 10%, var(--ios-cell))" : "var(--ios-cell)",
                 display: "flex", gap: 12, alignItems: "flex-start",
                 transition: "border-color 120ms, background 120ms",
+                color: "var(--ios-label)", width: "100%",
               }}
             >
               <span style={{
                 width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
-                border: `2px solid ${isCorrect ? "var(--color-green)" : isWrong ? "var(--color-red)" : isSelected ? "var(--color-accent)" : "var(--color-rule)"}`,
-                background: isCorrect ? "var(--color-green)" : isWrong ? "var(--color-red)" : isSelected ? "var(--color-accent)" : "transparent",
+                border: `1.5px solid ${filled ? accent : "var(--ios-label-3)"}`,
+                background: filled ? accent : "transparent",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 12, fontWeight: 700,
-                color: isCorrect || isWrong || isSelected ? "#fff" : "var(--color-ink-3)",
+                fontSize: 13, fontWeight: 700,
+                color: filled ? "#fff" : "var(--ios-label-2)",
               }}>
                 {c.label}
               </span>
-              <span style={{ fontSize: 14, lineHeight: 1.6, color: "var(--color-ink)", paddingTop: 3 }}>
+              <span className="ios-subhead" style={{ lineHeight: 1.5, color: "var(--ios-label)", paddingTop: 4, flex: 1 }}>
                 {c.body}
               </span>
-              {isCorrect && <span style={{ marginLeft: "auto", flexShrink: 0, fontSize: 18, paddingTop: 2 }}>✓</span>}
-              {isWrong && <span style={{ marginLeft: "auto", flexShrink: 0, fontSize: 18, paddingTop: 2 }}>✗</span>}
+              {isCorrect && <span style={{ marginLeft: "auto", flexShrink: 0, color: "var(--ios-green)", paddingTop: 2 }}><CheckSvg size={18} /></span>}
+              {isWrong && <span style={{ marginLeft: "auto", flexShrink: 0, color: "var(--ios-red)", paddingTop: 2 }}><XSvg size={18} /></span>}
             </button>
           );
         })}
@@ -215,90 +245,61 @@ export default function SessionClient({
 
       {/* Pre-submit controls */}
       {!submitted && (
-        <div style={{
-          background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
-          borderRadius: 12, padding: "18px 20px", marginBottom: 16,
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
-            {/* Confidence */}
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-ink-3)", marginBottom: 8 }}>
-                Confidence
-              </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button key={n} onClick={() => setConfidence(n)} style={{
-                    width: 36, height: 36, borderRadius: "50%", border: `2px solid ${confidence === n ? CONFIDENCE_COLORS[n] : "var(--color-rule)"}`,
-                    background: confidence === n ? CONFIDENCE_COLORS[n] : "transparent",
-                    color: confidence === n ? "#fff" : "var(--color-ink-3)",
-                    fontWeight: 700, fontSize: 13, cursor: "pointer",
-                  }}>{n}</button>
-                ))}
-              </div>
-              <div style={{ fontSize: 10, color: CONFIDENCE_COLORS[confidence], marginTop: 4, fontWeight: 500 }}>
-                {CONFIDENCE_LABELS[confidence]}
-              </div>
-            </div>
-
-            {/* Flag + Submit */}
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <button
-                onClick={() => setFlagged(!flagged)}
-                style={{
-                  padding: "8px 14px", borderRadius: 8, fontSize: 13,
-                  border: `1px solid ${flagged ? "var(--color-amber)" : "var(--color-rule)"}`,
-                  background: flagged ? "rgba(184,138,46,0.1)" : "transparent",
-                  color: flagged ? "var(--color-amber)" : "var(--color-ink-3)",
-                  cursor: "pointer", fontWeight: flagged ? 600 : 400,
-                }}
-              >
-                {flagged ? "🚩 Flagged" : "🏳 Flag"}
-              </button>
-              <button
-                onClick={submit}
-                disabled={!selectedId || isPending}
-                style={{
-                  padding: "10px 24px", borderRadius: 8, border: "none",
-                  background: selectedId ? "var(--color-accent)" : "var(--color-rule)",
-                  color: selectedId ? "#fff" : "var(--color-ink-4)",
-                  fontWeight: 600, fontSize: 14, cursor: selectedId ? "pointer" : "default",
-                  fontFamily: "inherit",
-                }}
-              >
-                {isPending ? "Submitting…" : "Submit"}
-              </button>
-            </div>
+        <div className="ios-list" style={{ margin: 0, padding: "16px 18px", marginBottom: 16 }}>
+          <div className="ios-group-header" style={{ padding: "0 0 8px" }}>Confidence</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Chip key={n} small selected={confidence === n} onClick={() => setConfidence(n)}>{n}</Chip>
+            ))}
           </div>
+          <div className="ios-footnote" style={{ color: CONFIDENCE_COLORS[confidence], marginTop: 6, fontWeight: 600 }}>
+            {CONFIDENCE_LABELS[confidence]}
+          </div>
+
+          <div style={{ marginTop: 16 }}>
+            <Chip small selected={flagged} onClick={() => setFlagged(!flagged)}>
+              <FlagSvg /> {flagged ? "Flagged" : "Flag for review"}
+            </Chip>
+          </div>
+
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!selectedId || isPending}
+            className="ios-btn ios-btn--primary"
+            style={{ marginTop: 16, opacity: !selectedId || isPending ? 0.5 : 1 }}
+          >
+            {isPending ? "Submitting…" : "Submit"}
+          </button>
         </div>
       )}
 
       {/* Post-submit */}
       {submitted && result && (
-        <div style={{
-          background: result.isCorrect ? "rgba(74,107,58,0.06)" : "rgba(154,59,42,0.06)",
-          border: `1px solid ${result.isCorrect ? "var(--color-green)" : "var(--color-red)"}`,
-          borderRadius: 12, padding: "18px 20px", marginBottom: 16,
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div
+          className="ios-list"
+          style={{
+            margin: 0, padding: "16px 18px", marginBottom: 16,
+            border: `1.5px solid ${result.isCorrect ? "var(--ios-green)" : "var(--ios-red)"}`,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: result.isCorrect ? "var(--color-green)" : "var(--color-red)" }}>
-                {result.isCorrect ? "✓ Correct" : "✗ Incorrect"}
+              <div className="ios-headline" style={{ color: result.isCorrect ? "var(--ios-green)" : "var(--ios-red)", display: "flex", alignItems: "center", gap: 6 }}>
+                {result.isCorrect ? <CheckSvg size={18} /> : <XSvg size={18} />}
+                {result.isCorrect ? "Correct" : "Incorrect"}
               </div>
-              <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 4 }}>
+              <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 4 }}>
                 Confidence: {CONFIDENCE_LABELS[confidence]} · {flagged ? "Flagged for review" : "Not flagged"}
               </div>
             </div>
-            <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               {result?.attemptId && (
-                <Link href={`/career/lsat/review/${result.attemptId}`}
-                  style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none", padding: "8px 14px", borderRadius: 8, border: "1px solid var(--color-rule)" }}>
-                  Explain →
+                <Link href={`/career/lsat/review/${result.attemptId}`} className="ios-btn--plain" style={{ fontSize: 14, textDecoration: "none" }}>
+                  Explain
                 </Link>
               )}
-              <button onClick={next} style={{
-                padding: "8px 20px", borderRadius: 8, background: "var(--color-accent)",
-                color: "#fff", border: "none", fontWeight: 600, fontSize: 14, cursor: "pointer",
-              }}>
+              <button onClick={next} className="ios-btn ios-btn--primary" style={{ width: "auto", padding: "10px 20px", minHeight: 0 }}>
                 Next Question
               </button>
             </div>

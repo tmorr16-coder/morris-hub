@@ -1,8 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { Group, Cell, IconBadge, RadialGauge, Sparkline, Icons } from "@/components/ios";
 
 type TabType = "overview" | "materials" | "flashcards" | "practice" | "chat";
+
+function CheckIcon({ size = 14, color = "currentColor" }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 12l5 5L20 6" />
+    </svg>
+  );
+}
 
 function AddToCareerButton({ certName, score, sessionId }: { certName: string; score: number; sessionId: string }) {
   const [state, setState] = useState<"idle" | "saving" | "done">("idle");
@@ -27,20 +36,23 @@ function AddToCareerButton({ certName, score, sessionId }: { certName: string; s
     }
   }
 
-  if (state === "done") return <span style={{ fontSize: 11, color: "#059669", fontWeight: 600 }}>✓ Added to Career</span>;
+  if (state === "done") {
+    return (
+      <span className="ios-caption" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-green)", fontWeight: 600 }}>
+        <CheckIcon /> Added to Career
+      </span>
+    );
+  }
 
   return (
     <button
+      type="button"
       onClick={add}
       disabled={state === "saving"}
-      style={{
-        fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6,
-        border: "1px solid #059669", background: state === "saving" ? "transparent" : "#f0fdf4",
-        color: "#059669", cursor: state === "saving" ? "wait" : "pointer", fontFamily: "inherit",
-        whiteSpace: "nowrap",
-      }}
+      className="ios-chip ios-chip--sm"
+      style={{ color: "var(--ios-tint)", cursor: state === "saving" ? "wait" : "pointer" }}
     >
-      {state === "saving" ? "Adding…" : "Add to Career ✦"}
+      {state === "saving" ? "Adding…" : "Add to Career"}
     </button>
   );
 }
@@ -111,383 +123,169 @@ export default function OverviewTab({
     .reduce((best, s) => Math.max(best, s), -Infinity);
 
   const hasBestScore = isFinite(bestScore);
+  const passed = hasBestScore && bestScore >= exam.passing_score_pct;
+  const scoreColor = passed ? "var(--ios-green)" : "var(--ios-red)";
+
+  const scoreSeries = completedSessions
+    .map((s) => s.score_pct)
+    .filter((s): s is number => typeof s === "number")
+    .reverse();
 
   const countdown = exam.target_exam_date ? daysUntil(exam.target_exam_date) : null;
+  const countdownColor =
+    countdown === null ? exam.color_tag : countdown <= 7 ? "var(--ios-red)" : countdown <= 30 ? "var(--ios-orange)" : exam.color_tag;
 
-  const statCardStyle: React.CSSProperties = {
-    background: "var(--color-bg-card)",
-    border: "1px solid var(--color-rule)",
-    borderRadius: 12,
-    padding: "20px 24px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  };
-
-  const statLabelStyle: React.CSSProperties = {
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    color: "var(--color-ink-4)",
-  };
-
-  const statValueStyle: React.CSSProperties = {
-    fontSize: 28,
-    fontWeight: 700,
-    color: exam.color_tag,
-    lineHeight: 1,
-  };
-
-  const actionBtnStyle: React.CSSProperties = {
-    padding: "10px 20px",
-    borderRadius: 8,
-    border: `1.5px solid ${exam.color_tag}`,
-    background: "transparent",
-    color: exam.color_tag,
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-    transition: "background 0.15s, color 0.15s",
-  };
-
-  const actionBtnPrimaryStyle: React.CSSProperties = {
-    ...actionBtnStyle,
-    background: exam.color_tag,
-    color: "white",
-    border: "none",
-  };
+  const quickActions: { label: string; sub: string; tab: TabType; color: string; icon: React.ReactNode }[] = [
+    { label: "Generate questions", sub: "Build your question bank", tab: "materials", color: exam.color_tag, icon: <Icons.ChecklistIcon /> },
+    { label: "Generate flashcards", sub: "Quick recall practice", tab: "flashcards", color: "#B565A7", icon: <Icons.BookIcon /> },
+    { label: "Start practice", sub: "Timed mock or domain drill", tab: "practice", color: "var(--ios-green)", icon: <Icons.ChartIcon /> },
+    { label: "Ask AI a question", sub: "Study assistant chat", tab: "chat", color: "var(--ios-tint)", icon: <Icons.SparkleIcon /> },
+  ];
 
   return (
-    <div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
       {/* Target exam date countdown */}
       {countdown !== null && (
-        <div
-          style={{
-            background:
-              countdown <= 7
-                ? "#fef2f2"
-                : countdown <= 30
-                ? "#fffbeb"
-                : `${exam.color_tag}0d`,
-            border: `1px solid ${
-              countdown <= 7
-                ? "#fecaca"
-                : countdown <= 30
-                ? "#fde68a"
-                : `${exam.color_tag}30`
-            }`,
-            borderRadius: 10,
-            padding: "14px 20px",
-            marginBottom: 24,
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <span style={{ fontSize: 22 }}>
-            {countdown <= 7 ? "🚨" : countdown <= 30 ? "⏰" : "📅"}
-          </span>
-          <div>
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 700,
-                color:
-                  countdown <= 7
-                    ? "#991b1b"
-                    : countdown <= 30
-                    ? "#92400e"
-                    : exam.color_tag,
-              }}
-            >
+        <div className="ios-list" style={{ margin: 0, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+          <IconBadge color={countdownColor}><Icons.CalendarIcon /></IconBadge>
+          <div style={{ minWidth: 0 }}>
+            <div className="ios-headline" style={{ color: countdownColor }}>
               {countdown < 0
                 ? `Exam date passed ${Math.abs(countdown)} day${Math.abs(countdown) !== 1 ? "s" : ""} ago`
                 : countdown === 0
                 ? "Exam is today!"
                 : `${countdown} day${countdown !== 1 ? "s" : ""} until your exam`}
             </div>
-            <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 2 }}>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>
               Target date: {formatDate(exam.target_exam_date!)}
             </div>
           </div>
         </div>
       )}
 
+      {/* Best score gauge */}
+      {hasBestScore && (
+        <div className="ios-list" style={{ margin: 0, padding: "20px 16px", display: "flex", alignItems: "center", gap: 20 }}>
+          <RadialGauge
+            value={bestScore / 100}
+            color={scoreColor}
+            center={<span className="ios-num" style={{ fontSize: 20, fontWeight: 700, color: "var(--ios-label)" }}>{Math.round(bestScore)}%</span>}
+          />
+          <div style={{ minWidth: 0 }}>
+            <div className="ios-group-header" style={{ padding: 0 }}>Best score</div>
+            <div className="ios-headline" style={{ color: scoreColor, marginTop: 4 }}>
+              {passed ? "Passing" : "Keep practicing"}
+            </div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>
+              {exam.passing_score_pct ? `Passing score: ${exam.passing_score_pct}%` : "No passing score set"}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Progress summary */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-          gap: 16,
-          marginBottom: 32,
-        }}
-      >
-        <div style={statCardStyle}>
-          <span style={statLabelStyle}>Questions</span>
-          <span style={statValueStyle}>{questionCount}</span>
-          <span style={{ fontSize: 12, color: "var(--color-ink-3)" }}>available</span>
-        </div>
+      <Group header="Progress">
+        <Cell
+          lead={<IconBadge color={exam.color_tag}><Icons.ChecklistIcon /></IconBadge>}
+          title="Questions available"
+          trailing={<span className="ios-num ios-headline" style={{ color: "var(--ios-label)" }}>{questionCount}</span>}
+          chevron={false}
+        />
+        <Cell
+          lead={<IconBadge color="var(--ios-orange)"><Icons.ChartIcon /></IconBadge>}
+          title="Practice sessions"
+          subtitle={recentSessions.length === 5 ? "Showing last 5" : undefined}
+          trailing={<span className="ios-num ios-headline" style={{ color: "var(--ios-label)" }}>{recentSessions.length}</span>}
+          chevron={false}
+        />
+        <Cell
+          lead={<IconBadge color="var(--ios-green)"><Icons.TrendUpIcon /></IconBadge>}
+          title="Best score"
+          trailing={<span className="ios-num ios-headline" style={{ color: hasBestScore ? scoreColor : "var(--ios-label-2)" }}>{hasBestScore ? `${Math.round(bestScore)}%` : "—"}</span>}
+          chevron={false}
+        />
+        <Cell
+          lead={<IconBadge color="#B565A7"><Icons.BookIcon /></IconBadge>}
+          title="Domains"
+          trailing={<span className="ios-num ios-headline" style={{ color: "var(--ios-label)" }}>{domains.length}</span>}
+          chevron={false}
+        />
+      </Group>
 
-        <div style={statCardStyle}>
-          <span style={statLabelStyle}>Sessions</span>
-          <span style={statValueStyle}>{recentSessions.length}</span>
-          <span style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
-            {recentSessions.length === 5 ? "shown (last 5)" : "completed"}
-          </span>
-        </div>
-
-        <div style={statCardStyle}>
-          <span style={statLabelStyle}>Best Score</span>
-          <span style={statValueStyle}>
-            {hasBestScore ? `${Math.round(bestScore)}%` : "—"}
-          </span>
-          <span style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
-            {exam.passing_score_pct ? `passing: ${exam.passing_score_pct}%` : "no passing score set"}
-          </span>
-        </div>
-
-        <div style={statCardStyle}>
-          <span style={statLabelStyle}>Domains</span>
-          <span style={statValueStyle}>{domains.length}</span>
-          <span style={{ fontSize: 12, color: "var(--color-ink-3)" }}>defined</span>
-        </div>
-      </div>
+      {/* Score trend */}
+      {scoreSeries.length >= 2 && (
+        <Group header="Score trend">
+          <div style={{ padding: "16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+            <span className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>Recent sessions</span>
+            <Sparkline points={scoreSeries} color={exam.color_tag} width={160} height={44} />
+          </div>
+        </Group>
+      )}
 
       {/* Domain coverage */}
       {domains.length > 0 && (
-        <section style={{ marginBottom: 32 }}>
-          <h2
-            style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: "var(--color-ink)",
-              margin: "0 0 16px 0",
-            }}
-          >
-            Domain Coverage
-          </h2>
-
-          <div
-            style={{
-              background: "var(--color-bg-card)",
-              border: "1px solid var(--color-rule)",
-              borderRadius: 12,
-              overflow: "hidden",
-            }}
-          >
-            {domains.map((domain, idx) => (
-              <div
-                key={domain.id}
-                style={{
-                  padding: "14px 20px",
-                  borderBottom:
-                    idx < domains.length - 1
-                      ? "1px solid var(--color-rule)"
-                      : "none",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "baseline",
-                    marginBottom: 8,
-                    gap: 8,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "var(--color-ink)",
-                      flex: 1,
-                    }}
-                  >
-                    {domain.name}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: "var(--color-ink-3)",
-                      fontVariantNumeric: "tabular-nums",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {domain.weight_pct > 0 ? `${domain.weight_pct}%` : "—"}
-                  </span>
-                </div>
-
-                {/* Weight bar */}
-                {domain.weight_pct > 0 && (
-                  <div
-                    style={{
-                      height: 6,
-                      borderRadius: 3,
-                      background: "var(--color-paper-deep)",
-                      overflow: "hidden",
-                    }}
-                  >
-                    <div
-                      style={{
-                        height: "100%",
-                        width: `${Math.min(domain.weight_pct, 100)}%`,
-                        background: exam.color_tag,
-                        borderRadius: 3,
-                        transition: "width 0.4s ease",
-                      }}
-                    />
-                  </div>
-                )}
-
-                {domain.description && (
-                  <p
-                    style={{
-                      margin: "6px 0 0 0",
-                      fontSize: 12,
-                      color: "var(--color-ink-3)",
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {domain.description}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
+        <Group header="Domain coverage">
+          {domains.map((domain) => (
+            <Cell
+              key={domain.id}
+              title={domain.name}
+              subtitle={domain.description ?? undefined}
+              trailing={
+                <span className="ios-subhead ios-num" style={{ color: "var(--ios-label-2)" }}>
+                  {domain.weight_pct > 0 ? `${domain.weight_pct}%` : "—"}
+                </span>
+              }
+              chevron={false}
+            />
+          ))}
+        </Group>
       )}
 
       {/* Recent sessions */}
       {recentSessions.length > 0 && (
-        <section style={{ marginBottom: 32 }}>
-          <h2
-            style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: "var(--color-ink)",
-              margin: "0 0 16px 0",
-            }}
-          >
-            Recent Sessions
-          </h2>
-
-          <div
-            style={{
-              background: "var(--color-bg-card)",
-              border: "1px solid var(--color-rule)",
-              borderRadius: 12,
-              overflow: "hidden",
-            }}
-          >
-            {recentSessions.map((session, idx) => (
-              <div
-                key={session.id}
-                style={{
-                  padding: "14px 20px",
-                  borderBottom:
-                    idx < recentSessions.length - 1
-                      ? "1px solid var(--color-rule)"
-                      : "none",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 12,
-                  flexWrap: "wrap",
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "var(--color-ink)",
-                      marginBottom: 2,
-                    }}
-                  >
-                    {formatMode(session.mode)} session
-                  </div>
-                  <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
-                    {formatDate(session.started_at)}
-                    {session.ended_at ? null : (
-                      <span
-                        style={{
-                          marginLeft: 8,
-                          color: "#d97706",
-                          fontWeight: 600,
-                        }}
-                      >
-                        In progress
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {typeof session.score_pct === "number" && (
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                    <div
-                      style={{
-                        fontSize: 18,
-                        fontWeight: 700,
-                        color:
-                          session.score_pct >= exam.passing_score_pct
-                            ? "#059669"
-                            : "#dc2626",
-                      }}
-                    >
+        <Group header="Recent sessions">
+          {recentSessions.map((session) => (
+            <Cell
+              key={session.id}
+              title={`${formatMode(session.mode)} session`}
+              subtitle={
+                <span>
+                  {formatDate(session.started_at)}
+                  {session.ended_at ? null : (
+                    <span style={{ marginLeft: 8, color: "var(--ios-orange)", fontWeight: 600 }}>In progress</span>
+                  )}
+                </span>
+              }
+              trailing={
+                typeof session.score_pct === "number" ? (
+                  <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                    <span className="ios-num" style={{ fontSize: 18, fontWeight: 700, color: session.score_pct >= exam.passing_score_pct ? "var(--ios-green)" : "var(--ios-red)" }}>
                       {Math.round(session.score_pct)}%
-                    </div>
+                    </span>
                     {session.score_pct >= exam.passing_score_pct && (
                       <AddToCareerButton certName={exam.name} score={session.score_pct} sessionId={session.id} />
                     )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
+                  </span>
+                ) : undefined
+              }
+              chevron={false}
+            />
+          ))}
+        </Group>
       )}
 
       {/* Quick actions */}
-      <section>
-        <h2
-          style={{
-            fontSize: 16,
-            fontWeight: 700,
-            color: "var(--color-ink)",
-            margin: "0 0 16px 0",
-          }}
-        >
-          Quick Actions
-        </h2>
-
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <button
-            style={actionBtnStyle}
-            onClick={() => onNavigateToTab("materials")}
-          >
-            Generate Questions
-          </button>
-          <button
-            style={actionBtnStyle}
-            onClick={() => onNavigateToTab("flashcards")}
-          >
-            Generate Flashcards
-          </button>
-          <button
-            style={actionBtnPrimaryStyle}
-            onClick={() => onNavigateToTab("practice")}
-          >
-            Start Practice
-          </button>
-          <button
-            style={actionBtnStyle}
-            onClick={() => onNavigateToTab("chat")}
-          >
-            Ask AI a Question
-          </button>
-        </div>
-      </section>
+      <Group header="Quick actions">
+        {quickActions.map((a) => (
+          <Cell
+            key={a.tab}
+            lead={<IconBadge color={a.color}>{a.icon}</IconBadge>}
+            title={a.label}
+            subtitle={a.sub}
+            onClick={() => onNavigateToTab(a.tab)}
+          />
+        ))}
+      </Group>
     </div>
   );
 }

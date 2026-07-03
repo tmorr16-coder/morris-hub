@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Group, Segmented, Chip, IconBadge } from "@/components/ios";
 
 interface Goal {
   id: string;
@@ -33,6 +34,10 @@ function formatDate(dateStr: string | null): string {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function initials(name: string): string {
+  return name.split(" ").filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+}
+
 const FREQ_BADGES: Record<string, { label: string; color: string }> = {
   weekly:    { label: "Weekly",    color: "#4A6B3A" },
   biweekly:  { label: "Bi-weekly", color: "#3B5C7F" },
@@ -50,30 +55,23 @@ const INTERACTION_TYPES = [
   "other",
 ];
 
-function labelStyle(): React.CSSProperties {
-  return {
-    display: "block",
-    fontSize: 12,
-    fontWeight: 500,
-    color: "var(--color-ink-3)",
-    marginBottom: 5,
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-  };
+function labelForType(t: string): string {
+  return t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function inputStyle(): React.CSSProperties {
-  return {
-    width: "100%",
-    background: "var(--color-bg)",
-    border: "1px solid var(--color-rule)",
-    borderRadius: 6,
-    padding: "8px 10px",
-    fontSize: 14,
-    color: "var(--color-ink)",
-    outline: "none",
-  };
-}
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "11px 14px",
+  borderRadius: 10,
+  border: "var(--ios-hair) solid var(--ios-separator)",
+  background: "var(--ios-cell)",
+  color: "var(--ios-label)",
+  fontSize: 16,
+  outline: "none",
+  fontFamily: "inherit",
+  boxSizing: "border-box",
+  colorScheme: "light dark",
+};
 
 export default function RelationshipsPageClient({
   grouped,
@@ -91,6 +89,7 @@ export default function RelationshipsPageClient({
   const [editRelId, setEditRelId] = useState<string | null>(null);
   const [editRelForm, setEditRelForm] = useState<typeof relForm | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [typeFilter, setTypeFilter] = useState<string>("all");
 
   function openEditRel(rel: Relationship) {
     setEditRelId(rel.id);
@@ -231,360 +230,264 @@ export default function RelationshipsPageClient({
   }
 
   const hasAny = relationshipTypes.some((t) => (grouped[t] ?? []).length > 0);
+  const typesWithItems = relationshipTypes.filter((t) => (grouped[t] ?? []).length > 0);
+  const filterOptions = [
+    { value: "all", label: "All" },
+    ...typesWithItems.map((t) => ({ value: t, label: typeLabels[t] ?? t })),
+  ];
+  const interRel = interactionFormFor
+    ? Object.values(grouped).flat().find((r) => r.id === interactionFormFor) ?? null
+    : null;
 
   return (
     <div>
-      {/* Add Relationship button */}
-      <div style={{ marginBottom: 24 }}>
-        <button
-          onClick={() => setShowAddRelForm((v) => !v)}
-          style={{
-            background: "var(--color-accent)",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            padding: "9px 18px",
-            fontSize: 14,
-            fontWeight: 500,
-            cursor: "pointer",
-          }}
-        >
-          {showAddRelForm ? "Cancel" : "+ Add Relationship"}
+      {/* Add + filter */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "0 16px 10px" }}>
+        <h2 className="ios-title-3" style={{ margin: 0 }}>Mentors, Coaches &amp; Peers</h2>
+        <button type="button" onClick={() => setShowAddRelForm(true)} className="ios-btn--plain" style={{ padding: 0 }}>
+          + Add
         </button>
       </div>
 
-      {/* Add Relationship form */}
-      {showAddRelForm && (
-        <form
-          onSubmit={submitRelationship}
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 12,
-            padding: "24px",
-            marginBottom: 28,
-          }}
-        >
-          <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 600, color: "var(--color-ink)" }}>
-            Add a Relationship
-          </h3>
-          {error && (
-            <div
-              style={{
-                background: "#FEF2F2",
-                border: "1px solid #FCA5A5",
-                borderRadius: 6,
-                padding: "8px 12px",
-                color: "#9A3B2A",
-                fontSize: 13,
-                marginBottom: 16,
-              }}
-            >
-              {error}
-            </div>
-          )}
-          <div style={{ display: "grid", gap: 14, gridTemplateColumns: "1fr 1fr" }}>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle()}>Name *</label>
-              <input
-                name="name"
-                value={relForm.name}
-                onChange={handleRelChange}
-                required
-                placeholder="Full name"
-                style={inputStyle()}
-              />
-            </div>
-            <div>
-              <label style={labelStyle()}>Role / Title</label>
-              <input name="role" value={relForm.role} onChange={handleRelChange} placeholder="e.g. Senior Director" style={inputStyle()} />
-            </div>
-            <div>
-              <label style={labelStyle()}>Organization</label>
-              <input name="organization" value={relForm.organization} onChange={handleRelChange} placeholder="Company or institution" style={inputStyle()} />
-            </div>
-            <div>
-              <label style={labelStyle()}>Relationship Type</label>
-              <select name="relationship_type" value={relForm.relationship_type} onChange={handleRelChange} style={inputStyle()}>
-                {relationshipTypes.map((t) => (
-                  <option key={t} value={t}>{typeLabels[t] ?? t}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle()}>Meeting Frequency</label>
-              <select name="meeting_frequency" value={relForm.meeting_frequency} onChange={handleRelChange} style={inputStyle()}>
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Bi-weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="as_needed">As needed</option>
-              </select>
-            </div>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle()}>Notes</label>
-              <textarea name="notes" value={relForm.notes} onChange={handleRelChange} rows={2} placeholder="How did you meet? What do you hope to learn?" style={{ ...inputStyle(), resize: "vertical" }} />
-            </div>
-          </div>
-          <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
-            <button
-              type="submit"
-              disabled={submitting}
-              style={{
-                background: "var(--color-accent)",
-                color: "#fff",
-                border: "none",
-                borderRadius: 8,
-                padding: "9px 20px",
-                fontSize: 14,
-                fontWeight: 500,
-                cursor: submitting ? "wait" : "pointer",
-                opacity: submitting ? 0.7 : 1,
-              }}
-            >
-              {submitting ? "Saving…" : "Add Relationship"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowAddRelForm(false)}
-              style={{
-                background: "transparent",
-                border: "1px solid var(--color-rule)",
-                borderRadius: 8,
-                padding: "9px 16px",
-                fontSize: 14,
-                color: "var(--color-ink-2)",
-                cursor: "pointer",
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
+      {filterOptions.length > 2 && (
+        <div style={{ padding: "0 16px 4px" }}>
+          <Segmented options={filterOptions} value={typeFilter} onChange={setTypeFilter} ariaLabel="Filter by relationship type" />
+        </div>
       )}
 
-      {/* Grouped relationship cards */}
+      {/* Add relationship sheet */}
+      {showAddRelForm && (
+        <>
+          <div className="ios-sheet-backdrop" onClick={() => setShowAddRelForm(false)} aria-hidden="true" />
+          <div className="ios-sheet" role="dialog" aria-modal="true" aria-label="Add a relationship">
+            <div className="ios-grabber" />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <button type="button" className="ios-btn--plain" onClick={() => setShowAddRelForm(false)}>Cancel</button>
+              <span className="ios-headline">Add relationship</span>
+              <span style={{ width: 52 }} />
+            </div>
+
+            <form onSubmit={submitRelationship} style={{ overflowY: "auto" }}>
+              {error && (
+                <p className="ios-footnote" style={{ padding: "0 0 12px", color: "var(--ios-red)" }}>{error}</p>
+              )}
+
+              <div className="ios-group-header" style={{ padding: "0 0 8px" }}>
+                Name <span style={{ color: "var(--ios-red)" }}>*</span>
+              </div>
+              <input name="name" value={relForm.name} onChange={handleRelChange} required placeholder="Full name" style={inputStyle} />
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Role / Title</div>
+              <input name="role" value={relForm.role} onChange={handleRelChange} placeholder="e.g. Senior Director" style={inputStyle} />
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Organization</div>
+              <input name="organization" value={relForm.organization} onChange={handleRelChange} placeholder="Company or institution" style={inputStyle} />
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Relationship type</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {relationshipTypes.map((t) => (
+                  <Chip key={t} small selected={relForm.relationship_type === t} onClick={() => setRelForm((p) => ({ ...p, relationship_type: t }))}>
+                    {typeLabels[t] ?? t}
+                  </Chip>
+                ))}
+              </div>
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Meeting frequency</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {Object.keys(FREQ_BADGES).map((k) => (
+                  <Chip key={k} small selected={relForm.meeting_frequency === k} onClick={() => setRelForm((p) => ({ ...p, meeting_frequency: k }))}>
+                    {FREQ_BADGES[k].label}
+                  </Chip>
+                ))}
+              </div>
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Notes</div>
+              <textarea name="notes" value={relForm.notes} onChange={handleRelChange} rows={2} placeholder="How did you meet? What do you hope to learn?" style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
+
+              <button type="submit" disabled={submitting} className="ios-btn ios-btn--primary" style={{ marginTop: 22, opacity: submitting ? 0.5 : 1 }}>
+                {submitting ? "Saving…" : "Add Relationship"}
+              </button>
+            </form>
+          </div>
+        </>
+      )}
+
+      {/* Edit relationship sheet */}
+      {editRelId && editRelForm && (
+        <>
+          <div className="ios-sheet-backdrop" onClick={() => setEditRelId(null)} aria-hidden="true" />
+          <div className="ios-sheet" role="dialog" aria-modal="true" aria-label="Edit relationship">
+            <div className="ios-grabber" />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <button type="button" className="ios-btn--plain" onClick={() => setEditRelId(null)}>Cancel</button>
+              <span className="ios-headline">Edit relationship</span>
+              <span style={{ width: 52 }} />
+            </div>
+
+            <form onSubmit={saveEditRel} style={{ overflowY: "auto" }}>
+              {([["name", "Name"], ["role", "Role"], ["organization", "Organization"]] as const).map(([k, l]) => (
+                <div key={k}>
+                  <div className="ios-group-header" style={{ padding: k === "name" ? "0 0 8px" : "18px 0 8px" }}>{l}</div>
+                  <input value={editRelForm[k]} onChange={(e) => setEditRelForm((f) => f ? { ...f, [k]: e.target.value } : f)} style={inputStyle} />
+                </div>
+              ))}
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Type</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {relationshipTypes.map((t) => (
+                  <Chip key={t} small selected={editRelForm.relationship_type === t} onClick={() => setEditRelForm((f) => f ? { ...f, relationship_type: t } : f)}>
+                    {typeLabels[t] ?? t}
+                  </Chip>
+                ))}
+              </div>
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Frequency</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {Object.keys(FREQ_BADGES).map((k) => (
+                  <Chip key={k} small selected={editRelForm.meeting_frequency === k} onClick={() => setEditRelForm((f) => f ? { ...f, meeting_frequency: k } : f)}>
+                    {FREQ_BADGES[k].label}
+                  </Chip>
+                ))}
+              </div>
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Notes</div>
+              <textarea value={editRelForm.notes} onChange={(e) => setEditRelForm((f) => f ? { ...f, notes: e.target.value } : f)} rows={2} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
+
+              <button type="submit" disabled={submitting} className="ios-btn ios-btn--primary" style={{ marginTop: 22, opacity: submitting ? 0.5 : 1 }}>
+                {submitting ? "Saving…" : "Save"}
+              </button>
+            </form>
+          </div>
+        </>
+      )}
+
+      {/* Log interaction sheet */}
+      {interactionFormFor && (
+        <>
+          <div className="ios-sheet-backdrop" onClick={() => setInteractionFormFor(null)} aria-hidden="true" />
+          <div className="ios-sheet" role="dialog" aria-modal="true" aria-label="Log interaction">
+            <div className="ios-grabber" />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <button type="button" className="ios-btn--plain" onClick={() => setInteractionFormFor(null)}>Cancel</button>
+              <span className="ios-headline">Log interaction</span>
+              <span style={{ width: 52 }} />
+            </div>
+
+            {interRel && (
+              <div className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "0 0 8px" }}>with {interRel.name}</div>
+            )}
+
+            <form onSubmit={(e) => submitInteraction(interactionFormFor, e)} style={{ overflowY: "auto" }}>
+              {error && (
+                <p className="ios-footnote" style={{ padding: "0 0 12px", color: "var(--ios-red)" }}>{error}</p>
+              )}
+
+              <div className="ios-group-header" style={{ padding: "0 0 8px" }}>Date</div>
+              <input type="date" name="date" value={interForm.date} onChange={handleInterChange} style={inputStyle} />
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Type</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {INTERACTION_TYPES.map((t) => (
+                  <Chip key={t} small selected={interForm.interaction_type === t} onClick={() => setInterForm((p) => ({ ...p, interaction_type: t }))}>
+                    {labelForType(t)}
+                  </Chip>
+                ))}
+              </div>
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Notes</div>
+              <textarea name="notes" value={interForm.notes} onChange={handleInterChange} rows={2} placeholder="What did you discuss?" style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Insights</div>
+              <textarea name="insights" value={interForm.insights} onChange={handleInterChange} rows={2} placeholder="Key takeaways or advice received" style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Action items (one per line)</div>
+              <textarea name="action_items" value={interForm.action_items} onChange={handleInterChange} rows={2} placeholder="Follow-up tasks…" style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
+
+              {goals.length > 0 && (
+                <>
+                  <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Link to goals</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {goals.map((g) => (
+                      <Chip key={g.id} small selected={interForm.linked_goal_ids.includes(g.id)} onClick={() => toggleInterGoal(g.id)}>
+                        {g.title}
+                      </Chip>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <button type="submit" disabled={submitting} className="ios-btn ios-btn--primary" style={{ marginTop: 22, opacity: submitting ? 0.5 : 1 }}>
+                {submitting ? "Saving…" : "Log Interaction"}
+              </button>
+            </form>
+          </div>
+        </>
+      )}
+
+      {/* Grouped relationships */}
       {!hasAny ? (
-        <div style={{ textAlign: "center", padding: "48px 24px", color: "var(--color-ink-3)", fontSize: 15 }}>
-          No relationships added yet. Add your mentors, coaches, and peers above.
-        </div>
+        <Group footer="Add your mentors, coaches, and peers to track how you invest in relationships.">
+          <button type="button" className="ios-cell" onClick={() => setShowAddRelForm(true)} style={{ color: "var(--ios-tint)" }}>
+            <span className="ios-cell-lead">
+              <IconBadge color="var(--ios-tint)">
+                <span style={{ color: "#fff", fontWeight: 600, fontSize: 15 }}>+</span>
+              </IconBadge>
+            </span>
+            <span className="ios-cell-body">
+              <span className="ios-cell-title" style={{ color: "var(--ios-tint)" }}>Add your first relationship</span>
+            </span>
+          </button>
+        </Group>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-          {relationshipTypes.map((type) => {
-            const rels = grouped[type] ?? [];
-            if (rels.length === 0) return null;
-            const color = typeColors[type] ?? "#8A8278";
-            return (
-              <div key={type}>
-                <h2
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.06em",
-                    margin: "0 0 12px",
-                    paddingBottom: 6,
-                    borderBottom: `2px solid ${color}22`,
-                  }}
-                >
-                  {typeLabels[type]}
-                </h2>
-                <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
-                  {rels.map((rel) => {
-                    const freq = FREQ_BADGES[rel.meeting_frequency ?? ""] ?? null;
-                    const isInterFormOpen = interactionFormFor === rel.id;
-                    return (
-                      <div
-                        key={rel.id}
-                        style={{
-                          background: "var(--color-bg-card)",
-                          border: "1px solid var(--color-rule)",
-                          borderRadius: 10,
-                          padding: "16px 18px",
-                          borderTop: `3px solid ${color}`,
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)", marginBottom: 2 }}>
-                              {rel.name}
-                            </div>
-                            {rel.role && <div style={{ fontSize: 13, color: "var(--color-ink-2)" }}>{rel.role}</div>}
-                            {rel.organization && <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>{rel.organization}</div>}
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                            {freq && <span style={{ background: `${freq.color}18`, color: freq.color, border: `1px solid ${freq.color}44`, borderRadius: 4, padding: "2px 8px", fontSize: 11, fontWeight: 500 }}>{freq.label}</span>}
-                            <button onClick={() => editRelId === rel.id ? setEditRelId(null) : openEditRel(rel)} style={{ padding: "3px 9px", borderRadius: 5, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-3)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
-                              {editRelId === rel.id ? "Cancel" : "Edit"}
-                            </button>
-                            <button onClick={() => deleteRel(rel.id)} disabled={deletingId === rel.id} style={{ padding: "3px 9px", borderRadius: 5, border: "1px solid rgba(154,59,42,0.3)", background: "rgba(154,59,42,0.05)", color: "var(--color-red, #9a3b2a)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
-                              {deletingId === rel.id ? "…" : "Remove"}
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Inline edit form */}
-                        {editRelId === rel.id && editRelForm && (
-                          <form onSubmit={saveEditRel} style={{ marginTop: 14, padding: "14px 16px", background: "var(--color-bg-sunk, #f3f1ec)", borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
-                            {[["name","Name"],["role","Role"],["organization","Organization"]] .map(([k,l]) => (
-                              <div key={k}>
-                                <label style={{ display:"block", fontSize:11, fontWeight:600, color:"var(--color-ink-3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>{l}</label>
-                                <input value={editRelForm[k as keyof typeof editRelForm]} onChange={e => setEditRelForm(f => f ? {...f, [k]: e.target.value} : f)} style={{ width:"100%", padding:"7px 10px", border:"1px solid var(--color-rule)", borderRadius:6, fontSize:13, fontFamily:"inherit", background:"var(--color-bg)", color:"var(--color-ink)", boxSizing:"border-box" }} />
-                              </div>
-                            ))}
-                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                              <div>
-                                <label style={{ display:"block", fontSize:11, fontWeight:600, color:"var(--color-ink-3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>Type</label>
-                                <select value={editRelForm.relationship_type} onChange={e => setEditRelForm(f => f ? {...f, relationship_type: e.target.value} : f)} style={{ width:"100%", padding:"7px 10px", border:"1px solid var(--color-rule)", borderRadius:6, fontSize:13, fontFamily:"inherit", background:"var(--color-bg)", color:"var(--color-ink)" }}>
-                                  {relationshipTypes.map(t => <option key={t} value={t}>{typeLabels[t] ?? t}</option>)}
-                                </select>
-                              </div>
-                              <div>
-                                <label style={{ display:"block", fontSize:11, fontWeight:600, color:"var(--color-ink-3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>Frequency</label>
-                                <select value={editRelForm.meeting_frequency} onChange={e => setEditRelForm(f => f ? {...f, meeting_frequency: e.target.value} : f)} style={{ width:"100%", padding:"7px 10px", border:"1px solid var(--color-rule)", borderRadius:6, fontSize:13, fontFamily:"inherit", background:"var(--color-bg)", color:"var(--color-ink)" }}>
-                                  {Object.keys(FREQ_BADGES).map(k => <option key={k} value={k}>{FREQ_BADGES[k].label}</option>)}
-                                </select>
-                              </div>
-                            </div>
-                            <div>
-                              <label style={{ display:"block", fontSize:11, fontWeight:600, color:"var(--color-ink-3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>Notes</label>
-                              <textarea value={editRelForm.notes} onChange={e => setEditRelForm(f => f ? {...f, notes: e.target.value} : f)} rows={2} style={{ width:"100%", padding:"7px 10px", border:"1px solid var(--color-rule)", borderRadius:6, fontSize:13, fontFamily:"inherit", background:"var(--color-bg)", color:"var(--color-ink)", resize:"vertical", boxSizing:"border-box" }} />
-                            </div>
-                            <div style={{ display:"flex", gap:8 }}>
-                              <button type="submit" disabled={submitting} style={{ padding:"7px 18px", borderRadius:7, border:"none", background:"var(--color-accent,#3B5C7F)", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>{submitting ? "Saving…" : "Save"}</button>
-                              <button type="button" onClick={() => setEditRelId(null)} style={{ padding:"7px 14px", borderRadius:7, border:"1px solid var(--color-rule)", background:"transparent", color:"var(--color-ink-3)", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
-                            </div>
-                          </form>
-                        )}
-
+        relationshipTypes.map((type) => {
+          const rels = grouped[type] ?? [];
+          if (rels.length === 0) return null;
+          if (typeFilter !== "all" && typeFilter !== type) return null;
+          const color = typeColors[type] ?? "var(--ios-label-2)";
+          return (
+            <Group key={type} header={typeLabels[type]}>
+              {rels.map((rel) => {
+                const freq = FREQ_BADGES[rel.meeting_frequency ?? ""] ?? null;
+                return (
+                  <div key={rel.id} className="ios-cell" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                      <span className="ios-cell-lead">
+                        <IconBadge color={color}>
+                          <span style={{ color: "#fff", fontWeight: 600, fontSize: 12 }}>{initials(rel.name)}</span>
+                        </IconBadge>
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="ios-headline">{rel.name}</div>
+                        {rel.role && <div className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>{rel.role}</div>}
+                        {rel.organization && <div className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>{rel.organization}</div>}
                         {rel.last_interaction_date && (
-                          <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 8 }}>
+                          <div className="ios-footnote" style={{ color: "var(--ios-label-3)", marginTop: 2 }}>
                             Last interaction: {formatDate(rel.last_interaction_date)}
                           </div>
                         )}
-
-                        <button
-                          onClick={() => {
-                            setInteractionFormFor(isInterFormOpen ? null : rel.id);
-                            setError(null);
-                          }}
-                          style={{
-                            marginTop: 12,
-                            background: isInterFormOpen ? "var(--color-bg-deep)" : "transparent",
-                            border: "1px solid var(--color-rule)",
-                            borderRadius: 6,
-                            padding: "5px 12px",
-                            fontSize: 12,
-                            color: "var(--color-ink-2)",
-                            cursor: "pointer",
-                          }}
-                        >
-                          {isInterFormOpen ? "Cancel" : "+ Log Interaction"}
-                        </button>
-
-                        {/* Inline interaction form */}
-                        {isInterFormOpen && (
-                          <form
-                            onSubmit={(e) => submitInteraction(rel.id, e)}
-                            style={{
-                              marginTop: 14,
-                              borderTop: "1px solid var(--color-rule)",
-                              paddingTop: 14,
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: 12,
-                            }}
-                          >
-                            {error && (
-                              <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 6, padding: "6px 10px", color: "#9A3B2A", fontSize: 12 }}>
-                                {error}
-                              </div>
-                            )}
-                            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr" }}>
-                              <div>
-                                <label style={labelStyle()}>Date</label>
-                                <input type="date" name="date" value={interForm.date} onChange={handleInterChange} style={inputStyle()} />
-                              </div>
-                              <div>
-                                <label style={labelStyle()}>Type</label>
-                                <select name="interaction_type" value={interForm.interaction_type} onChange={handleInterChange} style={inputStyle()}>
-                                  {INTERACTION_TYPES.map((t) => (
-                                    <option key={t} value={t}>
-                                      {t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            </div>
-                            <div>
-                              <label style={labelStyle()}>Notes</label>
-                              <textarea name="notes" value={interForm.notes} onChange={handleInterChange} rows={2} placeholder="What did you discuss?" style={{ ...inputStyle(), resize: "vertical" }} />
-                            </div>
-                            <div>
-                              <label style={labelStyle()}>Insights</label>
-                              <textarea name="insights" value={interForm.insights} onChange={handleInterChange} rows={2} placeholder="Key takeaways or advice received" style={{ ...inputStyle(), resize: "vertical" }} />
-                            </div>
-                            <div>
-                              <label style={labelStyle()}>Action Items (one per line)</label>
-                              <textarea name="action_items" value={interForm.action_items} onChange={handleInterChange} rows={2} placeholder="Follow-up tasks..." style={{ ...inputStyle(), resize: "vertical" }} />
-                            </div>
-                            {goals.length > 0 && (
-                              <div>
-                                <label style={labelStyle()}>Link to Goals</label>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                  {goals.map((g) => {
-                                    const selected = interForm.linked_goal_ids.includes(g.id);
-                                    return (
-                                      <button
-                                        key={g.id}
-                                        type="button"
-                                        onClick={() => toggleInterGoal(g.id)}
-                                        style={{
-                                          border: `1px solid ${selected ? "var(--color-accent)" : "var(--color-rule)"}`,
-                                          background: selected ? "var(--color-accent-soft)" : "transparent",
-                                          color: selected ? "var(--color-accent-dark)" : "var(--color-ink-2)",
-                                          borderRadius: 6,
-                                          padding: "3px 8px",
-                                          fontSize: 12,
-                                          cursor: "pointer",
-                                        }}
-                                      >
-                                        {g.title}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                            <button
-                              type="submit"
-                              disabled={submitting}
-                              style={{
-                                background: "var(--color-accent)",
-                                color: "#fff",
-                                border: "none",
-                                borderRadius: 6,
-                                padding: "7px 16px",
-                                fontSize: 13,
-                                fontWeight: 500,
-                                cursor: submitting ? "wait" : "pointer",
-                                opacity: submitting ? 0.7 : 1,
-                                alignSelf: "flex-start",
-                              }}
-                            >
-                              {submitting ? "Saving…" : "Log Interaction"}
-                            </button>
-                          </form>
-                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                      {freq && (
+                        <span className="ios-caption" style={{ fontWeight: 600, color: freq.color, flexShrink: 0 }}>{freq.label}</span>
+                      )}
+                    </div>
+
+                    <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                      <button type="button" onClick={() => { setInteractionFormFor(rel.id); setError(null); }} className="ios-btn--plain" style={{ padding: 0, fontSize: 15 }}>
+                        Log interaction
+                      </button>
+                      <button type="button" onClick={() => openEditRel(rel)} className="ios-btn--plain" style={{ padding: 0, fontSize: 15 }}>
+                        Edit
+                      </button>
+                      <button type="button" onClick={() => deleteRel(rel.id)} disabled={deletingId === rel.id} className="ios-btn--plain" style={{ padding: 0, fontSize: 15, color: "var(--ios-red)" }}>
+                        {deletingId === rel.id ? "…" : "Remove"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </Group>
+          );
+        })
       )}
     </div>
   );

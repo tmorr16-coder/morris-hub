@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { RadialGauge, Chip } from "@/components/ios";
 
 interface Choice {
   id: string;
@@ -48,6 +49,23 @@ function splitExplanation(text: string | null): { short: string; extended: strin
   const idx = text.search(/\.\s+[A-Z]/);
   if (idx === -1 || idx > 160) return { short: text, extended: "" };
   return { short: text.slice(0, idx + 1), extended: text.slice(idx + 1).trim() };
+}
+
+// Small inline glyphs (no emoji).
+function CheckGlyph({ color }: { color: string }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+function XGlyph({ color }: { color: string }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M18 6 6 18M6 6l12 12" />
+    </svg>
+  );
 }
 
 export default function PracticeSessionClient({
@@ -144,30 +162,40 @@ export default function PracticeSessionClient({
     const correct = answeredRows.filter((a) => a.is_correct).length;
     const total = answeredRows.length;
     const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+    const accent = pct >= 80 ? "#2E7D46" : pct >= 60 ? "#E08600" : "#C0392B";
 
     return (
-      <div style={{ textAlign: "center", paddingTop: 60 }}>
-        <div style={{ fontSize: 52, marginBottom: 16 }}>
-          {pct >= 80 ? "🎉" : pct >= 60 ? "📚" : "💪"}
-        </div>
-        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 400, marginBottom: 8 }}>
-          Session Complete!
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", paddingTop: 32 }}>
+        <RadialGauge
+          value={pct / 100}
+          color={accent}
+          size={148}
+          center={
+            <span className="ios-title-1 ios-num" style={{ color: "var(--ios-label)", fontWeight: 700 }}>
+              {pct}%
+            </span>
+          }
+        />
+        <h1 className="ios-title-2" style={{ color: "var(--ios-label)", marginTop: 24 }}>
+          Session Complete
         </h1>
-        <div style={{ fontSize: 42, fontWeight: 700, color: pct >= 80 ? "var(--color-green)" : pct >= 60 ? "var(--color-amber)" : "var(--color-red)", marginBottom: 4 }}>
-          {pct}%
-        </div>
-        <div style={{ fontSize: 16, color: "var(--color-ink-2)", marginBottom: 32 }}>
+        <div className="ios-body ios-num" style={{ color: "var(--ios-label-2)", marginTop: 4 }}>
           {correct} / {total} correct
         </div>
-        <div style={{ maxWidth: 320, margin: "0 auto 40px", background: "var(--color-rule)", borderRadius: 8, height: 10, overflow: "hidden" }}>
-          <div style={{ width: `${pct}%`, height: "100%", background: pct >= 80 ? "var(--color-green)" : pct >= 60 ? "var(--color-amber)" : "var(--color-red)", borderRadius: 8, transition: "width 600ms ease" }} />
-        </div>
-        <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-          <Link href={`/career/certifications/${certId}/practice`} style={{ padding: "10px 22px", borderRadius: 8, border: "1px solid var(--color-rule)", textDecoration: "none", fontSize: 14, color: "var(--color-ink-2)", background: "var(--color-bg-raised)" }}>
-            New Session
-          </Link>
-          <Link href={`/career/certifications/${certId}`} style={{ padding: "10px 22px", borderRadius: 8, background: "var(--color-accent)", textDecoration: "none", fontSize: 14, fontWeight: 600, color: "#fff" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 32, width: "100%", maxWidth: 340 }}>
+          <Link
+            href={`/career/certifications/${certId}`}
+            className="ios-btn ios-btn--primary"
+            style={{ textDecoration: "none" }}
+          >
             Back to {examName}
+          </Link>
+          <Link
+            href={`/career/certifications/${certId}/practice`}
+            className="ios-btn ios-btn--full"
+            style={{ textDecoration: "none", background: "var(--ios-fill)", color: "var(--ios-tint)" }}
+          >
+            New Session
           </Link>
         </div>
       </div>
@@ -177,32 +205,41 @@ export default function PracticeSessionClient({
   // ── Active question screen ─────────────────────────────────────────────────
   const domainName = question.cert_domains?.name ?? null;
   const { short: shortExp, extended: extendedExp } = splitExplanation(question.explanation);
+  const resultAccent = result?.isCorrect ? "var(--ios-green)" : "var(--ios-red)";
 
   return (
     <div>
       {/* Header bar */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button
+            type="button"
             onClick={pause}
-            style={{ fontSize: 12, color: "var(--color-ink-3)", background: "none", border: "1px solid var(--color-line)", borderRadius: 6, cursor: "pointer", padding: "4px 10px" }}
+            className="ios-subhead"
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--ios-tint)", background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 500 }}
           >
-            ⏸ Pause
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <rect x="6" y="5" width="4" height="14" rx="1" />
+              <rect x="14" y="5" width="4" height="14" rx="1" />
+            </svg>
+            Pause
           </button>
-          <span style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+          <span className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)" }}>
             {modeLabel[session.mode] ?? session.mode} · Q{answeredCount + 1} of {totalQuestions}
           </span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {timeLeft !== null && (
-            <span style={{ fontSize: 15, fontWeight: 700, fontFamily: "var(--font-mono)", color: timeLeft < 120 ? "var(--color-red)" : "var(--color-ink-2)" }}>
+            <span className="ios-headline ios-num" style={{ color: timeLeft < 120 ? "var(--ios-red)" : "var(--ios-label)" }}>
               {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, "0")}
             </span>
           )}
           <button
+            type="button"
             onClick={endSession}
             disabled={isPending}
-            style={{ fontSize: 11, color: "var(--color-ink-4)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            className="ios-footnote"
+            style={{ color: "var(--ios-label-3)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
           >
             End session
           </button>
@@ -210,54 +247,66 @@ export default function PracticeSessionClient({
       </div>
 
       {/* Progress bar */}
-      <div style={{ height: 4, background: "var(--color-rule)", borderRadius: 4, marginBottom: 24, overflow: "hidden" }}>
-        <div style={{ width: `${progressPct}%`, height: "100%", background: "var(--color-accent)", borderRadius: 4, transition: "width 300ms ease" }} />
+      <div style={{ height: 6, background: "var(--ios-fill)", borderRadius: 999, marginBottom: 22, overflow: "hidden" }}>
+        <div style={{ width: `${progressPct}%`, height: "100%", background: "var(--ios-tint)", borderRadius: 999, transition: "width 300ms ease" }} />
       </div>
 
       {/* Domain badge */}
       {domainName && (
-        <div style={{ marginBottom: 16 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-accent)", background: "var(--color-accent-soft)", padding: "3px 10px", borderRadius: 10 }}>
-            {domainName}
-          </span>
+        <div style={{ marginBottom: 14 }}>
+          <Chip small selected>{domainName}</Chip>
         </div>
       )}
 
       {/* Question stem */}
-      <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, padding: "24px 28px", marginBottom: 20, boxShadow: "var(--shadow-card)" }}>
-        <div style={{ fontSize: 16, lineHeight: 1.7, color: "var(--color-ink)", whiteSpace: "pre-line" }}>
+      <div className="ios-list" style={{ margin: "0 0 18px", padding: "20px 18px" }}>
+        <div className="ios-body" style={{ color: "var(--ios-label)", lineHeight: 1.6, whiteSpace: "pre-line" }}>
           {question.stem}
         </div>
       </div>
 
       {/* Answer choices */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 22 }}>
         {choices.map((c) => {
           const isSelected = selectedId === c.id;
           const isCorrect = submitted && result?.correctChoiceId === c.id;
           const isWrong   = submitted && isSelected && !result?.isCorrect;
+          const active = isCorrect || isWrong || isSelected;
+          const accent = isCorrect ? "var(--ios-green)" : isWrong ? "var(--ios-red)" : isSelected ? "var(--ios-tint)" : "var(--ios-separator)";
 
           return (
             <button
               key={c.id}
+              type="button"
               onClick={() => !submitted && setSelectedId(c.id)}
               style={{
-                padding: "14px 18px", borderRadius: 10, textAlign: "left",
+                padding: "14px 16px", borderRadius: 14, textAlign: "left",
                 cursor: submitted ? "default" : "pointer",
-                border: `2px solid ${isCorrect ? "var(--color-green)" : isWrong ? "var(--color-red)" : isSelected ? "var(--color-accent)" : "var(--color-line)"}`,
-                background: isCorrect ? "rgba(74,107,58,0.08)" : isWrong ? "rgba(154,59,42,0.08)" : isSelected ? "var(--color-accent-soft)" : "var(--color-bg-raised)",
+                border: `1.5px solid ${accent}`,
+                background: active ? "var(--ios-fill)" : "var(--ios-cell)",
                 display: "flex", gap: 12, alignItems: "flex-start",
                 transition: "border-color 120ms, background 120ms",
+                fontFamily: "inherit",
               }}
             >
-              <span style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, border: `2px solid ${isCorrect ? "var(--color-green)" : isWrong ? "var(--color-red)" : isSelected ? "var(--color-accent)" : "var(--color-rule)"}`, background: isCorrect ? "var(--color-green)" : isWrong ? "var(--color-red)" : isSelected ? "var(--color-accent)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: isCorrect || isWrong || isSelected ? "#fff" : "var(--color-ink-3)" }}>
+              <span
+                className="ios-num"
+                style={{
+                  width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+                  border: `1.5px solid ${isCorrect ? "var(--ios-green)" : isWrong ? "var(--ios-red)" : isSelected ? "var(--ios-tint)" : "var(--ios-separator)"}`,
+                  background: isCorrect ? "var(--ios-green)" : isWrong ? "var(--ios-red)" : isSelected ? "var(--ios-tint)" : "transparent",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 13, fontWeight: 600,
+                  color: active ? "var(--ios-on-tint)" : "var(--ios-label-2)",
+                }}
+              >
                 {c.label}
               </span>
-              <span style={{ fontSize: 14, lineHeight: 1.6, color: "var(--color-ink)", paddingTop: 3 }}>
+              <span className="ios-callout" style={{ color: "var(--ios-label)", lineHeight: 1.5, paddingTop: 3 }}>
                 {c.body}
               </span>
-              {isCorrect && <span style={{ marginLeft: "auto", flexShrink: 0, fontSize: 18, paddingTop: 2, color: "var(--color-green)" }}>✓</span>}
-              {isWrong   && <span style={{ marginLeft: "auto", flexShrink: 0, fontSize: 18, paddingTop: 2, color: "var(--color-red)" }}>✗</span>}
+              {isCorrect && <span style={{ marginLeft: "auto", flexShrink: 0, paddingTop: 3 }}><CheckGlyph color="var(--ios-green)" /></span>}
+              {isWrong   && <span style={{ marginLeft: "auto", flexShrink: 0, paddingTop: 3 }}><XGlyph color="var(--ios-red)" /></span>}
             </button>
           );
         })}
@@ -265,29 +314,38 @@ export default function PracticeSessionClient({
 
       {/* Submit button */}
       {!submitted && (
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button
-            onClick={submit}
-            disabled={!selectedId || isPending}
-            style={{ padding: "11px 28px", borderRadius: 8, border: "none", background: selectedId ? "var(--color-accent)" : "var(--color-rule)", color: selectedId ? "#fff" : "var(--color-ink-4)", fontWeight: 600, fontSize: 14, cursor: selectedId && !isPending ? "pointer" : "default", fontFamily: "inherit" }}
-          >
-            {isPending ? "Submitting…" : "Submit"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!selectedId || isPending}
+          className="ios-btn ios-btn--primary"
+          style={{ opacity: !selectedId || isPending ? 0.4 : 1 }}
+        >
+          {isPending ? "Submitting…" : "Submit"}
+        </button>
       )}
 
       {/* Post-submit feedback */}
       {submitted && result && (
-        <div style={{ background: result.isCorrect ? "rgba(74,107,58,0.06)" : "rgba(154,59,42,0.06)", border: `1px solid ${result.isCorrect ? "var(--color-green)" : "var(--color-red)"}`, borderRadius: 12, padding: "18px 20px" }}>
-
+        <div
+          style={{
+            background: "var(--ios-fill)",
+            border: `var(--ios-hair) solid ${resultAccent}`,
+            borderRadius: 14,
+            padding: "16px 18px",
+          }}
+        >
           {/* Short affirming line */}
-          <div style={{ fontSize: 16, fontWeight: 700, color: result.isCorrect ? "var(--color-green)" : "var(--color-red)", marginBottom: result.isCorrect ? 4 : 6 }}>
-            {result.isCorrect ? "✓ Correct!" : `✗ Not quite — the correct answer was ${result.correctLabel}`}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: shortExp ? 8 : 16 }}>
+            {result.isCorrect ? <CheckGlyph color="var(--ios-green)" /> : <XGlyph color="var(--ios-red)" />}
+            <span className="ios-headline" style={{ color: resultAccent }}>
+              {result.isCorrect ? "Correct!" : `Not quite — the correct answer was ${result.correctLabel}`}
+            </span>
           </div>
 
           {/* Short explanation (first sentence) */}
           {shortExp && (
-            <div style={{ fontSize: 13, color: "var(--color-ink-2)", lineHeight: 1.6, marginBottom: extendedExp ? 6 : 16 }}>
+            <div className="ios-subhead" style={{ color: "var(--ios-label-2)", lineHeight: 1.6, marginBottom: extendedExp ? 8 : 16 }}>
               {shortExp}
             </div>
           )}
@@ -296,28 +354,36 @@ export default function PracticeSessionClient({
           {extendedExp && (
             <>
               <button
+                type="button"
                 onClick={() => setShowFullExplanation((v) => !v)}
-                style={{ fontSize: 12, color: "var(--color-accent)", background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: showFullExplanation ? 8 : 16, fontFamily: "inherit", textDecoration: "underline" }}
+                className="ios-subhead"
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-tint)", background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: showFullExplanation ? 10 : 16, fontFamily: "inherit", fontWeight: 500 }}
               >
-                {showFullExplanation ? "Hide full explanation ↑" : "See full explanation ↓"}
+                {showFullExplanation ? "Hide full explanation" : "See full explanation"}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ transform: showFullExplanation ? "rotate(180deg)" : "none" }}>
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
               </button>
               {showFullExplanation && (
-                <div style={{ fontSize: 13, color: "var(--color-ink-2)", lineHeight: 1.6, marginBottom: 16, paddingTop: 4, borderTop: "1px solid var(--color-line)", paddingLeft: 12, borderLeft: `3px solid ${result.isCorrect ? "var(--color-green)" : "var(--color-red)"}` }}>
+                <div
+                  className="ios-subhead"
+                  style={{ color: "var(--ios-label-2)", lineHeight: 1.6, marginBottom: 16, paddingLeft: 12, borderLeft: `3px solid ${resultAccent}` }}
+                >
                   {extendedExp}
                 </div>
               )}
             </>
           )}
 
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button
-              onClick={next}
-              disabled={isPending}
-              style={{ padding: "9px 24px", borderRadius: 8, background: "var(--color-accent)", color: "#fff", border: "none", fontWeight: 600, fontSize: 14, cursor: isPending ? "default" : "pointer", fontFamily: "inherit" }}
-            >
-              {isPending ? "Loading…" : "Next →"}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={next}
+            disabled={isPending}
+            className="ios-btn ios-btn--primary"
+            style={{ opacity: isPending ? 0.4 : 1 }}
+          >
+            {isPending ? "Loading…" : "Next"}
+          </button>
         </div>
       )}
     </div>

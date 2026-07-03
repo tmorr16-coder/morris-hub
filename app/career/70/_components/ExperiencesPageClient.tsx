@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Group, Chip, IconBadge, Icons } from "@/components/ios";
 import QuickLogModal from "./QuickLogModal";
 
 const EXPERIENCE_TYPES = [
@@ -58,6 +59,7 @@ export default function ExperiencesPageClient({
   const [isPending, startTransition] = useTransition();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<string>("all");
 
   const [form, setForm] = useState({
     title: "",
@@ -130,65 +132,62 @@ export default function ExperiencesPageClient({
     }
   }
 
+  const availableTypes = Array.from(
+    new Set(experiences.map((e: Experience) => e.experience_type ?? "other"))
+  );
+  const visible = experiences.filter(
+    (e: Experience) => filter === "all" || (e.experience_type ?? "other") === filter
+  );
+
   return (
     <div>
-      {/* Add buttons */}
-      <div style={{ marginBottom: 20, display: "flex", gap: 8, flexWrap: "wrap" }}>
+      {/* Add actions */}
+      <div style={{ display: "flex", gap: 10, padding: "0 16px 8px", flexWrap: "wrap" }}>
         <button
+          type="button"
           onClick={() => setShowQuickLog(true)}
-          style={{ background: "var(--color-accent)", color: "#fff", border: "none", borderRadius: 8, padding: "9px 18px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+          className="ios-btn ios-btn--primary"
+          style={{ flex: 1, minWidth: 140, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
         >
-          ⚡ Quick Log
+          <Icons.SparkleIcon style={{ width: 17, height: 17 }} /> Quick Log
         </button>
         <button
-          onClick={() => setShowForm((v) => !v)}
-          style={{ background: "transparent", color: "var(--color-ink-2)", border: "1px solid var(--color-rule)", borderRadius: 8, padding: "9px 18px", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+          type="button"
+          onClick={() => setShowForm(true)}
+          className="ios-btn"
+          style={{ flex: 1, minWidth: 140, background: "var(--ios-fill)", color: "var(--ios-tint)" }}
         >
-          {showForm ? "Cancel" : "+ Full Entry"}
+          Full Entry
         </button>
-        {showQuickLog && (
-          <QuickLogModal
-            onClose={() => setShowQuickLog(false)}
-            onSaved={() => { setShowQuickLog(false); router.refresh(); }}
-          />
-        )}
       </div>
 
-      {/* Inline form */}
+      {showQuickLog && (
+        <QuickLogModal
+          onClose={() => setShowQuickLog(false)}
+          onSaved={() => { setShowQuickLog(false); router.refresh(); }}
+        />
+      )}
+
+      {/* Full entry sheet */}
       {showForm && (
-        <form
-          onSubmit={handleSubmit}
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 12,
-            padding: "24px",
-            marginBottom: 28,
-          }}
-        >
-          <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 600, color: "var(--color-ink)" }}>
-            Log an On-the-Job Experience
-          </h3>
-
-          {error && (
-            <div
-              style={{
-                background: "#FEF2F2",
-                border: "1px solid #FCA5A5",
-                borderRadius: 6,
-                padding: "8px 12px",
-                color: "#9A3B2A",
-                fontSize: 13,
-                marginBottom: 16,
-              }}
-            >
-              {error}
+        <>
+          <div className="ios-sheet-backdrop" onClick={() => setShowForm(false)} aria-hidden="true" />
+          <div className="ios-sheet" role="dialog" aria-modal="true" aria-label="Log an experience">
+            <div className="ios-grabber" />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <button type="button" className="ios-btn--plain" onClick={() => setShowForm(false)}>Cancel</button>
+              <span className="ios-headline">Log experience</span>
+              <span style={{ width: 52 }} />
             </div>
-          )}
 
-          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "1fr 1fr" }}>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Title *</label>
+            <form onSubmit={handleSubmit} style={{ overflowY: "auto" }}>
+              {error && (
+                <p className="ios-footnote" style={{ padding: "0 0 12px", color: "var(--ios-red)" }}>{error}</p>
+              )}
+
+              <div className="ios-group-header" style={{ padding: "0 0 8px" }}>
+                Title <span style={{ color: "var(--ios-red)" }}>*</span>
+              </div>
               <input
                 name="title"
                 value={form.title}
@@ -197,21 +196,22 @@ export default function ExperiencesPageClient({
                 placeholder="e.g. Led onboarding for 3 new teammates"
                 style={inputStyle}
               />
-            </div>
 
-            <div>
-              <label style={labelStyle}>Type</label>
-              <select name="experience_type" value={form.experience_type} onChange={handleChange} style={inputStyle}>
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Type</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {EXPERIENCE_TYPES.map((t) => (
-                  <option key={t} value={t}>
+                  <Chip
+                    key={t}
+                    small
+                    selected={form.experience_type === t}
+                    onClick={() => setForm((prev) => ({ ...prev, experience_type: t }))}
+                  >
                     {t.charAt(0).toUpperCase() + t.slice(1)}
-                  </option>
+                  </Chip>
                 ))}
-              </select>
-            </div>
+              </div>
 
-            <div>
-              <label style={labelStyle}>Date</label>
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Date</div>
               <input
                 type="date"
                 name="experience_date"
@@ -219,46 +219,38 @@ export default function ExperiencesPageClient({
                 onChange={handleChange}
                 style={inputStyle}
               />
-            </div>
 
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Description</label>
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Description</div>
               <textarea
                 name="description"
                 value={form.description}
                 onChange={handleChange}
                 rows={3}
                 placeholder="What happened? What was your role?"
-                style={{ ...inputStyle, resize: "vertical" }}
+                style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
               />
-            </div>
 
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>What did you learn? (Reflection)</label>
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>What did you learn? (Reflection)</div>
               <textarea
                 name="reflection"
                 value={form.reflection}
                 onChange={handleChange}
                 rows={3}
                 placeholder="What did you learn?"
-                style={{ ...inputStyle, resize: "vertical" }}
+                style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
               />
-            </div>
 
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>How does this help your goals? (Impact)</label>
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>How does this help your goals? (Impact)</div>
               <textarea
                 name="impact"
                 value={form.impact}
                 onChange={handleChange}
                 rows={2}
                 placeholder="How does this help your goals?"
-                style={{ ...inputStyle, resize: "vertical" }}
+                style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
               />
-            </div>
 
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>Skills Developed (comma separated)</label>
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Skills developed (comma separated)</div>
               <input
                 name="skills_developed"
                 value={form.skills_developed}
@@ -266,213 +258,124 @@ export default function ExperiencesPageClient({
                 placeholder="e.g. communication, project management, SQL"
                 style={inputStyle}
               />
-            </div>
 
-            {goals.length > 0 && (
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={labelStyle}>Link to Goals</label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {goals.map((g) => {
-                    const selected = form.linked_goal_ids.includes(g.id);
-                    return (
-                      <button
+              {goals.length > 0 && (
+                <>
+                  <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Link to goals</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {goals.map((g) => (
+                      <Chip
                         key={g.id}
-                        type="button"
+                        small
+                        selected={form.linked_goal_ids.includes(g.id)}
                         onClick={() => toggleGoal(g.id)}
-                        style={{
-                          border: `1px solid ${selected ? "var(--color-accent)" : "var(--color-rule)"}`,
-                          background: selected ? "var(--color-accent-soft)" : "transparent",
-                          color: selected ? "var(--color-accent-dark)" : "var(--color-ink-2)",
-                          borderRadius: 6,
-                          padding: "4px 10px",
-                          fontSize: 13,
-                          cursor: "pointer",
-                        }}
                       >
                         {g.title}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+                      </Chip>
+                    ))}
+                  </div>
+                </>
+              )}
 
-          <div style={{ marginTop: 20, display: "flex", gap: 10 }}>
-            <button
-              type="submit"
-              disabled={submitting || isPending}
-              style={{
-                background: "var(--color-accent)",
-                color: "#fff",
-                border: "none",
-                borderRadius: 8,
-                padding: "9px 20px",
-                fontSize: 14,
-                fontWeight: 500,
-                cursor: submitting ? "wait" : "pointer",
-                opacity: submitting ? 0.7 : 1,
-              }}
-            >
-              {submitting ? "Saving…" : "Save Experience"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              style={{
-                background: "transparent",
-                border: "1px solid var(--color-rule)",
-                borderRadius: 8,
-                padding: "9px 16px",
-                fontSize: 14,
-                color: "var(--color-ink-2)",
-                cursor: "pointer",
-              }}
-            >
-              Cancel
-            </button>
+              <button
+                type="submit"
+                disabled={submitting || isPending}
+                className="ios-btn ios-btn--primary"
+                style={{ marginTop: 22, opacity: submitting ? 0.5 : 1 }}
+              >
+                {submitting ? "Saving…" : "Save Experience"}
+              </button>
+            </form>
           </div>
-        </form>
+        </>
+      )}
+
+      {/* Type filter */}
+      {availableTypes.length > 1 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "6px 16px 0" }}>
+          <Chip small selected={filter === "all"} onClick={() => setFilter("all")}>All</Chip>
+          {availableTypes.map((t) => (
+            <Chip key={t} small selected={filter === t} onClick={() => setFilter(t)}>
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </Chip>
+          ))}
+        </div>
       )}
 
       {/* Experience list */}
-      {experiences.length === 0 ? (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "48px 24px",
-            color: "var(--color-ink-3)",
-            fontSize: 15,
-          }}
-        >
-          No experiences logged yet. Click &ldquo;+ Log Experience&rdquo; to get started.
-        </div>
+      {visible.length === 0 ? (
+        <Group footer="Capture what you learned on the job with Quick Log or a full entry.">
+          <button
+            type="button"
+            className="ios-cell"
+            onClick={() => setShowQuickLog(true)}
+            style={{ color: "var(--ios-tint)" }}
+          >
+            <span className="ios-cell-lead">
+              <IconBadge color="var(--ios-tint)"><Icons.PlusIcon /></IconBadge>
+            </span>
+            <span className="ios-cell-body">
+              <span className="ios-cell-title" style={{ color: "var(--ios-tint)" }}>Log your first experience</span>
+            </span>
+          </button>
+        </Group>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {experiences.map((exp: Experience) => {
-            const typeColor =
-              typeColors[exp.experience_type ?? "other"] ?? typeColors.other;
+        <div className="ios-list" style={{ margin: "12px 16px 0" }}>
+          {visible.map((exp: Experience) => {
+            const typeColor = typeColors[exp.experience_type ?? "other"] ?? typeColors.other;
             return (
-              <div
-                key={exp.id}
-                style={{
-                  background: "var(--color-bg-card)",
-                  border: "1px solid var(--color-rule)",
-                  borderRadius: 10,
-                  padding: "16px 20px",
-                  borderLeft: `4px solid ${typeColor}`,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    gap: 12,
-                    flexWrap: "wrap",
-                  }}
-                >
+              <div key={exp.id} className="ios-cell" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                  <span className="ios-cell-lead">
+                    <IconBadge color={typeColor}><Icons.BriefcaseIcon /></IconBadge>
+                  </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
-                      <span
-                        style={{
-                          background: typeColor,
-                          color: "#fff",
-                          borderRadius: 4,
-                          padding: "2px 8px",
-                          fontSize: 11,
-                          fontWeight: 600,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.03em",
-                        }}
-                      >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span className="ios-caption" style={{ textTransform: "uppercase", letterSpacing: "0.02em", fontWeight: 600, color: typeColor }}>
                         {exp.experience_type ?? "other"}
                       </span>
                       {exp.experience_date && (
-                        <span style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+                        <span className="ios-caption" style={{ color: "var(--ios-label-2)" }}>
                           {formatDate(exp.experience_date)}
                         </span>
                       )}
                     </div>
-                    <div
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 600,
-                        color: "var(--color-ink)",
-                        marginBottom: exp.description ? 6 : 0,
-                      }}
-                    >
-                      {exp.title}
-                    </div>
-                    {exp.description && (
-                      <p
-                        style={{
-                          fontSize: 13,
-                          color: "var(--color-ink-2)",
-                          margin: "0 0 8px",
-                          lineHeight: 1.5,
-                        }}
-                      >
-                        {exp.description}
-                      </p>
-                    )}
-                    {exp.reflection && (
-                      <p
-                        style={{
-                          fontSize: 13,
-                          color: "var(--color-ink-3)",
-                          margin: "0 0 6px",
-                          fontStyle: "italic",
-                          lineHeight: 1.5,
-                        }}
-                      >
-                        {exp.reflection.length > 160
-                          ? exp.reflection.slice(0, 160) + "…"
-                          : exp.reflection}
-                      </p>
-                    )}
-                    {(exp.skills_developed ?? []).length > 0 && (
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
-                        {(exp.skills_developed ?? []).map((skill: string) => (
-                          <span
-                            key={skill}
-                            style={{
-                              background: "var(--color-accent-soft)",
-                              color: "var(--color-accent-dark)",
-                              borderRadius: 4,
-                              padding: "1px 7px",
-                              fontSize: 11,
-                              fontWeight: 500,
-                              textTransform: "capitalize",
-                            }}
-                          >
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {(exp.linked_goal_ids ?? []).length > 0 && (
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
-                        {(exp.linked_goal_ids ?? []).map((gid: string) =>
-                          goalsMap[gid] ? (
-                            <span
-                              key={gid}
-                              style={{
-                                background: "var(--color-bg-deep)",
-                                color: "var(--color-ink-2)",
-                                borderRadius: 4,
-                                padding: "1px 7px",
-                                fontSize: 11,
-                              }}
-                            >
-                              {goalsMap[gid]}
-                            </span>
-                          ) : null
-                        )}
-                      </div>
-                    )}
+                    <div className="ios-headline" style={{ marginTop: 2 }}>{exp.title}</div>
                   </div>
                 </div>
+
+                {exp.description && (
+                  <p className="ios-subhead" style={{ margin: 0, color: "var(--ios-label-2)", lineHeight: 1.5 }}>
+                    {exp.description}
+                  </p>
+                )}
+                {exp.reflection && (
+                  <p className="ios-subhead" style={{ margin: 0, color: "var(--ios-label-3)", fontStyle: "italic", lineHeight: 1.5 }}>
+                    {exp.reflection.length > 160 ? exp.reflection.slice(0, 160) + "…" : exp.reflection}
+                  </p>
+                )}
+                {(exp.skills_developed ?? []).length > 0 && (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {(exp.skills_developed ?? []).map((skill: string) => (
+                      <Chip key={skill} small>{skill}</Chip>
+                    ))}
+                  </div>
+                )}
+                {(exp.linked_goal_ids ?? []).length > 0 && (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {(exp.linked_goal_ids ?? []).map((gid: string) =>
+                      goalsMap[gid] ? (
+                        <span
+                          key={gid}
+                          className="ios-caption"
+                          style={{ background: "var(--ios-fill)", color: "var(--ios-label-2)", borderRadius: 6, padding: "2px 8px" }}
+                        >
+                          {goalsMap[gid]}
+                        </span>
+                      ) : null
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -482,23 +385,16 @@ export default function ExperiencesPageClient({
   );
 }
 
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: 12,
-  fontWeight: 500,
-  color: "var(--color-ink-3)",
-  marginBottom: 5,
-  textTransform: "uppercase",
-  letterSpacing: "0.04em",
-};
-
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  background: "var(--color-bg)",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 6,
-  padding: "8px 10px",
-  fontSize: 14,
-  color: "var(--color-ink)",
+  padding: "11px 14px",
+  borderRadius: 10,
+  border: "var(--ios-hair) solid var(--ios-separator)",
+  background: "var(--ios-cell)",
+  color: "var(--ios-label)",
+  fontSize: 16,
   outline: "none",
+  fontFamily: "inherit",
+  boxSizing: "border-box",
+  colorScheme: "light dark",
 };
