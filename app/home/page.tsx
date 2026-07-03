@@ -70,11 +70,27 @@ export default async function HomePage() {
 
   const todos = (todoResult.data ?? []) as Todo[];
 
-  // Family circle members for FamilyTimeline filter chips + household reminders
+  // Family circle members for FamilyTimeline filter chips + household reminders.
+  // Resolve names the same way the Family page does: display_name/nickname, then
+  // the member's auth full name — otherwise account-holders with no nickname set
+  // (e.g. Maya, Alicia) render as a generic "Member" on Today.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const circleMembers = ((circleResult.data ?? []) as any[]).map((m) => ({
+  const rawCircle = (circleResult.data ?? []) as any[];
+  const circleAuthIds = rawCircle.map((m) => m.member_user_id).filter(Boolean) as string[];
+  const circleNames = new Map<string, string>();
+  if (circleAuthIds.length > 0) {
+    try {
+      const { data: usersList } = await service.auth.admin.listUsers({ perPage: 200 });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const u of (usersList?.users ?? []) as any[]) {
+        const nm = u.user_metadata?.full_name ?? u.user_metadata?.name ?? u.email ?? null;
+        if (nm) circleNames.set(u.id, nm);
+      }
+    } catch { /* auth admin unavailable — fall back to "Member" */ }
+  }
+  const circleMembers = rawCircle.map((m) => ({
     id: m.member_user_id as string,
-    label: (m.display_name ?? m.nickname ?? "Member") as string,
+    label: (m.display_name ?? m.nickname ?? (m.member_user_id ? circleNames.get(m.member_user_id) : null) ?? "Member") as string,
     role: (m.role ?? "adult") as string,
   }));
   const memberIds = circleMembers.map((m) => m.id);
