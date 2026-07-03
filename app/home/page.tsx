@@ -440,11 +440,29 @@ export default async function HomePage() {
   const iosUpcoming = (reminders as any[]).filter((r) => !r.completed_at);
   const iosNext = timelineItems[0];
   const iosCalLabel = iosNext ? (iosNext.label.length > 16 ? iosNext.label.slice(0, 15) + "…" : iosNext.label) : "Clear";
+  // Health + Money glance — light lookups (steps today, latest net-worth snapshot)
+  const [stepsRes, netRes] = await Promise.all([
+    service.from("apple_health_metrics")
+      .select("value")
+      .eq("user_id", user.id)
+      .in("metric_name", ["step_count", "steps", "Step Count", "Steps"])
+      .gte("timestamp", new Date(new Date().getTime() - 26 * 3_600_000).toISOString()),
+    service.schema("finance").from("net_position_snapshots")
+      .select("net_position").eq("user_id", user.id)
+      .order("captured_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const stepsToday = ((stepsRes.data ?? []) as any[]).reduce((s, r) => s + (Number(r.value) || 0), 0);
+  const netWorth: number | null = (netRes.data as { net_position?: number } | null)?.net_position ?? null;
+  const fmtNetShort = (n: number) => n >= 1000 ? `$${Math.round(n / 1000)}k` : `$${Math.round(n)}`;
+
   const iosGlance = {
     calendar: { value: iosCalLabel, sub: iosNext ? iosNext.timeLabel : "No events today", href: "/home/family/calendar" },
     reminders: iosUpcoming.length > 0
       ? { value: `${iosUpcoming.length} due`, sub: iosUpcoming[0].title as string, badge: iosUpcoming.length, href: "/home" }
       : { value: "None", sub: "All caught up", href: "/home" },
+    health: { value: stepsToday > 0 ? Math.round(stepsToday).toLocaleString() : "—", sub: stepsToday > 0 ? "steps today" : "no data today", href: "/health" },
+    ...(netWorth != null ? { money: { value: fmtNetShort(netWorth), sub: "net worth", href: "/finance/dashboard" } } : {}),
   };
 
   return (

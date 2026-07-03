@@ -124,6 +124,43 @@
 .ios-caption     { font-size: 12px; line-height: 16px; font-weight: 400; }
 .ios-num         { font-variant-numeric: tabular-nums; }
 
+/* ══ Legacy-token remap ══════════════════════════════════════════════════════
+   Old "paper" widgets (interactive client components not yet fully rebuilt)
+   render inside the iOS scope. Remapping the legacy CSS variables + serif face
+   to iOS values makes them adopt iOS colors and the system font automatically,
+   so chrome-only pages read as one cohesive app without per-component edits. */
+[data-ui="ios"] {
+  --color-bg:          var(--ios-bg);
+  --color-bg-card:     var(--ios-cell);
+  --color-bg-deep:     var(--ios-bg);
+  --color-bg-raised:   var(--ios-cell);
+  --color-bg-sunk:     var(--ios-bg);
+  --color-paper:       var(--ios-bg);
+  --color-paper-card:  var(--ios-cell);
+  --color-paper-deep:  var(--ios-bg);
+  --color-ink:         var(--ios-label);
+  --color-ink-2:       var(--ios-label);
+  --color-ink-3:       var(--ios-label-2);
+  --color-ink-4:       var(--ios-label-3);
+  --color-rule:        var(--ios-separator);
+  --color-rule-soft:   var(--ios-separator);
+  --color-line:        var(--ios-separator);
+  --color-line-2:      var(--ios-separator);
+  --color-accent:      var(--ios-tint);
+  --color-accent-dark: var(--ios-tint-press);
+  --color-accent-soft: var(--ios-fill);
+  --color-green:       var(--ios-green);
+  --color-red:         var(--ios-red);
+  --color-amber:       var(--ios-orange);
+  --color-moss:        var(--ios-green);
+  --color-moss-soft:   var(--ios-fill);
+  --color-slate:       #2f3a47;
+  --color-slate-soft:  var(--ios-fill);
+  --color-bronze:      var(--ios-finance);
+  --color-bronze-dark: var(--ios-finance);
+}
+[data-ui="ios"] .serif { font-family: var(--ios-font); letter-spacing: normal; }
+
 /* ══ Layout scaffold ═════════════════════════════════════════════════════════ */
 .ios-scroll {
   padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
