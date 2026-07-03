@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { Chip, Icons } from "@/components/ios";
 import {
   updateWorkoutSession,
   deleteWorkout,
@@ -90,10 +91,10 @@ function addDays(dateStr: string, n: number): string {
 function SectionHeader({ label, count }: { label: string; count: number }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)" }}>
+      <div className="ios-footnote" style={{ fontWeight: 600, color: "var(--ios-label)" }}>
         {label}
       </div>
-      <div style={{ fontSize: 11, color: "var(--color-ink-4)", background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 20, padding: "1px 8px" }}>
+      <div className="ios-caption ios-num" style={{ color: "var(--ios-label-2)", background: "var(--ios-fill)", borderRadius: 20, padding: "2px 9px", minWidth: 22, textAlign: "center" }}>
         {count}
       </div>
     </div>
@@ -102,7 +103,7 @@ function SectionHeader({ label, count }: { label: string; count: number }) {
 
 function EmptyRow({ label }: { label: string }) {
   return (
-    <div style={{ padding: "14px 0", fontSize: 13, color: "var(--color-ink-4)", textAlign: "center" }}>
+    <div className="ios-footnote" style={{ padding: "14px 0", color: "var(--ios-label-3)", textAlign: "center" }}>
       {label}
     </div>
   );
@@ -110,7 +111,7 @@ function EmptyRow({ label }: { label: string }) {
 
 function EditIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M12 20h9" />
       <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
     </svg>
@@ -119,7 +120,7 @@ function EditIcon() {
 
 function TrashIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M3 6h18" />
       <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
     </svg>
@@ -163,7 +164,7 @@ function WorkoutRow({ w, onDeleted }: { w: Workout; onDeleted: () => void }) {
 
   if (editing) {
     return (
-      <div style={{ padding: "12px 0", borderTop: "1px solid var(--color-line)" }}>
+      <div style={{ padding: "12px 0", borderTop: "1px solid var(--ios-separator)" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
           <div>
             <label style={labelStyle}>Type</label>
@@ -204,28 +205,28 @@ function WorkoutRow({ w, onDeleted }: { w: Workout; onDeleted: () => void }) {
   }
 
   return (
-    <div style={{ padding: "12px 0", borderTop: "1px solid var(--color-line)", display: "flex", alignItems: "flex-start", gap: 10 }}>
+    <div style={{ padding: "12px 0", borderTop: "1px solid var(--ios-separator)", display: "flex", alignItems: "flex-start", gap: 10 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", marginBottom: 2 }}>
+        <div className="ios-subhead" style={{ fontWeight: 600, color: "var(--ios-label)", marginBottom: 2 }}>
           {w.type.charAt(0).toUpperCase() + w.type.slice(1)}
-          {w.effort && <span style={{ fontWeight: 400, color: "var(--color-ink-3)", fontSize: 12, marginLeft: 8 }}>{EFFORT_LABEL[w.effort] ?? w.effort}</span>}
+          {w.effort && <span className="ios-footnote" style={{ fontWeight: 400, color: "var(--ios-label-2)", marginLeft: 8 }}>{EFFORT_LABEL[w.effort] ?? w.effort}</span>}
         </div>
-        <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+        <div className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)" }}>
           {w.duration_min ? `${w.duration_min} min` : ""}
           {w.distance_miles ? ` · ${w.distance_miles} mi` : ""}
           {w.notes ? ` · ${w.notes}` : ""}
         </div>
       </div>
-      <button onClick={() => setEditing(true)} style={iconBtn} title="Edit"><EditIcon /></button>
+      <button onClick={() => setEditing(true)} style={iconBtn} title="Edit" aria-label="Edit"><EditIcon /></button>
       {confirmDelete ? (
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <button onClick={handleDelete} disabled={pending} style={{ ...btnSmall, background: "#ef4444", color: "#fff", border: "none" }}>
+          <button onClick={handleDelete} disabled={pending} style={{ ...btnSmall, background: "var(--ios-red)", color: "#fff", border: "none" }}>
             {pending ? "…" : "Delete"}
           </button>
           <button onClick={() => setConfirmDelete(false)} style={btnSmall}>Cancel</button>
         </div>
       ) : (
-        <button onClick={() => setConfirmDelete(true)} style={iconBtn} title="Delete"><TrashIcon /></button>
+        <button onClick={() => setConfirmDelete(true)} style={iconBtn} title="Delete" aria-label="Delete"><TrashIcon /></button>
       )}
     </div>
   );
@@ -264,7 +265,7 @@ function MealRow({ m, onDeleted }: { m: Meal; onDeleted: () => void }) {
 
   if (editing) {
     return (
-      <div style={{ padding: "12px 0", borderTop: "1px solid var(--color-line)" }}>
+      <div style={{ padding: "12px 0", borderTop: "1px solid var(--ios-separator)" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
           <div>
             <label style={labelStyle}>Meal</label>
@@ -296,27 +297,27 @@ function MealRow({ m, onDeleted }: { m: Meal; onDeleted: () => void }) {
   }
 
   return (
-    <div style={{ padding: "12px 0", borderTop: "1px solid var(--color-line)", display: "flex", alignItems: "flex-start", gap: 10 }}>
+    <div style={{ padding: "12px 0", borderTop: "1px solid var(--ios-separator)", display: "flex", alignItems: "flex-start", gap: 10 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", marginBottom: 2 }}>
+        <div className="ios-subhead" style={{ fontWeight: 600, color: "var(--ios-label)", marginBottom: 2 }}>
           {m.name}
-          {m.calories_est ? <span style={{ fontWeight: 400, color: "var(--color-ink-3)", fontSize: 12, marginLeft: 8 }}>{m.calories_est} cal</span> : null}
+          {m.calories_est ? <span className="ios-footnote ios-num" style={{ fontWeight: 400, color: "var(--ios-label-2)", marginLeft: 8 }}>{m.calories_est} cal</span> : null}
         </div>
-        <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
           {MEAL_LABEL[m.meal_type] ?? m.meal_type}
           {m.notes ? ` · ${m.notes}` : ""}
         </div>
       </div>
-      <button onClick={() => setEditing(true)} style={iconBtn} title="Edit"><EditIcon /></button>
+      <button onClick={() => setEditing(true)} style={iconBtn} title="Edit" aria-label="Edit"><EditIcon /></button>
       {confirmDelete ? (
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <button onClick={handleDelete} disabled={pending} style={{ ...btnSmall, background: "#ef4444", color: "#fff", border: "none" }}>
+          <button onClick={handleDelete} disabled={pending} style={{ ...btnSmall, background: "var(--ios-red)", color: "#fff", border: "none" }}>
             {pending ? "…" : "Delete"}
           </button>
           <button onClick={() => setConfirmDelete(false)} style={btnSmall}>Cancel</button>
         </div>
       ) : (
-        <button onClick={() => setConfirmDelete(true)} style={iconBtn} title="Delete"><TrashIcon /></button>
+        <button onClick={() => setConfirmDelete(true)} style={iconBtn} title="Delete" aria-label="Delete"><TrashIcon /></button>
       )}
     </div>
   );
@@ -349,27 +350,14 @@ function DoseRow({ dose, onDeleted }: { dose: Dose; onDeleted: () => void }) {
 
   if (editing) {
     return (
-      <div style={{ padding: "12px 0", borderTop: "1px solid var(--color-line)" }}>
+      <div style={{ padding: "12px 0", borderTop: "1px solid var(--ios-separator)" }}>
         <div style={{ marginBottom: 8 }}>
           <label style={labelStyle}>Dose (mg)</label>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {DOSE_OPTIONS.map((d) => (
-              <button
-                key={d}
-                onClick={() => setDoseMg(d)}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  border: `1px solid ${doseMg === d ? "var(--color-ink)" : "var(--color-line)"}`,
-                  background: doseMg === d ? "var(--color-ink)" : "transparent",
-                  color: doseMg === d ? "var(--color-bg)" : "var(--color-ink-3)",
-                  fontSize: 13,
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                }}
-              >
+              <Chip key={d} small selected={doseMg === d} onClick={() => setDoseMg(d)}>
                 {d}mg
-              </button>
+              </Chip>
             ))}
           </div>
         </div>
@@ -393,26 +381,26 @@ function DoseRow({ dose, onDeleted }: { dose: Dose; onDeleted: () => void }) {
   }
 
   return (
-    <div style={{ padding: "12px 0", borderTop: "1px solid var(--color-line)", display: "flex", alignItems: "flex-start", gap: 10 }}>
+    <div style={{ padding: "12px 0", borderTop: "1px solid var(--ios-separator)", display: "flex", alignItems: "flex-start", gap: 10 }}>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", marginBottom: 2 }}>
+        <div className="ios-subhead ios-num" style={{ fontWeight: 600, color: "var(--ios-label)", marginBottom: 2 }}>
           Zepbound {dose.dose_mg}mg
         </div>
-        <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
           {dose.injection_site ?? "Site not recorded"}
           {dose.notes ? ` · ${dose.notes}` : ""}
         </div>
       </div>
-      <button onClick={() => setEditing(true)} style={iconBtn} title="Edit"><EditIcon /></button>
+      <button onClick={() => setEditing(true)} style={iconBtn} title="Edit" aria-label="Edit"><EditIcon /></button>
       {confirmDelete ? (
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <button onClick={handleDelete} disabled={pending} style={{ ...btnSmall, background: "#ef4444", color: "#fff", border: "none" }}>
+          <button onClick={handleDelete} disabled={pending} style={{ ...btnSmall, background: "var(--ios-red)", color: "#fff", border: "none" }}>
             {pending ? "…" : "Delete"}
           </button>
           <button onClick={() => setConfirmDelete(false)} style={btnSmall}>Cancel</button>
         </div>
       ) : (
-        <button onClick={() => setConfirmDelete(true)} style={iconBtn} title="Delete"><TrashIcon /></button>
+        <button onClick={() => setConfirmDelete(true)} style={iconBtn} title="Delete" aria-label="Delete"><TrashIcon /></button>
       )}
     </div>
   );
@@ -440,7 +428,7 @@ export default function DayViewClient({ data }: { data: DayData }) {
   const totalCalories = meals.reduce((s, m) => s + (m.calories_est ?? 0), 0);
 
   return (
-    <div style={{ padding: "20px 20px 100px" }}>
+    <div style={{ padding: "4px 16px 100px" }}>
 
       {/* Date navigation */}
       <div style={{ marginBottom: 20 }}>
@@ -450,7 +438,7 @@ export default function DayViewClient({ data }: { data: DayData }) {
             style={{ ...navBtn }}
             aria-label="Previous day"
           >
-            ←
+            <Icons.ChevronLeft style={{ width: 18, height: 18 }} />
           </button>
 
           <input
@@ -460,12 +448,12 @@ export default function DayViewClient({ data }: { data: DayData }) {
             onChange={(e) => e.target.value && navigate(e.target.value)}
             style={{
               flex: 1,
-              padding: "10px 12px",
-              border: "1px solid var(--color-line)",
+              padding: "11px 12px",
+              border: "1px solid var(--ios-separator)",
               borderRadius: 10,
-              background: "var(--color-bg-raised)",
-              color: "var(--color-ink)",
-              fontSize: 14,
+              background: "var(--ios-cell)",
+              color: "var(--ios-label)",
+              fontSize: 16,
               fontFamily: "inherit",
               outline: "none",
             }}
@@ -477,7 +465,7 @@ export default function DayViewClient({ data }: { data: DayData }) {
             style={{ ...navBtn, opacity: isToday ? 0.3 : 1, cursor: isToday ? "default" : "pointer" }}
             aria-label="Next day"
           >
-            →
+            <Icons.ChevronRight style={{ width: 18, height: 18 }} />
           </button>
 
           {!isToday && (
@@ -489,11 +477,11 @@ export default function DayViewClient({ data }: { data: DayData }) {
       </div>
 
       {isFuture ? (
-        <div style={{ textAlign: "center", padding: "60px 0", color: "var(--color-ink-4)", fontSize: 14 }}>
+        <div className="ios-body" style={{ textAlign: "center", padding: "60px 0", color: "var(--ios-label-3)" }}>
           No data yet for future dates.
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
           {/* Training */}
           <div style={card}>
@@ -549,15 +537,15 @@ export default function DayViewClient({ data }: { data: DayData }) {
                   key={med.id}
                   style={{
                     padding: "12px 0",
-                    borderTop: "1px solid var(--color-line)",
+                    borderTop: "1px solid var(--ios-separator)",
                     display: "flex",
                     alignItems: "center",
                     gap: 10,
                   }}
                 >
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>{med.name}</div>
-                    <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+                    <div className="ios-subhead" style={{ fontWeight: 600, color: "var(--ios-label)" }}>{med.name}</div>
+                    <div className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
                       {med.dose ?? ""}
                       {med.schedule ? ` · ${med.schedule}` : ""}
                     </div>
@@ -566,7 +554,7 @@ export default function DayViewClient({ data }: { data: DayData }) {
                     width: 8,
                     height: 8,
                     borderRadius: "50%",
-                    background: "var(--color-ink-4)",
+                    background: "var(--ios-label-3)",
                     flexShrink: 0,
                   }} />
                 </div>
@@ -583,66 +571,63 @@ export default function DayViewClient({ data }: { data: DayData }) {
 // ── Shared styles ─────────────────────────────────────────────
 
 const card: React.CSSProperties = {
-  background: "var(--color-bg-raised)",
-  border: "1px solid var(--color-line)",
-  borderRadius: 16,
+  background: "var(--ios-cell)",
+  borderRadius: "var(--ios-radius-card)",
   padding: "16px 16px 4px",
 };
 
 const labelStyle: React.CSSProperties = {
   display: "block",
-  fontSize: 10,
+  fontSize: 12,
   fontWeight: 600,
-  letterSpacing: "0.1em",
-  textTransform: "uppercase",
-  color: "var(--color-ink-3)",
-  marginBottom: 4,
+  color: "var(--ios-label-2)",
+  marginBottom: 5,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "8px 10px",
-  border: "1px solid var(--color-line)",
+  padding: "9px 11px",
+  border: "1px solid var(--ios-separator)",
   borderRadius: 8,
-  background: "var(--color-bg)",
-  color: "var(--color-ink)",
-  fontSize: 14,
+  background: "var(--ios-bg)",
+  color: "var(--ios-label)",
+  fontSize: 16,
   fontFamily: "inherit",
   outline: "none",
   boxSizing: "border-box",
 };
 
 const btnPrimary: React.CSSProperties = {
-  padding: "9px 18px",
+  padding: "10px 18px",
   borderRadius: 10,
   border: "none",
-  background: "var(--color-ink)",
-  color: "var(--color-bg)",
-  fontSize: 13,
+  background: "var(--ios-tint)",
+  color: "var(--ios-on-tint)",
+  fontSize: 15,
   fontWeight: 600,
   cursor: "pointer",
   fontFamily: "inherit",
 };
 
 const btnGhost: React.CSSProperties = {
-  padding: "9px 16px",
+  padding: "10px 16px",
   borderRadius: 10,
-  border: "1px solid var(--color-line)",
+  border: "1px solid var(--ios-separator)",
   background: "transparent",
-  color: "var(--color-ink-3)",
-  fontSize: 13,
+  color: "var(--ios-tint)",
+  fontSize: 15,
   fontWeight: 500,
   cursor: "pointer",
   fontFamily: "inherit",
 };
 
 const btnSmall: React.CSSProperties = {
-  padding: "5px 10px",
-  borderRadius: 7,
-  border: "1px solid var(--color-line)",
+  padding: "6px 11px",
+  borderRadius: 8,
+  border: "1px solid var(--ios-separator)",
   background: "transparent",
-  color: "var(--color-ink-3)",
-  fontSize: 12,
+  color: "var(--ios-label-2)",
+  fontSize: 13,
   cursor: "pointer",
   fontFamily: "inherit",
 };
@@ -651,20 +636,21 @@ const iconBtn: React.CSSProperties = {
   background: "none",
   border: "none",
   cursor: "pointer",
-  fontSize: 14,
+  color: "var(--ios-label-2)",
   padding: "2px 4px",
   borderRadius: 6,
   flexShrink: 0,
+  display: "flex",
+  alignItems: "center",
 };
 
 const navBtn: React.CSSProperties = {
   width: 40,
   height: 40,
   borderRadius: 10,
-  border: "1px solid var(--color-line)",
-  background: "var(--color-bg-raised)",
-  color: "var(--color-ink-3)",
-  fontSize: 16,
+  border: "1px solid var(--ios-separator)",
+  background: "var(--ios-cell)",
+  color: "var(--ios-label-2)",
   cursor: "pointer",
   fontFamily: "inherit",
   display: "flex",

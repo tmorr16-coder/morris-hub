@@ -4,6 +4,7 @@ import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
+import { Chip } from "@/components/ios";
 import { saveProfileGoals, deleteMyAccount, submitSupportTicket } from "../actions";
 
 interface OAuthUser {
@@ -63,15 +64,22 @@ const PROVIDER_LABELS: Record<string, string> = {
   google: "Google", apple: "Apple", linkedin: "LinkedIn", github: "GitHub",
 };
 
+const cardStyle: React.CSSProperties = {
+  background: "var(--ios-cell)", borderRadius: "var(--ios-radius-card)", padding: "16px",
+};
+
 const fieldLabel: React.CSSProperties = {
-  fontSize: 9, fontWeight: 500, letterSpacing: "0.14em",
-  textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6,
+  fontSize: 13, fontWeight: 600, color: "var(--ios-label)", marginBottom: 6,
+};
+
+const groupLabel: React.CSSProperties = {
+  fontSize: 13, fontWeight: 600, color: "var(--ios-label)", marginBottom: 14,
 };
 
 const fieldInput: React.CSSProperties = {
   width: "100%", padding: "11px 12px", borderRadius: 10,
-  border: "1px solid var(--color-line)", background: "var(--color-bg-sunk)",
-  color: "var(--color-ink)", fontSize: 14, fontFamily: "inherit",
+  border: "1px solid var(--ios-separator)", background: "var(--ios-bg)",
+  color: "var(--ios-label)", fontSize: 16, fontFamily: "inherit",
   outline: "none", boxSizing: "border-box",
 };
 
@@ -191,23 +199,25 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
     setTimeout(() => setSaved(false), 2500);
   }
 
+  const ticketReady = !!ticketSubject.trim() && !!ticketDesc.trim();
+
   return (
-    <div style={{ padding: "20px 20px 0" }}>
+    <div style={{ padding: "4px 16px 0" }}>
 
       {/* OAuth identity */}
       {oauthUser && (
-        <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, padding: "16px", display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+        <div style={{ ...cardStyle, display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
           {oauthUser.avatarUrl ? (
             <Image src={oauthUser.avatarUrl} alt={oauthUser.name} width={56} height={56} style={{ borderRadius: "50%", flexShrink: 0 }} />
           ) : (
-            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-ink)", color: "var(--color-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontFamily: "var(--font-display)", flexShrink: 0 }}>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--ios-tint)", color: "var(--ios-on-tint)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 600, flexShrink: 0 }}>
               {oauthUser.name?.[0] ?? "?"}
             </div>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 16, fontWeight: 600, color: "var(--color-ink)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{oauthUser.name}</div>
-            <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{oauthUser.email}</div>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 20, background: "var(--color-bg-sunk)", border: "1px solid var(--color-line)", fontSize: 10, fontWeight: 500, color: "var(--color-ink-4)" }}>
+            <div className="ios-headline" style={{ color: "var(--ios-label)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{oauthUser.name}</div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{oauthUser.email}</div>
+            <div className="ios-caption" style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 20, background: "var(--ios-fill)", color: "var(--ios-label-2)" }}>
               via {PROVIDER_LABELS[oauthUser.provider] ?? oauthUser.provider}
             </div>
           </div>
@@ -217,8 +227,8 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
         {/* Basic info */}
-        <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, padding: "16px" }}>
-          <div style={{ ...fieldLabel, marginBottom: 14 }}>About you</div>
+        <div style={cardStyle}>
+          <div style={groupLabel}>About you</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div>
               <div style={fieldLabel}>Name</div>
@@ -241,9 +251,9 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
               <div>
                 <div style={fieldLabel}>Current weight (lbs)</div>
                 {withingsWeightLbs !== null ? (
-                  <div style={{ padding: "11px 12px", borderRadius: 10, border: "1px solid var(--color-line)", background: "var(--color-bg-sunk)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 14, color: "var(--color-ink)", fontWeight: 500 }}>{withingsWeightLbs.toFixed(1)}</span>
-                    <span style={{ fontSize: 10, color: "var(--color-moss)", fontWeight: 500 }}>⚖️ Withings</span>
+                  <div style={{ padding: "11px 12px", borderRadius: 10, border: "1px solid var(--ios-separator)", background: "var(--ios-bg)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span className="ios-num" style={{ fontSize: 16, color: "var(--ios-label)", fontWeight: 500 }}>{withingsWeightLbs.toFixed(1)}</span>
+                    <span className="ios-caption" style={{ color: "var(--ios-green)", fontWeight: 600 }}>Withings</span>
                   </div>
                 ) : (
                   <input value={profile.currentWeightLbs} onChange={(e) => update("currentWeightLbs", e.target.value)} placeholder="185" type="number" style={fieldInput} />
@@ -258,49 +268,47 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
         </div>
 
         {/* Nutrition goals */}
-        <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, padding: "16px" }}>
-          <div style={{ ...fieldLabel, marginBottom: 14 }}>Nutrition goals</div>
+        <div style={cardStyle}>
+          <div style={groupLabel}>Nutrition goals</div>
           <div>
             <div style={fieldLabel}>Daily calorie goal (kcal)</div>
             <input value={profile.calorieGoal} onChange={(e) => update("calorieGoal", e.target.value)} type="number" min="500" max="5000" placeholder="e.g. 2000" style={fieldInput} />
-            <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 6 }}>Used to show your daily progress in the Eat tab</div>
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>Used to show your daily progress in the Eat tab</div>
           </div>
         </div>
 
         {/* Fitness goals */}
-        <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, padding: "16px" }}>
-          <div style={{ ...fieldLabel, marginBottom: 4 }}>Fitness goals</div>
-          <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginBottom: 12 }}>Select all that apply</div>
+        <div style={cardStyle}>
+          <div style={{ ...groupLabel, marginBottom: 4 }}>Fitness goals</div>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-3)", marginBottom: 12 }}>Select all that apply</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {FITNESS_GOALS.map((g) => {
-              const selected = profile.fitnessGoals.includes(g.value);
-              return (
-                <button key={g.value} onClick={() => toggleGoal(g.value)} style={{ padding: "8px 14px", borderRadius: 20, border: `1px solid ${selected ? "var(--color-accent)" : "var(--color-line)"}`, background: selected ? "var(--color-accent-soft)" : "var(--color-bg-sunk)", color: selected ? "var(--color-accent)" : "var(--color-ink-3)", fontSize: 13, fontWeight: selected ? 600 : 400, cursor: "pointer", fontFamily: "inherit", transition: "all 120ms" }}>
-                  {selected && <span style={{ marginRight: 5 }}>✓</span>}{g.label}
-                </button>
-              );
-            })}
+            {FITNESS_GOALS.map((g) => (
+              <Chip key={g.value} selected={profile.fitnessGoals.includes(g.value)} onClick={() => toggleGoal(g.value)}>
+                {g.label}
+              </Chip>
+            ))}
           </div>
         </div>
 
         {/* Dietary preferences */}
-        <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, padding: "16px" }}>
-          <div style={{ ...fieldLabel, marginBottom: 12 }}>Dietary preferences</div>
+        <div style={cardStyle}>
+          <div style={groupLabel}>Dietary preferences</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {DIETARY_OPTIONS.map((opt) => {
-              const selected = profile.dietary.includes(opt);
-              return (
-                <button key={opt} onClick={() => toggleDietary(opt)} style={{ padding: "8px 14px", borderRadius: 20, border: `1px solid ${selected ? "var(--color-moss)" : "var(--color-line)"}`, background: selected ? "var(--color-moss-soft)" : "var(--color-bg-sunk)", color: selected ? "var(--color-moss)" : "var(--color-ink-3)", fontSize: 13, fontWeight: selected ? 600 : 400, cursor: "pointer", fontFamily: "inherit", transition: "all 120ms" }}>
-                  {opt}
-                </button>
-              );
-            })}
+            {DIETARY_OPTIONS.map((opt) => (
+              <Chip key={opt} selected={profile.dietary.includes(opt)} onClick={() => toggleDietary(opt)}>
+                {opt}
+              </Chip>
+            ))}
           </div>
         </div>
 
         {/* Save */}
-        <button onClick={save} style={{ width: "100%", padding: "14px", borderRadius: 12, border: "none", background: saved ? "var(--color-moss)" : "var(--color-ink)", color: "var(--color-bg)", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "background 200ms", marginBottom: 8 }}>
-          {saved ? "Saved ✓" : "Save profile"}
+        <button
+          onClick={save}
+          className="ios-btn ios-btn--full"
+          style={{ background: saved ? "var(--ios-green)" : "var(--ios-tint)", color: "#fff", cursor: "pointer", marginBottom: 8 }}
+        >
+          {saved ? "Saved" : "Save profile"}
         </button>
 
         {/* Sign out */}
@@ -309,17 +317,18 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
             await createClient().auth.signOut();
             window.location.href = "/health";
           }}
-          style={{ width: "100%", padding: "14px", borderRadius: 12, border: "1px solid var(--color-line)", background: "transparent", color: "var(--color-ink-3)", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", marginBottom: 8 }}
+          className="ios-btn ios-btn--full"
+          style={{ background: "var(--ios-cell)", color: "var(--ios-tint)", cursor: "pointer", marginBottom: 8 }}
         >
           Sign out
         </button>
 
         {/* Help & Support */}
-        <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, padding: "16px" }}>
-          <div style={{ ...fieldLabel, marginBottom: 14 }}>Help &amp; Support</div>
+        <div style={cardStyle}>
+          <div style={groupLabel}>Help &amp; Support</div>
           {ticketSent ? (
-            <div style={{ background: "var(--color-moss-soft)", border: "1px solid var(--color-moss)", borderRadius: 10, padding: "12px 14px", fontSize: 13, color: "var(--color-moss)", lineHeight: 1.5 }}>
-              ✓ Ticket submitted — we&apos;ll be in touch soon.
+            <div className="ios-footnote" style={{ background: "var(--ios-fill)", borderRadius: 10, padding: "12px 14px", color: "var(--ios-green)", lineHeight: 1.5 }}>
+              Ticket submitted — we&apos;ll be in touch soon.
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -329,9 +338,9 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
                   {(["question", "bug", "feature", "other"] as const).map((t) => {
                     const labels = { question: "Question", bug: "Bug", feature: "Feature request", other: "Other" };
                     return (
-                      <button key={t} onClick={() => setTicketType(t)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${ticketType === t ? "var(--color-accent)" : "var(--color-line)"}`, background: ticketType === t ? "var(--color-accent-soft)" : "var(--color-bg-sunk)", color: ticketType === t ? "var(--color-accent)" : "var(--color-ink-3)", fontSize: 12, fontWeight: ticketType === t ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
+                      <Chip key={t} small selected={ticketType === t} onClick={() => setTicketType(t)}>
                         {labels[t]}
-                      </button>
+                      </Chip>
                     );
                   })}
                 </div>
@@ -344,11 +353,12 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
                 <div style={fieldLabel}>Details</div>
                 <textarea value={ticketDesc} onChange={(e) => setTicketDesc(e.target.value)} placeholder="Describe the issue or request…" rows={3} style={{ ...fieldInput, resize: "none", lineHeight: 1.5 }} />
               </div>
-              {ticketError && <div style={{ fontSize: 12, color: "var(--color-accent)" }}>{ticketError}</div>}
+              {ticketError && <div className="ios-footnote" style={{ color: "var(--ios-red)" }}>{ticketError}</div>}
               <button
                 onClick={handleTicketSubmit}
-                disabled={ticketSending || !ticketSubject.trim() || !ticketDesc.trim()}
-                style={{ width: "100%", padding: "12px", borderRadius: 10, border: "none", background: (ticketSubject.trim() && ticketDesc.trim()) ? "var(--color-ink)" : "var(--color-bg-sunk)", color: (ticketSubject.trim() && ticketDesc.trim()) ? "var(--color-bg)" : "var(--color-ink-4)", fontSize: 14, fontWeight: 600, cursor: (ticketSubject.trim() && ticketDesc.trim()) ? "pointer" : "default", fontFamily: "inherit" }}
+                disabled={ticketSending || !ticketReady}
+                className="ios-btn ios-btn--full"
+                style={{ background: ticketReady ? "var(--ios-tint)" : "var(--ios-fill)", color: ticketReady ? "#fff" : "var(--ios-label-3)", cursor: ticketReady ? "pointer" : "default" }}
               >
                 {ticketSending ? "Sending…" : "Submit ticket"}
               </button>
@@ -362,28 +372,28 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
             href="https://morrisai.family/home/admin"
             style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "14px 16px", borderRadius: 12,
-              border: "1px solid var(--color-line)", background: "var(--color-bg-raised)",
-              color: "var(--color-ink)", textDecoration: "none", marginBottom: 8,
+              padding: "14px 16px", borderRadius: "var(--ios-radius-card)",
+              background: "var(--ios-cell)",
+              color: "var(--ios-label)", textDecoration: "none", marginBottom: 8,
             }}
           >
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 1 }}>Admin panel</div>
-              <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>Manage users and access on morrisai.family</div>
+              <div className="ios-subhead" style={{ fontWeight: 600, marginBottom: 1 }}>Admin panel</div>
+              <div className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>Manage users and access on morrisai.family</div>
             </div>
-            <span style={{ fontSize: 11, color: "var(--color-accent)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>Admin →</span>
+            <span className="ios-footnote" style={{ color: "var(--ios-tint)", fontWeight: 600 }}>Admin ›</span>
           </a>
         )}
 
         {/* Danger zone */}
-        <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-accent)", borderRadius: 14, padding: "16px", marginBottom: 8 }}>
-          <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-accent)", marginBottom: 8 }}>
+        <div style={{ ...cardStyle, border: "1px solid var(--ios-red)", marginBottom: 8 }}>
+          <div className="ios-footnote" style={{ fontWeight: 600, color: "var(--ios-red)", marginBottom: 8 }}>
             Danger zone
           </div>
-          <div style={{ fontSize: 13, color: "var(--color-ink-3)", lineHeight: 1.6, marginBottom: 12 }}>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.6, marginBottom: 12 }}>
             Permanently deletes your account and all associated health data. This cannot be undone.
           </div>
-          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 5 }}>
+          <div className="ios-caption" style={{ fontWeight: 600, color: "var(--ios-label-3)", marginBottom: 6 }}>
             Type DELETE to confirm
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -391,16 +401,16 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
               value={deleteConfirm}
               onChange={(e) => { setDeleteConfirm(e.target.value); setDeleteError(null); }}
               placeholder="DELETE"
-              style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--color-accent)", background: "var(--color-bg-sunk)", color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", outline: "none" }}
+              style={{ ...fieldInput, flex: 1, border: "1px solid var(--ios-red)" }}
             />
             <button
               onClick={handleDeleteAccount}
               disabled={deleteConfirm !== "DELETE" || deleteInProgress}
               style={{
-                padding: "10px 16px", borderRadius: 10, border: "none",
-                background: deleteConfirm === "DELETE" ? "var(--color-accent)" : "var(--color-bg-sunk)",
-                color: deleteConfirm === "DELETE" ? "#fff" : "var(--color-ink-4)",
-                fontSize: 13, fontWeight: 600,
+                padding: "11px 16px", borderRadius: 10, border: "none",
+                background: deleteConfirm === "DELETE" ? "var(--ios-red)" : "var(--ios-fill)",
+                color: deleteConfirm === "DELETE" ? "#fff" : "var(--ios-label-3)",
+                fontSize: 15, fontWeight: 600,
                 cursor: deleteConfirm === "DELETE" ? "pointer" : "default",
                 fontFamily: "inherit", whiteSpace: "nowrap",
               }}
@@ -409,7 +419,7 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
             </button>
           </div>
           {deleteError && (
-            <div style={{ fontSize: 12, color: "var(--color-accent)", marginTop: 8 }}>{deleteError}</div>
+            <div className="ios-footnote" style={{ color: "var(--ios-red)", marginTop: 8 }}>{deleteError}</div>
           )}
         </div>
 

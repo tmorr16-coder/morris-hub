@@ -37,18 +37,26 @@ export default async function ParentVisibilityNotice({ childId }: Props) {
   const totalVisible = activityCount + healthCount + shareCount;
 
   return (
-    <div style={{
-      fontSize: 12, color: "var(--color-ink-3)", margin: "0 0 20px", padding: "10px 14px",
-      background: "var(--color-bg-deep)", borderRadius: 10, lineHeight: 1.5,
-      fontFamily: "var(--font-geist, system-ui), sans-serif",
-    }}>
-      👁 What your parent can see here: {totalVisible === 0
-        ? "nothing yet."
-        : [
-            activityCount > 0 ? `${activityCount} open activit${activityCount === 1 ? "y" : "ies"}` : null,
-            healthCount > 0 ? `${healthCount} health note${healthCount === 1 ? "" : "s"}` : null,
-            shareCount > 0 ? `${shareCount} shared course${shareCount === 1 ? "" : "s"}` : null,
-          ].filter(Boolean).join(", ") + "."}
+    <div
+      className="ios-footnote"
+      style={{
+        display: "flex", alignItems: "flex-start", gap: 8, margin: "0 0 20px", padding: "10px 14px",
+        background: "var(--ios-fill)", borderRadius: 10, lineHeight: 1.5, color: "var(--ios-label-2)",
+      }}
+    >
+      <svg aria-hidden width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+      <span>
+        What your parent can see here: {totalVisible === 0
+          ? "nothing yet."
+          : [
+              activityCount > 0 ? `${activityCount} open activit${activityCount === 1 ? "y" : "ies"}` : null,
+              healthCount > 0 ? `${healthCount} health note${healthCount === 1 ? "" : "s"}` : null,
+              shareCount > 0 ? `${shareCount} shared course${shareCount === 1 ? "" : "s"}` : null,
+            ].filter(Boolean).join(", ") + "."}
+      </span>
     </div>
   );
 }

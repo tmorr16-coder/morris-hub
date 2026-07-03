@@ -46,21 +46,32 @@ function fmtWorkoutType(raw: string): string {
 
 const tileStyle: React.CSSProperties = {
   gridColumn: "1 / -1",
-  background: "var(--color-bg-raised)",
-  border: "1px solid var(--color-line)",
-  borderRadius: 14,
-  padding: "20px 22px",
-  boxShadow: "var(--shadow-card)",
+  background: "var(--ios-cell)",
+  borderRadius: "var(--ios-radius-card)",
+  padding: "16px 18px",
 };
 
 const eyebrowStyle: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 500,
-  letterSpacing: "0.14em",
-  textTransform: "uppercase",
-  color: "var(--color-ink-3)",
   marginBottom: 14,
+  color: "var(--ios-label)",
+  fontWeight: 600,
 };
+
+function CheckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 12l5 5L20 6" />
+    </svg>
+  );
+}
+function PencilIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
 
 export default function ActivityHistoryCard({ workouts, now }: Props) {
   // Last 7 calendar days (oldest -> newest, ending today), independent of Monday-start weeks —
@@ -91,9 +102,9 @@ export default function ActivityHistoryCard({ workouts, now }: Props) {
 
   return (
     <div style={tileStyle}>
-      <div style={{ ...eyebrowStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div className="ios-footnote" style={{ ...eyebrowStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span>Activity</span>
-        <span>Last 7 days</span>
+        <span className="ios-caption" style={{ color: "var(--ios-label-3)", fontWeight: 400 }}>Last 7 days</span>
       </div>
 
       {/* Day-checkmark row */}
@@ -102,19 +113,19 @@ export default function ActivityHistoryCard({ workouts, now }: Props) {
           const isActive = activeDates.has(dateStr);
           return (
             <div key={dateStr} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
-              <div style={{
-                fontSize: 9, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase",
-                color: isToday ? "var(--color-ink-2)" : "var(--color-ink-4)",
+              <div className="ios-caption" style={{
+                textTransform: "uppercase", letterSpacing: "0.03em",
+                color: isToday ? "var(--ios-label)" : "var(--ios-label-3)",
               }}>
                 {label}
               </div>
               <div style={{
                 width: 28, height: 28, borderRadius: 8,
-                background: isActive ? "var(--color-moss)" : isToday ? "var(--color-bg-sunk)" : "transparent",
-                border: isToday && !isActive ? "1.5px solid var(--color-line-2)" : "1.5px solid transparent",
+                background: isActive ? "var(--ios-green)" : isToday ? "var(--ios-bg)" : "transparent",
+                border: isToday && !isActive ? "1.5px solid var(--ios-separator)" : "1.5px solid transparent",
                 display: "flex", alignItems: "center", justifyContent: "center", transition: "background 150ms",
               }}>
-                {isActive && <span style={{ color: "#fff", fontSize: 12, lineHeight: 1 }}>✓</span>}
+                {isActive && <CheckIcon />}
               </div>
             </div>
           );
@@ -123,14 +134,14 @@ export default function ActivityHistoryCard({ workouts, now }: Props) {
 
       {/* Grouped workout list */}
       {workouts.length === 0 ? (
-        <div style={{ fontSize: 13, color: "var(--color-ink-4)", textAlign: "center", padding: "16px 0" }}>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-3)", textAlign: "center", padding: "16px 0" }}>
           No workouts in the last 7 days
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {groups.map(({ day, rows }) => (
             <div key={day}>
-              <div style={{ fontSize: 10, color: "var(--color-ink-4)", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 500, marginBottom: 6 }}>
+              <div className="ios-caption" style={{ color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, marginBottom: 6 }}>
                 {day}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -140,18 +151,18 @@ export default function ActivityHistoryCard({ workouts, now }: Props) {
                   const meta = [fmtDuration(w.duration_sec), dist, cal].filter(Boolean).join(" · ");
                   return (
                     <div key={w.id} style={{
-                      background: "var(--color-bg-sunk)", borderRadius: 10, padding: "10px 14px",
+                      background: "var(--ios-bg)", borderRadius: 10, padding: "10px 14px",
                       display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
                     }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                         {w.source === "manual" && (
-                          <span title="Manually logged" style={{ fontSize: 10, color: "var(--color-ink-4)", flexShrink: 0 }}>✎</span>
+                          <span title="Manually logged" style={{ display: "flex", color: "var(--ios-label-3)", flexShrink: 0 }}><PencilIcon /></span>
                         )}
-                        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <div className="ios-subhead" style={{ fontWeight: 600, color: "var(--ios-label)", minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {fmtWorkoutType(w.workout_type)}
                         </div>
                       </div>
-                      <div style={{ fontSize: 12, color: "var(--color-ink-3)", whiteSpace: "nowrap", flexShrink: 0 }}>
+                      <div className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)", whiteSpace: "nowrap", flexShrink: 0 }}>
                         {meta}
                       </div>
                     </div>

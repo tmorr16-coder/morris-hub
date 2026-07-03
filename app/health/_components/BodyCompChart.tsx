@@ -5,10 +5,10 @@ interface BodyCompChartProps {
   labels: string[];
 }
 
-// Token hex values used directly in SVG attributes (CSS vars don't work there)
-const C_SLATE = "#2f3a47";
-const C_MOSS  = "#4a6a4d";
-const C_ACCENT = "#b84a2e";
+// iOS semantic hues for the three overlaid series.
+const C_WEIGHT = "var(--ios-label)";
+const C_MUSCLE = "var(--ios-green)";
+const C_FAT    = "var(--ios-tint)";
 
 export default function BodyCompChart({ weight, muscle, fat, labels }: BodyCompChartProps) {
   const height = 160;
@@ -38,31 +38,34 @@ export default function BodyCompChart({ weight, muscle, fat, labels }: BodyCompC
         <polyline
           points={toPath(wY)}
           fill="none"
-          stroke={C_SLATE}
+          style={{ stroke: C_WEIGHT }}
           strokeWidth="1.5"
           strokeLinecap="round"
+          strokeLinejoin="round"
         />
         <polyline
           points={toPath(mY)}
           fill="none"
-          stroke={C_MOSS}
+          style={{ stroke: C_MUSCLE }}
           strokeWidth="1.5"
           strokeLinecap="round"
+          strokeLinejoin="round"
           strokeDasharray="2,2"
         />
         <polyline
           points={toPath(fY)}
           fill="none"
-          stroke={C_ACCENT}
+          style={{ stroke: C_FAT }}
           strokeWidth="1.5"
           strokeLinecap="round"
+          strokeLinejoin="round"
           strokeDasharray="3,2"
         />
         {wY.map((y, i) => (
-          <circle key={`w${i}`} cx={i * xStep} cy={y} r="1.5" fill={C_SLATE} />
+          <circle key={`w${i}`} cx={i * xStep} cy={y} r="1.5" style={{ fill: C_WEIGHT }} />
         ))}
         {mY.map((y, i) => (
-          <circle key={`m${i}`} cx={i * xStep} cy={y} r="1.5" fill={C_MOSS} />
+          <circle key={`m${i}`} cx={i * xStep} cy={y} r="1.5" style={{ fill: C_MUSCLE }} />
         ))}
       </svg>
       <div
@@ -74,7 +77,7 @@ export default function BodyCompChart({ weight, muscle, fat, labels }: BodyCompC
         }}
       >
         {labels.map((l, i) => (
-          <span key={i} style={{ fontSize: 10, color: "var(--color-ink-4)" }}>
+          <span key={i} className="ios-caption ios-num" style={{ color: "var(--ios-label-3)" }}>
             {l}
           </span>
         ))}
