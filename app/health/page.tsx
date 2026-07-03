@@ -1,15 +1,35 @@
 export const revalidate = 3600; // cache for 1 hour
 
-import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId, getCurrentUserName } from "@/lib/health/auth";
-import ScoreRings from "./_components/ScoreRings";
-import Greeting from "./_components/Greeting";
-import ActivityCard from "./_components/ActivityCard";
-import ActivityHistoryCard, { type CombinedWorkoutRow } from "./_components/ActivityHistoryCard";
-import ChatWidget from "./_components/ChatWidget";
-import MetricTrendsCard, { type TrendMetric, type TrendPoint } from "./_components/MetricTrendsCard";
-import SyncButton from "./_components/SyncButton";
+import { type CombinedWorkoutRow } from "./_components/ActivityHistoryCard";
+import { type TrendMetric, type TrendPoint } from "./_components/MetricTrendsCard";
+import Link from "next/link";
+import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
+
+// latest value + windowed delta for a trend metric
+function trendSummary(m: TrendMetric): { value: string; delta: string; color: string } | null {
+  if (!m.points.length) return null;
+  const latest = m.points[m.points.length - 1].value;
+  const d = latest - m.points[0].value;
+  const improving = m.invertDelta ? d < 0 : d > 0;
+  const r1 = (n: number) => Math.round(n * 10) / 10;
+  return {
+    value: `${r1(latest)}${m.unit ? ` ${m.unit}` : ""}`,
+    delta: d === 0 ? "no change" : `${d > 0 ? "▲" : "▼"} ${Math.abs(r1(d))} over ${m.points.length}d`,
+    color: d === 0 ? "var(--ios-label-2)" : improving ? "var(--ios-green)" : "var(--ios-red)",
+  };
+}
+
+function workoutMeta(w: CombinedWorkoutRow): string {
+  const parts: string[] = [];
+  if (w.duration_sec != null) parts.push(`${Math.round(w.duration_sec / 60)} min`);
+  if (w.distance_m != null) parts.push(`${(w.distance_m / 1609.344).toFixed(1)} mi`);
+  if (w.calories != null) parts.push(`${Math.round(w.calories)} cal`);
+  const d = new Date(w.timestamp);
+  parts.push(d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }));
+  return parts.join(" · ");
+}
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -207,7 +227,6 @@ export default async function DashboardPage() {
   // ── Derived values ────────────────────────────────────────────────────────
 
   type ScoreRow = { value: number } | null;
-  const scoresFromOura = !!(readinessRow || activityRow || sleepScoreRow);
   const SCORES = [
     { label: "Readiness", value: Math.round((readinessRow  as ScoreRow)?.value ?? SCORE_FALLBACKS[0].value), color: SCORE_FALLBACKS[0].color },
     { label: "Activity",  value: Math.round((activityRow   as ScoreRow)?.value ?? SCORE_FALLBACKS[1].value), color: SCORE_FALLBACKS[1].color },
@@ -227,7 +246,6 @@ export default async function DashboardPage() {
   const steps: number | null = stepsData.length
     ? Math.round(stepsData.reduce((s, r) => s + r.value, 0))
     : null;
-  const activitySource: string | null = stepsData[0]?.source ?? null;
 
   const activeEnergyCal: number | null = (energyRows as MetricRow[] | null)?.length
     ? Math.round((energyRows as MetricRow[]).reduce((s, r) => s + r.value, 0))
@@ -326,226 +344,76 @@ export default async function DashboardPage() {
   ];
 
   const today = formatDate(new Date());
-
-  const healthSystemContext = `You are a knowledgeable health and fitness coach. Give concise, practical advice about nutrition, exercise, recovery, and wellness. Keep replies to 2-4 sentences unless more detail is genuinely needed. Be direct and specific. The user is tracking their health data including steps, sleep, readiness, and workouts.`;
+  const firstName = (userName ?? "").split(" ")[0];
 
   return (
-    <div>
+    <div className="ios-scroll">
+      <LargeTitle title="Health" subtitle={`${today} · ${getGreeting()}${firstName ? `, ${firstName}` : ""}`} avatarInitial={(userName || "T")[0]?.toUpperCase()} />
 
-      {/* ── Header ───────────────────────────────────────────────────────── */}
-      <div style={{ padding: "20px 20px 14px", borderBottom: "1px solid var(--color-line)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div
-            style={{
-              fontSize: 10,
-              color: "var(--color-ink-3)",
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              fontWeight: 500,
-              marginBottom: 6,
-            }}
-          >
-            {today}
+      {/* Scores hero */}
+      <div className="ios-list" style={{ margin: "8px 16px 0", padding: 18, display: "flex", justifyContent: "space-around", textAlign: "center" }}>
+        {SCORES.map((s) => (
+          <div key={s.label}>
+            <div className="ios-num" style={{ fontSize: 30, fontWeight: 700, color: s.color }}>{s.value}</div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>{s.label}</div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <SyncButton />
-            <Link
-              href="/health/settings/integrations"
-              style={{
-                fontSize: 11,
-                color: "var(--color-ink-3)",
-                textDecoration: "none",
-                padding: "4px 10px",
-                border: "1px solid var(--color-line)",
-                borderRadius: 8,
-              }}
-            >
-              ⚙ Integrations
-            </Link>
-          </div>
-        </div>
-
-        <Greeting name={userName} />
-
-        {/* Per-source sync status */}
-        {syncSources.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-            {syncSources.map(({ key, icon, label, ts }) => (
-              <div
-                key={key}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  padding: "3px 9px",
-                  borderRadius: 20,
-                  background: "var(--color-bg-raised)",
-                  border: "1px solid var(--color-line)",
-                  fontSize: 11,
-                  color: "var(--color-ink-3)",
-                }}
-              >
-                <span style={{ fontSize: 12 }}>{icon}</span>
-                <span style={{ fontWeight: 500 }}>{label}</span>
-                <span style={{ color: "var(--color-ink-4)" }}>·</span>
-                <span>{relativeTime(ts)}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        ))}
       </div>
 
-      {/* ── Cards ────────────────────────────────────────────────────────── */}
-      <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+      <Group header="Today">
+        <Cell chevron={false} lead={<IconBadge color="var(--ios-green)"><Icons.HeartIcon /></IconBadge>} title="Steps" trailing={<span className="ios-num">{steps != null ? steps.toLocaleString() : "—"}</span>} />
+        <Cell chevron={false} lead={<IconBadge color="var(--ios-orange)"><Icons.DumbbellIcon /></IconBadge>} title="Active energy" trailing={<span className="ios-num">{activeEnergyCal != null ? `${activeEnergyCal} cal` : "—"}</span>} />
+        <Cell chevron={false} lead={<IconBadge color="var(--ios-tint)"><Icons.TrendUpIcon /></IconBadge>} title="Distance" trailing={<span className="ios-num">{distanceMiles != null ? `${distanceMiles} mi` : "—"}</span>} />
+        <Cell chevron={false} lead={<IconBadge color="#FA114F"><Icons.HeartIcon /></IconBadge>} title={heartRateLabel} trailing={<span className="ios-num">{heartRateBpm != null ? `${heartRateBpm} bpm` : "—"}</span>} />
+        <Cell href="/health/nutrition" lead={<IconBadge color="#E8734A"><Icons.ForkKnifeIcon /></IconBadge>} title="Nutrition" subtitle={`${mealCount} ${mealCount === 1 ? "meal" : "meals"} logged`} trailing={<span className="ios-num">{todayCalories} cal</span>} />
+      </Group>
 
-        {/* Quick-start workout — replaced by Train page */}
+      <Group header="Trends" footer="Last 14 days.">
+        {trendMetrics.map((m) => {
+          const t = trendSummary(m);
+          return (
+            <Cell
+              key={m.key}
+              chevron={false}
+              lead={<IconBadge color="var(--ios-tint)"><Icons.ChartIcon /></IconBadge>}
+              title={m.label}
+              subtitle={t ? <span style={{ color: t.color }}>{t.delta}</span> : "No data yet"}
+              trailing={t ? <span className="ios-num">{t.value}</span> : undefined}
+            />
+          );
+        })}
+      </Group>
 
-        {/* Activity + Scores */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
-          <ActivityCard
-            steps={steps}
-            activeEnergyCal={activeEnergyCal}
-            distanceMiles={distanceMiles}
-            heartRateBpm={heartRateBpm}
-            heartRateLabel={heartRateLabel}
-            source={activitySource}
-          />
-          {scoresFromOura ? (
-            <div
-              style={{
-                background: "var(--color-bg-raised)",
-                border: "1px solid var(--color-line)",
-                borderRadius: 14,
-                padding: "16px",
-                boxShadow: "var(--shadow-card)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)" }}>
-                  Today&apos;s Scores
-                </div>
-                <div style={{ fontSize: 10, color: "var(--color-ink-4)" }}>via 💍 Oura</div>
-              </div>
-              <ScoreRings scores={SCORES} />
-            </div>
-          ) : (
-            <Link href="/health/settings/integrations" style={{ textDecoration: "none" }}>
-              <div
-                style={{
-                  background: "var(--color-bg-raised)",
-                  border: "1.5px dashed var(--color-line)",
-                  borderRadius: 14,
-                  padding: "18px 18px",
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", marginBottom: 12 }}>
-                  Connect your devices
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {[
-                    { icon: "💍", label: "Oura Ring", desc: "Sleep · readiness · HRV" },
-                    { icon: "⌚", label: "Apple Watch", desc: "Activity · workouts · heart rate" },
-                    { icon: "⚖️", label: "Withings Scale", desc: "Weight · body composition" },
-                  ].map(({ icon, label, desc }) => (
-                    <div key={label} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ fontSize: 22, flexShrink: 0, width: 32, textAlign: "center" }}>{icon}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)" }}>{label}</div>
-                        <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>{desc}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ marginTop: 14, fontSize: 12, fontWeight: 500, color: "var(--color-accent)", textAlign: "right" }}>
-                  Set up integrations →
-                </div>
-              </div>
-            </Link>
-          )}
-        </div>
+      {recentWorkouts.length > 0 && (
+        <Group header="Recent workouts">
+          {recentWorkouts.slice(0, 5).map((w) => (
+            <Cell key={w.id} href="/health/train" lead={<IconBadge color="var(--ios-green)"><Icons.DumbbellIcon /></IconBadge>} title={w.workout_type} subtitle={workoutMeta(w)} />
+          ))}
+        </Group>
+      )}
 
-        {/* 30-day trends */}
-        <MetricTrendsCard metrics={trendMetrics} />
+      {syncSources.length > 0 && (
+        <Group header="Connected">
+          {syncSources.map((s) => (
+            <Cell key={s.key} href="/health/settings/integrations" lead={<IconBadge color="#8E8E93"><Icons.HeartIcon /></IconBadge>} title={s.label} trailing={<span style={{ color: "var(--ios-label-2)" }}>{relativeTime(s.ts)}</span>} />
+          ))}
+        </Group>
+      )}
 
-        {/* Nutrition summary */}
-        <Link href="/health/nutrition" style={{ textDecoration: "none" }}>
-          <div
-            style={{
-              background: "var(--color-bg-raised)",
-              border: "1px solid var(--color-line)",
-              borderRadius: 14,
-              padding: "16px 18px",
-              boxShadow: "var(--shadow-card)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 500,
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  color: "var(--color-ink-3)",
-                }}
-              >
-                Today&apos;s Nutrition
-              </div>
-              <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>Log meals →</span>
-            </div>
-            {mealCount > 0 ? (
-              <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-                <div>
-                  <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1, color: "var(--color-ink)" }}>
-                    {todayCalories.toLocaleString()}
-                  </div>
-                  <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 2 }}>kcal logged</div>
-                </div>
-                <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
-                  {mealCount} meal{mealCount !== 1 ? "s" : ""} today
-                </div>
-              </div>
-            ) : (
-              <div style={{ fontSize: 13, color: "var(--color-ink-4)" }}>
-                No meals logged yet today. Tap to add.
-              </div>
-            )}
-          </div>
-        </Link>
-
-        {/* Health chat */}
-        <div
-          style={{
-            background: "var(--color-bg-raised)",
-            border: "1px solid var(--color-line)",
-            borderRadius: 14,
-            padding: "16px",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 500,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: "var(--color-ink-3)",
-              marginBottom: 12,
-            }}
-          >
-            Health coach
-          </div>
-          <ChatWidget
-            systemContext={healthSystemContext}
-            placeholder="Ask about nutrition, recovery, fitness…"
-            welcomeMessage="Hi! Ask me anything about nutrition, workouts, recovery, or your health data."
-            compact
-          />
-        </div>
-
-        {/* Activity — combined days-active grid + recent workouts */}
-        <ActivityHistoryCard workouts={recentWorkouts} now={now} />
-
+      <div style={{ display: "flex", gap: 10, padding: "14px 16px 0" }}>
+        {[
+          { href: "/health/train", label: "Log workout", icon: <Icons.DumbbellIcon /> },
+          { href: "/health/nutrition", label: "Log meal", icon: <Icons.ForkKnifeIcon /> },
+          { href: "/health/medications", label: "Meds", icon: <Icons.PillIcon /> },
+        ].map((q) => (
+          <Link key={q.label} href={q.href} className="ios-list" style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, margin: 0, color: "var(--ios-tint)" }}>
+            <span style={{ display: "flex", width: 22, height: 22 }}>{q.icon}</span>
+            <span className="ios-caption" style={{ color: "var(--ios-label)" }}>{q.label}</span>
+          </Link>
+        ))}
       </div>
+
+      <div style={{ height: 12 }} />
     </div>
   );
 }
