@@ -17,7 +17,7 @@ const DEFAULT_TABS: { key: TabKey; label: string; href: string }[] = [
   { key: "today", label: "Today", href: "/home" },
   { key: "family", label: "Family", href: "/home/family" },
   { key: "health", label: "Health", href: "/health" },
-  { key: "more", label: "More", href: "/home/me" },
+  { key: "more", label: "More", href: "/home/more" },
 ];
 
 /**
