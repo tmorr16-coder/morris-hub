@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { completeOnboarding } from "../actions";
+import { Icons } from "@/components/ios";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -14,6 +15,8 @@ interface Profile {
 }
 
 type ModuleKey = "health" | "finance" | "investments" | "career" | "student-success" | "children" | "bible";
+
+type Glyph = (p: React.SVGProps<SVGSVGElement>) => React.JSX.Element;
 
 // ── Persona definitions ───────────────────────────────────────────────────────
 
@@ -44,17 +47,33 @@ const PERSONAS: { key: Persona; label: string; emoji: string; tagline: string; d
   },
 ];
 
+const PERSONA_ICON: Record<Persona, Glyph> = {
+  parent: Icons.PeopleIcon,
+  student: Icons.BookIcon,
+  individual: Icons.PersonIcon,
+};
+
 // ── Module definitions ────────────────────────────────────────────────────────
 
 const MODULES: { key: ModuleKey; label: string; dot: string; icon: string; description: string }[] = [
-  { key: "health",          label: "Health",          dot: "#4D6B3A", icon: "♡", description: "Body composition, workouts, GLP-1 tracking, Oura & Withings sync" },
-  { key: "finance",         label: "Finance",         dot: "#8B6A47", icon: "$", description: "Family accounts, net worth, Plaid-connected, family sharing" },
-  { key: "investments",     label: "Investments",     dot: "#C97A3A", icon: "↗", description: "Stock research, AI deep analysis, live charts, paper trading" },
-  { key: "career",          label: "Career",          dot: "#2A6049", icon: "◈", description: "AI advisor, goal tracking, learning log, relationship mapping" },
+  { key: "health",          label: "Health",          dot: "#34C759", icon: "♡", description: "Body composition, workouts, GLP-1 tracking, Oura & Withings sync" },
+  { key: "finance",         label: "Finance",         dot: "#C58B4F", icon: "$", description: "Family accounts, net worth, Plaid-connected, family sharing" },
+  { key: "investments",     label: "Investments",     dot: "#FF9F0A", icon: "↗", description: "Stock research, AI deep analysis, live charts, paper trading" },
+  { key: "career",          label: "Career",          dot: "#356FB0", icon: "◈", description: "AI advisor, goal tracking, learning log, relationship mapping" },
   { key: "student-success", label: "Courses",         dot: "#6B5B95", icon: "✦", description: "College course tracking, assignments, and grades — lives on your Me dashboard" },
   { key: "children",        label: "Children",        dot: "#C97A9B", icon: "⌘", description: "Profile cards, activities, and support for each of your kids" },
   { key: "bible",           label: "Bible",           dot: "#6B3B7C", icon: "✟", description: "Scripture study, daily plans, notes, challenges" },
 ];
+
+const MODULE_ICON: Record<ModuleKey, Glyph> = {
+  health: Icons.HeartIcon,
+  finance: Icons.WalletIcon,
+  investments: Icons.TrendUpIcon,
+  career: Icons.BriefcaseIcon,
+  "student-success": Icons.BookIcon,
+  children: Icons.PeopleIcon,
+  bible: Icons.BookIcon,
+};
 
 // ── Integration definitions ───────────────────────────────────────────────────
 
@@ -78,13 +97,30 @@ const INTEGRATIONS: Record<Persona, { key: string; label: string; description: s
   ],
 };
 
+const INTEGRATION_ICON: Record<string, Glyph> = {
+  plaid: Icons.WalletIcon,
+  oura: Icons.HeartIcon,
+  withings: Icons.ChartIcon,
+  alpaca: Icons.TrendUpIcon,
+  lsat: Icons.BookIcon,
+  career: Icons.BriefcaseIcon,
+};
+
+function CheckMark({ color = "var(--ios-tint)" }: { color?: string }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12.5l4.5 4.5L19 6.5" />
+    </svg>
+  );
+}
+
 // ── Progress bar ──────────────────────────────────────────────────────────────
 
 function ProgressBar({ step, total }: { step: number; total: number }) {
   return (
     <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 40 }}>
       {Array.from({ length: total }).map((_, i) => (
-        <div key={i} style={{ height: 3, width: 40, borderRadius: 2, background: i < step ? "var(--color-accent)" : "var(--color-rule)", transition: "background 0.3s" }} />
+        <div key={i} style={{ height: 3, width: 40, borderRadius: 2, background: i < step ? "var(--ios-tint)" : "var(--ios-separator)", transition: "background 0.3s" }} />
       ))}
     </div>
   );
@@ -133,11 +169,11 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
     router.replace("/home");
   }
 
-  const cardStyle = (selected: boolean, color = "var(--color-accent)"): React.CSSProperties => ({
-    padding: "20px 22px",
-    borderRadius: 12,
-    border: `1.5px solid ${selected ? color : "var(--color-rule)"}`,
-    background: selected ? color + "0d" : "var(--color-bg-card)",
+  const cardStyle = (selected: boolean, color = "var(--ios-tint)"): React.CSSProperties => ({
+    padding: "16px 18px",
+    borderRadius: "var(--ios-radius-tile)",
+    border: `1.5px solid ${selected ? color : "var(--ios-separator)"}`,
+    background: selected ? "var(--ios-fill)" : "var(--ios-cell)",
     cursor: "pointer",
     textAlign: "left",
     fontFamily: "inherit",
@@ -145,13 +181,29 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
     width: "100%",
   });
 
+  const primaryBtn = (enabled: boolean, busy = false): React.CSSProperties => ({
+    opacity: enabled ? 1 : 0.4,
+    cursor: !enabled ? "not-allowed" : busy ? "wait" : "pointer",
+  });
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%", padding: "12px 14px", borderRadius: 10,
+    border: "0.5px solid var(--ios-separator)", background: "var(--ios-cell)",
+    color: "var(--ios-label)", fontSize: 17, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: "block", fontSize: 13, fontWeight: 400, color: "var(--ios-label-2)",
+    textTransform: "uppercase", letterSpacing: "0.02em", marginBottom: 7,
+  };
+
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)", display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 24px 80px" }}>
+    <div style={{ minHeight: "100vh", background: "var(--ios-bg)", display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 24px 80px" }}>
       {/* Logo */}
-      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 40 }}>
-        <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-accent)", alignSelf: "center", flexShrink: 0 }} />
-        <span className="serif" style={{ fontSize: 20, color: "var(--color-ink)" }}>morrisai</span>
-        <span className="serif" style={{ color: "var(--color-accent-dark)", fontStyle: "italic", fontSize: 18 }}>.family</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 40 }}>
+        <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--ios-tint)", flexShrink: 0 }} />
+        <span className="ios-headline" style={{ color: "var(--ios-label)" }}>morrisai</span>
+        <span className="ios-headline" style={{ color: "var(--ios-tint)", fontWeight: 400 }}>.family</span>
       </div>
 
       <ProgressBar step={step} total={4} />
@@ -161,28 +213,31 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
         {/* ── Screen 1: Who are you ── */}
         {step === 1 && (
           <div>
-            <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--color-ink)", marginBottom: 6, textAlign: "center" }}>Who are you?</h1>
-            <p style={{ fontSize: 14, color: "var(--color-ink-3)", textAlign: "center", marginBottom: 28, lineHeight: 1.6 }}>
+            <h1 className="ios-title-1" style={{ color: "var(--ios-label)", marginBottom: 6, textAlign: "center" }}>Who are you?</h1>
+            <p className="ios-subhead" style={{ color: "var(--ios-label-2)", textAlign: "center", marginBottom: 28, lineHeight: 1.5 }}>
               We&rsquo;ll pre-configure the platform for your situation. You can change everything later.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {PERSONAS.map((p) => (
-                <button key={p.key} onClick={() => selectPersona(p.key)} style={cardStyle(persona === p.key)}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
-                    <span style={{ fontSize: 22 }}>{p.emoji}</span>
-                    <div>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-ink)" }}>{p.label}</div>
-                      <div style={{ fontSize: 11, color: "var(--color-accent)", fontWeight: 600, letterSpacing: "0.04em" }}>{p.tagline}</div>
+              {PERSONAS.map((p) => {
+                const PIcon = PERSONA_ICON[p.key];
+                return (
+                  <button key={p.key} onClick={() => selectPersona(p.key)} style={cardStyle(persona === p.key)}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+                      <span className="ios-icon" style={{ background: "var(--ios-tint)" }}><PIcon /></span>
+                      <div>
+                        <div className="ios-headline" style={{ color: "var(--ios-label)" }}>{p.label}</div>
+                        <div className="ios-caption" style={{ color: "var(--ios-tint)", fontWeight: 600, letterSpacing: "0.02em" }}>{p.tagline}</div>
+                      </div>
+                      {persona === p.key && <span style={{ marginLeft: "auto" }}><CheckMark /></span>}
                     </div>
-                    {persona === p.key && <span style={{ marginLeft: "auto", color: "var(--color-accent)", fontSize: 18 }}>✓</span>}
-                  </div>
-                  <p style={{ fontSize: 13, color: "var(--color-ink-3)", lineHeight: 1.5, margin: 0 }}>{p.description}</p>
-                </button>
-              ))}
+                    <p className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.4, margin: 0 }}>{p.description}</p>
+                  </button>
+                );
+              })}
             </div>
             <button onClick={() => setStep(2)} disabled={!persona}
-              style={{ marginTop: 24, width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 15, fontWeight: 700, fontFamily: "inherit", cursor: persona ? "pointer" : "not-allowed", opacity: persona ? 1 : 0.4 }}>
-              Continue →
+              className="ios-btn ios-btn--primary" style={{ marginTop: 24, ...primaryBtn(!!persona) }}>
+              Continue
             </button>
           </div>
         )}
@@ -190,40 +245,36 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
         {/* ── Screen 2: Profile ── */}
         {step === 2 && (
           <div>
-            <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--color-ink)", marginBottom: 6, textAlign: "center" }}>Your profile</h1>
-            <p style={{ fontSize: 14, color: "var(--color-ink-3)", textAlign: "center", marginBottom: 28, lineHeight: 1.6 }}>
+            <h1 className="ios-title-1" style={{ color: "var(--ios-label)", marginBottom: 6, textAlign: "center" }}>Your profile</h1>
+            <p className="ios-subhead" style={{ color: "var(--ios-label-2)", textAlign: "center", marginBottom: 28, lineHeight: 1.5 }}>
               This personalises your home screen greeting and local data like weather.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
-                <label style={{ display: "block", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>
-                  How should we address you?
-                </label>
+                <label style={labelStyle}>How should we address you?</label>
                 <input
                   value={profile.displayName}
                   onChange={(e) => setProfile((p) => ({ ...p, displayName: e.target.value }))}
                   placeholder="e.g. Terry, Dad, Coach"
-                  style={{ width: "100%", padding: "12px 14px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "var(--color-bg)", color: "var(--color-ink)", fontSize: 15, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+                  style={inputStyle}
                 />
               </div>
               <div>
-                <label style={{ display: "block", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>
-                  Your city or town
-                </label>
+                <label style={labelStyle}>Your city or town</label>
                 <input
                   value={profile.locationName}
                   onChange={(e) => setProfile((p) => ({ ...p, locationName: e.target.value }))}
                   placeholder="e.g. Fishers, IN"
-                  style={{ width: "100%", padding: "12px 14px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "var(--color-bg)", color: "var(--color-ink)", fontSize: 15, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+                  style={inputStyle}
                 />
-                <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 4 }}>Used for weather and local news on your home screen.</div>
+                <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>Used for weather and local news on your home screen.</div>
               </div>
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
-              <button onClick={() => setStep(1)} style={{ flex: 1, padding: "13px", borderRadius: 10, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-2)", fontSize: 14, fontFamily: "inherit", cursor: "pointer" }}>← Back</button>
+              <button onClick={() => setStep(1)} className="ios-btn" style={{ flex: 1, background: "var(--ios-fill)", color: "var(--ios-tint)" }}>Back</button>
               <button onClick={() => setStep(3)} disabled={!profile.displayName.trim()}
-                style={{ flex: 2, padding: "13px", borderRadius: 10, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 15, fontWeight: 700, fontFamily: "inherit", cursor: profile.displayName.trim() ? "pointer" : "not-allowed", opacity: profile.displayName.trim() ? 1 : 0.4 }}>
-                Continue →
+                className="ios-btn ios-btn--primary" style={{ flex: 2, ...primaryBtn(!!profile.displayName.trim()) }}>
+                Continue
               </button>
             </div>
           </div>
@@ -232,38 +283,37 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
         {/* ── Screen 3: Choose modules ── */}
         {step === 3 && (
           <div>
-            <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--color-ink)", marginBottom: 6, textAlign: "center" }}>Choose your modules</h1>
-            <p style={{ fontSize: 14, color: "var(--color-ink-3)", textAlign: "center", marginBottom: 8, lineHeight: 1.6 }}>
-              We&rsquo;ve pre-selected the right ones for a <strong style={{ color: "var(--color-ink-2)" }}>{persona}</strong>. Toggle any you want to add or remove.
+            <h1 className="ios-title-1" style={{ color: "var(--ios-label)", marginBottom: 6, textAlign: "center" }}>Choose your modules</h1>
+            <p className="ios-subhead" style={{ color: "var(--ios-label-2)", textAlign: "center", marginBottom: 8, lineHeight: 1.5 }}>
+              We&rsquo;ve pre-selected the right ones for a <strong style={{ color: "var(--ios-label)" }}>{persona}</strong>. Toggle any you want to add or remove.
             </p>
-            <div style={{ fontSize: 11, color: "var(--color-ink-4)", textAlign: "center", marginBottom: 24 }}>Hub is always included as your home screen.</div>
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", textAlign: "center", marginBottom: 24 }}>Hub is always included as your home screen.</div>
 
             {/* Hub — always on */}
-            <div style={{ padding: "14px 18px", borderRadius: 10, border: "1.5px solid var(--color-accent)", background: "var(--color-accent-soft)", marginBottom: 10, display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ fontSize: 20, color: "var(--color-accent)" }}>⌂</span>
+            <div style={{ padding: "14px 18px", borderRadius: "var(--ios-radius-tile)", border: "1.5px solid var(--ios-tint)", background: "var(--ios-fill)", marginBottom: 10, display: "flex", alignItems: "center", gap: 12 }}>
+              <span className="ios-icon" style={{ background: "var(--ios-tint)" }}><Icons.HomeIcon /></span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--color-ink)" }}>Hub</div>
-                <div style={{ fontSize: 11, color: "var(--color-ink-3)" }}>Your daily home screen — always enabled</div>
+                <div className="ios-headline" style={{ color: "var(--ios-label)" }}>Hub</div>
+                <div className="ios-caption" style={{ color: "var(--ios-label-2)" }}>Your daily home screen — always enabled</div>
               </div>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--color-accent)", background: "rgba(59,92,127,0.12)", padding: "3px 8px", borderRadius: 6 }}>Always on</span>
+              <span className="ios-caption" style={{ fontWeight: 600, color: "var(--ios-tint)" }}>Always on</span>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {MODULES.map((mod) => {
                 const on = modules.has(mod.key);
+                const MIcon = MODULE_ICON[mod.key];
                 return (
                   <button key={mod.key} onClick={() => toggleModule(mod.key)} style={cardStyle(on, mod.dot)}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 8, background: mod.dot + "18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: mod.dot, flexShrink: 0 }}>
-                        {mod.icon}
-                      </div>
+                      <span className="ios-icon" style={{ background: mod.dot }}><MIcon /></span>
                       <div style={{ flex: 1, textAlign: "left" }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--color-ink)" }}>{mod.label}</div>
-                        <div style={{ fontSize: 11, color: "var(--color-ink-3)", lineHeight: 1.4 }}>{mod.description}</div>
+                        <div className="ios-headline" style={{ color: "var(--ios-label)" }}>{mod.label}</div>
+                        <div className="ios-caption" style={{ color: "var(--ios-label-2)", lineHeight: 1.4 }}>{mod.description}</div>
                       </div>
-                      <div style={{ width: 40, height: 24, borderRadius: 12, background: on ? mod.dot : "var(--color-rule)", transition: "background 0.2s", flexShrink: 0, position: "relative" }}>
-                        <div style={{ position: "absolute", top: 3, left: on ? 18 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
-                      </div>
+                      <span style={{ width: 51, height: 31, borderRadius: 999, background: on ? mod.dot : "var(--ios-fill)", transition: "background 0.2s", flexShrink: 0, position: "relative" }}>
+                        <span style={{ position: "absolute", top: 2, left: on ? 22 : 2, width: 27, height: 27, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                      </span>
                     </div>
                   </button>
                 );
@@ -271,10 +321,9 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
             </div>
 
             <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
-              <button onClick={() => setStep(2)} style={{ flex: 1, padding: "13px", borderRadius: 10, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-2)", fontSize: 14, fontFamily: "inherit", cursor: "pointer" }}>← Back</button>
-              <button onClick={() => setStep(4)}
-                style={{ flex: 2, padding: "13px", borderRadius: 10, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 15, fontWeight: 700, fontFamily: "inherit", cursor: "pointer" }}>
-                Continue →
+              <button onClick={() => setStep(2)} className="ios-btn" style={{ flex: 1, background: "var(--ios-fill)", color: "var(--ios-tint)" }}>Back</button>
+              <button onClick={() => setStep(4)} className="ios-btn ios-btn--primary" style={{ flex: 2 }}>
+                Continue
               </button>
             </div>
           </div>
@@ -283,31 +332,35 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
         {/* ── Screen 4: Integrations ── */}
         {step === 4 && persona && (
           <div>
-            <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--color-ink)", marginBottom: 6, textAlign: "center" }}>Connect your first integrations</h1>
-            <p style={{ fontSize: 14, color: "var(--color-ink-3)", textAlign: "center", marginBottom: 8, lineHeight: 1.6 }}>
-              These are the most impactful connections for a <strong style={{ color: "var(--color-ink-2)" }}>{persona}</strong>. You can skip any and connect later.
+            <h1 className="ios-title-1" style={{ color: "var(--ios-label)", marginBottom: 6, textAlign: "center" }}>Connect your first integrations</h1>
+            <p className="ios-subhead" style={{ color: "var(--ios-label-2)", textAlign: "center", marginBottom: 8, lineHeight: 1.5 }}>
+              These are the most impactful connections for a <strong style={{ color: "var(--ios-label)" }}>{persona}</strong>. You can skip any and connect later.
             </p>
-            <div style={{ fontSize: 11, color: "var(--color-ink-4)", textAlign: "center", marginBottom: 24 }}>Connections open in the relevant app section.</div>
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", textAlign: "center", marginBottom: 24 }}>Connections open in the relevant app section.</div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {INTEGRATIONS[persona].map((intg) => {
                 const connected = connectedIntegrations.has(intg.key);
+                const IIcon = INTEGRATION_ICON[intg.key] ?? Icons.SparkleIcon;
                 return (
-                  <div key={intg.key} style={{ padding: "16px 18px", borderRadius: 12, border: `1.5px solid ${connected ? "var(--color-green)" : "var(--color-rule)"}`, background: connected ? "rgba(74,107,58,0.05)" : "var(--color-bg-card)", display: "flex", alignItems: "center", gap: 14 }}>
-                    <span style={{ fontSize: 26, flexShrink: 0 }}>{intg.icon}</span>
+                  <div key={intg.key} style={{ padding: "14px 16px", borderRadius: "var(--ios-radius-tile)", border: `1.5px solid ${connected ? "var(--ios-green)" : "var(--ios-separator)"}`, background: "var(--ios-cell)", display: "flex", alignItems: "center", gap: 14 }}>
+                    <span className="ios-icon" style={{ background: connected ? "var(--ios-green)" : "var(--ios-fill)", color: connected ? "#fff" : "var(--ios-label-2)" }}><IIcon /></span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--color-ink)", marginBottom: 2 }}>{intg.label}</div>
-                      <div style={{ fontSize: 11, color: "var(--color-ink-3)", lineHeight: 1.4 }}>{intg.description}</div>
+                      <div className="ios-headline" style={{ color: "var(--ios-label)", marginBottom: 2 }}>{intg.label}</div>
+                      <div className="ios-caption" style={{ color: "var(--ios-label-2)", lineHeight: 1.4 }}>{intg.description}</div>
                     </div>
                     {connected ? (
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--color-green)", flexShrink: 0 }}>✓ Connected</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, color: "var(--ios-green)", fontSize: 13, fontWeight: 600 }}>
+                        <CheckMark color="var(--ios-green)" /> Connected
+                      </span>
                     ) : (
                       <a
                         href={intg.href}
                         onClick={() => setConnectedIntegrations((s) => new Set(s).add(intg.key))}
-                        style={{ fontSize: 12, fontWeight: 700, padding: "7px 14px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "var(--color-bg)", color: "var(--color-ink-2)", textDecoration: "none", flexShrink: 0, whiteSpace: "nowrap" }}
+                        className="ios-chip ios-chip--sm"
+                        style={{ flexShrink: 0, whiteSpace: "nowrap" }}
                       >
-                        Set up →
+                        Set up
                       </a>
                     )}
                   </div>
@@ -316,14 +369,14 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
             </div>
 
             <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
-              <button onClick={() => setStep(3)} style={{ flex: 1, padding: "13px", borderRadius: 10, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-2)", fontSize: 14, fontFamily: "inherit", cursor: "pointer" }}>← Back</button>
+              <button onClick={() => setStep(3)} className="ios-btn" style={{ flex: 1, background: "var(--ios-fill)", color: "var(--ios-tint)" }}>Back</button>
               <button onClick={finish} disabled={saving}
-                style={{ flex: 2, padding: "13px", borderRadius: 10, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 15, fontWeight: 700, fontFamily: "inherit", cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1 }}>
-                {saving ? "Setting up…" : "Enter the platform →"}
+                className="ios-btn ios-btn--primary" style={{ flex: 2, ...primaryBtn(!saving, saving) }}>
+                {saving ? "Setting up…" : "Enter the platform"}
               </button>
             </div>
 
-            <button onClick={finish} disabled={saving} style={{ display: "block", width: "100%", marginTop: 12, padding: "10px", borderRadius: 10, border: "none", background: "transparent", color: "var(--color-ink-4)", fontSize: 12, fontFamily: "inherit", cursor: "pointer" }}>
+            <button onClick={finish} disabled={saving} className="ios-btn ios-btn--plain" style={{ width: "100%", marginTop: 12, color: "var(--ios-label-3)" }}>
               Skip all — I&rsquo;ll set up integrations later
             </button>
           </div>

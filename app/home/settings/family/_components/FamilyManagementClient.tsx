@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Segmented, Chip, Icons } from "@/components/ios";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -45,9 +46,9 @@ interface Props {
 
 const ROLE_LABELS: Record<string, string> = { adult: "Adult", child: "Child" };
 const STATUS_COLOR: Record<string, string> = {
-  pending:  "var(--color-amber)",
-  accepted: "var(--color-green)",
-  declined: "var(--color-red)",
+  pending:  "var(--ios-orange)",
+  accepted: "var(--ios-green)",
+  declined: "var(--ios-red)",
 };
 const ROLE_ACCESS: Record<string, string[]> = {
   adult: ["Today", "Family", "Kids", "Me (Health)", "Money", "Career", "Bible", "Ask Morris"],
@@ -74,16 +75,15 @@ function age(birthYear: number | null): number | null {
 }
 
 const chip = (label: string, color: string): React.CSSProperties => ({
-  fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
-  padding: "2px 7px", borderRadius: 8,
-  background: `${color}15`, color,
-  fontFamily: "var(--font-geist, system-ui), sans-serif",
+  fontSize: 11, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase",
+  padding: "3px 9px", borderRadius: 999,
+  background: `${color}1f`, color,
 });
 
 const avatarStyle = (bg: string): React.CSSProperties => ({
   width: 38, height: 38, borderRadius: "50%", background: bg,
   display: "flex", alignItems: "center", justifyContent: "center",
-  fontSize: 13, fontWeight: 700, color: "var(--color-accent)", flexShrink: 0,
+  fontSize: 14, fontWeight: 700, color: "var(--ios-tint)", flexShrink: 0,
 });
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -224,12 +224,12 @@ export default function FamilyManagementClient({
   }
 
   const inp: React.CSSProperties = {
-    width: "100%", padding: "9px 12px", border: "1px solid var(--color-rule)",
-    borderRadius: 8, background: "var(--color-bg)", color: "var(--color-ink)",
-    fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+    width: "100%", padding: "11px 14px", border: "0.5px solid var(--ios-separator)",
+    borderRadius: 10, background: "var(--ios-bg)", color: "var(--ios-label)",
+    fontSize: 15, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
   };
   const SH = ({ children }: { children: React.ReactNode }) => (
-    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 12, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+    <div className="ios-group-header" style={{ padding: "0 4px 7px" }}>
       {children}
     </div>
   );
@@ -353,19 +353,9 @@ export default function FamilyManagementClient({
                         {EDITABLE_MODULES.map((mod) => {
                           const checked = draftAccess.includes(mod);
                           return (
-                            <button
-                              key={mod}
-                              type="button"
-                              onClick={() => toggleDraftModule(mod)}
-                              style={{
-                                padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: "pointer",
-                                border: checked ? "1.5px solid var(--color-accent)" : "1px solid var(--color-rule)",
-                                background: checked ? "var(--color-accent-soft)" : "transparent",
-                                color: checked ? "var(--color-accent)" : "var(--color-ink-3)",
-                              }}
-                            >
-                              {checked ? "✓ " : ""}{MODULE_LABELS[mod] ?? mod}
-                            </button>
+                            <Chip key={mod} small selected={checked} onClick={() => toggleDraftModule(mod)}>
+                              {MODULE_LABELS[mod] ?? mod}
+                            </Chip>
                           );
                         })}
                       </div>
@@ -432,27 +422,19 @@ export default function FamilyManagementClient({
             </div>
           </div>
           <div>
-            <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-ink-3)", display: "block", marginBottom: 5, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>Role</label>
-            <div style={{ display: "flex", gap: 10 }}>
-              {(["adult", "child"] as const).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setInviteRole(r)}
-                  style={{
-                    padding: "7px 18px", borderRadius: 8, fontSize: 12, fontWeight: 500,
-                    border: inviteRole === r ? "1.5px solid var(--color-accent)" : "1px solid var(--color-rule)",
-                    background: inviteRole === r ? "var(--color-accent-soft)" : "transparent",
-                    color: inviteRole === r ? "var(--color-accent)" : "var(--color-ink-3)",
-                    cursor: "pointer", fontFamily: "inherit",
-                  }}
-                >
-                  {ROLE_LABELS[r]}
-                  <span style={{ fontSize: 10, color: "var(--color-ink-4)", marginLeft: 6 }}>
-                    {r === "adult" ? "full access" : "limited access"}
-                  </span>
-                </button>
-              ))}
+            <label style={{ fontSize: 13, fontWeight: 400, letterSpacing: "0.02em", textTransform: "uppercase", color: "var(--ios-label-2)", display: "block", marginBottom: 7 }}>Role</label>
+            <Segmented
+              ariaLabel="Invite role"
+              value={inviteRole}
+              onChange={(v) => setInviteRole(v)}
+              options={[
+                { value: "adult", label: "Adult" },
+                { value: "child", label: "Child" },
+              ]}
+              style={{ margin: 0 }}
+            />
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>
+              {inviteRole === "adult" ? "Full access to all modules." : "Limited access — you manage what they see."}
             </div>
           </div>
           {inviteRole === "child" && (
@@ -510,25 +492,29 @@ export default function FamilyManagementClient({
       )}
 
       {/* ── Section 4: Permission preview ── */}
-      <section style={{ background: "var(--color-bg-deep)", borderRadius: 12, padding: "18px 20px" }}>
+      <section style={{ background: "var(--ios-fill-2)", borderRadius: "var(--ios-radius-card)", padding: "18px 20px" }}>
         <SH>Role permissions</SH>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           {(["adult", "child"] as const).map((role) => (
             <div key={role}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink-2)", marginBottom: 8, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-                {role === "adult" ? "👤 Adult" : "🧒 Child"} — {role === "adult" ? "Full access" : "Limited access"}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 600, color: "var(--ios-label)", marginBottom: 8 }}>
+                {role === "adult"
+                  ? <Icons.PersonIcon style={{ width: 16, height: 16, color: "var(--ios-tint)" }} />
+                  : <Icons.PeopleIcon style={{ width: 16, height: 16, color: "var(--ios-tint)" }} />}
+                {role === "adult" ? "Adult" : "Child"} — {role === "adult" ? "Full access" : "Limited access"}
               </div>
-              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 3 }}>
+              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
                 {ROLE_ACCESS[role].map((module) => (
-                  <li key={module} style={{ fontSize: 12, color: "var(--color-ink-3)", fontFamily: "var(--font-geist, system-ui), sans-serif", display: "flex", alignItems: "center", gap: 5 }}>
-                    <span style={{ color: "var(--color-green)", fontSize: 10 }}>✓</span> {module}
+                  <li key={module} className="ios-footnote" style={{ color: "var(--ios-label-2)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--ios-green)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 6.5" /></svg>
+                    {module}
                   </li>
                 ))}
               </ul>
             </div>
           ))}
         </div>
-        <p style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 12, marginBottom: 0, fontFamily: "var(--font-geist, system-ui), sans-serif", lineHeight: 1.5 }}>
+        <p className="ios-footnote" style={{ color: "var(--ios-label-3)", marginTop: 12, marginBottom: 0, lineHeight: 1.5 }}>
           Each person controls their own data. Joining a circle enables shared family features but does not automatically expose private data. Finance, career, and investment information is always private.
         </p>
       </section>
