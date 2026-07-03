@@ -232,3 +232,31 @@ export async function deleteManualAccount(id: string): Promise<{ error?: string 
   if (error) return { error: error.message };
   return {};
 }
+
+// Edit an imported/manual account's value (and optionally its name) at any time.
+// Ownership-scoped: only the account's owner can update it.
+export async function updateManualAccount(data: {
+  id: string;
+  balance: number;
+  name?: string;
+}): Promise<{ error?: string }> {
+  const { user } = await requireFinanceAccess();
+  if (!Number.isFinite(data.balance)) return { error: "Enter a valid amount" };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updates: Record<string, any> = {
+    balance: data.balance,
+    as_of_date: new Date().toISOString().slice(0, 10),
+  };
+  if (typeof data.name === "string" && data.name.trim()) updates.name = data.name.trim();
+  const { error } = await service
+    .schema("finance")
+    .from("manual_accounts")
+    .update(updates)
+    .eq("id", data.id)
+    .eq("user_id", user.id);
+  if (error) return { error: error.message };
+  revalidatePath("/finance/dashboard");
+  return {};
+}

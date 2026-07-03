@@ -172,9 +172,14 @@ export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, 
           <li>Set <b style={{ fontWeight: 600 }}>Export Format: JSON</b>, <b style={{ fontWeight: 600 }}>Export Type: Apple Health</b>.</li>
           <li>Add the webhook URL above as the endpoint.</li>
           <li>Add a request <b style={{ fontWeight: 600 }}>Header</b>: name <code>api-key</code>, value = your export secret{apiKey ? " (shown above)" : ""}. Without it the server returns <b style={{ fontWeight: 600 }}>401</b>.</li>
+          <li>For the first backfill, export a <b style={{ fontWeight: 600 }}>short range (1 day at a time)</b> — a full week of all metrics can exceed the server limit (<b style={{ fontWeight: 600 }}>413</b>). Then set the automation to run hourly; ongoing syncs are small.</li>
           <li>Tap <b style={{ fontWeight: 600 }}>Export Now</b> to sync immediately.</li>
         </ol>
       )}
+
+      <p className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "8px 16px 0" }}>
+        Seeing a <b style={{ fontWeight: 600 }}>413 (payload too large)</b>? The export batch is too big — narrow the date range (a day or two) or reduce the number of metrics, then export again. Hourly automations stay well under the limit.
+      </p>
     </div>
   );
 }

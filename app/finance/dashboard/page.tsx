@@ -4,6 +4,8 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { requireFinanceAccess } from "@/lib/finance/access";
 import type { SharedWithMe } from "./settings/share-actions";
 import { LargeTitle, Group, Cell, IconBadge, Sparkline, Icons } from "@/components/ios";
+import SyncNowButton from "./_components/SyncNowButton";
+import ImportedAccounts from "./_components/ImportedAccounts";
 
 /* This dashboard reads many finance-schema tables through the service-role
    client, which is untyped — `as any` casts are used throughout the data layer. */
@@ -291,7 +293,6 @@ export default async function DashboardPage() {
     const bal = a.current_balance ?? 0;
     return sum + (a.type === "credit" || a.type === "loan" ? -bal : bal);
   }, 0) + manualTotal + sharedPortfolioTotal;
-  const netFmt = fmtMoneyLarge(netPosition);
 
   // ── Net position delta via snapshots ──────────────────────────────────────
   // Read previous snapshot, then store today's so next load shows the delta.
@@ -352,17 +353,28 @@ export default async function DashboardPage() {
     <div className="ios-scroll">
       <LargeTitle title="Money" subtitle={`${todayDisplay} · ${greeting}`} avatarInitial={(name || "T")[0]?.toUpperCase()} />
 
-      {/* Net position hero */}
+      {/* Net position hero — metrics only. The actual balance is deliberately
+          kept out of this glanceable top slot; see the accounts below. */}
       <div className="ios-list" style={{ margin: "8px 16px 0", padding: 18 }}>
-        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Net position</div>
-        <div className="ios-num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.01em", marginTop: 2 }}>
-          {netFmt.whole}<span style={{ color: "var(--ios-label-2)", fontSize: 20 }}>{netFmt.cents}</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Net position trend</div>
+          <SyncNowButton />
         </div>
-        {netDelta != null && netDelta !== 0 && (
-          <div className="ios-subhead" style={{ marginTop: 2, color: netDelta >= 0 ? "var(--ios-green)" : "var(--ios-red)" }}>
-            {netDelta >= 0 ? "▲" : "▼"} {fmtMoney(Math.abs(netDelta))} since last visit
-          </div>
-        )}
+        {(() => {
+          const prevNet = netDelta != null ? netPosition - netDelta : null;
+          const pct = netDelta != null && prevNet ? (netDelta / Math.abs(prevNet)) * 100 : null;
+          const up = (netDelta ?? 0) >= 0;
+          return (
+            <>
+              <div className="ios-num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.01em", marginTop: 4, color: pct == null ? "var(--ios-label)" : up ? "var(--ios-green)" : "var(--ios-red)" }}>
+                {pct == null ? "Tracking" : `${up ? "▲" : "▼"} ${Math.abs(pct).toFixed(1)}%`}
+              </div>
+              <div className="ios-subhead" style={{ marginTop: 2, color: "var(--ios-label-2)" }}>
+                {pct == null ? "Building your history" : "since last visit"}
+              </div>
+            </>
+          );
+        })()}
         {netSeries.length >= 2 && (
           <div style={{ marginTop: 12 }}>
             <Sparkline points={netSeries} color={netDelta != null && netDelta < 0 ? "var(--ios-red)" : "var(--ios-green)"} width={320} height={44} />
@@ -394,20 +406,18 @@ export default async function DashboardPage() {
         );
       })}
 
-      {manualAccounts.length > 0 && (
-        <Group header="Imported">
-          {manualAccounts.map((a) => (
-            <Cell
-              key={a.id}
-              chevron={false}
-              lead={<IconBadge color="#8B6A47"><Icons.ChartIcon /></IconBadge>}
-              title={a.name}
-              subtitle={[a.account_type, a.institution].filter(Boolean).join(" · ") || undefined}
-              trailing={<span className="ios-num">{fmtMoney(a.balance, a.currency ?? "USD")}</span>}
-            />
-          ))}
-        </Group>
-      )}
+      <ImportedAccounts
+        accounts={[
+          ...ownManualAccounts.map((a) => ({
+            id: a.id, name: a.name, account_type: a.account_type ?? null, institution: a.institution ?? null,
+            balance: a.balance ?? null, currency: a.currency ?? "USD", editable: true,
+          })),
+          ...sharedManual.map((a) => ({
+            id: a.id, name: a.name, account_type: a.account_type ?? null, institution: a.institution ?? null,
+            balance: a.balance ?? null, currency: a.currency ?? "USD", editable: false,
+          })),
+        ]}
+      />
 
       {sharedWithMe.length > 0 && (
         <Group header="Shared with me">
