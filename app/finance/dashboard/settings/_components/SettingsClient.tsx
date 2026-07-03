@@ -98,7 +98,7 @@ export default function SettingsClient({
       if (res.error) { setError(res.error); return; }
       const member = members.find((m) => m.id === pickerMemberId);
       setShares((prev) => [...prev, {
-        id: `tmp-${Date.now()}`,
+        id: `tmp-${new Date().getTime()}`,
         account_id: accountId,
         grantee_user_id: pickerMemberId,
         include_in_portfolio: false,
@@ -132,7 +132,7 @@ export default function SettingsClient({
       const res = await shareAccount(acct.id, memberId);
       if (!res.error) {
         newShares.push({
-          id: `tmp-${acct.id}-${Date.now()}`,
+          id: `tmp-${acct.id}-${new Date().getTime()}`,
           account_id: acct.id,
           grantee_user_id: memberId,
           include_in_portfolio: false,

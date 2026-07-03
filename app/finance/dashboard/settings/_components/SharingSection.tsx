@@ -59,7 +59,7 @@ export default function SharingSection({ accounts, members, existingShares, item
       // Optimistic: add to local shares list
       const member = members.find((m) => m.id === pickerMemberId);
       setShares((prev) => [...prev, {
-        id: `tmp-${Date.now()}`,
+        id: `tmp-${new Date().getTime()}`,
         account_id: pickerAccountId,
         grantee_user_id: pickerMemberId,
         include_in_portfolio: false,
