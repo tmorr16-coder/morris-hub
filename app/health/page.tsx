@@ -249,14 +249,19 @@ export default async function DashboardPage() {
   ].filter((s) => s.ts !== null) as { key: string; icon: string; label: string; ts: string }[];
 
   type ActRow = { value: number; source?: string; timestamp?: string; unit?: string };
-  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(now); // YYYY-MM-DD
-  // Most recent day (UTC-date key) that has data. Within a day, Apple (Watch) is
-  // preferred, then Oura — never summed together. Returns the day's total + which
-  // day it is, so the card can label "Today" vs an earlier date.
+  const tzFmt = new Intl.DateTimeFormat("en-CA", { timeZone: tz }); // -> YYYY-MM-DD in the user's tz
+  const todayKey = tzFmt.format(now);
+  // Day key must reflect the USER's timezone: Apple stores instantaneous UTC
+  // timestamps (convert to tz), while Oura stores a daily summary at UTC-midnight
+  // that already represents a local calendar day (use its date directly).
+  const dayKeyFor = (r: ActRow): string =>
+    r.source === "oura" ? (r.timestamp ?? "").slice(0, 10) : tzFmt.format(new Date(r.timestamp ?? 0));
+  // Most recent day that has data. Within a day, Apple (Watch) is preferred, then
+  // Oura — never summed together. Returns the day's total + which day it is.
   const latestDay = (rows: ActRow[] | null, toVal: (r: ActRow) => number): { total: number; day: string } | null => {
     const byDay = new Map<string, { apple: number; oura: number; hasApple: boolean; hasOura: boolean }>();
     for (const r of rows ?? []) {
-      const day = (r.timestamp ?? "").slice(0, 10);
+      const day = dayKeyFor(r);
       if (!day) continue;
       const d = byDay.get(day) ?? { apple: 0, oura: 0, hasApple: false, hasOura: false };
       const v = toVal(r);

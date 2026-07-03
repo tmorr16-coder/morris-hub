@@ -478,9 +478,12 @@ export default async function HomePage() {
   // fallback; today if present, else the latest available day (labeled).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stepRows = (stepsRes.data ?? []) as any[];
+  const homeTzFmt = new Intl.DateTimeFormat("en-CA", { timeZone: homeTz });
   const stepByDay = new Map<string, { apple: number; oura: number; hasApple: boolean; hasOura: boolean }>();
   for (const r of stepRows) {
-    const day = String(r.timestamp ?? "").slice(0, 10);
+    // Oura stores a daily summary at UTC-midnight (use its date); Apple stores
+    // instantaneous UTC timestamps (convert to the user's tz).
+    const day = r.source === "oura" ? String(r.timestamp ?? "").slice(0, 10) : homeTzFmt.format(new Date(r.timestamp ?? 0));
     if (!day) continue;
     const d = stepByDay.get(day) ?? { apple: 0, oura: 0, hasApple: false, hasOura: false };
     if (r.source === "oura") { d.oura += Number(r.value) || 0; d.hasOura = true; }
