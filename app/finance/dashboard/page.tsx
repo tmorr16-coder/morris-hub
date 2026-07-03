@@ -342,28 +342,21 @@ export default async function DashboardPage() {
     <div className="ios-scroll">
       <LargeTitle brand title="Money" subtitle={`${todayDisplay} · ${greeting}`} avatarInitial={(name || "T")[0]?.toUpperCase()} />
 
-      {/* Net position hero — metrics only. The actual balance is deliberately
-          kept out of this glanceable top slot; see the accounts below. */}
+      {/* Net position hero — the real number is fine here since the whole
+          Money dashboard sits behind the finance PIN. */}
       <div className="ios-list" style={{ margin: "8px 16px 0", padding: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Net position trend</div>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Net position</div>
           <SyncNowButton />
         </div>
-        {(() => {
-          const prevNet = netDelta != null ? netPosition - netDelta : null;
-          const pct = netDelta != null && prevNet ? (netDelta / Math.abs(prevNet)) * 100 : null;
-          const up = (netDelta ?? 0) >= 0;
-          return (
-            <>
-              <div className="ios-num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.01em", marginTop: 4, color: pct == null ? "var(--ios-label)" : up ? "var(--ios-green)" : "var(--ios-red)" }}>
-                {pct == null ? "Tracking" : `${up ? "▲" : "▼"} ${Math.abs(pct).toFixed(1)}%`}
-              </div>
-              <div className="ios-subhead" style={{ marginTop: 2, color: "var(--ios-label-2)" }}>
-                {pct == null ? "Building your history" : "since last visit"}
-              </div>
-            </>
-          );
-        })()}
+        <div className="ios-num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.01em", marginTop: 4 }}>
+          {fmtMoney(netPosition)}
+        </div>
+        {netDelta != null && netDelta !== 0 && (
+          <div className="ios-subhead" style={{ marginTop: 2, color: netDelta >= 0 ? "var(--ios-green)" : "var(--ios-red)" }}>
+            {netDelta >= 0 ? "▲" : "▼"} {fmtMoney(Math.abs(netDelta))} since last visit
+          </div>
+        )}
         {netSeries.length >= 2 && (
           <div style={{ marginTop: 12 }}>
             <Sparkline points={netSeries} color={netDelta != null && netDelta < 0 ? "var(--ios-red)" : "var(--ios-green)"} width={320} height={44} />
