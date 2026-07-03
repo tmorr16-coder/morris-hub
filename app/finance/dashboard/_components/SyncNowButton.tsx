@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { syncAll } from "../actions";
 
 export default function SyncNowButton() {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -11,8 +13,13 @@ export default function SyncNowButton() {
     setMsg(null);
     startTransition(async () => {
       const r = await syncAll();
-      if (r.ok) setMsg(r.synced ? `+${r.synced}` : "up to date");
-      else setMsg(r.error ?? "failed");
+      if (r.ok) {
+        // Re-render the cached dashboard so refreshed balances show immediately.
+        router.refresh();
+        setMsg(r.synced ? `Updated · +${r.synced}` : "Updated");
+      } else {
+        setMsg(r.error ?? "failed");
+      }
       setTimeout(() => setMsg(null), 3000);
     });
   }
