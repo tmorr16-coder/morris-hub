@@ -1,10 +1,10 @@
 export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getPreferences } from "@/lib/prefs";
 import { getFamilyCalendarEvents, getMonthGridRange, getWeekRange } from "@/lib/familyCalendar";
-import PlatformMenu from "@/components/PlatformMenu";
+import { IOSScreen, LargeTitle, TabBar, Icons } from "@/components/ios";
 import CalendarClient from "./_components/CalendarClient";
 
 const userTz = "America/Indiana/Indianapolis";
@@ -18,8 +18,6 @@ export default async function FamilyCalendarPage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const prefs = await getPreferences(user.id);
-
   const params = await searchParams;
   const view = params.view === "week" ? "week" : "month";
   const todayStr = new Date().toLocaleDateString("sv", { timeZone: userTz });
@@ -28,24 +26,18 @@ export default async function FamilyCalendarPage({
   const { start, end } = view === "week" ? getWeekRange(anchorDate) : getMonthGridRange(anchorDate);
   const { events, members } = await getFamilyCalendarEvents(user.id, start, end, userTz);
 
-  const menuUser = {
-    name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-    email: user.email,
-    avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
-    appAccess: prefs.app_access ?? null,
-  };
-
   return (
-    <div>
-      <PlatformMenu currentApp="hub" user={menuUser} />
-      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 20px 100px" }}>
-        <h1 className="serif" style={{ fontSize: 32, marginBottom: 6 }}>
-          Family Calendar
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--color-ink-3)", marginBottom: 24, lineHeight: 1.6, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-          Reminders, tasks, and kids&apos; assignments across your family circle.
-        </p>
+    <IOSScreen>
+      <Link href="/home/family" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-tint)", padding: "6px 16px 0", fontWeight: 500 }} className="ios-subhead">
+        <Icons.ChevronLeft style={{ width: 16, height: 16 }} /> Family
+      </Link>
+      <LargeTitle
+        title="Calendar"
+        subtitle="Reminders, tasks & kids' assignments across your circle"
+        trailing={<Icons.CalendarIcon style={{ width: 26, height: 26, color: "var(--ios-label-2)" }} />}
+      />
 
+      <div style={{ padding: "0 16px" }}>
         <CalendarClient
           view={view}
           anchorDate={anchorDate}
@@ -55,7 +47,10 @@ export default async function FamilyCalendarPage({
           events={events}
           members={members.map((m) => ({ id: m.id, label: m.label }))}
         />
-      </main>
-    </div>
+      </div>
+
+      <div style={{ height: 12 }} />
+      <TabBar current="family" currentUserId={user.id} sourceApp="hub" />
+    </IOSScreen>
   );
 }

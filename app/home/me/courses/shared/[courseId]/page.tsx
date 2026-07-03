@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import PlatformMenu from "@/components/PlatformMenu";
+import { IOSScreen, LargeTitle, Chip, TabBar, Icons } from "@/components/ios";
 import SharedCourseClient from "./_components/SharedCourseClient";
 
 export default async function SharedCoursePage({
@@ -86,74 +86,26 @@ export default async function SharedCoursePage({
   const grades = gradesResult.data ?? [];
   const assignments = assignmentsResult.data ?? [];
 
-  const menuUser = {
-    name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-    email: user.email,
-    avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
-    isAdmin: false,
-  };
-
   return (
-    <div style={{ background: "var(--color-bg)" }}>
-      <PlatformMenu currentApp="health" user={menuUser} />
-
-      {/* Course header */}
-      <div
-        style={{
-          background: `linear-gradient(135deg, ${course.color_tag}15 0%, ${course.color_tag}05 100%)`,
-          borderBottom: `2px solid ${course.color_tag}`,
-          padding: "20px",
-        }}
-      >
-        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-          <Link
-            href="/home/me/courses"
-            style={{
-              color: "var(--color-accent-dark)",
-              textDecoration: "none",
-              fontSize: 13,
-              marginBottom: 12,
-              display: "inline-block",
-            }}
-          >
-            ← Back to Courses
-          </Link>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-            <h1 className="serif" style={{ fontSize: 36, margin: "0 0 8px 0", color: course.color_tag }}>
-              {course.name}
-            </h1>
-            {!isOwner && (
-              <span style={{
-                fontSize: 12,
-                color: "var(--color-ink-3)",
-                background: "var(--color-paper-deep)",
-                border: "1px solid var(--color-rule)",
-                borderRadius: 20,
-                padding: "3px 10px",
-              }}>
-                Shared by {ownerName}
-              </span>
-            )}
-            {isOwner && (
-              <span style={{
-                fontSize: 12,
-                color: course.color_tag,
-                background: course.color_tag + "15",
-                border: `1px solid ${course.color_tag}30`,
-                borderRadius: 20,
-                padding: "3px 10px",
-              }}>
-                Preview (your share page)
-              </span>
-            )}
-          </div>
-          {course.instructor && (
-            <p style={{ color: "var(--color-ink-3)", margin: 0 }}>📚 {course.instructor}</p>
-          )}
-        </div>
+    <IOSScreen>
+      <div className="ios-navbar">
+        <Link href="/home/me/courses" className="ios-back">
+          <Icons.ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
+          Courses
+        </Link>
       </div>
 
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 28px 100px" }}>
+      <LargeTitle
+        title={course.name}
+        subtitle={
+          <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Chip small>{isOwner ? "Preview · your share page" : `Shared by ${ownerName}`}</Chip>
+            {course.instructor && <span>{course.instructor}</span>}
+          </span>
+        }
+      />
+
+      <div style={{ padding: "0 16px" }}>
         <SharedCourseClient
           courseId={courseId}
           colorTag={course.color_tag}
@@ -162,7 +114,10 @@ export default async function SharedCoursePage({
           canViewGrades={canViewGrades}
           canViewAssignments={canViewAssignments}
         />
-      </main>
-    </div>
+      </div>
+
+      <div style={{ height: 12 }} />
+      <TabBar current="more" currentUserId={user.id} sourceApp="hub" />
+    </IOSScreen>
   );
 }

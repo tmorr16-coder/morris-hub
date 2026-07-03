@@ -23,9 +23,11 @@ export default async function OnboardingPage() {
     "";
 
   return (
-    <OnboardingFlow
-      initialName={initialName}
-      initialLocation={prefs.location_name ?? ""}
-    />
+    <div data-ui="ios" className="ios-scroll">
+      <OnboardingFlow
+        initialName={initialName}
+        initialLocation={prefs.location_name ?? ""}
+      />
+    </div>
   );
 }

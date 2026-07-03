@@ -2,8 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { getPreferences } from "@/lib/prefs";
-import PlatformMenu from "@/components/PlatformMenu";
+import { IOSScreen, LargeTitle, TabBar } from "@/components/ios";
 import JournalClient, { type JournalEntry } from "./_components/JournalClient";
 
 export default async function JournalPage() {
@@ -11,7 +10,6 @@ export default async function JournalPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const prefs = await getPreferences(user.id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
 
@@ -23,17 +21,20 @@ export default async function JournalPage() {
 
   const entries: JournalEntry[] = (data as JournalEntry[] | null) ?? [];
 
-  const menuUser = {
-    name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-    email: user.email,
-    avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
-    appAccess: prefs.app_access ?? null,
-  };
-
   return (
-    <div>
-      <PlatformMenu currentApp="hub" user={menuUser} />
-      <JournalClient initialEntries={entries} userId={user.id} />
-    </div>
+    <IOSScreen>
+      <LargeTitle
+        title="Journal"
+        subtitle="Your private reflections"
+        avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()}
+      />
+
+      <div style={{ padding: "0 16px" }}>
+        <JournalClient initialEntries={entries} userId={user.id} />
+      </div>
+
+      <div style={{ height: 12 }} />
+      <TabBar current="more" currentUserId={user.id} sourceApp="hub" />
+    </IOSScreen>
   );
 }

@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import PlatformMenu from "@/components/PlatformMenu";
+import { IOSScreen, LargeTitle, TabBar, Icons } from "@/components/ios";
 import { Suspense } from "react";
 import { getPreferences } from "@/lib/prefs";
 import CourseReminderSettingsForm from "./_components/CourseReminderSettingsForm";
@@ -27,28 +27,25 @@ export default async function CourseReminderSettingsPage() {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const menuUser = {
-    name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-    email: user.email,
-    avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
-    appAccess: prefs.app_access ?? null,
-  };
-
   return (
-    <div>
-      <PlatformMenu currentApp="health" user={menuUser} />
-
-      <main style={{ maxWidth: 720, margin: "0 auto", padding: "32px 28px 100px" }}>
-        <Link href="/home/me/courses" style={{ color: "var(--color-accent)", fontSize: 12, marginBottom: 12, display: "inline-block", textDecoration: "none" }}>
-          ← Back to Courses
+    <IOSScreen>
+      <div className="ios-navbar">
+        <Link href="/home/me/courses" className="ios-back">
+          <Icons.ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
+          Courses
         </Link>
-        <h1 className="serif" style={{ fontSize: 32, marginBottom: 8 }}>Course reminder settings</h1>
-        <p style={{ color: "var(--color-ink-3)", fontSize: 14, marginBottom: 24 }}>Configure SMS reminders and contact information for course due dates.</p>
+      </div>
 
-        <Suspense fallback={<div style={{ color: "var(--color-ink-3)" }}>Loading settings...</div>}>
+      <LargeTitle title="Reminder settings" subtitle="SMS reminders for course due dates" />
+
+      <div style={{ padding: "0 16px" }}>
+        <Suspense fallback={<div style={{ color: "var(--ios-label-2)" }}>Loading settings...</div>}>
           <CourseReminderSettingsForm initialSettings={studentSettings || {}} />
         </Suspense>
-      </main>
-    </div>
+      </div>
+
+      <div style={{ height: 12 }} />
+      <TabBar current="more" currentUserId={user.id} sourceApp="hub" />
+    </IOSScreen>
   );
 }

@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
 import ProfileClient from "./_components/ProfileClient";
+import { LargeTitle } from "@/components/ios";
 
 export default async function ProfilePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,6 +27,7 @@ export default async function ProfilePage() {
 
   return (
     <div className="ios-scroll">
+      <LargeTitle title="Profile" subtitle="Preferences & goals" />
       <ProfileClient withingsWeightLbs={withingsWeightLbs} isAdmin={isAdmin} />
     </div>
   );

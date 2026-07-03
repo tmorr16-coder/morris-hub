@@ -7,7 +7,7 @@ import { LargeTitle, Icons } from "@/components/ios";
 import CareerSettingsClient from "./_components/CareerSettingsClient";
 import LsatSettingsClient from "./_components/LsatSettingsClient";
 
-// Career layout already provides PlatformMenu + CareerSubNav + container padding
+// Career layout provides the iOS scope + tab bar; this page returns iOS content
 export default async function CareerSettingsPage({ searchParams }: { searchParams: Promise<{ linkedin?: string }> }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

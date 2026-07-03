@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
 import DayViewClient, { type DayData } from "./_components/DayViewClient";
+import { LargeTitle } from "@/components/ios";
 
 export default async function DayPage({
   searchParams,
@@ -59,8 +60,13 @@ export default async function DayPage({
     medications: medicationsResult.data ?? [],
   };
 
+  const dateLabel = new Date(`${date}T12:00:00`).toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric",
+  });
+
   return (
     <div className="ios-scroll">
+      <LargeTitle title={date === today ? "Today" : "Daily log"} subtitle={dateLabel} />
       <DayViewClient data={dayData} />
     </div>
   );

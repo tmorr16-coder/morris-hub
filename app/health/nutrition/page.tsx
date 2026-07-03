@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
 import NutritionClient, { type Meal } from "./_components/NutritionClient";
+import { LargeTitle } from "@/components/ios";
 
 export default async function NutritionPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,6 +30,7 @@ export default async function NutritionPage() {
 
   return (
     <div className="ios-scroll">
+      <LargeTitle title="Nutrition" subtitle="Today's meals & calories" />
       <NutritionClient date={today} meals={meals} favorites={favorites} />
     </div>
   );

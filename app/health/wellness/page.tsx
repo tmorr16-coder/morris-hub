@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
 import WellnessClient, { type WellnessEntry } from "./_components/WellnessClient";
+import { LargeTitle } from "@/components/ios";
 
 export default async function WellnessPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -20,6 +21,7 @@ export default async function WellnessPage() {
 
   return (
     <div className="ios-scroll">
+      <LargeTitle title="Wellness" subtitle="Private mood check-in" />
       <WellnessClient initialEntries={entries} userId={userId} />
     </div>
   );
