@@ -164,21 +164,21 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
   return (
     <div>
       {/* Summary card */}
-      <div style={{ background: "var(--color-paper-card)", border: "1px solid var(--color-rule)", borderRadius: 12, padding: "20px 24px", boxShadow: "var(--shadow-card)", marginBottom: 24 }}>
-        <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 14 }}>
+      <div className="ios-list" style={{ margin: "0 0 8px", padding: 18 }}>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 14 }}>
           Monthly outflows
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
           {[
-            { label: "Total", amount: totalMonthly, color: "var(--color-red)" },
-            { label: "Expenses", amount: totalExpenseMonthly, color: "var(--color-ink)" },
-            { label: "Essential", amount: essentialMonthly, color: "var(--color-ink-2)" },
-            { label: "Discretionary", amount: discretionaryMonthly, color: "var(--color-ink-3)" },
-            { label: "Debt payments", amount: totalDebtMonthly, color: "var(--color-ink-2)" },
+            { label: "Total", amount: totalMonthly, color: "var(--ios-red)" },
+            { label: "Expenses", amount: totalExpenseMonthly, color: "var(--ios-label)" },
+            { label: "Essential", amount: essentialMonthly, color: "var(--ios-label)" },
+            { label: "Discretionary", amount: discretionaryMonthly, color: "var(--ios-label-2)" },
+            { label: "Debt payments", amount: totalDebtMonthly, color: "var(--ios-label)" },
           ].map(({ label, amount, color }) => (
             <div key={label}>
-              <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginBottom: 4 }}>{label}</div>
-              <div className="mono" style={{ fontSize: 22, fontWeight: 500, color }}>{fmtMoney(amount)}</div>
+              <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginBottom: 4 }}>{label}</div>
+              <div className="ios-num" style={{ fontSize: 22, fontWeight: 700, color }}>{fmtMoney(amount)}</div>
             </div>
           ))}
         </div>
@@ -198,7 +198,7 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
         {essentialExpenses.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={groupLabel}>Essential</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="ios-list" style={{ margin: 0 }}>
               {essentialExpenses.map((e) => (
                 <ExpenseRow key={e.id} expense={e}
                   onEdit={() => openEdit(e, "expense")}
@@ -212,7 +212,7 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
         {discretionaryExpenses.length > 0 && (
           <div style={{ marginBottom: 8 }}>
             <div style={groupLabel}>Discretionary</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div className="ios-list" style={{ margin: 0 }}>
               {discretionaryExpenses.map((e) => (
                 <ExpenseRow key={e.id} expense={e}
                   onEdit={() => openEdit(e, "expense")}
@@ -225,7 +225,7 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
 
         {formMode === "expense" && (
           <form onSubmit={handleSubmitExpense} style={formStyle}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", marginBottom: 16 }}>
+            <div className="ios-title-3" style={{ marginBottom: 16 }}>
               {editId ? "Edit expense" : "Add expense"}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -253,10 +253,10 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
                   placeholder="0" style={inputStyle} />
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 22 }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: "var(--color-ink-2)" }}>
+                <label className="ios-subhead" style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: "var(--ios-label)" }}>
                   <input type="checkbox" checked={expenseForm.essential}
                     onChange={(e) => setExpenseForm((f) => ({ ...f, essential: e.target.checked }))}
-                    style={{ width: 16, height: 16, accentColor: "var(--color-bronze)" }} />
+                    style={{ width: 18, height: 18, accentColor: "var(--ios-tint)" }} />
                   Essential expense
                 </label>
               </div>
@@ -272,15 +272,16 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
       {/* ── Loans ─────────────────────────────────────────────────────── */}
       <Section title="Loans" count={loans.length} onAdd={() => openAdd("loan")} addLabel="+ Add loan">
         {loans.length === 0 && formMode !== "loan" && <Empty text="No loans added." />}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {loans.length > 0 && (
+        <div className="ios-list" style={{ margin: 0 }}>
           {loans.map((d) => (
-            <div key={d.id} style={rowStyle}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <span className="serif" style={{ fontSize: 16 }}>{d.name}</span>
+            <div key={d.id} className="ios-cell" style={rowStyle}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                  <span className="ios-headline">{d.name}</span>
                   <Badge label={LOAN_TYPE_LABELS[d.type] ?? d.type} />
                 </div>
-                <div style={{ display: "flex", gap: 14, fontSize: 12, color: "var(--color-ink-3)" }}>
+                <div className="ios-footnote ios-num" style={{ display: "flex", gap: 14, color: "var(--ios-label-2)", flexWrap: "wrap" }}>
                   {d.balance != null && <span>Balance: {fmtMoney(d.balance)}</span>}
                   {d.rate_pct != null && <span>{d.rate_pct}% APR</span>}
                   {d.balance != null && d.rate_pct != null && d.monthly_payment != null && (
@@ -288,16 +289,19 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
                   )}
                 </div>
               </div>
-              <div className="mono" style={{ fontSize: 17, fontWeight: 500, color: "var(--color-ink)" }}>
-                {fmtMoney(d.monthly_payment)}/mo
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                <div className="ios-num" style={{ fontSize: 17, fontWeight: 600, color: "var(--ios-label)" }}>
+                  {fmtMoney(d.monthly_payment)}/mo
+                </div>
+                <RowActions onEdit={() => openEdit(d, "loan")} onDelete={() => setDebts(debts.filter((x) => x.id !== d.id))} />
               </div>
-              <RowActions onEdit={() => openEdit(d, "loan")} onDelete={() => setDebts(debts.filter((x) => x.id !== d.id))} />
             </div>
           ))}
         </div>
+        )}
         {formMode === "loan" && (
           <form onSubmit={handleSubmitLoan} style={formStyle}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", marginBottom: 16 }}>
+            <div className="ios-title-3" style={{ marginBottom: 16 }}>
               {editId ? "Edit loan" : "Add loan"}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -335,7 +339,7 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
               </div>
             </div>
             {loanForm.balance && loanForm.rate_pct && loanForm.monthly_payment && (
-              <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 10 }}>
+              <div className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)", marginTop: 10 }}>
                 Estimated payoff: {payoffMonths(parseFloat(loanForm.balance), parseFloat(loanForm.rate_pct), parseFloat(loanForm.monthly_payment))}
               </div>
             )}
@@ -350,30 +354,34 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
       {/* ── Leases ────────────────────────────────────────────────────── */}
       <Section title="Leases" count={leases.length} onAdd={() => openAdd("lease")} addLabel="+ Add lease">
         {leases.length === 0 && formMode !== "lease" && <Empty text="No leases added." />}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {leases.length > 0 && (
+        <div className="ios-list" style={{ margin: 0 }}>
           {leases.map((d) => (
-            <div key={d.id} style={rowStyle}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <span className="serif" style={{ fontSize: 16 }}>{d.name}</span>
+            <div key={d.id} className="ios-cell" style={rowStyle}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                  <span className="ios-headline">{d.name}</span>
                   <Badge label="Lease" />
                 </div>
-                <div style={{ display: "flex", gap: 14, fontSize: 12, color: "var(--color-ink-3)", flexWrap: "wrap" }}>
+                <div className="ios-footnote ios-num" style={{ display: "flex", gap: 14, color: "var(--ios-label-2)", flexWrap: "wrap" }}>
                   {d.lease_months_remaining != null && <span>{d.lease_months_remaining}mo remaining</span>}
                   {d.lease_residual != null && <span>Residual: {fmtMoney(d.lease_residual)}</span>}
                   {d.lease_end_decision && <span style={{ textTransform: "capitalize" }}>At term: {d.lease_end_decision}</span>}
                 </div>
               </div>
-              <div className="mono" style={{ fontSize: 17, fontWeight: 500, color: "var(--color-ink)" }}>
-                {fmtMoney(d.lease_monthly_payment)}/mo
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                <div className="ios-num" style={{ fontSize: 17, fontWeight: 600, color: "var(--ios-label)" }}>
+                  {fmtMoney(d.lease_monthly_payment)}/mo
+                </div>
+                <RowActions onEdit={() => openEdit(d, "lease")} onDelete={() => setDebts(debts.filter((x) => x.id !== d.id))} />
               </div>
-              <RowActions onEdit={() => openEdit(d, "lease")} onDelete={() => setDebts(debts.filter((x) => x.id !== d.id))} />
             </div>
           ))}
         </div>
+        )}
         {formMode === "lease" && (
           <form onSubmit={handleSubmitLease} style={formStyle}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", marginBottom: 16 }}>
+            <div className="ios-title-3" style={{ marginBottom: 16 }}>
               {editId ? "Edit lease" : "Add lease"}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -453,12 +461,12 @@ function Section({ title, count, onAdd, addLabel, children }: {
   title: string; count: number; onAdd: () => void; addLabel: string; children: React.ReactNode;
 }) {
   return (
-    <div style={{ marginBottom: 28 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)" }}>
-          {title} {count > 0 && <span style={{ color: "var(--color-ink-4)", fontWeight: 400 }}>· {count}</span>}
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 4px", marginBottom: 8 }}>
+        <div className="ios-group-header" style={{ padding: 0 }}>
+          {title} {count > 0 && <span style={{ color: "var(--ios-label-3)" }}>· {count}</span>}
         </div>
-        <button onClick={onAdd} style={{ padding: "5px 14px", borderRadius: 8, border: "1px dashed var(--color-rule)", background: "transparent", color: "var(--color-ink-2)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+        <button onClick={onAdd} style={{ padding: 0, color: "var(--ios-tint)", fontSize: 15, fontWeight: 400 }}>
           {addLabel}
         </button>
       </div>
@@ -469,28 +477,30 @@ function Section({ title, count, onAdd, addLabel, children }: {
 
 function ExpenseRow({ expense, onEdit, onDelete }: { expense: RetirementExpense; onEdit: () => void; onDelete: () => void }) {
   return (
-    <div style={rowStyle}>
-      <div style={{ flex: 1 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span className="serif" style={{ fontSize: 16 }}>{expense.name}</span>
+    <div className="ios-cell" style={rowStyle}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span className="ios-headline">{expense.name}</span>
           {expense.category && (
-            <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: expense.essential ? "var(--color-green)" : "var(--color-ink-3)", background: expense.essential ? "rgba(42,157,143,0.1)" : "var(--color-paper-deep)", padding: "2px 7px", borderRadius: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase", color: expense.essential ? "var(--ios-green)" : "var(--ios-label-2)", background: "var(--ios-fill)", padding: "2px 7px", borderRadius: 6 }}>
               {EXPENSE_CATEGORY_LABELS[expense.category] ?? expense.category}
             </span>
           )}
         </div>
       </div>
-      <div className="mono" style={{ fontSize: 17, fontWeight: 500, color: "var(--color-ink)" }}>
-        {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(expense.monthly_amount)}/mo
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+        <div className="ios-num" style={{ fontSize: 17, fontWeight: 600, color: "var(--ios-label)" }}>
+          {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(expense.monthly_amount)}/mo
+        </div>
+        <RowActions onEdit={onEdit} onDelete={onDelete} />
       </div>
-      <RowActions onEdit={onEdit} onDelete={onDelete} />
     </div>
   );
 }
 
 function Badge({ label }: { label: string }) {
   return (
-    <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-bronze-dark)", background: "rgba(139,106,71,0.1)", padding: "2px 7px", borderRadius: 8 }}>
+    <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase", color: "var(--ios-finance)", background: "var(--ios-fill)", padding: "2px 7px", borderRadius: 6 }}>
       {label}
     </span>
   );
@@ -498,7 +508,7 @@ function Badge({ label }: { label: string }) {
 
 function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
   return (
-    <div style={{ display: "flex", gap: 8 }}>
+    <div style={{ display: "flex", gap: 14 }}>
       <button onClick={onEdit} style={editBtnStyle}>Edit</button>
       <button onClick={onDelete} style={deleteBtnStyle}>Remove</button>
     </div>
@@ -506,64 +516,51 @@ function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
 }
 
 function Empty({ text }: { text: string }) {
-  return <div style={{ fontSize: 13, color: "var(--color-ink-4)", paddingLeft: 4, paddingBottom: 8 }}>{text}</div>;
+  return <div className="ios-footnote" style={{ color: "var(--ios-label-2)", paddingLeft: 4, paddingBottom: 8 }}>{text}</div>;
 }
 
 // ── Styles ───────────────────────────────────────────────────────────────────
 
 const groupLabel: React.CSSProperties = {
-  fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase",
-  color: "var(--color-ink-4)", marginBottom: 8,
+  fontSize: 13, fontWeight: 400, letterSpacing: "0.02em", textTransform: "uppercase",
+  color: "var(--ios-label-2)", marginBottom: 8, paddingLeft: 4,
 };
 
 const rowStyle: React.CSSProperties = {
-  background: "var(--color-paper-card)", border: "1px solid var(--color-rule)",
-  borderRadius: 10, padding: "14px 18px", boxShadow: "var(--shadow-card)",
-  display: "flex", alignItems: "center", gap: 14,
+  display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap", rowGap: 8,
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase",
-  color: "var(--color-ink-3)", display: "block", marginBottom: 6,
+  fontSize: 13, fontWeight: 400, letterSpacing: "0.02em", textTransform: "uppercase",
+  color: "var(--ios-label-2)", display: "block", marginBottom: 6,
 };
 
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", border: "1px solid var(--color-rule)",
-  borderRadius: 8, background: "var(--color-paper)", color: "var(--color-ink)",
-  fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+  width: "100%", padding: "10px 12px", border: "1px solid var(--ios-separator)",
+  borderRadius: 8, background: "var(--ios-bg)", color: "var(--ios-label)",
+  fontSize: 15, outline: "none", boxSizing: "border-box",
 };
 
-const selectStyle: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", border: "1px solid var(--color-rule)",
-  borderRadius: 8, background: "var(--color-paper)", color: "var(--color-ink)",
-  fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
-};
+const selectStyle: React.CSSProperties = { ...inputStyle };
 
 const formStyle: React.CSSProperties = {
-  background: "var(--color-paper-card)", border: "1px solid var(--color-rule)",
-  borderRadius: 12, padding: "20px 24px", boxShadow: "var(--shadow-card)", marginTop: 12,
+  background: "var(--ios-cell)", borderRadius: 10, padding: 18, marginTop: 12,
+  boxShadow: "inset 0 0 0 1px var(--ios-separator)",
 };
 
 const editBtnStyle: React.CSSProperties = {
-  padding: "5px 12px", borderRadius: 7, border: "1px solid var(--color-rule)",
-  background: "var(--color-paper)", color: "var(--color-ink-2)", fontSize: 12,
-  cursor: "pointer", fontFamily: "inherit",
+  padding: 0, color: "var(--ios-tint)", fontSize: 14, cursor: "pointer",
 };
 
 const deleteBtnStyle: React.CSSProperties = {
-  padding: "5px 12px", borderRadius: 7, border: "1px solid rgba(154,59,42,0.3)",
-  background: "rgba(154,59,42,0.05)", color: "var(--color-red)", fontSize: 12,
-  cursor: "pointer", fontFamily: "inherit",
+  padding: 0, color: "var(--ios-red)", fontSize: 14, cursor: "pointer",
 };
 
 const submitBtnStyle: React.CSSProperties = {
-  padding: "9px 22px", borderRadius: 9, border: "1px solid var(--color-bronze-dark)",
-  background: "var(--color-bronze)", color: "#FBF8F1", fontSize: 13, fontWeight: 500,
-  cursor: "pointer", fontFamily: "inherit",
+  padding: "12px 22px", borderRadius: 12, background: "var(--ios-tint)",
+  color: "var(--ios-on-tint)", fontSize: 17, fontWeight: 600, cursor: "pointer",
 };
 
 const cancelBtnStyle: React.CSSProperties = {
-  padding: "9px 18px", borderRadius: 9, border: "1px solid var(--color-rule)",
-  background: "transparent", color: "var(--color-ink-2)", fontSize: 13,
-  cursor: "pointer", fontFamily: "inherit",
+  padding: "0 8px", color: "var(--ios-tint)", fontSize: 17, cursor: "pointer",
 };

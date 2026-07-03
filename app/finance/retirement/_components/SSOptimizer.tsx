@@ -145,25 +145,16 @@ export default function SSOptimizer({ profile, onAddIncome }: Props) {
   const survivorBenefit = Math.max(selfFRANum, spouseFRANum);
 
   return (
-    <div
-      style={{
-        background: "var(--color-paper-card)",
-        border: "1px solid var(--color-rule)",
-        borderRadius: 12,
-        padding: "20px 24px",
-        boxShadow: "var(--shadow-card)",
-        marginBottom: 24,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
-        <h3 className="serif" style={{ fontSize: 20 }}>Social Security Optimizer</h3>
-        <span style={{ fontSize: 11, color: "var(--color-ink-3)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+    <div className="ios-list" style={{ margin: "0 0 8px", padding: 18 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+        <h3 className="ios-title-3">Social Security Optimizer</h3>
+        <span className="ios-footnote" style={{ color: "var(--ios-label-2)", letterSpacing: "0.03em", textTransform: "uppercase" }}>
           timing analysis
         </span>
       </div>
-      <p style={{ fontSize: 13, color: "var(--color-ink-3)", lineHeight: 1.5, marginBottom: 18 }}>
+      <p className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5, marginBottom: 18 }}>
         Enter your estimated benefit at full retirement age (67) from{" "}
-        <span style={{ color: "var(--color-bronze-dark)", fontWeight: 500 }}>ssa.gov/myaccount</span>.
+        <span style={{ color: "var(--ios-tint)", fontWeight: 500 }}>ssa.gov/myaccount</span>.
         See how timing affects your lifetime income.
       </p>
 
@@ -200,19 +191,18 @@ export default function SSOptimizer({ profile, onAddIncome }: Props) {
       {/* Survivor note */}
       {showSurvivorNote && (
         <div
+          className="ios-footnote"
           style={{
-            background: "rgba(139,106,71,0.07)",
-            border: "1px solid rgba(139,106,71,0.2)",
+            background: "var(--ios-fill-2)",
             borderRadius: 8,
             padding: "10px 14px",
-            fontSize: 12,
-            color: "var(--color-ink-2)",
+            color: "var(--ios-label)",
             lineHeight: 1.5,
             marginBottom: 20,
           }}
         >
           <strong>Survivor benefit:</strong> When one spouse dies, the survivor receives the higher of the two
-          benefits — estimated {fmtMoney(survivorBenefit)}/mo. This is automatically modeled in your projection.
+          benefits — estimated <span className="ios-num">{fmtMoney(survivorBenefit)}</span>/mo. This is automatically modeled in your projection.
         </div>
       )}
 
@@ -241,7 +231,7 @@ export default function SSOptimizer({ profile, onAddIncome }: Props) {
       )}
 
       {selfFRANum <= 0 && (
-        <div style={{ textAlign: "center", padding: "20px 0", color: "var(--color-ink-3)", fontSize: 13 }}>
+        <div className="ios-footnote" style={{ textAlign: "center", padding: "20px 0", color: "var(--ios-label-2)" }}>
           Enter your FRA benefit above to see your options.
         </div>
       )}
@@ -264,7 +254,7 @@ function SSOptionTable({ label, options, selectedAge, onSelect, onAdd }: TablePr
 
   return (
     <div style={{ marginBottom: 24 }}>
-      <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 10 }}>
+      <div className="ios-footnote" style={{ letterSpacing: "0.02em", textTransform: "uppercase", color: "var(--ios-label-2)", marginBottom: 10 }}>
         {label}
       </div>
 
@@ -278,23 +268,21 @@ function SSOptionTable({ label, options, selectedAge, onSelect, onAdd }: TablePr
               style={{
                 padding: "12px 10px",
                 borderRadius: 10,
-                border: `2px solid ${isSelected ? "var(--color-bronze)" : "var(--color-rule)"}`,
-                background: isSelected ? "rgba(139,106,71,0.08)" : "var(--color-paper)",
+                background: "var(--ios-fill-2)",
+                boxShadow: isSelected ? "inset 0 0 0 2px var(--ios-tint)" : "inset 0 0 0 1px var(--ios-separator)",
                 cursor: "pointer",
-                fontFamily: "inherit",
                 textAlign: "center",
-                transition: "border-color 0.15s",
               }}
             >
-              <div style={{ fontSize: 11, fontWeight: 600, color: isSelected ? "var(--color-bronze-dark)" : "var(--color-ink-3)", letterSpacing: "0.04em", marginBottom: 4 }}>
+              <div className="ios-caption" style={{ fontWeight: 600, color: isSelected ? "var(--ios-tint)" : "var(--ios-label-2)", letterSpacing: "0.02em", marginBottom: 4 }}>
                 Age {opt.label}
               </div>
-              <div className="mono" style={{ fontSize: 18, fontWeight: 600, color: "var(--color-ink)", marginBottom: 4 }}>
+              <div className="ios-num" style={{ fontSize: 18, fontWeight: 700, color: "var(--ios-label)", marginBottom: 4 }}>
                 {fmtMoney(opt.selfMonthly)}
               </div>
-              <div style={{ fontSize: 10, color: "var(--color-ink-3)" }}>per month</div>
+              <div className="ios-caption" style={{ color: "var(--ios-label-2)" }}>per month</div>
               {opt.breakEvenVs62 && (
-                <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 6, borderTop: "1px solid var(--color-rule)", paddingTop: 6 }}>
+                <div className="ios-caption ios-num" style={{ color: "var(--ios-label-3)", marginTop: 6, borderTop: "1px solid var(--ios-separator)", paddingTop: 6 }}>
                   Beats age-62 at {opt.breakEvenVs62}
                 </div>
               )}
@@ -308,18 +296,19 @@ function SSOptionTable({ label, options, selectedAge, onSelect, onAdd }: TablePr
           style={{
             marginTop: 12,
             padding: "12px 16px",
-            background: "var(--color-paper-deep)",
-            borderRadius: 9,
+            background: "var(--ios-fill-2)",
+            borderRadius: 10,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             gap: 12,
+            flexWrap: "wrap",
           }}
         >
-          <div style={{ fontSize: 13, color: "var(--color-ink-2)" }}>
-            Claiming at <strong>{selected.label}</strong>: {fmtMoney(selected.selfMonthly)}/mo
+          <div className="ios-footnote" style={{ color: "var(--ios-label)" }}>
+            Claiming at <strong>{selected.label}</strong>: <span className="ios-num">{fmtMoney(selected.selfMonthly)}</span>/mo
             {selected.breakEvenVs62 && (
-              <span style={{ color: "var(--color-ink-3)" }}>
+              <span style={{ color: "var(--ios-label-2)" }}>
                 {" "}· pays off vs age 62 at age {selected.breakEvenVs62}
               </span>
             )}
@@ -327,15 +316,13 @@ function SSOptionTable({ label, options, selectedAge, onSelect, onAdd }: TablePr
           <button
             onClick={onAdd}
             style={{
-              padding: "8px 18px",
-              borderRadius: 8,
-              border: "1px solid var(--color-bronze-dark)",
-              background: "var(--color-bronze)",
-              color: "#FBF8F1",
-              fontSize: 13,
-              fontWeight: 500,
+              padding: "9px 18px",
+              borderRadius: 999,
+              background: "var(--ios-tint)",
+              color: "var(--ios-on-tint)",
+              fontSize: 14,
+              fontWeight: 600,
               cursor: "pointer",
-              fontFamily: "inherit",
               flexShrink: 0,
             }}
           >
@@ -348,24 +335,23 @@ function SSOptionTable({ label, options, selectedAge, onSelect, onAdd }: TablePr
 }
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  letterSpacing: "0.08em",
+  fontSize: 13,
+  fontWeight: 400,
+  letterSpacing: "0.02em",
   textTransform: "uppercase",
-  color: "var(--color-ink-3)",
+  color: "var(--ios-label-2)",
   display: "block",
   marginBottom: 6,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "9px 12px",
-  border: "1px solid var(--color-rule)",
+  padding: "10px 12px",
+  border: "1px solid var(--ios-separator)",
   borderRadius: 8,
-  background: "var(--color-paper)",
-  color: "var(--color-ink)",
-  fontSize: 13,
-  fontFamily: "inherit",
+  background: "var(--ios-bg)",
+  color: "var(--ios-label)",
+  fontSize: 15,
   outline: "none",
   boxSizing: "border-box",
 };

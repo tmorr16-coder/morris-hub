@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Chip } from "@/components/ios";
 import type { RetirementIncome, RetirementProfile } from "../types";
 import type { PensionOption } from "@/app/api/finance/retirement/pension-extract/route";
 import PensionScanner from "./PensionScanner";
@@ -25,13 +26,13 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  salary: "var(--color-green)",
-  bonus: "#7C5CBF",
-  stock_award: "#B8860B",
-  social_security: "#3B7CBF",
-  pension: "var(--color-bronze)",
-  part_time: "#2A9D8F",
-  other: "var(--color-ink-3)",
+  salary: "var(--ios-green)",
+  bonus: "#AF52DE",
+  stock_award: "#FF9F0A",
+  social_security: "var(--ios-tint)",
+  pension: "var(--ios-finance)",
+  part_time: "#30B0C7",
+  other: "var(--ios-label-2)",
 };
 
 // Types that should be treated as annual amounts (stored in monthly_amount field)
@@ -291,90 +292,49 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
 
   return (
     <div>
-      {/* Total card */}
-      <div
-        style={{
-          background: "var(--color-paper-card)",
-          border: "1px solid var(--color-rule)",
-          borderRadius: 12,
-          padding: "20px 24px",
-          boxShadow: "var(--shadow-card)",
-          marginBottom: 20,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 12,
-        }}
-      >
+      {/* Total hero */}
+      <div className="ios-list" style={{ margin: "0 0 8px", padding: 18, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
             Household monthly income
           </div>
-          <div className="mono" style={{ fontSize: 36, fontWeight: 500, color: "var(--color-ink)" }}>
+          <div className="ios-num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.01em", marginTop: 2 }}>
             {fmtMoney(totalMonthly)}
           </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button
-            onClick={() => { setShowTemplates((v) => !v); setShowSSOptimizer(false); setShowForm(false); }}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 8,
-              border: `1px solid ${showTemplates ? "var(--color-bronze-dark)" : "var(--color-rule)"}`,
-              background: showTemplates ? "rgba(139,106,71,0.08)" : "var(--color-paper)",
-              color: showTemplates ? "var(--color-bronze-dark)" : "var(--color-ink-2)",
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            {showTemplates ? "Close" : "+ Retirement income"}
-          </button>
-          {showSSPrompt && (
-            <button
-              onClick={() => { setShowSSOptimizer((v) => !v); setShowForm(false); setShowTemplates(false); }}
-              style={{
-                padding: "8px 16px",
-                borderRadius: 8,
-                border: `1px solid ${showSSOptimizer ? "var(--color-bronze-dark)" : "#3B7CBF"}`,
-                background: showSSOptimizer ? "rgba(139,106,71,0.08)" : "rgba(59,124,191,0.07)",
-                color: showSSOptimizer ? "var(--color-bronze-dark)" : "#3B7CBF",
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              {showSSOptimizer ? "Close SS optimizer" : "SS optimizer"}
-            </button>
-          )}
-          <div style={{ fontSize: 13, color: "var(--color-ink-3)", alignSelf: "center" }}>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>
             {incomes.length} source{incomes.length !== 1 ? "s" : ""}
           </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <Chip
+            small
+            selected={showTemplates}
+            onClick={() => { setShowTemplates((v) => !v); setShowSSOptimizer(false); setShowForm(false); }}
+          >
+            {showTemplates ? "Close" : "+ Retirement income"}
+          </Chip>
+          {showSSPrompt && (
+            <Chip
+              small
+              selected={showSSOptimizer}
+              onClick={() => { setShowSSOptimizer((v) => !v); setShowForm(false); setShowTemplates(false); }}
+            >
+              {showSSOptimizer ? "Close SS optimizer" : "SS optimizer"}
+            </Chip>
+          )}
         </div>
       </div>
 
       {/* Retirement income templates */}
       {showTemplates && (
-        <div
-          style={{
-            background: "var(--color-paper-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 12,
-            padding: "20px 24px",
-            boxShadow: "var(--shadow-card)",
-            marginBottom: 24,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
-            <h3 className="serif" style={{ fontSize: 20 }}>Post-Retirement Income</h3>
-            <span style={{ fontSize: 11, color: "var(--color-ink-3)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+        <div className="ios-list" style={{ margin: "0 0 8px", padding: 18 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+            <h3 className="ios-title-3">Post-Retirement Income</h3>
+            <span className="ios-footnote" style={{ color: "var(--ios-label-2)", letterSpacing: "0.03em", textTransform: "uppercase" }}>
               time-limited sources
             </span>
           </div>
-          <p style={{ fontSize: 13, color: "var(--color-ink-3)", lineHeight: 1.5, marginBottom: 18 }}>
+          <p className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5, marginBottom: 16 }}>
             Add income that begins at or after retirement and lasts for a defined period.
             Start and end ages are pre-filled based on your retirement age ({profile.retirement_age}) — adjust as needed.
           </p>
@@ -389,22 +349,18 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
                   style={{
                     padding: "14px 16px",
                     borderRadius: 10,
-                    border: "1px solid var(--color-rule)",
-                    background: "var(--color-paper)",
+                    background: "var(--ios-fill-2)",
                     cursor: "pointer",
-                    fontFamily: "inherit",
                     textAlign: "left",
                   }}
-                  onMouseOver={(e) => (e.currentTarget.style.borderColor = "var(--color-bronze)")}
-                  onMouseOut={(e) => (e.currentTarget.style.borderColor = "var(--color-rule)")}
                 >
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", marginBottom: 4 }}>
+                  <div className="ios-subhead" style={{ fontWeight: 600, marginBottom: 4 }}>
                     {tpl.label}
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.4, marginBottom: 8 }}>
+                  <div className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.4, marginBottom: 8 }}>
                     {tpl.description}
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--color-bronze-dark)", fontWeight: 500 }}>
+                  <div className="ios-footnote ios-num" style={{ color: "var(--ios-finance)", fontWeight: 600 }}>
                     Age {startAge}{endAge !== null ? `–${endAge}` : "+"}
                   </div>
                 </button>
@@ -427,113 +383,76 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
 
       {/* Income list */}
       {incomes.length === 0 && !showForm && !showSSOptimizer && (
-        <div style={{ textAlign: "center", padding: "32px 24px", color: "var(--color-ink-3)", fontSize: 14 }}>
+        <div className="ios-footnote" style={{ textAlign: "center", padding: "32px 24px", color: "var(--ios-label-2)" }}>
           No income sources yet. Add your salary, Social Security, or pension.
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
-        {incomes.map((inc) => (
-          <div
-            key={inc.id}
-            style={{
-              background: "var(--color-paper-card)",
-              border: "1px solid var(--color-rule)",
-              borderRadius: 10,
-              padding: "14px 18px",
-              boxShadow: "var(--shadow-card)",
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-            }}
-          >
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-                <span className="serif" style={{ fontSize: 16 }}>{inc.name}</span>
-                <span
-                  style={{
-                    fontSize: 9,
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: "#FBF8F1",
-                    background: TYPE_COLORS[inc.type] ?? "var(--color-ink-3)",
-                    padding: "2px 7px",
-                    borderRadius: 8,
-                  }}
-                >
-                  {TYPE_LABELS[inc.type] ?? inc.type}
-                </span>
-                {profile.spouse_enabled && (
-                  <span style={{ fontSize: 10, color: "var(--color-ink-3)" }}>
-                    {inc.owner === "spouse" ? profile.spouse_name ?? "Spouse" : "Self"}
+      {incomes.length > 0 && (
+        <div className="ios-list" style={{ margin: "0 0 12px" }}>
+          {incomes.map((inc) => (
+            <div key={inc.id} className="ios-cell" style={{ alignItems: "flex-start", flexWrap: "wrap", rowGap: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                  <span className="ios-headline">{inc.name}</span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      letterSpacing: "0.03em",
+                      textTransform: "uppercase",
+                      color: TYPE_COLORS[inc.type] ?? "var(--ios-label-2)",
+                      background: "var(--ios-fill)",
+                      padding: "2px 7px",
+                      borderRadius: 6,
+                    }}
+                  >
+                    {TYPE_LABELS[inc.type] ?? inc.type}
                   </span>
-                )}
+                  {profile.spouse_enabled && (
+                    <span className="ios-caption" style={{ color: "var(--ios-label-2)" }}>
+                      {inc.owner === "spouse" ? profile.spouse_name ?? "Spouse" : "Self"}
+                    </span>
+                  )}
+                </div>
+                <div className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>{ageRange(inc)}</div>
+                {inc.type === "salary" && inc.annual_growth_pct != null && inc.annual_growth_pct > 0 && (() => {
+                  const years = profile.retirement_age - profile.current_age;
+                  const projected = inc.monthly_amount * Math.pow(1 + inc.annual_growth_pct / 100, years);
+                  return years > 0 ? (
+                    <div className="ios-caption ios-num" style={{ color: "var(--ios-finance)", marginTop: 2 }}>
+                      +{inc.annual_growth_pct}%/yr · {fmtMoney(projected)}/mo at retirement
+                    </div>
+                  ) : null;
+                })()}
               </div>
-              <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>{ageRange(inc)}</div>
-              {inc.type === "salary" && inc.annual_growth_pct != null && inc.annual_growth_pct > 0 && (() => {
-                const years = profile.retirement_age - profile.current_age;
-                const projected = inc.monthly_amount * Math.pow(1 + inc.annual_growth_pct / 100, years);
-                return years > 0 ? (
-                  <div style={{ fontSize: 11, color: "var(--color-bronze-dark)", marginTop: 2 }}>
-                    +{inc.annual_growth_pct}%/yr · {fmtMoney(projected)}/mo at retirement
-                  </div>
-                ) : null;
-              })()}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                <div className="ios-num" style={{ fontSize: 18, fontWeight: 600, color: "var(--ios-label)" }}>
+                  {fmtMoney(inc.monthly_amount)}{inc.frequency === "annual" ? "/yr" : inc.frequency === "one_time" ? " once" : "/mo"}
+                </div>
+                <div style={{ display: "flex", gap: 14 }}>
+                  <button onClick={() => openEdit(inc)} style={btnSecondary}>Edit</button>
+                  <button onClick={() => handleDelete(inc.id)} style={btnDanger}>Remove</button>
+                </div>
+              </div>
             </div>
-            <div className="mono" style={{ fontSize: 18, fontWeight: 500, color: "var(--color-ink)" }}>
-              {fmtMoney(inc.monthly_amount)}{inc.frequency === "annual" ? "/yr" : inc.frequency === "one_time" ? " once" : "/mo"}
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => openEdit(inc)}
-                style={btnSecondary}
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => handleDelete(inc.id)}
-                style={btnDanger}
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {!showForm && (
-        <button
-          onClick={openAdd}
-          style={{
-            padding: "10px 22px",
-            borderRadius: 10,
-            border: "1px dashed var(--color-rule)",
-            background: "transparent",
-            color: "var(--color-ink-2)",
-            fontSize: 13,
-            cursor: "pointer",
-            fontFamily: "inherit",
-            width: "100%",
-          }}
-        >
-          + Add income source
+        <button onClick={openAdd} className="ios-btn ios-btn--primary">
+          Add income source
         </button>
       )}
 
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          style={{
-            background: "var(--color-paper-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 12,
-            padding: "20px 24px",
-            boxShadow: "var(--shadow-card)",
-            marginTop: 12,
-          }}
+          className="ios-list"
+          style={{ margin: "16px 0 0", padding: 18 }}
         >
-          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", marginBottom: 16 }}>
+          <div className="ios-title-3" style={{ marginBottom: 16 }}>
             {editId ? "Edit income source" : "Add income source"}
           </div>
 
@@ -608,7 +527,7 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
                   const years = profile.retirement_age - profile.current_age;
                   const projected = parseFloat(form.monthly_amount) * Math.pow(1 + parseFloat(form.annual_growth_pct) / 100, years);
                   return years > 0 && projected > 0 ? (
-                    <div style={{ fontSize: 11, color: "var(--color-bronze-dark)", marginTop: 5 }}>
+                    <div className="ios-caption ios-num" style={{ color: "var(--ios-finance)", marginTop: 5 }}>
                       Projected at retirement (age {profile.retirement_age}): {fmtMoney(projected)}/mo
                     </div>
                   ) : null;
@@ -640,7 +559,7 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
                     total += base * Math.pow(1 + rate, a - startAge);
                   }
                   return total > 0 ? (
-                    <div style={{ fontSize: 11, color: "var(--color-bronze-dark)", marginTop: 5 }}>
+                    <div className="ios-caption ios-num" style={{ color: "var(--ios-finance)", marginTop: 5 }}>
                       Estimated total over career: {fmtMoney(total)}
                     </div>
                   ) : null;
@@ -660,22 +579,31 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
                       display: "flex",
                       alignItems: "center",
                       gap: 10,
-                      padding: "10px 14px",
-                      borderRadius: 9,
-                      border: form.recurring ? "1.5px solid var(--color-bronze)" : "1px solid var(--color-rule)",
-                      background: form.recurring ? "rgba(139,106,71,0.07)" : "transparent",
+                      padding: "12px 14px",
+                      borderRadius: 10,
+                      background: form.recurring ? "var(--ios-fill)" : "var(--ios-fill-2)",
                       cursor: "pointer",
-                      fontFamily: "inherit",
                       width: "100%",
                       textAlign: "left",
                     }}
                   >
-                    <span style={{ fontSize: 16 }}>{form.recurring ? "🔁" : "🎁"}</span>
+                    <span style={{ color: form.recurring ? "var(--ios-finance)" : "var(--ios-label-2)", display: "inline-flex" }}>
+                      {form.recurring ? (
+                        <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M4 12a8 8 0 0 1 13.7-5.7L20 8" /><path d="M20 4v4h-4" />
+                          <path d="M20 12a8 8 0 0 1-13.7 5.7L4 16" /><path d="M4 20v-4h4" />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <rect x="3.5" y="8" width="17" height="12" rx="2" /><path d="M12 8v12M3.5 12h17M12 8s-1.5-4-4-4a2 2 0 0 0 0 4M12 8s1.5-4 4-4a2 2 0 0 1 0 4" />
+                        </svg>
+                      )}
+                    </span>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: form.recurring ? "var(--color-bronze-dark)" : "var(--color-ink-2)" }}>
+                      <div className="ios-subhead" style={{ fontWeight: 600, color: form.recurring ? "var(--ios-finance)" : "var(--ios-label)" }}>
                         {form.recurring ? "Recurring annual grant until retirement" : "One-time grant (vests over N years)"}
                       </div>
-                      <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 2 }}>
+                      <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>
                         {form.recurring
                           ? `Same grant issued every year from age ${form.start_age || "start"} to retirement — adds ${form.monthly_amount ? fmtMoney(parseFloat(form.monthly_amount)) : "$…"}/yr to portfolio`
                           : "E.g. a single RSU grant that vests over 4 years — tap to make it annual"}
@@ -704,13 +632,13 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
                 {/* Summary */}
                 <div style={{ gridColumn: "1 / -1" }}>
                   {form.recurring && form.monthly_amount && form.start_age && (
-                    <div style={{ fontSize: 11, color: "var(--color-bronze-dark)", padding: "8px 12px", background: "rgba(139,106,71,0.07)", borderRadius: 7 }}>
-                      🔁 {fmtMoney(parseFloat(form.monthly_amount))}/yr added to portfolio every year from age {form.start_age} to retirement (age {profile.retirement_age})
+                    <div className="ios-caption ios-num" style={{ color: "var(--ios-finance)", padding: "8px 12px", background: "var(--ios-fill-2)", borderRadius: 8 }}>
+                      {fmtMoney(parseFloat(form.monthly_amount))}/yr added to portfolio every year from age {form.start_age} to retirement (age {profile.retirement_age})
                       {" · "}{profile.retirement_age - parseInt(form.start_age)} grants total
                     </div>
                   )}
                   {!form.recurring && form.vest_years && form.monthly_amount && (
-                    <div style={{ fontSize: 11, color: "var(--color-bronze-dark)", padding: "8px 12px", background: "rgba(139,106,71,0.07)", borderRadius: 7 }}>
+                    <div className="ios-caption ios-num" style={{ color: "var(--ios-finance)", padding: "8px 12px", background: "var(--ios-fill-2)", borderRadius: 8 }}>
                       Total grant value: {fmtMoney(parseFloat(form.monthly_amount) * parseInt(form.vest_years))} ·
                       vests {fmtMoney(parseFloat(form.monthly_amount))}/yr over {form.vest_years} years
                       {form.start_age && ` (age ${form.start_age}–${parseInt(form.start_age) + parseInt(form.vest_years)})`}
@@ -739,7 +667,7 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
                   <label style={labelStyle}>
                     Start age
                     {form.type !== "salary" && (
-                      <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--color-ink-4)", marginLeft: 4 }}>
+                      <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--ios-label-3)", marginLeft: 4 }}>
                         — leave blank to start now
                       </span>
                     )}
@@ -758,7 +686,7 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
                   <label style={labelStyle}>
                     End age
                     {form.type !== "salary" && (
-                      <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--color-ink-4)", marginLeft: 4 }}>
+                      <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--ios-label-3)", marginLeft: 4 }}>
                         — leave blank for lifetime
                       </span>
                     )}
@@ -780,23 +708,9 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
           {/* Pension scanner toggle */}
           {form.type === "pension" && !editId && (
             <div style={{ marginTop: 14 }}>
-              <button
-                type="button"
-                onClick={() => setShowPensionScanner((v) => !v)}
-                style={{
-                  padding: "7px 14px",
-                  borderRadius: 8,
-                  border: "1px solid var(--color-bronze)",
-                  background: showPensionScanner ? "rgba(139,106,71,0.1)" : "transparent",
-                  color: "var(--color-bronze-dark)",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
+              <Chip small selected={showPensionScanner} onClick={() => setShowPensionScanner((v) => !v)}>
                 {showPensionScanner ? "Hide scanner" : "Scan Lilly pension statement"}
-              </button>
+              </Chip>
 
               {showPensionScanner && (
                 <div style={{ marginTop: 10 }}>
@@ -810,8 +724,8 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-            <button type="submit" style={btnPrimary}>
+          <div style={{ display: "flex", gap: 14, marginTop: 20, alignItems: "center" }}>
+            <button type="submit" className="ios-btn ios-btn--primary" style={{ width: "auto", flex: 1 }}>
               {editId ? "Save changes" : "Add income"}
             </button>
             <button
@@ -821,7 +735,7 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
                 setShowPensionScanner(false);
                 setEditId(null);
               }}
-              style={btnSecondary}
+              style={{ padding: "0 8px", color: "var(--ios-tint)", fontSize: 17 }}
             >
               Cancel
             </button>
@@ -833,71 +747,39 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
 }
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  letterSpacing: "0.08em",
+  fontSize: 13,
+  fontWeight: 400,
+  letterSpacing: "0.02em",
   textTransform: "uppercase",
-  color: "var(--color-ink-3)",
+  color: "var(--ios-label-2)",
   display: "block",
   marginBottom: 6,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "9px 12px",
-  border: "1px solid var(--color-rule)",
+  padding: "10px 12px",
+  border: "1px solid var(--ios-separator)",
   borderRadius: 8,
-  background: "var(--color-paper)",
-  color: "var(--color-ink)",
-  fontSize: 13,
-  fontFamily: "inherit",
+  background: "var(--ios-bg)",
+  color: "var(--ios-label)",
+  fontSize: 15,
   outline: "none",
   boxSizing: "border-box",
 };
 
-const selectStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "9px 12px",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 8,
-  background: "var(--color-paper)",
-  color: "var(--color-ink)",
-  fontSize: 13,
-  fontFamily: "inherit",
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: "9px 22px",
-  borderRadius: 9,
-  border: "1px solid var(--color-bronze-dark)",
-  background: "var(--color-bronze)",
-  color: "#FBF8F1",
-  fontSize: 13,
-  fontWeight: 500,
-  cursor: "pointer",
-  fontFamily: "inherit",
-};
+const selectStyle: React.CSSProperties = { ...inputStyle };
 
 const btnSecondary: React.CSSProperties = {
-  padding: "5px 12px",
-  borderRadius: 7,
-  border: "1px solid var(--color-rule)",
-  background: "var(--color-paper)",
-  color: "var(--color-ink-2)",
-  fontSize: 12,
+  padding: 0,
+  color: "var(--ios-tint)",
+  fontSize: 14,
   cursor: "pointer",
-  fontFamily: "inherit",
 };
 
 const btnDanger: React.CSSProperties = {
-  padding: "5px 12px",
-  borderRadius: 7,
-  border: "1px solid rgba(154,59,42,0.3)",
-  background: "rgba(154,59,42,0.05)",
-  color: "var(--color-red)",
-  fontSize: 12,
+  padding: 0,
+  color: "var(--ios-red)",
+  fontSize: 14,
   cursor: "pointer",
-  fontFamily: "inherit",
 };

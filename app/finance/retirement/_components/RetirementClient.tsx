@@ -14,6 +14,7 @@ import type {
   PlanSnapshot,
 } from "../types";
 import { savePlan, refreshAccountBalances } from "../actions";
+import { Segmented } from "@/components/ios";
 import AccountsTab from "./AccountsTab";
 import IncomeTab from "./IncomeTab";
 import DebtsTab from "./DebtsTab";
@@ -294,18 +295,18 @@ export default function RetirementClient({
           display: "flex",
           alignItems: "center",
           justifyContent: "flex-end",
-          gap: 12,
-          marginBottom: 20,
+          gap: 10,
+          minHeight: 34,
         }}
       >
         {saveError && (
-          <span style={{ fontSize: 12, color: "var(--color-red)" }}>{saveError}</span>
+          <span className="ios-footnote" style={{ color: "var(--ios-red)" }}>{saveError}</span>
         )}
         {saveState === "saved" && (
-          <span style={{ fontSize: 12, color: "var(--color-green)" }}>Saved</span>
+          <span className="ios-footnote" style={{ color: "var(--ios-green)" }}>Saved</span>
         )}
         {refreshMsg && (
-          <span style={{ fontSize: 12, color: refreshState === "error" ? "var(--color-red)" : "var(--color-green)" }}>
+          <span className="ios-footnote" style={{ color: refreshState === "error" ? "var(--ios-red)" : "var(--ios-green)" }}>
             {refreshMsg}
           </span>
         )}
@@ -315,14 +316,12 @@ export default function RetirementClient({
             disabled={refreshState === "refreshing"}
             title="Pull the latest balances from your linked Plaid accounts"
             style={{
-              padding: "9px 18px",
-              borderRadius: 10,
-              border: "1px solid var(--color-rule)",
-              background: "var(--color-paper-card)",
-              color: "var(--color-ink-2)",
-              fontSize: 13,
+              padding: "7px 14px",
+              borderRadius: 999,
+              background: "var(--ios-fill)",
+              color: "var(--ios-tint)",
+              fontSize: 14,
               fontWeight: 500,
-              fontFamily: "inherit",
               cursor: refreshState === "refreshing" ? "wait" : "pointer",
               opacity: refreshState === "refreshing" ? 0.6 : 1,
               display: "inline-flex",
@@ -330,7 +329,21 @@ export default function RetirementClient({
               gap: 6,
             }}
           >
-            <span style={{ display: "inline-block", transform: refreshState === "refreshing" ? "rotate(360deg)" : "none", transition: "transform 0.6s" }}>↻</span>
+            <svg
+              viewBox="0 0 24 24"
+              width={15}
+              height={15}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+              style={{ display: "inline-block", transform: refreshState === "refreshing" ? "rotate(360deg)" : "none", transition: "transform 0.6s" }}
+            >
+              <path d="M20 11a8 8 0 1 0-1.6 5" />
+              <path d="M20 4v6h-6" />
+            </svg>
             {refreshState === "refreshing" ? "Refreshing…" : "Refresh balances"}
           </button>
         )}
@@ -338,14 +351,12 @@ export default function RetirementClient({
           onClick={() => handleSave()}
           disabled={saveState === "saving"}
           style={{
-            padding: "9px 22px",
-            borderRadius: 10,
-            border: "1px solid var(--color-bronze-dark)",
-            background: "var(--color-bronze)",
-            color: "#FBF8F1",
-            fontSize: 13,
-            fontWeight: 500,
-            fontFamily: "inherit",
+            padding: "7px 18px",
+            borderRadius: 999,
+            background: "var(--ios-tint)",
+            color: "var(--ios-on-tint)",
+            fontSize: 14,
+            fontWeight: 600,
             cursor: saveState === "saving" ? "wait" : "pointer",
             opacity: saveState === "saving" ? 0.6 : 1,
           }}
@@ -355,41 +366,13 @@ export default function RetirementClient({
       </div>
 
       {/* Tab bar */}
-      <div
-        style={{
-          background: "var(--color-paper-card)",
-          border: "1px solid var(--color-rule)",
-          borderRadius: 10,
-          padding: 4,
-          display: "flex",
-          flexDirection: "row",
-          gap: 2,
-          marginBottom: 24,
-        }}
-      >
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              flex: 1,
-              padding: "8px 4px",
-              borderRadius: 7,
-              border: "none",
-              background: activeTab === tab ? "var(--color-bronze)" : "transparent",
-              color: activeTab === tab ? "#FBF8F1" : "var(--color-ink-2)",
-              fontSize: 13,
-              fontWeight: activeTab === tab ? 600 : 400,
-              fontFamily: "inherit",
-              cursor: "pointer",
-              textAlign: "center",
-              transition: "background 120ms, color 120ms",
-            }}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+      <Segmented<Tab>
+        ariaLabel="Retirement sections"
+        options={TABS.map((tab) => ({ value: tab, label: tab }))}
+        value={activeTab}
+        onChange={setActiveTab}
+        style={{ margin: "12px 0 20px" }}
+      />
 
       {/* Tab panels */}
       {activeTab === "Accounts" && (
