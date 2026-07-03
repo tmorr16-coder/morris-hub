@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Chip } from "@/components/ios";
+import MarkdownMessage from "@/components/MarkdownMessage";
 
 interface Message {
   role: "user" | "assistant";
@@ -90,9 +91,9 @@ export default function HubChat({ firstName }: { firstName: string }) {
             <div
               key={i}
               className={`ios-bubble ios-bubble--${m.role === "user" ? "me" : "ai"}`}
-              style={{ whiteSpace: "pre-wrap" }}
+              style={m.role === "user" ? { whiteSpace: "pre-wrap" } : undefined}
             >
-              {m.content}
+              {m.role === "user" ? m.content : <MarkdownMessage content={m.content} />}
             </div>
           ))}
           {sending && (

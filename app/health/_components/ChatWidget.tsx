@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import MarkdownMessage from "@/components/MarkdownMessage";
 interface ChatMessage { role: "user" | "assistant"; content: string; }
 
 interface Props {
@@ -133,9 +134,9 @@ export default function ChatWidget({
             <div
               key={i}
               className={`ios-bubble ${msg.role === "user" ? "ios-bubble--me" : "ios-bubble--ai"}`}
-              style={{ whiteSpace: "pre-wrap" }}
+              style={msg.role === "user" ? { whiteSpace: "pre-wrap" } : undefined}
             >
-              {msg.content}
+              {msg.role === "user" ? msg.content : <MarkdownMessage content={msg.content} />}
             </div>
           ))}
           {loading && (

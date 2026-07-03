@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { BibleVersion } from "@/lib/bible-api";
 import { Segmented, Chip, Group, List, Cell, IconBadge, Icons } from "@/components/ios";
+import MarkdownMessage from "@/components/MarkdownMessage";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -372,9 +373,9 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
                 <div
                   key={i}
                   className={`ios-bubble ${m.role === "user" ? "ios-bubble--me" : "ios-bubble--ai"}`}
-                  style={{ whiteSpace: "pre-wrap" }}
+                  style={m.role === "user" ? { whiteSpace: "pre-wrap" } : undefined}
                 >
-                  {m.content}
+                  {m.role === "user" ? m.content : <MarkdownMessage content={m.content} />}
                 </div>
               ))}
               {chatLoading && (

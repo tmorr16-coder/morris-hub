@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Chip } from "@/components/ios";
+import MarkdownMessage from "@/components/MarkdownMessage";
 
 interface Message {
   role: "user" | "assistant";
@@ -116,9 +117,13 @@ export default function LSATChat() {
               <div
                 key={i}
                 className={`ios-bubble ${m.role === "user" ? "ios-bubble--me" : "ios-bubble--ai"}`}
-                style={{ whiteSpace: "pre-wrap", ...(pending ? { color: "var(--ios-label-3)" } : null) }}
+                style={{ ...(m.role === "user" ? { whiteSpace: "pre-wrap" } : null), ...(pending ? { color: "var(--ios-label-3)" } : null) }}
               >
-                {m.content || (loading && i === messages.length - 1 ? "Thinking…" : "")}
+                {m.role === "user"
+                  ? m.content
+                  : m.content
+                    ? <MarkdownMessage content={m.content} />
+                    : (loading && i === messages.length - 1 ? "Thinking…" : "")}
               </div>
             );
           })}

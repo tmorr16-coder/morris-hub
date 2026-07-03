@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Chip, Icons } from "@/components/ios";
+import MarkdownMessage from "@/components/MarkdownMessage";
 
 interface Message {
   role: "user" | "assistant";
@@ -103,9 +104,9 @@ export default function FinanceChat() {
             <div
               key={i}
               className={`ios-bubble ${m.role === "user" ? "ios-bubble--me" : "ios-bubble--ai"}`}
-              style={{ whiteSpace: "pre-wrap" }}
+              style={m.role === "user" ? { whiteSpace: "pre-wrap" } : undefined}
             >
-              {m.content}
+              {m.role === "user" ? m.content : <MarkdownMessage content={m.content} />}
             </div>
           ))}
           {sending && (
