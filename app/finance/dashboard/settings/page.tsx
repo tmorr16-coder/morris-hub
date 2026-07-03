@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const dynamic = "force-dynamic";
 
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireFinanceAccess } from "@/lib/finance/access";
+import { LargeTitle, Group } from "@/components/ios";
 import SettingsClient, { type AccountRow } from "./_components/SettingsClient";
 import PinSettings from "./_components/PinSettings";
 import type { AccountShare, PlatformMember } from "./share-actions";
@@ -68,48 +70,32 @@ export default async function SettingsPage() {
   const itemMap = new Map<string, string>(((itemRowsResult.data as any[]) ?? []).map((r) => [r.id, r.institution_name]));
 
   return (
-    <div>
-      <main style={{ maxWidth: 880, margin: "0 auto", padding: "24px 28px 80px" }}>
+    <div className="ios-scroll">
+      <LargeTitle title="Settings" subtitle="PIN & account visibility" />
 
-        {/* Section jump nav */}
-        <div style={{
-          display: "flex", gap: 4, marginBottom: 32,
-          background: "var(--color-paper-card)", border: "1px solid var(--color-rule)",
-          borderRadius: 10, padding: 4, boxShadow: "var(--shadow-card)",
-        }}>
-          {[
-            { href: "#pin",        label: "🔒 PIN" },
-            { href: "#visibility", label: "👁 Accounts" },
-          ].map(({ href, label }) => (
-            <a key={href} href={href} style={{
-              flex: 1, padding: "8px 12px", borderRadius: 7,
-              textAlign: "center", fontSize: 13, fontWeight: 600,
-              color: "var(--color-ink-2)", textDecoration: "none",
-            }}>
-              {label}
-            </a>
-          ))}
-        </div>
-
-        {/* PIN */}
-        <div id="pin" style={{ marginBottom: 40, background: "var(--color-paper-card)", border: "1px solid var(--color-rule)", borderRadius: 12, padding: "22px 26px", boxShadow: "var(--shadow-card)" }}>
+      {/* PIN */}
+      <Group header="Security">
+        <div style={{ padding: 16 }}>
           <PinSettings currentPin={currentPin} />
         </div>
+      </Group>
 
-        {/* Account visibility */}
-        <section id="visibility" style={{ marginBottom: 40 }}>
-          <h2 className="serif" style={{ fontSize: 22, marginBottom: 6 }}>Account visibility</h2>
-          <p style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 16, lineHeight: 1.5 }}>
-            Toggle accounts off to exclude them from your dashboard totals and insights. Sync continues in the background.
-          </p>
+      {/* Account visibility */}
+      <Group
+        header="Account visibility"
+        footer="Toggle accounts off to exclude them from your dashboard totals and insights. Sync continues in the background."
+      >
+        <div style={{ padding: 16 }}>
           <SettingsClient
             initialAccounts={accounts}
             itemNameById={Object.fromEntries(itemMap)}
             members={members}
             initialShares={existingShares}
           />
-        </section>
-      </main>
+        </div>
+      </Group>
+
+      <div style={{ height: 12 }} />
     </div>
   );
 }

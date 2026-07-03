@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { LargeTitle } from "@/components/ios";
 import SettingsClient from "./_components/SettingsClient";
 import { KNOWN_VERSIONS } from "@/lib/bible-api";
 
@@ -23,17 +24,10 @@ export default async function SettingsPage() {
     prefs = data;
   } catch { /* table not yet created */ }
 
-  const menuUser = { email: user.email, name: user.user_metadata?.full_name ?? user.email, avatarUrl: user.user_metadata?.avatar_url ?? null };
-
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)", paddingBottom: 80 }}>
-      <div style={{ maxWidth: 600, margin: "0 auto", padding: "24px 20px" }}>
-        <h1 style={{ fontFamily: "var(--font-instrument-serif, serif)", fontSize: 26, fontWeight: 400, margin: "0 0 6px" }}>
-          Bible Settings
-        </h1>
-        <p style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 28 }}>
-          Personalise your reading experience.
-        </p>
+    <div className="ios-scroll">
+      <LargeTitle title="Settings" subtitle="Personalize your reading experience" />
+      <div style={{ padding: "0 16px 16px" }}>
         <SettingsClient
           versions={KNOWN_VERSIONS}
           initialPrefs={{

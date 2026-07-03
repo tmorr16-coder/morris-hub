@@ -16,10 +16,10 @@ export default async function ProgressPage() {
   const serverTargetWeightLbs: number | null =
     typeof meta.target_weight_lbs === "number" ? meta.target_weight_lbs : null;
 
-  const sevenDaysAgo  = new Date(Date.now() - 7  * 86_400_000);
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);
+  const sevenDaysAgo  = new Date(new Date().getTime() - 7  * 86_400_000);
+  const thirtyDaysAgo = new Date(new Date().getTime() - 30 * 86_400_000);
 
-  const twelveWeeksAgo = new Date(Date.now() - 84 * 86_400_000);
+  const twelveWeeksAgo = new Date(new Date().getTime() - 84 * 86_400_000);
 
   const [
     { data: latestWeightRows },
@@ -157,19 +157,21 @@ export default async function ProgressPage() {
   feedItems.sort((a, b) => b.date.localeCompare(a.date));
 
   return (
-    <ProgressClient
-      withingsCurrent={withingsCurrent}
-      withingsDelta30d={withingsDelta30d}
-      weeklyMiles={weeklyMiles}
-      weeklyRuns={runs.length}
-      avgPaceSec={avgPaceSec}
-      streak={streak}
-      monthWorkouts={workouts.length}
-      last7Steps={last7Steps}
-      feedItems={feedItems}
-      serverTargetWeightLbs={serverTargetWeightLbs}
-      biaPoints={biaPoints}
-      biaHasData={biaHasData}
-    />
+    <div className="ios-scroll">
+      <ProgressClient
+        withingsCurrent={withingsCurrent}
+        withingsDelta30d={withingsDelta30d}
+        weeklyMiles={weeklyMiles}
+        weeklyRuns={runs.length}
+        avgPaceSec={avgPaceSec}
+        streak={streak}
+        monthWorkouts={workouts.length}
+        last7Steps={last7Steps}
+        feedItems={feedItems}
+        serverTargetWeightLbs={serverTargetWeightLbs}
+        biaPoints={biaPoints}
+        biaHasData={biaHasData}
+      />
+    </div>
   );
 }

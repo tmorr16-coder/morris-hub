@@ -59,5 +59,9 @@ export default async function DayPage({
     medications: medicationsResult.data ?? [],
   };
 
-  return <DayViewClient data={dayData} />;
+  return (
+    <div className="ios-scroll">
+      <DayViewClient data={dayData} />
+    </div>
+  );
 }

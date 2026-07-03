@@ -26,11 +26,13 @@ export default async function SearchPage({
   const initialTab = tab === "ask" ? "ask" : "search";
 
   return (
-    <SearchAndAsk
-      versions={KNOWN_VERSIONS}
-      defaultBibleId={preferredBibleId}
-      initialTab={initialTab}
-      firstName={user.user_metadata?.full_name?.split(" ")[0] ?? ""}
-    />
+    <div className="ios-scroll">
+      <SearchAndAsk
+        versions={KNOWN_VERSIONS}
+        defaultBibleId={preferredBibleId}
+        initialTab={initialTab}
+        firstName={user.user_metadata?.full_name?.split(" ")[0] ?? ""}
+      />
+    </div>
   );
 }

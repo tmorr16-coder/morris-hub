@@ -1,10 +1,9 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getPreferences } from "@/lib/prefs";
-import PlatformMenu from "@/components/PlatformMenu";
+import { IOSScreen, LargeTitle, Group, Cell, IconBadge, TabBar, Icons } from "@/components/ios";
 import SettingsForm from "./_components/SettingsForm";
 
 export default async function SettingsPage() {
@@ -13,83 +12,39 @@ export default async function SettingsPage() {
   if (!user) redirect("/");
 
   const prefs = await getPreferences(user.id);
-
-  const menuUser = {
-    name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-    email: user.email,
-    avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
-  };
+  const name = user.user_metadata?.full_name ?? user.user_metadata?.name ?? "You";
+  const initial = name[0]?.toUpperCase() ?? "T";
 
   return (
-    <div>
-      <PlatformMenu currentApp="hub" user={menuUser} />
+    <IOSScreen>
+      <LargeTitle title="Settings" />
 
-      <main style={{ maxWidth: 720, margin: "0 auto", padding: "32px 28px 100px" }}>
-        <Link
-          href="/home"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-            fontSize: 12,
-            color: "var(--color-ink-3)",
-            textDecoration: "none",
-            marginBottom: 20,
-          }}
-        >
-          ← Home
-        </Link>
-
-        <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 8 }}>
-          Settings
+      {/* Profile card */}
+      <div className="ios-list" style={{ margin: "8px 16px 0", padding: 16, display: "flex", alignItems: "center", gap: 14 }}>
+        <span aria-hidden style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--ios-tint)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 600, flexShrink: 0 }}>
+          {initial}
+        </span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+          <span className="ios-title-3">{name}</span>
+          {user.email && <span className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>{user.email}</span>}
         </div>
-        <h1 className="serif" style={{ fontSize: 36, lineHeight: 1.05, marginBottom: 32 }}>
-          Preferences<span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>.</span>
-        </h1>
+      </div>
 
-        <SettingsForm initialPrefs={prefs} />
+      <Group header="Sharing">
+        <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.PeopleIcon /></IconBadge>} title="Family circle" subtitle="Manage who you share accounts and data with" href="/home/settings/family" />
+        <Cell lead={<IconBadge color="#8E8E93"><Icons.GearIcon /></IconBadge>} title="Sharing & privacy" subtitle="See exactly what's shared and what's private" href="/home/settings/privacy" />
+      </Group>
 
-        {/* Family Circle */}
-        <div style={{ marginTop: 40, paddingTop: 32, borderTop: "1px solid var(--color-rule)" }}>
-          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 8 }}>
-            Sharing
-          </div>
-          <Link
-            href="/home/settings/family"
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "16px 18px", background: "var(--color-bg-card)",
-              border: "1px solid var(--color-rule)", borderRadius: 10,
-              textDecoration: "none", color: "var(--color-ink)", transition: "background 0.15s",
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>Family Circle</div>
-              <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 2 }}>
-                Manage who you can share accounts and data with
-              </div>
-            </div>
-            <span style={{ fontSize: 18, color: "var(--color-ink-4)" }}>›</span>
-          </Link>
-          <Link
-            href="/home/settings/privacy"
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "16px 18px", background: "var(--color-bg-card)",
-              border: "1px solid var(--color-rule)", borderRadius: 10, marginTop: 10,
-              textDecoration: "none", color: "var(--color-ink)", transition: "background 0.15s",
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>Sharing &amp; Privacy</div>
-              <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 2 }}>
-                See exactly what&apos;s shared and what&apos;s private, for every data type
-              </div>
-            </div>
-            <span style={{ fontSize: 18, color: "var(--color-ink-4)" }}>›</span>
-          </Link>
+      {/* Preferences editor — kept intact, iOS-styled chrome */}
+      <section style={{ marginTop: 22 }}>
+        <h2 className="ios-group-header">Preferences</h2>
+        <div style={{ padding: "0 16px" }}>
+          <SettingsForm initialPrefs={prefs} />
         </div>
-      </main>
-    </div>
+      </section>
+
+      <div style={{ height: 12 }} />
+      <TabBar current="more" currentUserId={user.id} sourceApp="hub" />
+    </IOSScreen>
   );
 }

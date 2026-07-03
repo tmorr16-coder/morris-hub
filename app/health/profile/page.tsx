@@ -24,5 +24,9 @@ export default async function ProfilePage() {
   const withingsWeightLbs: number | null = weightRow?.value ?? null;
   const isAdmin = (profileRow as { role: string } | null)?.role === "admin";
 
-  return <ProfileClient withingsWeightLbs={withingsWeightLbs} isAdmin={isAdmin} />;
+  return (
+    <div className="ios-scroll">
+      <ProfileClient withingsWeightLbs={withingsWeightLbs} isAdmin={isAdmin} />
+    </div>
+  );
 }

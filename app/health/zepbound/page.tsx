@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/health/auth";
 import type { Database } from "@/lib/health/types/database";
+import { LargeTitle, Group, Cell, Sparkline, Icons } from "@/components/ios";
 import LogDoseButton from "./_components/LogDoseButton";
 
 type DoseRow = Database["public"]["Tables"]["doses"]["Row"];
@@ -60,279 +61,90 @@ export default async function ZepboundPage() {
   const daysLabel = days > 0 ? `${days} day${days === 1 ? "" : "s"}` : days === 0 ? "Today" : "Overdue";
   const isUrgent  = days <= 1;
 
+  const doseSeries = doses.map((d) => d.dose_mg);
+
   return (
-    <div style={{ maxWidth: 600, margin: "0 auto" }}>
+    <div className="ios-scroll">
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div style={{ padding: "20px 20px 0" }}>
-        <Link
-          href="/health/medications"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-            fontSize: 13,
-            color: "var(--color-ink-3)",
-            textDecoration: "none",
-            marginBottom: 20,
-          }}
-        >
-          ← Health
-        </Link>
+      <Link href="/health/medications" className="ios-navbar" style={{ textDecoration: "none" }}>
+        <span className="ios-back">
+          <Icons.ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
+          Health
+        </span>
+      </Link>
 
-        <div
-          style={{
-            fontSize: 10,
-            fontWeight: 500,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: "var(--color-ink-3)",
-            marginBottom: 6,
-          }}
-        >
-          Zepbound · Tirzepatide
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            gap: 12,
-            flexWrap: "wrap",
-            marginBottom: 20,
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: 36,
-              fontWeight: 400,
-              letterSpacing: "-0.02em",
-              lineHeight: 1,
-              color: "var(--color-ink)",
-            }}
-          >
-            Week {doses.length}<br />
-            <span style={{ color: "var(--color-accent)" }}>{currentDoseMg} mg.</span>
-          </div>
+      <LargeTitle
+        title={`Week ${doses.length} · ${currentDoseMg} mg`}
+        subtitle="Zepbound · Tirzepatide"
+        trailing={
           <LogDoseButton
             recommendedSite={recommendedSite}
             defaultDoseMg={currentDoseMg}
             weekNumber={weekNumber}
           />
-        </div>
-      </div>
+        }
+      />
 
-      {/* ── Stats 2×2 ───────────────────────────────────────────────────── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 10,
-          padding: "0 20px 16px",
-        }}
-      >
-        {[
-          { label: "Doses logged",  value: String(doses.length),        sub: "total injections" },
-          { label: "Current dose",  value: `${currentDoseMg} mg`,       sub: "tirzepatide" },
-          { label: "Last site",     value: lastSite,                     sub: "previous injection" },
-          {
-            label: "Next dose",
-            value: daysLabel,
-            sub: "Suggested: " + recommendedSite,
-            urgent: isUrgent,
-          },
-        ].map(({ label, value, sub, urgent }) => (
-          <div
-            key={label}
-            style={{
-              background: "var(--color-bg-raised)",
-              border: `1px solid ${urgent ? "var(--color-accent)" : "var(--color-line)"}`,
-              borderRadius: 14,
-              padding: "14px 16px",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 9,
-                fontWeight: 500,
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: "var(--color-ink-4)",
-                marginBottom: 6,
-              }}
-            >
-              {label}
-            </div>
-            <div
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 20,
-                fontWeight: 400,
-                letterSpacing: "-0.01em",
-                color: urgent ? "var(--color-accent)" : "var(--color-ink)",
-                lineHeight: 1.2,
-                marginBottom: 3,
-              }}
-            >
-              {value}
-            </div>
-            <div style={{ fontSize: 10, color: "var(--color-ink-4)", lineHeight: 1.3 }}>
-              {sub}
-            </div>
+      {/* ── Stats ───────────────────────────────────────────────────────── */}
+      <Group header="Overview">
+        <Cell chevron={false} title="Doses logged" subtitle="Total injections" trailing={<span className="ios-num">{doses.length}</span>} />
+        <Cell chevron={false} title="Current dose" subtitle="Tirzepatide" trailing={<span className="ios-num">{currentDoseMg} mg</span>} />
+        <Cell chevron={false} title="Last site" subtitle="Previous injection" trailing={lastSite} />
+        <Cell
+          chevron={false}
+          title="Next dose"
+          subtitle={`Suggested: ${recommendedSite}`}
+          trailing={<span className="ios-num" style={{ color: isUrgent ? "var(--ios-red)" : "var(--ios-label-2)" }}>{daysLabel}</span>}
+        />
+      </Group>
+
+      {/* ── Dose over time ───────────────────────────────────────────────── */}
+      {doseSeries.length >= 2 && (
+        <Group header="Dose over time" footer="Milligrams per weekly injection.">
+          <div className="ios-cell" style={{ justifyContent: "space-between" }}>
+            <span className="ios-cell-body">
+              <span className="ios-cell-title">Tirzepatide</span>
+              <span className="ios-cell-sub">Week 1 → {doses.length}</span>
+            </span>
+            <Sparkline points={doseSeries} color="var(--ios-tint)" width={120} height={36} />
+            <span className="ios-num" style={{ width: 56, textAlign: "right", fontWeight: 600 }}>{currentDoseMg} mg</span>
           </div>
-        ))}
-      </div>
+        </Group>
+      )}
 
-      {/* ── Dose history ─────────────────────────────────────────────────── */}
-      <div style={{ padding: "0 20px 20px" }}>
+      {/* ── Upcoming ─────────────────────────────────────────────────────── */}
+      <Group header="Upcoming">
+        <Cell
+          chevron={false}
+          title={`Next injection · ${daysLabel}`}
+          subtitle={`Suggested: ${recommendedSite}`}
+          trailing={<span className="ios-num" style={{ color: "var(--ios-label-2)" }}>Week {weekNumber}</span>}
+        />
+      </Group>
 
-        <div
-          style={{
-            fontSize: 10,
-            fontWeight: 500,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: "var(--color-ink-3)",
-            marginBottom: 12,
-          }}
-        >
-          Dose history
-        </div>
-
-        {/* Next dose preview */}
-        <div
-          style={{
-            background: "var(--color-bg-raised)",
-            border: "1px dashed var(--color-line-2)",
-            borderRadius: 14,
-            padding: "14px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 14,
-            marginBottom: 8,
-          }}
-        >
-          <div
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 9,
-              border: "1.5px dashed var(--color-line-2)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-              fontFamily: "var(--font-mono)",
-              fontSize: 12,
-              color: "var(--color-ink-4)",
-            }}
-          >
-            {weekNumber}
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, color: "var(--color-ink-3)" }}>
-              Next injection · {daysLabel}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 2 }}>
-              Suggested: {recommendedSite}
-            </div>
-          </div>
-        </div>
-
-        {/* Historical cards — newest first */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {[...doses].reverse().map((dose, i) => {
-            const week    = doses.length - i;
-            const isFirst = i === 0;
-            return (
-              <div
-                key={dose.id}
-                style={{
-                  background: "var(--color-bg-raised)",
-                  border: `1px solid ${isFirst ? "var(--color-accent)" : "var(--color-line)"}`,
-                  borderRadius: 14,
-                  padding: "14px 16px",
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 14,
-                }}
-              >
-                {/* Week badge */}
-                <div
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 9,
-                    background: isFirst ? "var(--color-accent-soft)" : "var(--color-bg-sunk)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: isFirst ? "var(--color-accent)" : "var(--color-ink-3)",
-                  }}
-                >
+      {/* ── Dose history — newest first ──────────────────────────────────── */}
+      <Group header="Dose history">
+        {[...doses].reverse().map((dose, i) => {
+          const week = doses.length - i;
+          return (
+            <Cell
+              key={dose.id}
+              chevron={false}
+              lead={
+                <span className="ios-num" style={{ width: 29, height: 29, borderRadius: 7, background: "var(--ios-fill)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600 }}>
                   {week}
-                </div>
+                </span>
+              }
+              title={formatDisplayDate(dose.date)}
+              subtitle={[dose.injection_site, dose.notes].filter(Boolean).join(" · ") || undefined}
+              trailing={<span className="ios-num" style={{ color: "var(--ios-green)" }}>{dose.dose_mg} mg</span>}
+            />
+          );
+        })}
+      </Group>
 
-                {/* Details */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "baseline",
-                      gap: 8,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div style={{ fontSize: 14, fontWeight: 500, color: "var(--color-ink)" }}>
-                      {formatDisplayDate(dose.date)}
-                    </div>
-                    <div
-                      style={{
-                        fontFamily: "var(--font-mono)",
-                        fontSize: 12,
-                        color: "var(--color-moss)",
-                        fontWeight: 500,
-                      }}
-                    >
-                      {dose.dose_mg} mg
-                    </div>
-                  </div>
-
-                  {dose.injection_site && (
-                    <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 3 }}>
-                      {dose.injection_site}
-                    </div>
-                  )}
-
-                  {dose.notes && (
-                    <div
-                      style={{
-                        marginTop: 8,
-                        padding: "8px 10px",
-                        background: "var(--color-bg-sunk)",
-                        borderRadius: 8,
-                        fontSize: 12,
-                        color: "var(--color-ink-2)",
-                        lineHeight: 1.5,
-                      }}
-                    >
-                      {dose.notes}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
+      <div style={{ height: 12 }} />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { LargeTitle, Icons } from "@/components/ios";
 
 const COLOR_OPTIONS = [
   { label: "Indigo", value: "#3B5C7F" },
@@ -64,41 +65,25 @@ export default function NewGoalPage() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100dvh",
-        background: "var(--color-bg, #f7f4ee)",
-        padding: "40px 24px 80px",
-      }}
-    >
+    <div className="ios-scroll">
       <div style={{ maxWidth: 640, margin: "0 auto" }}>
         {/* Back link */}
         <Link
           href="/career/goals"
           style={{
-            fontSize: 12,
-            color: "var(--color-ink-3, #8a8278)",
-            textDecoration: "none",
             display: "inline-flex",
             alignItems: "center",
             gap: 4,
-            marginBottom: 28,
+            color: "var(--ios-tint)",
+            padding: "6px 16px 0",
+            fontWeight: 500,
           }}
+          className="ios-subhead"
         >
-          ← Back to Goals
+          <Icons.ChevronLeft style={{ width: 16, height: 16 }} /> Goals
         </Link>
 
-        <h1
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: 36,
-            fontWeight: 400,
-            color: "var(--color-ink)",
-            margin: "0 0 32px",
-          }}
-        >
-          New Goal
-        </h1>
+        <LargeTitle title="New Goal" />
 
         <form onSubmit={handleSubmit}>
           <div

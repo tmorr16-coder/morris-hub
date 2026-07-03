@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
 import MedicationsClient, { type Med } from "./_components/MedicationsClient";
+import { LargeTitle } from "@/components/ios";
 
 
 export default async function MedicationsPage() {
@@ -20,42 +21,11 @@ export default async function MedicationsPage() {
   const meds: Med[] = medsError ? [] : (medsData ?? []);
 
   return (
-    <div style={{ padding: "20px 20px 0" }}>
-
-      {/* Eyebrow */}
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 500,
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-          color: "var(--color-ink-3)",
-          marginBottom: 6,
-        }}
-      >
-        Health
+    <div className="ios-scroll">
+      <LargeTitle title="Medications" subtitle="Your daily baseline" />
+      <div style={{ padding: "0 16px" }}>
+        <MedicationsClient initialMeds={meds} />
       </div>
-
-      {/* Display title */}
-      <div
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: 36,
-          fontWeight: 400,
-          letterSpacing: "-0.02em",
-          lineHeight: 1,
-          color: "var(--color-ink)",
-          marginBottom: 24,
-        }}
-      >
-        Your daily
-        <br />
-        baseline.
-      </div>
-
-      {/* Medications list */}
-      <MedicationsClient initialMeds={meds} />
-
     </div>
   );
 }

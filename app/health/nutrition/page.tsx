@@ -27,5 +27,9 @@ export default async function NutritionPage() {
   const meals: Meal[] = (todayMeals as Meal[] | null) ?? [];
   const favorites: Meal[] = (favMeals as Meal[] | null) ?? [];
 
-  return <NutritionClient date={today} meals={meals} favorites={favorites} />;
+  return (
+    <div className="ios-scroll">
+      <NutritionClient date={today} meals={meals} favorites={favorites} />
+    </div>
+  );
 }

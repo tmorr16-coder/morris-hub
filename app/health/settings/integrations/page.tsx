@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
+import { LargeTitle, Icons } from "@/components/ios";
 import WithingsCard from "./_components/WithingsCard";
 import OuraCard from "./_components/OuraCard";
 import AppleHealthCard from "./_components/AppleHealthCard";
@@ -72,83 +73,40 @@ export default async function IntegrationsPage({
     : null;
 
   return (
-    <div style={{ padding: "20px 20px 0" }}>
+    <div className="ios-scroll">
 
       {/* Back */}
-      <Link
-        href="/health/medications"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          fontSize: 13,
-          color: "var(--color-ink-3)",
-          textDecoration: "none",
-          marginBottom: 20,
-        }}
-      >
-        ← Health
+      <Link href="/health" className="ios-navbar" style={{ textDecoration: "none" }}>
+        <span className="ios-back">
+          <Icons.ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
+          Health
+        </span>
       </Link>
 
-      {/* Eyebrow */}
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 500,
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-          color: "var(--color-ink-3)",
-          marginBottom: 6,
-        }}
-      >
-        Settings
-      </div>
+      <LargeTitle
+        title="Data integrations"
+        subtitle="Connect devices and services to sync health data automatically."
+      />
 
-      {/* Display title */}
-      <div
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: 36,
-          fontWeight: 400,
-          letterSpacing: "-0.02em",
-          lineHeight: 1.1,
-          color: "var(--color-ink)",
-          marginBottom: 6,
-        }}
-      >
-        Data
-        <br />
-        integrations.
-      </div>
-      <div
-        style={{
-          fontSize: 13,
-          color: "var(--color-ink-3)",
-          marginBottom: 24,
-        }}
-      >
-        Connect devices and services to sync health data automatically.
-      </div>
+      <div style={{ padding: "8px 16px 0" }}>
 
-      {/* Error banner */}
-      {errorMessage && (
-        <div
-          style={{
-            background: "var(--color-accent-soft)",
-            border: "1px solid var(--color-accent)",
-            borderRadius: 10,
-            padding: "12px 14px",
-            fontSize: 13,
-            color: "var(--color-accent)",
-            marginBottom: 16,
-          }}
-        >
-          {errorMessage}
-        </div>
-      )}
+        {/* Error banner */}
+        {errorMessage && (
+          <div
+            className="ios-list"
+            style={{
+              margin: "0 0 16px",
+              padding: "12px 14px",
+              fontSize: 13,
+              color: "var(--ios-red)",
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
 
-      {/* Cards */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* Cards */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <AppleHealthCard
           configured={appleMetricsCount !== null && appleMetricsCount > 0}
           lastSyncAt={appleLastSyncAt}
@@ -167,6 +125,7 @@ export default async function IntegrationsPage({
           lastSyncAt={ouraLastSyncAt}
         />
         <RequestIntegrationCard />
+        </div>
       </div>
 
     </div>

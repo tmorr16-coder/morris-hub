@@ -1,9 +1,9 @@
 export const dynamic = "force-dynamic";
 
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
+import { LargeTitle, Icons } from "@/components/ios";
 import PracticeSetupClient from "./PracticeSetupClient";
 
 export default async function PracticeSetupPage({
@@ -40,18 +40,13 @@ export default async function PracticeSetupPage({
   const rcTypes = (questionTypes ?? []).filter((t: { section: string }) => t.section === "RC");
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
-      <main style={{ maxWidth: 720, margin: "0 auto", padding: "40px 28px 100px" }}>
-        <Link href="/career/lsat" style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none" }}>
-          ← LSAT Prep
-        </Link>
-        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 400, margin: "12px 0 4px" }}>
-          New Practice Session
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--color-ink-3)", marginBottom: 32 }}>
-          Choose a mode and configure your session.
-        </p>
+    <div className="ios-scroll">
+      <Link href="/career/lsat" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-tint)", padding: "6px 16px 0", fontWeight: 500 }} className="ios-subhead">
+        <Icons.ChevronLeft style={{ width: 16, height: 16 }} /> LSAT
+      </Link>
+      <LargeTitle title="New Session" subtitle="Choose a mode and configure your session." />
 
+      <div style={{ padding: "0 16px" }}>
         <PracticeSetupClient
           userId={userId}
           lrTypes={lrTypes}
@@ -60,7 +55,7 @@ export default async function PracticeSetupPage({
           initialMode={mode}
           initialSection={section}
         />
-      </main>
+      </div>
     </div>
   );
 }

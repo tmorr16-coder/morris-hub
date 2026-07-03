@@ -18,5 +18,9 @@ export default async function WellnessPage() {
 
   const entries: WellnessEntry[] = (data as WellnessEntry[] | null) ?? [];
 
-  return <WellnessClient initialEntries={entries} userId={userId} />;
+  return (
+    <div className="ios-scroll">
+      <WellnessClient initialEntries={entries} userId={userId} />
+    </div>
+  );
 }

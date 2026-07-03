@@ -1,9 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { getPreferences } from "@/lib/prefs";
-import PlatformMenu from "@/components/PlatformMenu";
+import { LargeTitle, TabBar, Icons } from "@/components/ios";
 import FamilyManagementClient from "./_components/FamilyManagementClient";
 
 export default async function FamilySettingsPage() {
@@ -13,7 +13,6 @@ export default async function FamilySettingsPage() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
-  const prefs = await getPreferences(user.id);
 
   // Fetch everything in parallel
   const [circleResult, sentResult, pendingResult, usersResult] = await Promise.all([
@@ -87,31 +86,30 @@ export default async function FamilySettingsPage() {
     birth_year: inv.birth_year ?? null,
   }));
 
-  const menuUser = {
-    name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-    email: user.email,
-    avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
-    appAccess: prefs.app_access ?? null,
-  };
-
   return (
-    <div>
-      <PlatformMenu currentApp="hub" user={menuUser} />
-      <main style={{ maxWidth: 680, margin: "0 auto", padding: "32px 20px 100px" }}>
-        <h1 className="serif" style={{ fontSize: 32, marginBottom: 6 }}>
-          Family Circle
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--color-ink-3)", marginBottom: 32, lineHeight: 1.6, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-          Invite family members, assign roles, and control what shared features are available to each person.
-        </p>
+    <div data-ui="ios">
+      <div className="ios-scroll">
+        <div className="ios-navbar">
+          <Link href="/home/settings" className="ios-back">
+            <Icons.ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
+            Settings
+          </Link>
+        </div>
 
-        <FamilyManagementClient
-          circle={circle}
-          sentInvites={sentInvites}
-          pendingInvites={pendingInvites}
-          userId={user.id}
-        />
-      </main>
+        <LargeTitle title="Family circle" subtitle="Invite members, assign roles, and control shared access" />
+
+        <div style={{ padding: "8px 16px 0" }}>
+          <FamilyManagementClient
+            circle={circle}
+            sentInvites={sentInvites}
+            pendingInvites={pendingInvites}
+            userId={user.id}
+          />
+        </div>
+
+        <div style={{ height: 12 }} />
+      </div>
+      <TabBar current="more" currentUserId={user.id} sourceApp="hub" />
     </div>
   );
 }

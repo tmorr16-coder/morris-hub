@@ -48,6 +48,7 @@ export default async function ChapterPage({ params, searchParams }: Props) {
     chapterData = null;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
   const [{ data: highlights }, { data: bookmarks }, { data: notes }] = await Promise.all([
     db.schema("bible").from("highlights").select("*").eq("user_id", user.id).eq("bible_id", bibleId).like("verse_id", `${book.id}.${chapterNum}.%`),
@@ -98,18 +99,12 @@ export default async function ChapterPage({ params, searchParams }: Props) {
     }
   }
 
-  const menuUser = {
-    email: user.email,
-    name: user.user_metadata?.full_name ?? user.email,
-    avatarUrl: user.user_metadata?.avatar_url ?? null,
-  };
-
   const prevChapter = chapterNum > 1 ? chapterNum - 1 : null;
   const nextChapter = chapterNum < book.chapters ? chapterNum + 1 : null;
   const version = KNOWN_VERSIONS.find((v2) => v2.id === bibleId) ?? KNOWN_VERSIONS[0];
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)", paddingBottom: 80 }}>
+    <div className="ios-scroll">
       <ChapterReader
         book={book}
         chapterNum={chapterNum}

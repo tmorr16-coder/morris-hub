@@ -38,11 +38,13 @@ export default async function WorkoutPage({
   }
 
   return (
-    <WorkoutTracker
-      initialExercises={initialExercises}
-      initialWarmup={initialWarmup}
-      initialCooldown={initialCooldown}
-      initialCardio={initialCardio}
-    />
+    <div className="ios-scroll">
+      <WorkoutTracker
+        initialExercises={initialExercises}
+        initialWarmup={initialWarmup}
+        initialCooldown={initialCooldown}
+        initialCardio={initialCardio}
+      />
+    </div>
   );
 }

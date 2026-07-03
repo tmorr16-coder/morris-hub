@@ -6,5 +6,9 @@ export default async function BuilderPage() {
   const userId = await getCurrentUserId();
   const lastWorkout = await getLastWorkout(userId);
 
-  return <BuilderClient lastWorkout={lastWorkout} />;
+  return (
+    <div className="ios-scroll">
+      <BuilderClient lastWorkout={lastWorkout} />
+    </div>
+  );
 }
