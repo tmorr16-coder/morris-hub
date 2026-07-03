@@ -164,7 +164,7 @@ function AddMealSheet({
           <input
             value={searchQuery}
             onChange={(e) => handleFoodSearch(e.target.value)}
-            placeholder="Search 3M+ foods — e.g. Greek yogurt…"
+            placeholder="Search US foods — e.g. Greek yogurt…"
             autoFocus
             style={searchField}
           />

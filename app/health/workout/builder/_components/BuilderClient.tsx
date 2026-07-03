@@ -8,7 +8,12 @@ import {
   type PlannedExercise, type Difficulty,
 } from '../../_lib/build-plan';
 import { scheduleWorkout } from '../../actions';
-import { EXERCISE_TEMPLATES, templateToExercise, type ExerciseTemplate } from '../../exercise-library';
+import {
+  EXERCISE_TEMPLATES, templateToExercise, type ExerciseTemplate,
+  CARDIO_ACTIVITIES, getCardioActivity,
+  STRETCH_MOVEMENTS, STRETCH_KIND_LABELS, stretchDurationMin,
+  type StretchKind, type StretchMovement,
+} from '../../exercise-library';
 import type { LastWorkout } from '../../_lib/last-workout';
 import { Segmented, Chip, Cell, IconBadge, Icons } from '@/components/ios';
 
@@ -28,6 +33,11 @@ const searchField: React.CSSProperties = {
   background: 'var(--ios-fill)', color: 'var(--ios-label)', fontSize: 17,
   outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
 };
+const selectStyle: React.CSSProperties = {
+  border: 'none', background: 'transparent', color: 'var(--ios-tint)',
+  fontSize: 17, fontFamily: 'inherit', textAlign: 'right',
+};
+const cellLabel: React.CSSProperties = { fontSize: 15, color: 'var(--ios-label-2)' };
 const primaryBtn: React.CSSProperties = { margin: `0 ${GUT}px`, width: `calc(100% - ${GUT * 2}px)` };
 const secondaryBtn: React.CSSProperties = {
   margin: `0 ${GUT}px`, width: `calc(100% - ${GUT * 2}px)`, minHeight: 50,
@@ -88,12 +98,26 @@ const PRESETS: { label: string; groups: MuscleGroup[] }[] = [
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-const CARDIO_TYPES = ['Running', 'Walking', 'Cycling', 'Other'] as const;
-type CardioType = typeof CARDIO_TYPES[number];
+type CardioType = string;
+const INTENSITIES = ['Easy', 'Moderate', 'Hard'] as const;
+type Intensity = typeof INTENSITIES[number];
+
+// A cardio / stretching block, shape-compatible with CardioBlock in actions.ts
+interface PlanBlock { type: string; durationMin: number; distanceMiles?: number }
+
+// A user-selected mobility / stretching movement
+interface SelectedStretch {
+  name: string;
+  kind: StretchKind;
+  area: string;
+  holdSec: number;
+  rounds: number;
+}
 
 interface DecodedPlan {
   exercises: { name: string; sets: number; reps: number }[];
   cardio?: { type: string; durationMin: number };
+  blocks?: PlanBlock[];
 }
 
 function decodePlan(planEncoded: string): DecodedPlan | null {
@@ -153,8 +177,65 @@ export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorko
   const [stretchAfter,  setStretchAfter]  = useState(false);
   const [addCardio,     setAddCardio]     = useState(false);
   const [cardioType,    setCardioType]    = useState<CardioType>('Running');
+  const [cardioIntensity, setCardioIntensity] = useState<Intensity>('Moderate');
   const [cardioDuration, setCardioDuration] = useState('');
   const [cardioDistance, setCardioDistance] = useState('');
+  // Interval (HIIT / jump rope) fields
+  const [cardioRounds, setCardioRounds] = useState('8');
+  const [cardioWork,   setCardioWork]   = useState('30');
+  const [cardioRest,   setCardioRest]   = useState('30');
+
+  // Mobility / stretching movements picked from the library
+  const [mobility, setMobility] = useState<SelectedStretch[]>([]);
+  const [mobilityKind, setMobilityKind] = useState<StretchKind>('dynamic');
+
+  const cardioActivity = getCardioActivity(cardioType);
+
+  const addMobility = (m: StretchMovement) =>
+    setMobility((prev) =>
+      prev.some((s) => s.name === m.name)
+        ? prev.filter((s) => s.name !== m.name)
+        : [...prev, { name: m.name, kind: m.kind, area: m.area, holdSec: m.defaultHoldSec, rounds: m.defaultRounds }]
+    );
+  const adjustMobility = (name: string, key: 'holdSec' | 'rounds', delta: number) =>
+    setMobility((prev) => prev.map((s) =>
+      s.name === name ? { ...s, [key]: Math.max(key === 'holdSec' ? 0 : 1, s[key] + delta) } : s
+    ));
+
+  // Build the primary cardio block from the current inputs (null if incomplete)
+  const buildCardioBlock = (): PlanBlock | null => {
+    const a = getCardioActivity(cardioType);
+    if (a.modality === 'interval') {
+      const rounds = parseInt(cardioRounds, 10);
+      const work   = parseInt(cardioWork, 10);
+      const rest   = parseInt(cardioRest, 10) || 0;
+      if (!rounds || !work) return null;
+      const durationMin = Math.max(1, Math.round((rounds * (work + rest)) / 60));
+      return { type: `${cardioType} · ${rounds}×(${work}s/${rest}s) · ${cardioIntensity}`, durationMin };
+    }
+    const dur = parseInt(cardioDuration, 10);
+    if (!dur) return null;
+    let type = `${cardioType} · ${cardioIntensity}`;
+    const block: PlanBlock = { type, durationMin: dur };
+    if (a.tracksDistance && cardioDistance) {
+      const d = parseFloat(cardioDistance);
+      if (d > 0) {
+        if (a.distanceUnit === 'mi') block.distanceMiles = d;
+        else type = `${cardioType} · ${d}${a.distanceUnit} · ${cardioIntensity}`;
+      }
+    }
+    block.type = type;
+    return block;
+  };
+
+  // Mobility movements as saveable blocks
+  const mobilityBlocks = (): PlanBlock[] =>
+    mobility.map((s) => ({ type: s.name, durationMin: stretchDurationMin(s.holdSec, s.rounds) }));
+
+  const cardioReady =
+    cardioActivity.modality === 'interval'
+      ? Boolean(parseInt(cardioRounds, 10) && parseInt(cardioWork, 10))
+      : Boolean(parseInt(cardioDuration, 10));
 
   const toggle = (g: MuscleGroup) =>
     setSelected((prev) =>
@@ -238,12 +319,13 @@ export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorko
     const payload: Record<string, unknown> = { exercises };
     if (stretchBefore) payload.warmup   = true;
     if (stretchAfter)  payload.cooldown = true;
-    const includeCardio = mode === 'cardio' ? cardioDuration : (addCardio && cardioDuration);
-    if (includeCardio) {
-      const cardio: Record<string, unknown> = { type: cardioType, durationMin: parseInt(cardioDuration, 10) };
-      if (cardioDistance && cardioType !== 'Other') cardio.distanceMiles = parseFloat(cardioDistance);
-      payload.cardio = cardio;
+    const wantCardio = mode === 'cardio' || (addCardio && cardioReady);
+    if (wantCardio) {
+      const cardio = buildCardioBlock();
+      if (cardio) payload.cardio = cardio;
     }
+    const blocks = mobilityBlocks();
+    if (blocks.length) payload.blocks = blocks;
     return btoa(JSON.stringify(payload));
   };
 
@@ -272,8 +354,105 @@ export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorko
 
   const strengthMode = mode === 'strength' || mode === 'mixed';
 
+  // ── Reusable cardio form (activity · intensity · duration/distance or intervals) ──
+  const cardioFormEl = (
+    <div className="ios-list" style={{ margin: '0 16px' }}>
+      <div className="ios-cell">
+        <span className="ios-cell-body"><span className="ios-cell-title" style={cellLabel}>Activity</span></span>
+        <select value={cardioType} onChange={(e) => setCardioType(e.target.value)} style={selectStyle}>
+          {CARDIO_ACTIVITIES.map((a) => <option key={a.name}>{a.name}</option>)}
+        </select>
+      </div>
+      <div className="ios-cell">
+        <span className="ios-cell-body"><span className="ios-cell-title" style={cellLabel}>Intensity</span></span>
+        <select value={cardioIntensity} onChange={(e) => setCardioIntensity(e.target.value as Intensity)} style={selectStyle}>
+          {INTENSITIES.map((t) => <option key={t}>{t}</option>)}
+        </select>
+      </div>
+      {cardioActivity.modality === 'interval' ? (
+        <>
+          <div className="ios-cell">
+            <span className="ios-cell-body"><span className="ios-cell-title" style={cellLabel}>Rounds</span></span>
+            <input value={cardioRounds} onChange={(e) => setCardioRounds(e.target.value)} type="number" min="1" inputMode="numeric" style={{ ...cellInput, width: 80, textAlign: 'right' }} />
+          </div>
+          <div className="ios-cell">
+            <span className="ios-cell-body"><span className="ios-cell-title" style={cellLabel}>Work (sec)</span></span>
+            <input value={cardioWork} onChange={(e) => setCardioWork(e.target.value)} type="number" min="1" inputMode="numeric" style={{ ...cellInput, width: 80, textAlign: 'right' }} />
+          </div>
+          <div className="ios-cell">
+            <span className="ios-cell-body"><span className="ios-cell-title" style={cellLabel}>Rest (sec)</span></span>
+            <input value={cardioRest} onChange={(e) => setCardioRest(e.target.value)} type="number" min="0" inputMode="numeric" style={{ ...cellInput, width: 80, textAlign: 'right' }} />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="ios-cell">
+            <input value={cardioDuration} onChange={(e) => setCardioDuration(e.target.value)} type="number" min="1" inputMode="numeric" placeholder="Duration (min)" style={cellInput} />
+          </div>
+          {cardioActivity.tracksDistance && (
+            <div className="ios-cell">
+              <input value={cardioDistance} onChange={(e) => setCardioDistance(e.target.value)} type="number" min="0" step="0.1" inputMode="decimal" placeholder={`Distance (${cardioActivity.distanceUnit}) — optional`} style={cellInput} />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  // ── Reusable mobility / stretching picker ─────────────────────────────────────
+  const mobilityList = STRETCH_MOVEMENTS.filter((m) => m.kind === mobilityKind);
+  const mobilitySectionEl = (
+    <>
+      <SectionLabel>Mobility &amp; stretching · optional</SectionLabel>
+      <Segmented
+        options={(Object.keys(STRETCH_KIND_LABELS) as StretchKind[]).map((k) => ({ value: k, label: STRETCH_KIND_LABELS[k].split(' ')[0] }))}
+        value={mobilityKind}
+        onChange={setMobilityKind}
+        style={{ marginTop: 0 }}
+      />
+      <div className="ios-list" style={{ margin: '10px 16px 0', maxHeight: 240, overflowY: 'auto' }}>
+        {mobilityList.map((m) => {
+          const added = mobility.some((s) => s.name === m.name);
+          return (
+            <Cell
+              key={m.name}
+              chevron={false}
+              onClick={() => addMobility(m)}
+              title={<span style={{ color: added ? 'var(--ios-tint)' : 'var(--ios-label)' }}>{m.name}</span>}
+              subtitle={`${m.area} · ${m.defaultHoldSec > 0 ? `${m.defaultHoldSec}s hold` : `${m.defaultRounds} reps`}`}
+              trailing={added
+                ? <CheckGlyph style={{ color: 'var(--ios-tint)' }} />
+                : <Icons.PlusIcon style={{ width: 18, height: 18, color: 'var(--ios-label-3)' }} />}
+            />
+          );
+        })}
+      </div>
+      {mobility.length > 0 && (
+        <>
+          <SectionLabel>Selected mobility · {mobility.length}</SectionLabel>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {mobility.map((s) => (
+              <div key={s.name} className="ios-list" style={{ margin: '0 16px' }}>
+                <div className="ios-cell">
+                  <span className="ios-cell-body">
+                    <span className="ios-cell-title" style={{ fontSize: 16 }}>{s.name}</span>
+                    <span className="ios-cell-sub">{STRETCH_KIND_LABELS[s.kind]} · {s.area}</span>
+                  </span>
+                  <button onClick={() => setMobility((prev) => prev.filter((x) => x.name !== s.name))} aria-label="Remove" style={{ color: 'var(--ios-red)', display: 'flex' }}><RemoveGlyph /></button>
+                </div>
+                <Stepper label="Hold (sec)" value={s.holdSec} onDecrement={() => adjustMobility(s.name, 'holdSec', -5)} onIncrement={() => adjustMobility(s.name, 'holdSec', 5)} />
+                <Stepper label="Rounds / sides" value={s.rounds} onDecrement={() => adjustMobility(s.name, 'rounds', -1)} onIncrement={() => adjustMobility(s.name, 'rounds', 1)} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+
   // ── REVIEW STEP ─────────────────────────────────────────────────────────────
   if (step === 'review') {
+    const reviewCardio = addCardio && cardioReady ? buildCardioBlock() : null;
     return (
       <div style={{ paddingTop: 4 }}>
 
@@ -352,12 +531,26 @@ export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorko
         </div>
 
         {/* Extras */}
-        {(stretchBefore || stretchAfter || (addCardio && cardioDuration)) && (
+        {(stretchBefore || stretchAfter || reviewCardio || mobility.length > 0) && (
           <>
             <SectionLabel>Extras</SectionLabel>
             <div className="ios-list" style={{ margin: '0 16px' }}>
               {stretchBefore && <Cell chevron={false} title="🧘 Warm-up stretching" subtitle="Before" />}
-              {addCardio && cardioDuration && <Cell chevron={false} title={`🏃 ${cardioType} · ${cardioDuration} min${cardioDistance && cardioType !== 'Other' ? ` · ${cardioDistance} mi` : ''}`} />}
+              {reviewCardio && (
+                <Cell
+                  chevron={false}
+                  title={`🏃 ${reviewCardio.type}`}
+                  subtitle={`${reviewCardio.durationMin} min${reviewCardio.distanceMiles ? ` · ${reviewCardio.distanceMiles} mi` : ''}`}
+                />
+              )}
+              {mobility.map((s) => (
+                <Cell
+                  key={s.name}
+                  chevron={false}
+                  title={`🧘 ${s.name}`}
+                  subtitle={`${STRETCH_KIND_LABELS[s.kind]} · ${s.holdSec > 0 ? `${s.holdSec}s × ${s.rounds}` : `${s.rounds} reps`}`}
+                />
+              ))}
               {stretchAfter && <Cell chevron={false} title="🧘 Cool-down stretching" subtitle="After" />}
             </div>
           </>
@@ -508,26 +701,11 @@ export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorko
         </>
       )}
 
-      {/* Cardio activity (cardio / mixed modes) */}
-      {(mode === 'cardio' || mode === 'mixed') && (
+      {/* Cardio activity (cardio-only mode — mixed uses the add-on toggle below) */}
+      {mode === 'cardio' && (
         <>
           <SectionLabel>Cardio activity</SectionLabel>
-          <div className="ios-list" style={{ margin: '0 16px' }}>
-            <div className="ios-cell">
-              <span className="ios-cell-body"><span className="ios-cell-title" style={{ fontSize: 15, color: 'var(--ios-label-2)' }}>Activity</span></span>
-              <select value={cardioType} onChange={(e) => setCardioType(e.target.value as CardioType)} style={{ border: 'none', background: 'transparent', color: 'var(--ios-tint)', fontSize: 17, fontFamily: 'inherit', textAlign: 'right' }}>
-                {CARDIO_TYPES.map((t) => <option key={t}>{t}</option>)}
-              </select>
-            </div>
-            <div className="ios-cell">
-              <input value={cardioDuration} onChange={(e) => setCardioDuration(e.target.value)} type="number" min="1" inputMode="numeric" placeholder="Duration (min)" style={cellInput} />
-            </div>
-            {cardioType !== 'Other' && (
-              <div className="ios-cell">
-                <input value={cardioDistance} onChange={(e) => setCardioDistance(e.target.value)} type="number" min="0" step="0.1" inputMode="decimal" placeholder="Distance (mi) — optional" style={cellInput} />
-              </div>
-            )}
-          </div>
+          {cardioFormEl}
         </>
       )}
 
@@ -585,12 +763,15 @@ export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorko
         </>
       )}
 
-      {/* Stretching */}
+      {/* Stretching — quick warm-up / cool-down toggles */}
       <SectionLabel>Stretching · optional</SectionLabel>
       <div style={{ display: 'flex', gap: 10, padding: '0 16px' }}>
         <Chip selected={stretchBefore} onClick={() => setStretchBefore((v) => !v)}>🧘 Before</Chip>
         <Chip selected={stretchAfter} onClick={() => setStretchAfter((v) => !v)}>🧘 After</Chip>
       </div>
+
+      {/* Mobility / stretching movement picker */}
+      {mobilitySectionEl}
 
       {/* Cardio add-on (strength/mixed only) */}
       {strengthMode && (
@@ -599,24 +780,7 @@ export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorko
           <div style={{ padding: '0 16px' }}>
             <Chip selected={addCardio} onClick={() => setAddCardio((v) => !v)}>{addCardio ? 'Remove cardio' : '+ Add cardio'}</Chip>
           </div>
-          {addCardio && (
-            <div className="ios-list" style={{ margin: '10px 16px 0' }}>
-              <div className="ios-cell">
-                <span className="ios-cell-body"><span className="ios-cell-title" style={{ fontSize: 15, color: 'var(--ios-label-2)' }}>Activity</span></span>
-                <select value={cardioType} onChange={(e) => setCardioType(e.target.value as CardioType)} style={{ border: 'none', background: 'transparent', color: 'var(--ios-tint)', fontSize: 17, fontFamily: 'inherit', textAlign: 'right' }}>
-                  {CARDIO_TYPES.map((t) => <option key={t}>{t}</option>)}
-                </select>
-              </div>
-              <div className="ios-cell">
-                <input value={cardioDuration} onChange={(e) => setCardioDuration(e.target.value)} type="number" min="1" inputMode="numeric" placeholder="Duration (min)" style={cellInput} />
-              </div>
-              {cardioType !== 'Other' && (
-                <div className="ios-cell">
-                  <input value={cardioDistance} onChange={(e) => setCardioDistance(e.target.value)} type="number" min="0" step="0.1" inputMode="decimal" placeholder="Distance (mi) — optional" style={cellInput} />
-                </div>
-              )}
-            </div>
-          )}
+          {addCardio && <div style={{ marginTop: 10 }}>{cardioFormEl}</div>}
         </>
       )}
 
@@ -624,9 +788,9 @@ export default function BuilderClient({ lastWorkout }: { lastWorkout?: LastWorko
       <div style={{ marginTop: 24 }}>
         <button
           onClick={enterReview}
-          disabled={mode === 'cardio' ? false : !n && manualAdditions.length === 0}
+          disabled={mode === 'cardio' ? !cardioReady : !n && manualAdditions.length === 0}
           className="ios-btn ios-btn--primary"
-          style={{ ...primaryBtn, opacity: (mode === 'cardio' || n || manualAdditions.length > 0) ? 1 : 0.4 }}
+          style={{ ...primaryBtn, opacity: (mode === 'cardio' ? cardioReady : n || manualAdditions.length > 0) ? 1 : 0.4 }}
         >
           {mode === 'cardio' ? 'Start cardio' : `Review plan${n > 0 ? ` · ${plan.length} exercises` : ''}`}
         </button>

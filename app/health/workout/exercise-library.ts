@@ -204,6 +204,99 @@ export const EXERCISE_LIBRARY: Exercise[] = [
   },
 ];
 
+// ── Cardio activity library ──────────────────────────────────────────────────
+// Default US-common cardio modalities. `steady` activities take a duration
+// (+ optional distance); `interval` activities take rounds + work/rest seconds.
+
+export type CardioModality = 'steady' | 'interval';
+
+export interface CardioActivity {
+  name: string;
+  modality: CardioModality;
+  tracksDistance: boolean;
+  distanceUnit?: 'mi' | 'm';     // miles for road work, meters for pool/erg
+  defaultDurationMin: number;
+  met: number;                   // metabolic equivalent — rough calorie math
+  cues: string[];
+}
+
+export const CARDIO_ACTIVITIES: CardioActivity[] = [
+  { name: 'Running',      modality: 'steady',   tracksDistance: true,  distanceUnit: 'mi', defaultDurationMin: 30, met: 9.8,  cues: ['Land midfoot','Relax shoulders','Steady breathing cadence'] },
+  { name: 'Walking',      modality: 'steady',   tracksDistance: true,  distanceUnit: 'mi', defaultDurationMin: 30, met: 3.5,  cues: ['Brisk pace','Drive with the arms','Roll heel to toe'] },
+  { name: 'Incline Walk', modality: 'steady',   tracksDistance: true,  distanceUnit: 'mi', defaultDurationMin: 30, met: 6.0,  cues: ['Treadmill 8–12% grade','No holding the rails','Tall posture'] },
+  { name: 'Cycling',      modality: 'steady',   tracksDistance: true,  distanceUnit: 'mi', defaultDurationMin: 40, met: 8.0,  cues: ['Smooth cadence 80–90 rpm','Soft grip','Drive through the pedal'] },
+  { name: 'Rowing',       modality: 'steady',   tracksDistance: true,  distanceUnit: 'm',  defaultDurationMin: 20, met: 7.0,  cues: ['Legs → hips → arms','Control the recovery','Flat back'] },
+  { name: 'Elliptical',   modality: 'steady',   tracksDistance: false,                     defaultDurationMin: 30, met: 5.0,  cues: ['Full stride','Light grip on handles','Push and pull'] },
+  { name: 'Swimming',     modality: 'steady',   tracksDistance: true,  distanceUnit: 'm',  defaultDurationMin: 30, met: 8.3,  cues: ['Long strokes','Bilateral breathing','Steady kick'] },
+  { name: 'Stair Climber',modality: 'steady',   tracksDistance: false,                     defaultDurationMin: 20, met: 9.0,  cues: ['Full steps','Upright posture','No leaning on the rails'] },
+  { name: 'HIIT',         modality: 'interval', tracksDistance: false,                     defaultDurationMin: 20, met: 10.0, cues: ['All-out on work intervals','Active recovery','Keep form under fatigue'] },
+  { name: 'Jump Rope',    modality: 'interval', tracksDistance: false,                     defaultDurationMin: 15, met: 12.3, cues: ['Small wrist turns','Stay on the balls of the feet','Soft knees'] },
+  { name: 'Other',        modality: 'steady',   tracksDistance: false,                     defaultDurationMin: 20, met: 6.0,  cues: ['Log duration and intensity'] },
+];
+
+export function getCardioActivity(name: string): CardioActivity {
+  return CARDIO_ACTIVITIES.find((a) => a.name === name) ?? CARDIO_ACTIVITIES[0];
+}
+
+// ── Stretching / mobility library ────────────────────────────────────────────
+// `kind`: dynamic (warm-up), static (cool-down), yoga flow, foam (self-myofascial
+// release). Each move carries a default hold time (seconds) and rounds/sides.
+
+export type StretchKind = 'dynamic' | 'static' | 'yoga' | 'foam';
+
+export interface StretchMovement {
+  name: string;
+  kind: StretchKind;
+  area: string;
+  defaultHoldSec: number;   // hold per rep/side (0 = reps-based dynamic move)
+  defaultRounds: number;    // rounds / sides / reps
+  cues: string[];
+}
+
+export const STRETCH_KIND_LABELS: Record<StretchKind, string> = {
+  dynamic: 'Dynamic warm-up',
+  static:  'Static stretch',
+  yoga:    'Yoga flow',
+  foam:    'Foam rolling',
+};
+
+export const STRETCH_MOVEMENTS: StretchMovement[] = [
+  // ── DYNAMIC (warm-up) ──────────────────────────────────────────────────────
+  { name: 'Leg Swings',            kind: 'dynamic', area: 'Hips',            defaultHoldSec: 0,  defaultRounds: 12, cues: ['Front-to-back and side-to-side','Hold something for balance','Controlled arc'] },
+  { name: "World's Greatest Stretch", kind: 'dynamic', area: 'Full body',   defaultHoldSec: 5,  defaultRounds: 5,  cues: ['Lunge, elbow to instep','Rotate and reach up','Slow and deliberate'] },
+  { name: 'Arm Circles',           kind: 'dynamic', area: 'Shoulders',      defaultHoldSec: 0,  defaultRounds: 15, cues: ['Small to large circles','Both directions','Relaxed neck'] },
+  { name: 'Hip Circles',           kind: 'dynamic', area: 'Hips',           defaultHoldSec: 0,  defaultRounds: 10, cues: ['Big controlled circles','Both directions','Stable torso'] },
+  { name: 'Cat-Cow',               kind: 'dynamic', area: 'Spine',          defaultHoldSec: 3,  defaultRounds: 10, cues: ['Flow with the breath','Move each vertebra','No forcing'] },
+  { name: 'Walking Knee Hugs',     kind: 'dynamic', area: 'Glutes / Hips',  defaultHoldSec: 2,  defaultRounds: 10, cues: ['Hug knee to chest','Tall on the toes','Alternate legs'] },
+  { name: 'Inchworm',              kind: 'dynamic', area: 'Hamstrings / Core', defaultHoldSec: 2, defaultRounds: 8, cues: ['Walk hands to plank','Keep legs straight','Walk feet back in'] },
+  // ── STATIC (cool-down) ─────────────────────────────────────────────────────
+  { name: 'Standing Hamstring Stretch', kind: 'static', area: 'Hamstrings', defaultHoldSec: 30, defaultRounds: 2, cues: ['Soft knee','Hinge at the hips','Flat back'] },
+  { name: 'Standing Quad Stretch', kind: 'static', area: 'Quads',           defaultHoldSec: 30, defaultRounds: 2, cues: ['Knees together','Tuck the pelvis','Balance point'] },
+  { name: 'Figure-Four Glute Stretch', kind: 'static', area: 'Glutes',      defaultHoldSec: 30, defaultRounds: 2, cues: ['Ankle over knee','Draw the thigh in','Relax the neck'] },
+  { name: 'Doorway Chest Stretch', kind: 'static', area: 'Chest',           defaultHoldSec: 30, defaultRounds: 2, cues: ['Forearm on the frame','Step through gently','Open the chest'] },
+  { name: 'Seated Forward Fold',   kind: 'static', area: 'Hamstrings / Back', defaultHoldSec: 45, defaultRounds: 2, cues: ['Hinge from the hips','Long spine','Breathe into it'] },
+  { name: 'Butterfly Stretch',     kind: 'static', area: 'Adductors',       defaultHoldSec: 45, defaultRounds: 1, cues: ['Soles together','Knees relax down','Sit tall'] },
+  { name: 'Kneeling Hip Flexor Stretch', kind: 'static', area: 'Hip flexors', defaultHoldSec: 30, defaultRounds: 2, cues: ['Tuck the pelvis','Squeeze the rear glute','Tall torso'] },
+  // ── YOGA flows ─────────────────────────────────────────────────────────────
+  { name: 'Downward Dog',          kind: 'yoga', area: 'Full body',         defaultHoldSec: 30, defaultRounds: 3, cues: ['Hips up and back','Long spine','Heels reach for the floor'] },
+  { name: 'Cobra Pose',            kind: 'yoga', area: 'Spine / Abs',       defaultHoldSec: 20, defaultRounds: 3, cues: ['Elbows soft','Open the chest','Relax the glutes'] },
+  { name: 'Pigeon Pose',           kind: 'yoga', area: 'Hips / Glutes',     defaultHoldSec: 45, defaultRounds: 2, cues: ['Square the hips','Fold forward slowly','Breathe into the hip'] },
+  { name: 'Sun Salutation Flow',   kind: 'yoga', area: 'Full body',         defaultHoldSec: 5,  defaultRounds: 5, cues: ['Move with the breath','Flow through each pose','Smooth transitions'] },
+  { name: 'Warrior I → II Flow',   kind: 'yoga', area: 'Legs / Hips',       defaultHoldSec: 20, defaultRounds: 3, cues: ['Front knee over ankle','Strong back leg','Open through the flow'] },
+  // ── FOAM rolling ───────────────────────────────────────────────────────────
+  { name: 'Foam Roll — Quads',     kind: 'foam', area: 'Quads',             defaultHoldSec: 45, defaultRounds: 1, cues: ['Slow passes','Pause on tender spots','Breathe through it'] },
+  { name: 'Foam Roll — IT Band',   kind: 'foam', area: 'IT band',           defaultHoldSec: 45, defaultRounds: 1, cues: ['Hip to just above the knee','Control the pressure','Slow rolls'] },
+  { name: 'Foam Roll — Upper Back',kind: 'foam', area: 'Upper back',        defaultHoldSec: 45, defaultRounds: 1, cues: ['Support the head','Stay above the low back','Small movements'] },
+  { name: 'Foam Roll — Calves',    kind: 'foam', area: 'Calves',            defaultHoldSec: 30, defaultRounds: 1, cues: ['Cross legs for pressure','Ankle to knee','Slow passes'] },
+  { name: 'Foam Roll — Glutes',    kind: 'foam', area: 'Glutes',            defaultHoldSec: 30, defaultRounds: 1, cues: ['Lean onto one side','Find the tender spot','Relax into it'] },
+  { name: 'Foam Roll — Lats',      kind: 'foam', area: 'Lats',              defaultHoldSec: 30, defaultRounds: 1, cues: ['Arm overhead','Roll the side of the back','Slow and controlled'] },
+];
+
+// Duration a stretch/mobility block takes, in whole minutes (min 1).
+export function stretchDurationMin(holdSec: number, rounds: number): number {
+  return Math.max(1, Math.round((Math.max(holdSec, 3) * rounds) / 60));
+}
+
 export function suggestNext(
   lastSession: LastSession,
   target: { sets: number; reps: number; weight: number }

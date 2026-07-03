@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { EXERCISE_LIBRARY, suggestNext, type SetLog } from "../exercise-library";
+import { EXERCISE_LIBRARY, suggestNext, CARDIO_ACTIVITIES, getCardioActivity, type SetLog } from "../exercise-library";
 import { updateSet } from "../actions";
 import { createWorkoutSession, saveSet, finishSession, saveCardioBlocks, deleteSession, type CardioBlock } from "../actions";
 import PostWorkoutSummary from "./PostWorkoutSummary";
@@ -94,9 +94,10 @@ interface WorkoutTrackerProps {
   initialWarmup?:   boolean;
   initialCooldown?: boolean;
   initialCardio?:   CardioBlock;
+  initialBlocks?:   CardioBlock[];
 }
 
-export default function WorkoutTracker({ initialExercises, initialWarmup, initialCooldown, initialCardio }: WorkoutTrackerProps = {}) {
+export default function WorkoutTracker({ initialExercises, initialWarmup, initialCooldown, initialCardio, initialBlocks }: WorkoutTrackerProps = {}) {
   const [exercises, setExercises] = useState(initialExercises ?? EXERCISE_LIBRARY);
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -143,7 +144,10 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   // Stretching + cardio extras
   const [warmup,         setWarmup]         = useState(initialWarmup   ?? false);
   const [cooldown,       setCooldown]       = useState(initialCooldown ?? false);
-  const [cardioBlocks,   setCardioBlocks]   = useState<CardioBlock[]>(initialCardio ? [initialCardio] : []);
+  const [cardioBlocks,   setCardioBlocks]   = useState<CardioBlock[]>([
+    ...(initialCardio ? [initialCardio] : []),
+    ...(initialBlocks ?? []),
+  ]);
   const [showCardioForm, setShowCardioForm] = useState(false);
   const [cardioType,     setCardioType]     = useState("Running");
   const [cardioDuration, setCardioDuration] = useState("");
@@ -1055,14 +1059,14 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
             {showCardioForm ? (
               <div style={{ background: "var(--ios-bg)", borderRadius: 10, padding: "12px" }}>
                 <select value={cardioType} onChange={(e) => setCardioType(e.target.value)} style={{ ...cardioInput, marginBottom: 8 }}>
-                  {["Running", "Walking", "Cycling", "Other", "Jumping Jacks", "Jump Rope"].map((t) => <option key={t}>{t}</option>)}
+                  {CARDIO_ACTIVITIES.map((a) => <option key={a.name}>{a.name}</option>)}
                 </select>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
                   <input value={cardioDuration} onChange={(e) => setCardioDuration(e.target.value)} placeholder="Duration (min)" type="number" min="1" style={cardioInput} />
-                  {["Running", "Cycling", "Walking"].includes(cardioType) && (
+                  {getCardioActivity(cardioType).tracksDistance && getCardioActivity(cardioType).distanceUnit === "mi" && (
                     <input value={cardioDistance} onChange={(e) => setCardioDistance(e.target.value)} placeholder="Distance (mi)" type="number" min="0" step="0.1" style={cardioInput} />
                   )}
-                  {["Running", "Walking"].includes(cardioType) && (
+                  {["Running", "Walking", "Incline Walk"].includes(cardioType) && (
                     <input value={cardioPace} onChange={(e) => setCardioPace(e.target.value)} placeholder="Pace (mm:ss/mi)" style={cardioInput} />
                   )}
                   <input value={cardioHr} onChange={(e) => setCardioHr(e.target.value)} placeholder="Avg HR (bpm)" type="number" min="40" max="220" style={cardioInput} />

@@ -20,6 +20,7 @@ export default async function WorkoutPage({
   let initialWarmup: boolean | undefined;
   let initialCooldown: boolean | undefined;
   let initialCardio: CardioBlock | undefined;
+  let initialBlocks: CardioBlock[] | undefined;
 
   try {
     const decoded = JSON.parse(Buffer.from(encoded, "base64").toString("utf-8"));
@@ -30,6 +31,7 @@ export default async function WorkoutPage({
       if (decoded.warmup)   initialWarmup   = true;
       if (decoded.cooldown) initialCooldown = true;
       if (decoded.cardio)   initialCardio   = decoded.cardio as CardioBlock;
+      if (Array.isArray(decoded.blocks)) initialBlocks = decoded.blocks as CardioBlock[];
     }
   } catch {
     // Malformed plan param — send the user back to build a fresh one
@@ -44,6 +46,7 @@ export default async function WorkoutPage({
         initialWarmup={initialWarmup}
         initialCooldown={initialCooldown}
         initialCardio={initialCardio}
+        initialBlocks={initialBlocks}
       />
     </div>
   );
