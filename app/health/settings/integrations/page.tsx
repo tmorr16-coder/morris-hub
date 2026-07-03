@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
+import { publicOrigin } from "@/lib/site-url";
 import { LargeTitle, Icons } from "@/components/ios";
 import WithingsCard from "./_components/WithingsCard";
 import OuraCard from "./_components/OuraCard";
@@ -55,7 +56,9 @@ export default async function IntegrationsPage({
   const ouraConfigured  = !!ouraToken || !!process.env.OURA_ACCESS_TOKEN;
   const ouraLastSyncAt  = (ouraLastRow as { created_at: string } | null)?.created_at ?? null;
   const appleLastSyncAt = (appleLastRow as { created_at: string } | null)?.created_at ?? null;
-  const siteUrl         = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  // Always the stable production origin — the webhook URL is pasted into the
+  // Health Auto Export app, so it must never be an ephemeral preview URL.
+  const siteUrl         = publicOrigin();
   // Per-user webhook URL — userId tells the endpoint whose data this is
   const webhookUrl      = `${siteUrl}/api/health/webhooks/apple-health?userId=${encodeURIComponent(userId)}`;
 

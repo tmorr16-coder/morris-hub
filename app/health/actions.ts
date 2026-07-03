@@ -2,11 +2,12 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
+import { serverBaseUrl } from "@/lib/site-url";
 import { revalidatePath } from "next/cache";
 
 export async function syncAll(): Promise<{ message: string }> {
   const userId = await getCurrentUserId();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const siteUrl = serverBaseUrl();
   const cronSecret = process.env.CRON_SECRET ?? "";
   const headers: Record<string, string> = cronSecret ? { Authorization: `Bearer ${cronSecret}` } : {};
 

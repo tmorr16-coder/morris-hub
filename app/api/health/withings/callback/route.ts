@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
+import { publicOrigin } from "@/lib/site-url";
 
 interface WithingsTokenBody {
   userid:        number;
@@ -18,7 +19,7 @@ interface WithingsTokenResponse {
 }
 
 export async function GET(request: NextRequest) {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL!;
+  const siteUrl = publicOrigin();
   const settingsUrl = `${siteUrl}/health/settings/integrations`;
 
   const { searchParams } = new URL(request.url);
