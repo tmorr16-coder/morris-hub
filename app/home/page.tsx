@@ -453,13 +453,25 @@ export default async function HomePage() {
       .in("metric_name", ["step_count", "steps", "Step Count", "Steps"])
       .gte("timestamp", new Date(new Date().getTime() - 26 * 3_600_000).toISOString()),
     service.schema("finance").from("net_position_snapshots")
-      .select("net_position").eq("user_id", user.id)
-      .order("captured_at", { ascending: false }).limit(1).maybeSingle(),
+      .select("net_position, captured_at").eq("user_id", user.id)
+      .order("captured_at", { ascending: false }).limit(30),
   ]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stepsToday = ((stepsRes.data ?? []) as any[]).reduce((s, r) => s + (Number(r.value) || 0), 0);
-  const netWorth: number | null = (netRes.data as { net_position?: number } | null)?.net_position ?? null;
-  const fmtNetShort = (n: number) => n >= 1000 ? `$${Math.round(n / 1000)}k` : `$${Math.round(n)}`;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const netSnaps = (netRes.data ?? []) as { net_position?: number }[];
+  const netWorth: number | null = netSnaps[0]?.net_position ?? null;
+  // % change vs the oldest snapshot in the window (fallback: no change line)
+  const netPrev: number | null = netSnaps.length > 1 ? (netSnaps[netSnaps.length - 1]?.net_position ?? null) : null;
+  const netPct: number | null = netWorth != null && netPrev != null && netPrev !== 0
+    ? ((netWorth - netPrev) / Math.abs(netPrev)) * 100 : null;
+  const fmtMoney = (n: number) =>
+    n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  const moneySub = netPct != null ? (
+    <span style={{ color: netPct >= 0 ? "var(--ios-green)" : "var(--ios-red)" }}>
+      {netPct >= 0 ? "▲" : "▼"} {Math.abs(netPct).toFixed(1)}% net worth
+    </span>
+  ) : "net worth";
 
   const iosGlance = {
     calendar: { value: iosCalLabel, sub: iosNext ? iosNext.timeLabel : "No events today", href: "/home/family/calendar" },
@@ -467,7 +479,7 @@ export default async function HomePage() {
       ? { value: `${iosUpcoming.length} due`, sub: iosUpcoming[0].title as string, badge: iosUpcoming.length, href: "/home" }
       : { value: "None", sub: "All caught up", href: "/home" },
     health: { value: stepsToday > 0 ? Math.round(stepsToday).toLocaleString() : "—", sub: stepsToday > 0 ? "steps today" : "no data today", href: "/health" },
-    ...(netWorth != null ? { money: { value: fmtNetShort(netWorth), sub: "net worth", href: "/finance/dashboard" } } : {}),
+    ...(netWorth != null ? { money: { value: fmtMoney(netWorth), sub: moneySub, href: "/finance/dashboard" } } : {}),
   };
 
   const homePrefs = await getPreferences(user.id).catch(() => null);
@@ -488,7 +500,7 @@ export default async function HomePage() {
       slot={
         <>
           <Suspense fallback={null}><TodayMarkets ticker={homePrefs?.employer_ticker ?? "LLY"} /></Suspense>
-          <Suspense fallback={null}><TodayNews sources={homePrefs?.news_sources ?? []} /></Suspense>
+          <Suspense fallback={null}><TodayNews sources={homePrefs?.news_sources ?? []} topics={homePrefs?.news_topics ?? []} /></Suspense>
         </>
       }
     />

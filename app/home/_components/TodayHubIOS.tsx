@@ -73,7 +73,14 @@ export default function TodayHubIOS({
 
   return (
     <>
-      <LargeTitle title="Today" subtitle={`${dateLabel} · ${greeting}, ${firstName}`} avatarInitial={firstName[0]?.toUpperCase()} onCompose={onOpenAsk} />
+      <LargeTitle
+        title="Today"
+        subtitle={`${dateLabel} · ${greeting}, ${firstName}`}
+        avatarInitial={firstName[0]?.toUpperCase()}
+        onCompose={onOpenAsk}
+        composeLabel="Ask Morris"
+        composeIcon={<Icons.SparkleIcon aria-hidden style={{ width: 24, height: 24 }} />}
+      />
 
       <Segmented
         ariaLabel="Scope"
@@ -145,7 +152,7 @@ export default function TodayHubIOS({
         </Group>
       )}
 
-      {priorities.length > 0 && (
+      {mode === "personal" && priorities.length > 0 && (
         <Group header="My priorities" id="priorities">
           {priorities.map((p) => (
             <Cell
