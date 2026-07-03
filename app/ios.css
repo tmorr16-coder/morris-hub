@@ -61,8 +61,11 @@
 }
 
 /* Dark mode — follow the OS, or force with data-theme */
+/* Light-first: legacy interactive widgets hardcode light-mode colors, so the app
+   is light by default. Dark mode is opt-in via data-theme="dark" (used by the
+   /ios-demo toggle) until every widget is made dark-aware. */
 @media (prefers-color-scheme: dark) {
-  [data-ui="ios"]:not([data-theme="light"]) {
+  [data-ui="ios"][data-theme="dark"] {
     --ios-bg:           #000000;
     --ios-bg-elevated:  #1C1C1E;
     --ios-cell:         #1C1C1E;
