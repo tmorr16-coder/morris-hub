@@ -115,6 +115,41 @@ export default function FamilyManagementClient({
   const [savingAccess, setSavingAccess] = useState(false);
   const [promoting, setPromoting] = useState<string | null>(null);
 
+  // Rename (per-member nickname / managed-child display name) state
+  const [editingNameId, setEditingNameId] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState("");
+  const [savingName, setSavingName] = useState(false);
+
+  function openNameEditor(member: CircleMember) {
+    setEditingAccessId(null); // don't show both editors on one row
+    setEditingNameId(member.id);
+    setNameDraft(member.display_name ?? member.full_name ?? "");
+  }
+
+  async function saveName(member: CircleMember) {
+    const trimmed = nameDraft.trim();
+    if (!trimmed) return;
+    setSavingName(true);
+    // Real members: set a per-member nickname. Managed children (no login):
+    // set their display_name directly.
+    const res = member.member_user_id
+      ? await fetch("/api/family/members", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ member_user_id: member.member_user_id, nickname: trimmed }),
+        })
+      : await fetch("/api/family/managed-children", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: member.id, display_name: trimmed }),
+        });
+    setSavingName(false);
+    if (res.ok) {
+      setCircle((prev) => prev.map((m) => (m.id === member.id ? { ...m, display_name: trimmed } : m)));
+      setEditingNameId(null);
+    }
+  }
+
   function openAccessEditor(member: CircleMember) {
     if (!member.member_user_id) return; // managed children have no access flags to edit
     setEditingAccessId(member.member_user_id);
@@ -319,6 +354,12 @@ export default function FamilyManagementClient({
                       </button>
                     )}
                     <button
+                      onClick={() => (editingNameId === m.id ? setEditingNameId(null) : openNameEditor(m))}
+                      style={{ fontSize: 11, padding: "5px 12px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-3)", cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      {editingNameId === m.id ? "Cancel" : "Edit name"}
+                    </button>
+                    <button
                       onClick={() => removeMember(m.id)}
                       style={{ fontSize: 11, padding: "5px 12px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-3)", cursor: "pointer", fontFamily: "inherit" }}
                     >
@@ -340,6 +381,28 @@ export default function FamilyManagementClient({
                         style={{ fontSize: 11, fontWeight: 600, padding: "5px 12px", borderRadius: 7, border: "none", background: "var(--color-amber)", color: "#fff", cursor: "pointer", flexShrink: 0 }}
                       >
                         {promoting === m.member_user_id ? "…" : "Give adult privacy"}
+                      </button>
+                    </div>
+                  )}
+
+                  {editingNameId === m.id && (
+                    <div style={{ padding: "14px 16px", background: "var(--color-bg-deep)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-ink-4)" }}>
+                        {m.member_user_id ? "Name in your circle" : "Display name"}
+                      </div>
+                      <input
+                        type="text"
+                        value={nameDraft}
+                        onChange={(e) => setNameDraft(e.target.value)}
+                        placeholder="e.g. Alicia"
+                        style={inp}
+                      />
+                      <button
+                        onClick={() => saveName(m)}
+                        disabled={savingName || !nameDraft.trim()}
+                        style={{ alignSelf: "flex-start", fontSize: 12, fontWeight: 600, padding: "7px 16px", borderRadius: 8, border: "none", background: "var(--color-accent)", color: "#FFFDF8", cursor: savingName ? "wait" : "pointer", opacity: savingName || !nameDraft.trim() ? 0.6 : 1 }}
+                      >
+                        {savingName ? "Saving…" : "Save name"}
                       </button>
                     </div>
                   )}
