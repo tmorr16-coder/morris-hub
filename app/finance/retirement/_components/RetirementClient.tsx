@@ -249,13 +249,16 @@ export default function RetirementClient({
 
   const hasLinkedAccounts = accounts.some((a) => a.plaid_account_id);
 
-  async function handleSave(overrideAccounts?: RetirementAccount[]) {
+  async function handleSave(overrides?: {
+    accounts?: RetirementAccount[];
+    incomes?: RetirementIncome[];
+  }) {
     setSaveState("saving");
     setSaveError(null);
     const result = await savePlan({
       profile,
-      accounts: overrideAccounts ?? accounts,
-      incomes,
+      accounts: overrides?.accounts ?? accounts,
+      incomes: overrides?.incomes ?? incomes,
       expenses,
       debts,
       scenario,
@@ -272,7 +275,13 @@ export default function RetirementClient({
   // Auto-save any accounts change (add, edit, delete) so the DB stays in sync
   function handleAccountsChange(updatedAccounts: RetirementAccount[]) {
     setAccounts(updatedAccounts);
-    handleSave(updatedAccounts);
+    handleSave({ accounts: updatedAccounts });
+  }
+
+  // Auto-save any income change (add, edit, delete) so entries persist on reload
+  function handleIncomesChange(updatedIncomes: RetirementIncome[]) {
+    setIncomes(updatedIncomes);
+    handleSave({ incomes: updatedIncomes });
   }
 
   const metrics = computeNestEgg(profile, accounts, incomes, scenario);
@@ -387,7 +396,7 @@ export default function RetirementClient({
         />
       )}
       {activeTab === "Income" && (
-        <IncomeTab incomes={incomes} setIncomes={setIncomes} profile={profile} />
+        <IncomeTab incomes={incomes} setIncomes={handleIncomesChange} profile={profile} />
       )}
       {activeTab === "Outflows" && (
         <DebtsTab debts={debts} setDebts={setDebts} expenses={expenses} setExpenses={setExpenses} />
