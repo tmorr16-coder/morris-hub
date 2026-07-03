@@ -5,7 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isCurrentUserAdmin } from "@/lib/supabase/auth-utils";
 import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
+import { getUserTimezone } from "@/lib/timezone";
 import AppearanceAccount from "./_components/AppearanceAccount";
+import GeneralSettings from "./_components/GeneralSettings";
 
 // Live connection status for the three fitness integrations. Fully defensive —
 // any missing table just reports "Not connected" rather than throwing.
@@ -99,6 +101,11 @@ export default async function SettingsHubPage() {
           <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.PersonIcon /></IconBadge>} title="Access management" subtitle="Modules · approvals · invites" href="/home/admin" />
         </Group>
       )}
+
+      <GeneralSettings
+        initialTimezone={getUserTimezone(user.user_metadata)}
+        initialMoveGoal={Number((user.user_metadata as { move_goal?: number })?.move_goal) || 1300}
+      />
 
       <AppearanceAccount />
 

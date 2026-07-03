@@ -10,6 +10,7 @@ import type { Todo } from "./actions";
 import { Suspense } from "react";
 import { getPreferences } from "@/lib/prefs";
 import { fetchWeather } from "@/lib/weather";
+import { getUserTimezone, startOfTodayInTz } from "@/lib/timezone";
 import HomeClient from "./HomeClient";
 import QuickActions from "./_components/QuickActions";
 import TodayMarkets from "./_components/TodayMarkets";
@@ -450,7 +451,7 @@ export default async function HomePage() {
       .select("value")
       .eq("user_id", user.id)
       .in("metric_name", ["step_count", "steps", "Step Count", "Steps"])
-      .gte("timestamp", new Date(new Date().getTime() - 26 * 3_600_000).toISOString()),
+      .gte("timestamp", startOfTodayInTz(getUserTimezone(user.user_metadata)).toISOString()),
     service.schema("finance").from("net_position_snapshots")
       .select("net_position, captured_at").eq("user_id", user.id)
       .order("captured_at", { ascending: false }).limit(30),

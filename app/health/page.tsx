@@ -9,6 +9,7 @@ import { type CombinedWorkoutRow } from "./_components/ActivityHistoryCard";
 import { type TrendMetric, type TrendPoint } from "./_components/MetricTrendsCard";
 import Link from "next/link";
 import { LargeTitle, Group, Cell, IconBadge, Icons, RadialGauge, Sparkline } from "@/components/ios";
+import { getUserTimezone, startOfTodayInTz } from "@/lib/timezone";
 
 // latest value + windowed delta for a trend metric
 function trendSummary(m: TrendMetric): { value: string; delta: string; color: string } | null {
@@ -83,13 +84,16 @@ export default async function DashboardPage() {
   const [userId, userName] = await Promise.all([getCurrentUserId(), getCurrentUserName()]);
 
 
-  // Weight goal from user metadata
+  // Weight goal + timezone + Move goal from user metadata
   const { data: { user: authUser } } = await db.auth.admin.getUserById(userId);
   const targetWeightLbs: number | null = (authUser?.user_metadata?.target_weight_lbs as number | null) ?? null;
+  const tz = getUserTimezone(authUser?.user_metadata);
+  const moveGoal: number = Number(authUser?.user_metadata?.move_goal) || 1300;
 
   const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
+  // "Today" boundaries in the user's timezone (default Eastern) so daily totals
+  // match the watch instead of the server's UTC day.
+  const todayStart = startOfTodayInTz(tz);
   const tomorrowStart = new Date(todayStart);
   tomorrowStart.setDate(tomorrowStart.getDate() + 1);
   const sevenDaysAgo = new Date(todayStart);
@@ -273,15 +277,25 @@ export default async function DashboardPage() {
   // appeared in the recent-workouts list, which only read apple_health_workouts.
   type AppleWorkoutRow = { id: string; timestamp: string; workout_type: string; duration_sec: number | null; distance_m: number | null; calories: number | null };
   type SessionRow = { id: string; date: string; type: string; duration_min: number | null; distance_miles: number | null };
-  const appleWorkouts: CombinedWorkoutRow[] = ((recentAppleWorkoutRows as AppleWorkoutRow[] | null) ?? []).map((w) => ({
-    id: w.id,
-    timestamp: w.timestamp,
-    workout_type: w.workout_type,
-    duration_sec: w.duration_sec,
-    distance_m: w.distance_m,
-    calories: w.calories,
-    source: "apple_health" as const,
-  }));
+  // Dedupe duplicate Apple workout rows (same start + type) — re-exports can
+  // create duplicates since apple_health_workouts has no unique index.
+  const seenAppleWorkout = new Set<string>();
+  const appleWorkouts: CombinedWorkoutRow[] = ((recentAppleWorkoutRows as AppleWorkoutRow[] | null) ?? [])
+    .filter((w) => {
+      const k = `${w.timestamp}|${w.workout_type}`;
+      if (seenAppleWorkout.has(k)) return false;
+      seenAppleWorkout.add(k);
+      return true;
+    })
+    .map((w) => ({
+      id: w.id,
+      timestamp: w.timestamp,
+      workout_type: w.workout_type,
+      duration_sec: w.duration_sec,
+      distance_m: w.distance_m,
+      calories: w.calories,
+      source: "apple_health" as const,
+    }));
   const manualWorkouts: CombinedWorkoutRow[] = ((recentSessionRows as SessionRow[] | null) ?? []).map((s) => ({
     id: s.id,
     timestamp: `${s.date}T12:00:00`,
@@ -367,7 +381,13 @@ export default async function DashboardPage() {
 
       <Group header="Today">
         <Cell chevron={false} lead={<IconBadge color="var(--ios-green)"><Icons.HeartIcon /></IconBadge>} title="Steps" trailing={<span className="ios-num">{steps != null ? steps.toLocaleString() : "—"}</span>} />
-        <Cell chevron={false} lead={<IconBadge color="var(--ios-orange)"><Icons.DumbbellIcon /></IconBadge>} title="Active energy" trailing={<span className="ios-num">{activeEnergyCal != null ? `${activeEnergyCal} cal` : "—"}</span>} />
+        <Cell
+          chevron={false}
+          lead={<IconBadge color="#FA114F"><Icons.DumbbellIcon /></IconBadge>}
+          title="Move"
+          subtitle={activeEnergyCal != null ? `${Math.round((activeEnergyCal / moveGoal) * 100)}% of ${moveGoal.toLocaleString()} cal goal` : `Goal ${moveGoal.toLocaleString()} cal`}
+          trailing={<span className="ios-num" style={{ color: activeEnergyCal != null && activeEnergyCal >= moveGoal ? "var(--ios-green)" : undefined }}>{activeEnergyCal != null ? `${activeEnergyCal.toLocaleString()} cal` : "—"}</span>}
+        />
         <Cell chevron={false} lead={<IconBadge color="var(--ios-tint)"><Icons.TrendUpIcon /></IconBadge>} title="Distance" trailing={<span className="ios-num">{distanceMiles != null ? `${distanceMiles} mi` : "—"}</span>} />
         <Cell chevron={false} lead={<IconBadge color="#FA114F"><Icons.HeartIcon /></IconBadge>} title={heartRateLabel} trailing={<span className="ios-num">{heartRateBpm != null ? `${heartRateBpm} bpm` : "—"}</span>} />
         <Cell href="/health/nutrition" lead={<IconBadge color="#E8734A"><Icons.ForkKnifeIcon /></IconBadge>} title="Nutrition" subtitle={`${mealCount} ${mealCount === 1 ? "meal" : "meals"} logged`} trailing={<span className="ios-num">{todayCalories} cal</span>} />
