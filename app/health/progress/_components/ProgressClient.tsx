@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { Segmented, Icons } from "@/components/ios";
 import TrendChart from "./TrendChart";
 
-// ── Design tokens ────────────────────────────────────────────────
-const C_SLATE  = "#2f3a47";
-const C_MOSS   = "#4a6a4d";
-const C_ACCENT = "#b84a2e";
+// ── Chart series hues (iOS tokens) ───────────────────────────────
+const C_WEIGHT = "var(--ios-tint)";
+const C_LEAN   = "var(--ios-green)";
+const C_FAT    = "var(--ios-orange)";
 
 // ── Mock data (replaced when body-scan / lift-tracking integration exists) ───
 const MOCK_WEEKS_AGO  = [-12, -9, -6, -3, 0];
@@ -57,7 +58,7 @@ export interface ProgressProps {
 function relativeDay(dateStr: string): string {
   const fmt = (d: Date) => d.toLocaleDateString("sv");
   const today = fmt(new Date());
-  const yesterday = fmt(new Date(Date.now() - 86_400_000));
+  const yesterday = fmt(new Date(new Date().getTime() - 86_400_000));
   if (dateStr === today) return "Today";
   if (dateStr === yesterday) return "Yesterday";
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -72,109 +73,32 @@ function fmtPace(sec: number | null): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-// ── Segmented control ─────────────────────────────────────────────
 type Tab = "body" | "lifts" | "cardio";
 
-function Seg({ value, options, onChange }: {
-  value: string;
-  options: { k: Tab; l: string }[];
-  onChange: (v: Tab) => void;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        background: "var(--color-bg-sunk)",
-        borderRadius: 10,
-        padding: 3,
-        gap: 2,
-        marginBottom: 16,
-      }}
-    >
-      {options.map((o) => (
-        <button
-          key={o.k}
-          onClick={() => onChange(o.k)}
-          style={{
-            flex: 1,
-            padding: "7px 0",
-            borderRadius: 8,
-            border: "none",
-            background: value === o.k ? "var(--color-bg-raised)" : "transparent",
-            color: value === o.k ? "var(--color-ink)" : "var(--color-ink-3)",
-            fontSize: 12,
-            fontWeight: value === o.k ? 600 : 400,
-            cursor: "pointer",
-            fontFamily: "inherit",
-            boxShadow: value === o.k ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
-            transition: "background 120ms",
-          }}
-        >
-          {o.l}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// ── Stat block ────────────────────────────────────────────────────
-function StatBlock({
-  label, value, unit, delta, deltaGood,
+// ── Stat tile ─────────────────────────────────────────────────────
+function StatTile({
+  label, value, unit, delta, deltaGood, children,
 }: {
   label: string;
   value: string;
   unit?: string;
   delta?: string;
   deltaGood?: boolean;
+  children?: React.ReactNode;
 }) {
   return (
-    <div
-      style={{
-        background: "var(--color-bg-sunk)",
-        borderRadius: 10,
-        padding: "12px 14px",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 500,
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          color: "var(--color-ink-3)",
-          marginBottom: 5,
-        }}
-      >
-        {label}
-      </div>
+    <div className="ios-tile">
+      <span className="ios-tile-label" style={{ color: "var(--ios-label-2)" }}>{label}</span>
       <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-        <span
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: 22,
-            fontWeight: 400,
-            letterSpacing: "-0.02em",
-            lineHeight: 1,
-          }}
-        >
-          {value}
-        </span>
-        {unit && (
-          <span style={{ fontSize: 11, color: "var(--color-ink-3)" }}>{unit}</span>
-        )}
+        <span className="ios-num ios-tile-value">{value}</span>
+        {unit && <span className="ios-caption" style={{ color: "var(--ios-label-2)" }}>{unit}</span>}
       </div>
       {delta && (
-        <div
-          style={{
-            fontSize: 10,
-            fontFamily: "var(--font-mono)",
-            marginTop: 4,
-            color: deltaGood ? "var(--color-moss)" : "var(--color-ink-3)",
-          }}
-        >
+        <div className="ios-num ios-caption" style={{ marginTop: 2, color: deltaGood ? "var(--ios-green)" : "var(--ios-label-2)" }}>
           {delta}
         </div>
       )}
+      {children}
     </div>
   );
 }
@@ -244,74 +168,41 @@ export default function ProgressClient({
     : `−${(MOCK_WEIGHTS[0] - MOCK_WEIGHTS[4]).toFixed(1)} lb · 12 wks`;
   const weightDeltaGood = withingsDelta30d != null ? withingsDelta30d < 0 : true;
 
-  return (
-    <div style={{ padding: "20px 20px 0" }}>
+  const cardStyle: React.CSSProperties = {
+    margin: "0 16px 14px", padding: "16px",
+  };
 
+  return (
+    <div style={{ paddingTop: 8 }}>
       {/* Header */}
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 500,
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-          color: "var(--color-ink-3)",
-          marginBottom: 6,
-        }}
-      >
-        Progress
-      </div>
-      <div
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: 36,
-          fontWeight: 400,
-          letterSpacing: "-0.02em",
-          lineHeight: 1,
-          color: "var(--color-ink)",
-          marginBottom: 20,
-        }}
-      >
-        How you&apos;re
-        <br />trending.
+      <div style={{ padding: "0 16px 12px" }}>
+        <h1 className="ios-large-title">Progress</h1>
+        <div className="ios-subhead" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>How you&apos;re trending</div>
       </div>
 
       {/* Streak + monthly workouts */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-        <div
-          style={{
-            background: streak > 0 ? "var(--color-ink)" : "var(--color-bg-raised)",
-            border: `1px solid ${streak > 0 ? "transparent" : "var(--color-line)"}`,
-            borderRadius: 14,
-            padding: "16px 18px",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: streak > 0 ? "rgba(244,241,236,0.45)" : "var(--color-ink-3)", marginBottom: 6 }}>
-            Streak 🔥
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, padding: "0 16px 14px" }}>
+        <div className="ios-tile" style={streak > 0 ? { background: "var(--ios-tint)" } : undefined}>
+          <div className="ios-tile-top">
+            <span className="ios-tile-label" style={{ color: streak > 0 ? "rgba(255,255,255,0.7)" : "var(--ios-label-2)" }}>Streak</span>
+            <Icons.SparkleIcon style={{ color: streak > 0 ? "#fff" : "var(--ios-orange)" }} />
           </div>
-          <div style={{ fontFamily: "var(--font-display)", fontSize: 40, fontWeight: 400, lineHeight: 1, letterSpacing: "-0.02em", color: streak > 0 ? "var(--color-bg)" : "var(--color-ink-4)" }}>
+          <div className="ios-num" style={{ fontSize: 40, fontWeight: 700, lineHeight: 1, letterSpacing: "-0.02em", color: streak > 0 ? "#fff" : "var(--ios-label-3)" }}>
             {streak}
           </div>
-          <div style={{ fontSize: 11, color: streak > 0 ? "rgba(244,241,236,0.5)" : "var(--color-ink-4)", marginTop: 3 }}>
+          <div className="ios-footnote" style={{ marginTop: 3, color: streak > 0 ? "rgba(255,255,255,0.75)" : "var(--ios-label-3)" }}>
             {streak === 1 ? "day" : "days"} in a row
           </div>
         </div>
-        <div
-          style={{
-            background: "var(--color-bg-raised)",
-            border: "1px solid var(--color-line)",
-            borderRadius: 14,
-            padding: "16px 18px",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>
-            This month
+        <div className="ios-tile">
+          <div className="ios-tile-top">
+            <span className="ios-tile-label" style={{ color: "var(--ios-label-2)" }}>This month</span>
+            <Icons.DumbbellIcon style={{ color: "var(--ios-tint)" }} />
           </div>
-          <div style={{ fontFamily: "var(--font-display)", fontSize: 40, fontWeight: 400, lineHeight: 1, letterSpacing: "-0.02em", color: "var(--color-ink)" }}>
+          <div className="ios-num" style={{ fontSize: 40, fontWeight: 700, lineHeight: 1, letterSpacing: "-0.02em", color: "var(--ios-label)" }}>
             {monthWorkouts}
           </div>
-          <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 3 }}>
+          <div className="ios-footnote" style={{ marginTop: 3, color: "var(--ios-label-3)" }}>
             workout{monthWorkouts !== 1 ? "s" : ""} logged
           </div>
         </div>
@@ -319,28 +210,17 @@ export default function ProgressClient({
 
       {/* 7-day step trend */}
       {last7Steps.some((d) => d.steps > 0) && (
-        <div
-          style={{
-            background: "var(--color-bg-raised)",
-            border: "1px solid var(--color-line)",
-            borderRadius: 14,
-            padding: "14px 16px",
-            marginBottom: 14,
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 12 }}>
-            Steps · 7-day trend
-          </div>
+        <div className="ios-list" style={cardStyle}>
+          <div className="ios-group-header" style={{ padding: "0 0 12px" }}>Steps · 7-day trend</div>
           <div style={{ display: "flex", gap: 5, alignItems: "flex-end", height: 56 }}>
             {(() => {
               const maxS = Math.max(...last7Steps.map((d) => d.steps), 1);
               return last7Steps.map(({ day, steps: s }) => (
                 <div key={day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, height: "100%" }}>
                   <div style={{ flex: 1, display: "flex", alignItems: "flex-end", width: "100%" }}>
-                    <div style={{ width: "100%", height: s > 0 ? `${Math.max((s / maxS) * 100, 8)}%` : 4, background: s > 0 ? C_MOSS : "var(--color-bg-sunk)", borderRadius: "3px 3px 2px 2px" }} />
+                    <div style={{ width: "100%", height: s > 0 ? `${Math.max((s / maxS) * 100, 8)}%` : 4, background: s > 0 ? "var(--ios-green)" : "var(--ios-fill)", borderRadius: "3px 3px 2px 2px" }} />
                   </div>
-                  <span style={{ fontSize: 9, color: "var(--color-ink-4)", fontWeight: 500 }}>{day}</span>
+                  <span className="ios-caption" style={{ color: "var(--ios-label-3)", fontWeight: 500 }}>{day}</span>
                 </div>
               ));
             })()}
@@ -349,35 +229,27 @@ export default function ProgressClient({
       )}
 
       {/* Tab control */}
-      <Seg
+      <Segmented
+        ariaLabel="Progress view"
         value={tab}
+        onChange={(v: Tab) => setTab(v)}
         options={[
-          { k: "body",   l: "Body"   },
-          { k: "lifts",  l: "Lifts"  },
-          { k: "cardio", l: "Cardio" },
+          { value: "body",   label: "Body"   },
+          { value: "lifts",  label: "Lifts"  },
+          { value: "cardio", label: "Cardio" },
         ]}
-        onChange={setTab}
       />
 
       {/* ── Body tab ─────────────────────────────────────────── */}
       {tab === "body" && (
-        <div
-          style={{
-            background: "var(--color-bg-raised)",
-            border: "1px solid var(--color-line)",
-            borderRadius: 14,
-            padding: "16px 18px",
-            marginBottom: 14,
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
+        <div className="ios-list" style={{ ...cardStyle, marginTop: 14 }}>
           <TrendChart
             data={bodyData}
             height={220}
             metrics={[
-              { key: "weight", label: "Weight",    color: C_SLATE,  unit: "lb" },
-              { key: "muscle", label: "Lean mass", color: C_MOSS,   unit: "lb" },
-              { key: "fat",    label: "Body fat",  color: C_ACCENT, unit: "%" },
+              { key: "weight", label: "Weight",    color: C_WEIGHT, unit: "lb" },
+              { key: "muscle", label: "Lean mass", color: C_LEAN,   unit: "lb" },
+              { key: "fat",    label: "Body fat",  color: C_FAT,    unit: "%" },
             ]}
             goalLines={targetWeightLbs != null ? [{ metricKey: "weight", value: targetWeightLbs, label: `Goal ${targetWeightLbs} lb` }] : []}
           />
@@ -386,81 +258,21 @@ export default function ProgressClient({
 
       {/* ── Lifts tab ─────────────────────────────────────────── */}
       {tab === "lifts" && (
-        <div
-          style={{
-            background: "var(--color-bg-raised)",
-            border: "1px solid var(--color-line)",
-            borderRadius: 14,
-            padding: "16px 18px",
-            marginBottom: 14,
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 500,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: "var(--color-ink-3)",
-              marginBottom: 14,
-            }}
-          >
-            Estimated 1RM
-          </div>
+        <div className="ios-list" style={{ ...cardStyle, marginTop: 14 }}>
+          <div className="ios-group-header" style={{ padding: "0 0 14px" }}>Estimated 1RM</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {MOCK_LIFT_PRS.map((l) => (
               <div key={l.name}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "baseline",
-                    marginBottom: 7,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 13.5,
-                      fontWeight: 500,
-                      color: "var(--color-ink)",
-                    }}
-                  >
-                    {l.name}
-                  </span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 7 }}>
+                  <span className="ios-subhead" style={{ fontWeight: 500 }}>{l.name}</span>
                   <span style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                    <span
-                      style={{
-                        fontFamily: "var(--font-display)",
-                        fontSize: 22,
-                        fontWeight: 400,
-                        letterSpacing: "-0.02em",
-                      }}
-                    >
-                      {l.val}
-                    </span>
-                    <span style={{ fontSize: 11, color: "var(--color-ink-3)" }}>lb ·</span>
-                    <span style={{ fontSize: 11, fontWeight: 500, color: "var(--color-moss)" }}>
-                      {l.delta}
-                    </span>
+                    <span className="ios-num" style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.01em" }}>{l.val}</span>
+                    <span className="ios-caption" style={{ color: "var(--ios-label-2)" }}>lb ·</span>
+                    <span className="ios-caption" style={{ fontWeight: 600, color: "var(--ios-green)" }}>{l.delta}</span>
                   </span>
                 </div>
-                <div
-                  style={{
-                    height: 4,
-                    background: "var(--color-bg-sunk)",
-                    borderRadius: 2,
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${(l.val / 300) * 100}%`,
-                      background: "var(--color-ink)",
-                      borderRadius: 2,
-                    }}
-                  />
+                <div style={{ height: 6, background: "var(--ios-fill)", borderRadius: 3, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${(l.val / 300) * 100}%`, background: "var(--ios-tint)", borderRadius: 3 }} />
                 </div>
               </div>
             ))}
@@ -470,47 +282,16 @@ export default function ProgressClient({
 
       {/* ── Cardio tab ─────────────────────────────────────────── */}
       {tab === "cardio" && (
-        <div
-          style={{
-            background: "var(--color-bg-raised)",
-            border: "1px solid var(--color-line)",
-            borderRadius: 14,
-            padding: "16px 18px",
-            marginBottom: 14,
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 500,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: "var(--color-ink-3)",
-              marginBottom: 14,
-            }}
-          >
-            Running · Last 7 days
-          </div>
+        <div className="ios-list" style={{ ...cardStyle, marginTop: 14 }}>
+          <div className="ios-group-header" style={{ padding: "0 0 14px" }}>Running · Last 7 days</div>
           {weeklyRuns === 0 ? (
-            <div
-              style={{
-                fontSize: 13,
-                color: "var(--color-ink-4)",
-                textAlign: "center",
-                padding: "16px 0",
-              }}
-            >
+            <div className="ios-subhead" style={{ color: "var(--ios-label-3)", textAlign: "center", padding: "16px 0" }}>
               No runs recorded this week
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <StatBlock
-                label="Avg pace"
-                value={fmtPace(avgPaceSec)}
-                unit="/mi"
-              />
-              <StatBlock
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <StatTile label="Avg pace" value={fmtPace(avgPaceSec)} unit="/mi" />
+              <StatTile
                 label="Weekly miles"
                 value={weeklyMiles != null ? weeklyMiles.toFixed(1) : "—"}
                 unit="mi"
@@ -522,59 +303,21 @@ export default function ProgressClient({
       )}
 
       {/* ── Body composition stats (always shown) ────────────── */}
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 500,
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-          color: "var(--color-ink-3)",
-          margin: "20px 0 10px",
-        }}
-      >
-        Body composition
-      </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 10,
-          marginBottom: 14,
-        }}
-      >
-        <div
-          style={{
-            background: "var(--color-bg-raised)",
-            border: "1px solid var(--color-line)",
-            borderRadius: 14,
-            padding: "14px 16px",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 5 }}>
-            Weight
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-            <span style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 400, letterSpacing: "-0.02em" }}>
-              {currentWeight.toFixed(1)}
-            </span>
-            <span style={{ fontSize: 11, color: "var(--color-ink-3)" }}>lb</span>
-          </div>
-          <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", marginTop: 4, color: weightDeltaGood ? "var(--color-moss)" : "var(--color-ink-3)" }}>
-            {weightDelta}
-          </div>
+      <div className="ios-group-header" style={{ padding: "6px 16px 10px" }}>Body composition</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, padding: "0 16px 14px" }}>
+        <StatTile label="Weight" value={currentWeight.toFixed(1)} unit="lb" delta={weightDelta} deltaGood={weightDeltaGood}>
           {targetWeightLbs != null && (() => {
             const diff = currentWeight - targetWeightLbs;
             const reached = diff <= 0;
             return (
               <div style={{ marginTop: 8 }}>
-                <div style={{ fontSize: 9, color: "var(--color-ink-4)", marginBottom: 4, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginBottom: 4, letterSpacing: "0.02em", textTransform: "uppercase" }}>
                   {reached ? "Goal reached 🎉" : `${Math.abs(diff).toFixed(1)} lb to goal`}
                 </div>
-                <div style={{ height: 4, background: "var(--color-bg-sunk)", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{ height: 5, background: "var(--ios-fill)", borderRadius: 3, overflow: "hidden" }}>
                   <div style={{
-                    height: "100%", borderRadius: 2,
-                    background: reached ? "var(--color-moss)" : "var(--color-accent)",
+                    height: "100%", borderRadius: 3,
+                    background: reached ? "var(--ios-green)" : "var(--ios-tint)",
                     width: `${Math.min(100, Math.max(0, reached ? 100 : (1 - diff / Math.max(currentWeight - targetWeightLbs + (withingsDelta30d ?? 5), 1)) * 100))}%`,
                     transition: "width 600ms ease",
                   }} />
@@ -582,76 +325,23 @@ export default function ProgressClient({
               </div>
             );
           })()}
-        </div>
+        </StatTile>
 
-        <div
-          style={{
-            background: "var(--color-bg-raised)",
-            border: "1px solid var(--color-line)",
-            borderRadius: 14,
-            padding: "14px 16px",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 5 }}>
-            Lean mass
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-            <span style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 400, letterSpacing: "-0.02em" }}>
-              {MOCK_MUSCLES[4].toFixed(1)}
-            </span>
-            <span style={{ fontSize: 11, color: "var(--color-ink-3)" }}>lb</span>
-          </div>
-          <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", marginTop: 4, color: "var(--color-moss)" }}>
-            +{(MOCK_MUSCLES[4] - MOCK_MUSCLES[0]).toFixed(1)} lb · 12 wks
-          </div>
-        </div>
-
-        <div
-          style={{
-            background: "var(--color-bg-raised)",
-            border: "1px solid var(--color-line)",
-            borderRadius: 14,
-            padding: "14px 16px",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 5 }}>
-            Body fat %
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-            <span style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 400, letterSpacing: "-0.02em" }}>
-              {MOCK_FATS[4].toFixed(1)}
-            </span>
-            <span style={{ fontSize: 11, color: "var(--color-ink-3)" }}>%</span>
-          </div>
-          <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", marginTop: 4, color: "var(--color-moss)" }}>
-            −{(MOCK_FATS[0] - MOCK_FATS[4]).toFixed(1)} pts · 12 wks
-          </div>
-        </div>
-
-        <div
-          style={{
-            background: "var(--color-bg-raised)",
-            border: "1px solid var(--color-line)",
-            borderRadius: 14,
-            padding: "14px 16px",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 5 }}>
-            Waist
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-            <span style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 400, letterSpacing: "-0.02em" }}>
-              33.5
-            </span>
-            <span style={{ fontSize: 11, color: "var(--color-ink-3)" }}>in</span>
-          </div>
-          <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", marginTop: 4, color: "var(--color-moss)" }}>
-            −1.0 in · 12 wks
-          </div>
-        </div>
+        <StatTile
+          label="Lean mass"
+          value={MOCK_MUSCLES[4].toFixed(1)}
+          unit="lb"
+          delta={`+${(MOCK_MUSCLES[4] - MOCK_MUSCLES[0]).toFixed(1)} lb · 12 wks`}
+          deltaGood
+        />
+        <StatTile
+          label="Body fat %"
+          value={MOCK_FATS[4].toFixed(1)}
+          unit="%"
+          delta={`−${(MOCK_FATS[0] - MOCK_FATS[4]).toFixed(1)} pts · 12 wks`}
+          deltaGood
+        />
+        <StatTile label="Waist" value="33.5" unit="in" delta="−1.0 in · 12 wks" deltaGood />
       </div>
 
       {/* ── Activity feed ─────────────────────────────────────── */}
@@ -664,24 +354,24 @@ export default function ProgressClient({
           else groups.push({ day, items: [item] });
         }
         return (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", margin: "20px 0 10px" }}>
-              Activity feed
-            </div>
+          <div style={{ paddingBottom: 14 }}>
+            <div className="ios-group-header" style={{ padding: "6px 16px 10px" }}>Activity feed</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {groups.map(({ day, items }) => (
                 <div key={day}>
-                  <div style={{ fontSize: 10, color: "var(--color-ink-4)", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 500, marginBottom: 6 }}>{day}</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  <div className="ios-caption" style={{ color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 500, margin: "0 16px 6px" }}>{day}</div>
+                  <div className="ios-list" style={{ margin: "0 16px" }}>
                     {items.map((item) => (
-                      <div key={item.id} style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 10, padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, boxShadow: "var(--shadow-card)" }}>
-                        <div style={{ width: 30, height: 30, borderRadius: 7, background: item.type === "workout" ? "var(--color-accent-soft)" : "var(--color-bg-sunk)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>
-                          {item.icon}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</div>
-                          {item.detail && <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 1 }}>{item.detail}</div>}
-                        </div>
+                      <div key={item.id} className="ios-cell">
+                        <span className="ios-cell-lead">
+                          <span className="ios-icon" style={{ background: item.type === "workout" ? "var(--ios-green)" : "var(--ios-orange)", fontSize: 15 }}>
+                            {item.icon}
+                          </span>
+                        </span>
+                        <span className="ios-cell-body">
+                          <span className="ios-cell-title ios-truncate">{item.label}</span>
+                          {item.detail && <span className="ios-cell-sub">{item.detail}</span>}
+                        </span>
                       </div>
                     ))}
                   </div>

@@ -5,6 +5,7 @@ import type { FoodResult } from "@/app/api/health/food-search/route";
 import { addMeal, deleteMeal, toggleFavorite, logFavoriteMeal } from "../actions";
 import type { MealType } from "../actions";
 import ChatWidget from "../../_components/ChatWidget";
+import { Segmented, Chip, Cell, Icons } from "@/components/ios";
 
 export interface Meal {
   id: string;
@@ -31,27 +32,25 @@ const MEAL_SECTIONS: { type: MealType; label: string; icon: string }[] = [
   { type: "snack",     label: "Snack",     icon: "🍎" },
 ];
 
-const eyebrow: React.CSSProperties = {
-  fontSize: 9,
-  fontWeight: 500,
-  letterSpacing: "0.14em",
-  textTransform: "uppercase",
-  color: "var(--color-ink-3)",
-  marginBottom: 6,
+const cellInput: React.CSSProperties = {
+  width: "100%", border: "none", background: "transparent",
+  color: "var(--ios-label)", fontSize: 17, outline: "none", padding: 0,
+  fontFamily: "inherit",
+};
+const searchField: React.CSSProperties = {
+  width: "100%", padding: "10px 14px", borderRadius: 10, border: "none",
+  background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 17,
+  outline: "none", boxSizing: "border-box", fontFamily: "inherit",
 };
 
-const fieldInput: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid var(--color-line)",
-  background: "var(--color-bg-sunk)",
-  color: "var(--color-ink)",
-  fontSize: 14,
-  fontFamily: "inherit",
-  outline: "none",
-  boxSizing: "border-box",
-};
+const StarGlyph = ({ filled }: { filled: boolean }) => (
+  <svg viewBox="0 0 24 24" width={20} height={20} fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9L12 3.5Z" />
+  </svg>
+);
+const DeleteGlyph = (p: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" width={21} height={21} fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden {...p}><circle cx="12" cy="12" r="9" /><path d="M8.5 12h7" /></svg>
+);
 
 function AddMealSheet({
   date,
@@ -142,209 +141,94 @@ function AddMealSheet({
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "flex-end",
-      }}
-    >
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }}
-      />
+    <>
+      <div className="ios-sheet-backdrop" onClick={onClose} />
+      <div className="ios-sheet">
+        <div className="ios-grabber" />
 
-      {/* Sheet */}
-      <div
-        style={{
-          position: "relative",
-          background: "var(--color-bg)",
-          borderRadius: "18px 18px 0 0",
-          padding: "20px 20px 40px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-          maxHeight: "90vh",
-          overflowY: "auto",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "var(--color-ink)" }}>Add meal</div>
-          <button
-            onClick={onClose}
-            style={{ background: "none", border: "none", fontSize: 20, color: "var(--color-ink-3)", cursor: "pointer", padding: 4 }}
-          >
-            ×
-          </button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div className="ios-headline">Add meal</div>
+          <button onClick={onClose} className="ios-btn ios-btn--plain">Cancel</button>
         </div>
 
-        {/* Meal type tabs */}
-        <div style={{ display: "flex", gap: 6 }}>
-          {MEAL_SECTIONS.map((s) => (
-            <button
-              key={s.type}
-              onClick={() => setMealType(s.type)}
-              style={{
-                flex: 1,
-                padding: "7px 4px",
-                borderRadius: 8,
-                border: `1px solid ${mealType === s.type ? "var(--color-accent)" : "var(--color-line)"}`,
-                background: mealType === s.type ? "var(--color-accent-soft)" : "var(--color-bg-raised)",
-                color: mealType === s.type ? "var(--color-accent)" : "var(--color-ink-3)",
-                fontSize: 11,
-                fontWeight: mealType === s.type ? 600 : 400,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
+        {/* Meal type */}
+        <Segmented
+          options={MEAL_SECTIONS.map((s) => ({ value: s.type, label: s.label }))}
+          value={mealType}
+          onChange={setMealType}
+          style={{ margin: "0 0 14px" }}
+        />
 
         {/* Food database search */}
-        <div style={{ position: "relative" }}>
-          <div style={eyebrow}>Search food database</div>
-          <div style={{ position: "relative" }}>
-            <input
-              value={searchQuery}
-              onChange={(e) => handleFoodSearch(e.target.value)}
-              placeholder="Search 3M+ foods — e.g. Greek yogurt, banana…"
-              autoFocus
-              style={{ ...fieldInput, paddingRight: searching ? 36 : 12 }}
-            />
-            {searching && (
-              <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "var(--color-ink-4)" }}>⏳</span>
-            )}
-          </div>
+        <div style={{ position: "relative", marginBottom: 14 }}>
+          <input
+            value={searchQuery}
+            onChange={(e) => handleFoodSearch(e.target.value)}
+            placeholder="Search 3M+ foods — e.g. Greek yogurt…"
+            autoFocus
+            style={searchField}
+          />
+          {searching && (
+            <span className="ios-footnote" style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--ios-label-3)" }}>…</span>
+          )}
           {showResults && searchResults.length > 0 && (
-            <div style={{
-              position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20,
-              background: "var(--color-bg-raised)", border: "1px solid var(--color-line)",
-              borderRadius: 10, marginTop: 4, maxHeight: 260, overflowY: "auto",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-            }}>
+            <div className="ios-list" style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, marginTop: 4, maxHeight: 280, overflowY: "auto", boxShadow: "0 8px 28px rgba(0,0,0,0.18)" }}>
               {searchResults.map((food) => (
-                <button
+                <Cell
                   key={food.id}
+                  chevron={false}
                   onClick={() => selectFood(food)}
-                  style={{
-                    width: "100%", textAlign: "left", padding: "11px 14px",
-                    border: "none", borderBottom: "1px solid var(--color-line)",
-                    background: "transparent", cursor: "pointer", fontFamily: "inherit",
-                  }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-bg-sunk)"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                >
-                  <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)" }}>
-                    {food.name}
-                    {food.brand && <span style={{ fontWeight: 400, color: "var(--color-ink-3)", marginLeft: 6 }}>· {food.brand}</span>}
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 2 }}>
-                    {food.serving_size_g}g serving
-                    {food.calories_per_serving != null && ` · ${food.calories_per_serving} cal`}
-                    {food.protein_g != null && ` · ${food.protein_g}g protein`}
-                    {food.carbs_g != null && ` · ${food.carbs_g}g carbs`}
-                    {food.fat_g != null && ` · ${food.fat_g}g fat`}
-                  </div>
-                </button>
+                  title={food.brand ? `${food.name} · ${food.brand}` : food.name}
+                  subtitle={[
+                    `${food.serving_size_g}g serving`,
+                    food.calories_per_serving != null ? `${food.calories_per_serving} cal` : null,
+                    food.protein_g != null ? `${food.protein_g}g protein` : null,
+                  ].filter(Boolean).join(" · ")}
+                />
               ))}
-              <button
-                onClick={() => setShowResults(false)}
-                style={{ width: "100%", padding: "9px", border: "none", background: "transparent", color: "var(--color-ink-4)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}
-              >
-                Close
-              </button>
+              <Cell chevron={false} onClick={() => setShowResults(false)} title={<span style={{ color: "var(--ios-label-2)" }}>Close</span>} />
             </div>
           )}
         </div>
 
-        {/* Food name */}
-        <div>
-          <div style={eyebrow}>Name (edit or enter manually)</div>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Chicken + rice bowl"
-            style={fieldInput}
-          />
-        </div>
-
-        {/* Calories */}
-        <div>
-          <div style={eyebrow}>Calories (optional)</div>
-          <input
-            value={calories}
-            onChange={(e) => setCalories(e.target.value)}
-            type="number"
-            min="0"
-            placeholder="e.g. 450"
-            inputMode="numeric"
-            style={fieldInput}
-          />
-        </div>
-
-        {/* Macros */}
-        <div>
-          <div style={eyebrow}>Macros · g (optional)</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-            {[
-              { label: "Protein", val: protein, set: setProtein, color: "#4a6a4d" },
-              { label: "Carbs",   val: carbs,   set: setCarbs,   color: "#7a5c2e" },
-              { label: "Fat",     val: fat,     set: setFat,     color: "#b84a2e" },
-            ].map(({ label, val, set, color }) => (
-              <div key={label}>
-                <div style={{ fontSize: 9, fontWeight: 600, color, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
-                <input
-                  value={val}
-                  onChange={(e) => set(e.target.value)}
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  placeholder="—"
-                  inputMode="decimal"
-                  style={{ ...fieldInput, textAlign: "center", padding: "10px 6px" }}
-                />
-              </div>
-            ))}
+        {/* Details */}
+        <div className="ios-list" style={{ margin: 0 }}>
+          <div className="ios-cell">
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name — e.g. Chicken + rice bowl" style={cellInput} />
           </div>
-        </div>
-
-        {/* Notes */}
-        <div>
-          <div style={eyebrow}>Notes (optional)</div>
-          <input
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Portion size, restaurant, etc."
-            style={fieldInput}
-          />
+          <div className="ios-cell">
+            <span className="ios-cell-body"><span className="ios-cell-title" style={{ fontSize: 15, color: "var(--ios-label-2)" }}>Calories</span></span>
+            <input value={calories} onChange={(e) => setCalories(e.target.value)} type="number" min="0" inputMode="numeric" placeholder="—" style={{ ...cellInput, width: 90, textAlign: "right" }} />
+          </div>
+          <div className="ios-cell">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, width: "100%" }}>
+              {[
+                { label: "Protein", val: protein, set: setProtein, color: "var(--ios-green)" },
+                { label: "Carbs",   val: carbs,   set: setCarbs,   color: "var(--ios-orange)" },
+                { label: "Fat",     val: fat,     set: setFat,     color: "var(--ios-red)" },
+              ].map(({ label, val, set, color }) => (
+                <div key={label}>
+                  <div className="ios-caption" style={{ color, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
+                  <input value={val} onChange={(e) => set(e.target.value)} type="number" min="0" step="0.1" placeholder="—" inputMode="decimal" style={{ ...cellInput, textAlign: "center", background: "var(--ios-fill)", borderRadius: 8, padding: "8px 4px" }} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="ios-cell">
+            <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes — portion size, restaurant… (optional)" style={cellInput} />
+          </div>
         </div>
 
         <button
           disabled={!valid || saving}
           onClick={handleSave}
-          style={{
-            width: "100%",
-            padding: "14px",
-            borderRadius: 12,
-            border: "none",
-            background: valid && !saving ? "var(--color-ink)" : "var(--color-bg-sunk)",
-            color: valid && !saving ? "var(--color-bg)" : "var(--color-ink-3)",
-            fontSize: 15,
-            fontWeight: 600,
-            cursor: valid && !saving ? "pointer" : "not-allowed",
-            fontFamily: "inherit",
-          }}
+          className="ios-btn ios-btn--primary"
+          style={{ marginTop: 16, opacity: valid && !saving ? 1 : 0.5 }}
         >
           {saving ? "Saving…" : "Add meal"}
         </button>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -419,71 +303,38 @@ export default function NutritionClient({ date, meals: initialMeals, favorites: 
 
   const nutritionSystemContext = `You are a nutrition coach. Give practical, evidence-based advice about meals, macros, calorie estimates, and healthy eating. Keep replies concise — 2-4 sentences. Be specific and helpful. Don't be preachy. If the user asks to estimate calories for a food, give a reasonable estimate with a brief explanation.`;
 
+  const pct = calorieGoal ? Math.round((totalCalories / calorieGoal) * 100) : 0;
+  const over = calorieGoal != null && totalCalories > calorieGoal;
+
   return (
-    <div style={{ padding: "20px 20px 0" }}>
+    <div>
 
       {/* Calorie summary */}
       {(totalCalories > 0 || calorieGoal) && (
-        <div
-          style={{
-            background: "var(--color-ink)",
-            borderRadius: 14,
-            padding: "20px 22px",
-            marginBottom: 16,
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div className="ios-list" style={{ margin: "8px 16px 0", padding: "18px" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
             <div>
-              <div style={{ ...eyebrow, color: "rgba(244,241,236,0.5)", marginBottom: 4 }}>Today&apos;s calories</div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <div
-                  style={{
-                    fontFamily: "var(--font-display)",
-                    fontSize: 32,
-                    fontWeight: 400,
-                    letterSpacing: "-0.02em",
-                    color: "var(--color-bg)",
-                    lineHeight: 1,
-                  }}
-                >
-                  {totalCalories.toLocaleString()}
-                </div>
-                {calorieGoal && (
-                  <div style={{ fontSize: 14, color: "rgba(244,241,236,0.45)", lineHeight: 1 }}>
-                    / {calorieGoal.toLocaleString()}
-                  </div>
-                )}
+              <div className="ios-caption" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Today&apos;s calories</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
+                <span className="ios-num" style={{ fontSize: 34, fontWeight: 700, lineHeight: 1 }}>{totalCalories.toLocaleString()}</span>
+                {calorieGoal && <span className="ios-num" style={{ fontSize: 17, color: "var(--ios-label-2)" }}>/ {calorieGoal.toLocaleString()}</span>}
               </div>
-              <div style={{ fontSize: 11, color: "rgba(244,241,236,0.4)", marginTop: 3 }}>
+              <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 3 }}>
                 kcal · {meals.length} item{meals.length !== 1 ? "s" : ""}
               </div>
             </div>
             {calorieGoal && (
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 10, color: "rgba(244,241,236,0.45)", marginBottom: 4 }}>
-                  {Math.round((totalCalories / calorieGoal) * 100)}% of goal
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: totalCalories > calorieGoal ? "var(--color-accent)" : "var(--color-moss)" }}>
-                  {totalCalories > calorieGoal
-                    ? `+${(totalCalories - calorieGoal).toLocaleString()} over`
-                    : `${(calorieGoal - totalCalories).toLocaleString()} left`}
+                <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginBottom: 4 }}>{pct}% of goal</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: over ? "var(--ios-red)" : "var(--ios-green)" }}>
+                  {over ? `+${(totalCalories - calorieGoal).toLocaleString()} over` : `${(calorieGoal - totalCalories).toLocaleString()} left`}
                 </div>
               </div>
             )}
           </div>
-          {/* Progress bar */}
           {calorieGoal && (
-            <div style={{ height: 6, background: "rgba(244,241,236,0.15)", borderRadius: 3, overflow: "hidden" }}>
-              <div
-                style={{
-                  width: `${Math.min((totalCalories / calorieGoal) * 100, 100)}%`,
-                  height: "100%",
-                  background: totalCalories > calorieGoal ? "var(--color-accent)" : "var(--color-moss)",
-                  borderRadius: 3,
-                  transition: "width 0.5s ease",
-                }}
-              />
+            <div style={{ height: 6, background: "var(--ios-fill)", borderRadius: 3, overflow: "hidden", marginTop: 14 }}>
+              <div style={{ width: `${Math.min(pct, 100)}%`, height: "100%", background: over ? "var(--ios-red)" : "var(--ios-green)", borderRadius: 3, transition: "width 0.5s ease" }} />
             </div>
           )}
         </div>
@@ -491,210 +342,77 @@ export default function NutritionClient({ date, meals: initialMeals, favorites: 
 
       {/* Favorites strip */}
       {favorites.length > 0 && (
-        <div
-          style={{
-            background: "var(--color-bg-raised)",
-            border: "1px solid var(--color-line)",
-            borderRadius: 14,
-            padding: "14px 16px",
-            marginBottom: 16,
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={eyebrow}>⭐ Favorites</div>
-            <button
-              onClick={() => setShowFavorites(!showFavorites)}
-              style={{ background: "none", border: "none", fontSize: 11, color: "var(--color-ink-4)", cursor: "pointer", fontFamily: "inherit" }}
-            >
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "22px 16px 7px" }}>
+            <span className="ios-group-header" style={{ padding: 0 }}>Favorites</span>
+            <button onClick={() => setShowFavorites(!showFavorites)} style={{ color: "var(--ios-tint)", fontSize: 15 }}>
               {showFavorites ? "Hide" : "Show all"}
             </button>
           </div>
-          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
-            {(showFavorites ? favorites : favorites.slice(0, 4)).map((fav) => (
-              <button
-                key={fav.id}
-                onClick={() => handleLogFavorite(fav, "snack")}
-                title={`Log as snack: ${fav.name}`}
-                style={{
-                  flexShrink: 0,
-                  padding: "8px 12px",
-                  borderRadius: 10,
-                  border: "1px solid var(--color-line)",
-                  background: "var(--color-bg-sunk)",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  textAlign: "left",
-                }}
-              >
-                <div style={{ fontSize: 12, fontWeight: 500, color: "var(--color-ink)", whiteSpace: "nowrap" }}>
-                  {fav.name}
-                </div>
-                {fav.calories_est && (
-                  <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 1 }}>
-                    {fav.calories_est} kcal
-                  </div>
-                )}
-              </button>
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", scrollbarWidth: "none", padding: "0 16px" }}>
+            {(showFavorites ? favorites : favorites.slice(0, 6)).map((fav) => (
+              <Chip key={fav.id} onClick={() => handleLogFavorite(fav, "snack")}>
+                {fav.name}{fav.calories_est ? ` · ${fav.calories_est}` : ""}
+              </Chip>
             ))}
           </div>
-        </div>
+        </>
       )}
 
       {/* Meal sections */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
-        {MEAL_SECTIONS.map((section) => {
-          const sectionMeals = meals.filter((m) => m.meal_type === section.type);
-          const sectionCalories = sectionMeals.reduce((sum, m) => sum + (m.calories_est ?? 0), 0);
+      {MEAL_SECTIONS.map((section) => {
+        const sectionMeals = meals.filter((m) => m.meal_type === section.type);
+        const sectionCalories = sectionMeals.reduce((sum, m) => sum + (m.calories_est ?? 0), 0);
 
-          return (
-            <div
-              key={section.type}
-              style={{
-                background: "var(--color-bg-raised)",
-                border: "1px solid var(--color-line)",
-                borderRadius: 14,
-                overflow: "hidden",
-                boxShadow: "var(--shadow-card)",
-              }}
-            >
-              {/* Section header */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "12px 16px",
-                  borderBottom: sectionMeals.length > 0 ? "1px solid var(--color-line)" : "none",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 18 }}>{section.icon}</span>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>
-                      {section.label}
-                    </div>
-                    {sectionCalories > 0 && (
-                      <div style={{ fontSize: 10, color: "var(--color-ink-4)" }}>
-                        {sectionCalories} kcal
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={() => setAddingFor(section.type)}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 8,
-                    border: "1px solid var(--color-line)",
-                    background: "var(--color-bg-sunk)",
-                    color: "var(--color-ink-3)",
-                    fontSize: 12,
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  + Add
-                </button>
-              </div>
-
-              {/* Meal items */}
-              {sectionMeals.length > 0 && (
-                <div style={{ padding: "8px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
-                  {sectionMeals.map((meal) => (
-                    <div
-                      key={meal.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 10,
-                        padding: "8px 4px",
-                        opacity: deletingId === meal.id ? 0.4 : 1,
-                        transition: "opacity 150ms",
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)" }}>
-                          {meal.name}
-                        </div>
-                        {meal.notes && (
-                          <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 1 }}>
-                            {meal.notes}
-                          </div>
-                        )}
-                      </div>
-                      {meal.calories_est && (
-                        <div style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--color-ink-3)", flexShrink: 0 }}>
-                          {meal.calories_est} kcal
-                        </div>
-                      )}
-                      {/* Favorite star */}
-                      <button
-                        onClick={() => handleToggleFavorite(meal)}
-                        title={meal.is_favorite ? "Remove from favorites" : "Add to favorites"}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          fontSize: 14,
-                          cursor: "pointer",
-                          color: meal.is_favorite ? "#f5a623" : "var(--color-ink-4)",
-                          padding: 4,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {meal.is_favorite ? "⭐" : "☆"}
-                      </button>
-                      {/* Delete */}
-                      <button
-                        onClick={() => handleDelete(meal.id)}
-                        disabled={deletingId === meal.id}
-                        style={{
-                          width: 26,
-                          height: 26,
-                          borderRadius: 6,
-                          border: "1px solid var(--color-line)",
-                          background: "var(--color-bg-sunk)",
-                          color: "var(--color-ink-4)",
-                          fontSize: 13,
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          flexShrink: 0,
-                          fontFamily: "inherit",
-                        }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+        return (
+          <div key={section.type}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "22px 16px 7px" }}>
+              <span className="ios-group-header" style={{ padding: 0 }}>{section.icon} {section.label}</span>
+              {sectionCalories > 0 && <span className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)" }}>{sectionCalories} kcal</span>}
             </div>
-          );
-        })}
-      </div>
+            <div className="ios-list" style={{ margin: "0 16px" }}>
+              {sectionMeals.map((meal) => (
+                <div key={meal.id} className="ios-cell" style={{ opacity: deletingId === meal.id ? 0.4 : 1, transition: "opacity 150ms" }}>
+                  <span className="ios-cell-body">
+                    <span className="ios-cell-title" style={{ fontSize: 16 }}>{meal.name}</span>
+                    {meal.notes && <span className="ios-cell-sub">{meal.notes}</span>}
+                  </span>
+                  <span className="ios-cell-trail" style={{ gap: 10 }}>
+                    {meal.calories_est != null && <span className="ios-num" style={{ fontSize: 15 }}>{meal.calories_est} kcal</span>}
+                    <button onClick={() => handleToggleFavorite(meal)} aria-label={meal.is_favorite ? "Remove from favorites" : "Add to favorites"} style={{ color: meal.is_favorite ? "var(--ios-yellow)" : "var(--ios-label-3)", display: "flex" }}>
+                      <StarGlyph filled={meal.is_favorite} />
+                    </button>
+                    <button onClick={() => handleDelete(meal.id)} disabled={deletingId === meal.id} aria-label="Delete meal" style={{ color: "var(--ios-red)", display: "flex" }}>
+                      <DeleteGlyph />
+                    </button>
+                  </span>
+                </div>
+              ))}
+              <Cell
+                chevron={false}
+                onClick={() => setAddingFor(section.type)}
+                lead={<Icons.PlusIcon style={{ width: 20, height: 20, color: "var(--ios-tint)" }} />}
+                title={<span style={{ color: "var(--ios-tint)" }}>Add {section.label.toLowerCase()}</span>}
+              />
+            </div>
+          </div>
+        );
+      })}
 
       {/* Nutrition coach */}
-      <div
-        style={{
-          background: "var(--color-bg-raised)",
-          border: "1px solid var(--color-line)",
-          borderRadius: 14,
-          padding: "16px 18px",
-          marginBottom: 8,
-          boxShadow: "var(--shadow-card)",
-        }}
-      >
-        <div style={{ ...eyebrow, marginBottom: 12 }}>Nutrition coach</div>
-        <ChatWidget
-          systemContext={nutritionSystemContext}
-          placeholder="Ask about calories, macros, meal ideas…"
-          welcomeMessage="Hi! Ask me to estimate calories, suggest meals, or discuss your nutrition goals."
-          addProfileContext
-        />
+      <div style={{ marginTop: 22 }}>
+        <span className="ios-group-header">Nutrition coach</span>
+        <div className="ios-list" style={{ margin: "0 16px", padding: "14px 16px" }}>
+          <ChatWidget
+            systemContext={nutritionSystemContext}
+            placeholder="Ask about calories, macros, meal ideas…"
+            welcomeMessage="Hi! Ask me to estimate calories, suggest meals, or discuss your nutrition goals."
+            addProfileContext
+          />
+        </div>
       </div>
+
+      <div style={{ height: 24 }} />
 
       {/* Add meal sheet */}
       {addingFor && (

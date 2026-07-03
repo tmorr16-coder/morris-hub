@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { Cell, IconBadge } from "@/components/ios";
 
 interface Props {
   configured: boolean;
@@ -12,12 +12,28 @@ interface Props {
 }
 
 function relativeTime(isoTs: string): string {
-  const mins = Math.floor((Date.now() - new Date(isoTs).getTime()) / 60_000);
+  const mins = Math.floor((new Date().getTime() - new Date(isoTs).getTime()) / 60_000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
+}
+
+const WatchGlyph = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <rect x="6.5" y="7" width="11" height="10" rx="3" />
+    <path d="M9 7l.6-3h4.8l.6 3M9 17l.6 3h4.8l.6-3" />
+  </svg>
+);
+
+function StatusPill({ on }: { on: boolean }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 15, color: on ? "var(--ios-green)" : "var(--ios-label-2)" }}>
+      <span style={{ width: 8, height: 8, borderRadius: "50%", background: on ? "var(--ios-green)" : "var(--ios-label-3)" }} />
+      {on ? "Active" : "Not connected"}
+    </span>
+  );
 }
 
 export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, workoutsCount, webhookUrl }: Props) {
@@ -30,108 +46,58 @@ export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, 
     });
   }
 
+  void configured; // available for future gating; connection state derives from hasData
   const hasData = metricsCount > 0 || workoutsCount > 0;
 
   return (
-    <div style={{ background: "var(--color-bg-raised)", border: `1.5px solid ${hasData ? "var(--color-moss)" : "var(--color-line)"}`, borderRadius: 14, overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="ios-list" style={{ margin: 0 }}>
+        <Cell
+          chevron={false}
+          lead={<IconBadge color="#1C1C1E"><WatchGlyph /></IconBadge>}
+          title="Apple Watch"
+          subtitle="Steps · workouts · heart rate · HRV"
+          trailing={<StatusPill on={hasData} />}
+        />
 
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: hasData ? "var(--color-moss-soft)" : undefined, borderBottom: "1px solid var(--color-line)" }}>
-        <div style={{ fontSize: 26, lineHeight: 1 }}>⌚</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)" }}>Apple Watch</div>
-          <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 1 }}>Steps · workouts · heart rate · HRV · activity</div>
-        </div>
-        <div style={{
-          fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
-          padding: "5px 12px", borderRadius: 999, whiteSpace: "nowrap",
-          background: hasData ? "var(--color-moss)" : "var(--color-bg-sunk)",
-          color: hasData ? "#fff" : "var(--color-ink-4)",
-          border: `1px solid ${hasData ? "var(--color-moss)" : "var(--color-line)"}`,
-        }}>
-          {hasData ? "✓ Active" : "Not connected"}
-        </div>
-      </div>
-
-      {/* Stats — prominent when data exists */}
-      {hasData && (
-        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--color-line)", background: "var(--color-bg)" }}>
-          {[
-            { label: "Metrics synced",  value: metricsCount.toLocaleString(), mono: true },
-            { label: "Workouts", value: workoutsCount.toLocaleString(), mono: true },
-            { label: "Last sync", value: lastSyncAt ? relativeTime(lastSyncAt) : "Never", mono: false },
-          ].map(({ label, value, mono }, i, arr) => (
-            <div key={label} style={{ flex: 1, padding: "14px 14px", borderRight: i < arr.length - 1 ? "1px solid var(--color-line)" : undefined }}>
-              <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 4 }}>
-                {label}
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "var(--color-moss)", fontFamily: mono ? "var(--font-mono)" : "inherit" }}>
-                {value}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* View in dashboard link when active */}
-      {hasData && (
-        <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--color-line)", background: "var(--color-bg)" }}>
-          <Link
-            href="/health/progress"
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              fontSize: 12, fontWeight: 600, color: "var(--color-moss)",
-              textDecoration: "none",
-            }}
-          >
-            View health trends →
-          </Link>
-        </div>
-      )}
-
-      {/* Setup / webhook */}
-      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.6 }}>
-          {hasData
-            ? "Data syncs automatically via the Health Auto Export app. Your Apple Watch sends metrics as they arrive."
-            : "Install Health Auto Export on your iPhone and point it at your personal URL below."}
-        </div>
-
-        {!hasData && (
-          <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.8, display: "flex", flexDirection: "column", gap: 2 }}>
-            <li>Install <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Health Auto Export</span> from the App Store.</li>
-            <li>Open the app → <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Settings → Automation</span>.</li>
-            <li>Set <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Export Format: JSON</span>, <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Export Type: Apple Health</span>.</li>
-            <li>Add the webhook URL shown below as the endpoint.</li>
-            <li>Tap <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Export Now</span> to sync immediately.</li>
-          </ol>
+        {hasData && (
+          <>
+            <Cell chevron={false} title="Metrics synced" trailing={<span className="ios-num">{metricsCount.toLocaleString()}</span>} />
+            <Cell chevron={false} title="Workouts" trailing={<span className="ios-num">{workoutsCount.toLocaleString()}</span>} />
+            <Cell chevron={false} title="Last sync" trailing={<span className="ios-num">{lastSyncAt ? relativeTime(lastSyncAt) : "Never"}</span>} />
+            <Cell href="/health/progress" title={<span style={{ color: "var(--ios-tint)" }}>View health trends</span>} />
+          </>
         )}
 
-        <div>
-          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 5 }}>
-            Your personal webhook URL
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
-            <div style={{
-              flex: 1, fontFamily: "var(--font-mono)", fontSize: 10,
-              color: "var(--color-ink-2)", background: "var(--color-bg-sunk)",
-              borderRadius: 8, padding: "10px 12px", wordBreak: "break-all", lineHeight: 1.5,
-              border: "1px solid var(--color-line)",
-            }}>
-              {webhookUrl}
-            </div>
-            <button onClick={handleCopy} style={{
-              padding: "0 14px", borderRadius: 8, border: "1px solid var(--color-line)",
-              background: copied ? "var(--color-moss-soft)" : "var(--color-bg-sunk)",
-              color: copied ? "var(--color-moss)" : "var(--color-ink-3)",
-              fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
-              whiteSpace: "nowrap", flexShrink: 0, transition: "all 150ms",
-            }}>
-              {copied ? "✓ Copied" : "Copy"}
+        {/* Webhook URL */}
+        <div className="ios-cell">
+          <span className="ios-cell-body">
+            <span className="ios-cell-sub" style={{ marginTop: 0 }}>Personal webhook URL</span>
+            <span className="ios-num ios-truncate" style={{ fontSize: 13, color: "var(--ios-label)" }}>{webhookUrl}</span>
+          </span>
+          <span className="ios-cell-trail">
+            <button onClick={handleCopy} style={{ color: "var(--ios-tint)", fontSize: 15, fontWeight: copied ? 600 : 400 }}>
+              {copied ? "Copied" : "Copy"}
             </button>
-          </div>
+          </span>
         </div>
       </div>
+
+      <p className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "2px 16px 0" }}>
+        {hasData
+          ? "Data syncs automatically via the Health Auto Export app — your Apple Watch sends metrics as they arrive."
+          : "Install Health Auto Export on your iPhone and point it at your personal URL above."}
+      </p>
+
+      {!hasData && (
+        <ol className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "0 16px 0 34px", margin: 0, lineHeight: 1.7 }}>
+          <li>Install <b style={{ fontWeight: 600 }}>Health Auto Export</b> from the App Store.</li>
+          <li>Open the app → <b style={{ fontWeight: 600 }}>Settings → Automation</b>.</li>
+          <li>Set <b style={{ fontWeight: 600 }}>Export Format: JSON</b>, <b style={{ fontWeight: 600 }}>Export Type: Apple Health</b>.</li>
+          <li>Add the webhook URL above as the endpoint.</li>
+          <li>Tap <b style={{ fontWeight: 600 }}>Export Now</b> to sync immediately.</li>
+        </ol>
+      )}
     </div>
   );
 }

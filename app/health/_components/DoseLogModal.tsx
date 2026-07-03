@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Chip, IconBadge, Icons } from "@/components/ios";
 import { logDose } from "../actions";
 
 const INJECTION_SITES = [
@@ -23,23 +24,16 @@ interface Props {
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "10px 12px",
-  borderRadius: 8,
-  border: "1px solid var(--color-line)",
-  background: "var(--color-bg-sunk)",
-  color: "var(--color-ink)",
-  fontSize: 13,
+  padding: "11px 14px",
+  borderRadius: 10,
+  border: "var(--ios-hair) solid var(--ios-separator)",
+  background: "var(--ios-cell)",
+  color: "var(--ios-label)",
+  fontSize: 16,
   outline: "none",
   fontFamily: "inherit",
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 10,
-  color: "var(--color-ink-3)",
-  marginBottom: 6,
-  textTransform: "uppercase",
-  letterSpacing: "0.1em",
-  fontWeight: 500,
+  boxSizing: "border-box",
+  colorScheme: "light dark",
 };
 
 export default function DoseLogModal({
@@ -81,172 +75,74 @@ export default function DoseLogModal({
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(22,20,15,0.55)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 100,
-        padding: 20,
-        backdropFilter: "blur(6px)",
-      }}
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "var(--color-bg-raised)",
-          border: "1px solid var(--color-line)",
-          borderRadius: 16,
-          padding: 28,
-          width: "100%",
-          maxWidth: 440,
-          maxHeight: "90vh",
-          overflowY: "auto",
-        }}
-      >
-        {/* Title */}
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div style={{ fontSize: 44, marginBottom: 8 }}>💉</div>
-          <div
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: 24,
-              fontWeight: 400,
-              letterSpacing: "-0.01em",
-              color: "var(--color-ink)",
-            }}
-          >
-            Log Zepbound Dose
-          </div>
-          <div style={{ fontSize: 13, color: "var(--color-ink-3)", marginTop: 4 }}>
-            Week {weekNumber} · {defaultDoseMg} mg
+    <>
+      <div className="ios-sheet-backdrop" onClick={onClose} aria-hidden="true" />
+      <div className="ios-sheet" role="dialog" aria-modal="true" aria-label="Log Zepbound dose">
+        <div className="ios-grabber" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <button type="button" className="ios-btn--plain" onClick={onClose} disabled={isPending}>Cancel</button>
+          <span className="ios-headline">New dose</span>
+          <span style={{ width: 52 }} />
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0 18px" }}>
+          <IconBadge color="var(--ios-tint)"><Icons.PillIcon /></IconBadge>
+          <div>
+            <div className="ios-headline">Log Zepbound Dose</div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>Week {weekNumber} · {defaultDoseMg} mg</div>
           </div>
         </div>
 
         {/* Date */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={labelStyle}>Date</div>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            style={inputStyle}
-          />
-        </div>
+        <div className="ios-group-header" style={{ padding: "0 0 8px" }}>Date</div>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
 
         {/* Dose amount */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={labelStyle}>Dose (mg)</div>
-          <input
-            type="number"
-            value={doseMg}
-            onChange={(e) => setDoseMg(e.target.value)}
-            min="0.5"
-            max="15"
-            step="0.5"
-            style={inputStyle}
-          />
-        </div>
+        <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Dose (mg)</div>
+        <input
+          type="number"
+          value={doseMg}
+          onChange={(e) => setDoseMg(e.target.value)}
+          min="0.5"
+          max="15"
+          step="0.5"
+          style={inputStyle}
+        />
 
         {/* Injection site */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={labelStyle}>Injection Site</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            {INJECTION_SITES.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setSite(s)}
-                style={{
-                  padding: "10px",
-                  borderRadius: 8,
-                  border: `1px solid ${site === s ? "var(--color-accent)" : "var(--color-line)"}`,
-                  background: site === s ? "var(--color-accent-soft)" : "var(--color-bg-sunk)",
-                  color: site === s ? "var(--color-accent)" : "var(--color-ink-2)",
-                  fontSize: 12,
-                  fontWeight: site === s ? 600 : 400,
-                  cursor: "pointer",
-                  textAlign: "left",
-                  fontFamily: "inherit",
-                }}
-              >
-                {s}
-                {s === recommendedSite && site !== s ? " ★" : ""}
-              </button>
-            ))}
-          </div>
+        <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Injection site</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {INJECTION_SITES.map((s) => (
+            <Chip key={s} small selected={site === s} onClick={() => setSite(s)}>
+              {s}{s === recommendedSite && site !== s ? " ★" : ""}
+            </Chip>
+          ))}
         </div>
 
         {/* Notes */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={labelStyle}>Notes (optional)</div>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Any observations, reactions, or reminders…"
-            rows={2}
-            style={{
-              ...inputStyle,
-              resize: "vertical",
-              lineHeight: 1.5,
-            }}
-          />
-        </div>
+        <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Notes (optional)</div>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Any observations, reactions, or reminders…"
+          rows={2}
+          style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+        />
 
         {error && (
-          <div
-            style={{ color: "var(--color-accent)", fontSize: 12, marginBottom: 12, textAlign: "center" }}
-          >
-            {error}
-          </div>
+          <p className="ios-footnote" style={{ padding: "12px 0 0", color: "var(--ios-red)" }}>{error}</p>
         )}
 
-        {/* Actions */}
-        <div style={{ display: "flex", gap: 10 }}>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isPending}
-            style={{
-              flex: 1,
-              padding: "12px",
-              borderRadius: 10,
-              border: "1px solid var(--color-line)",
-              background: "transparent",
-              color: "var(--color-ink-3)",
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isPending}
-            style={{
-              flex: 2,
-              padding: "12px",
-              borderRadius: 10,
-              border: "none",
-              background: isPending ? "var(--color-bg-sunk)" : "var(--color-ink)",
-              color: isPending ? "var(--color-ink-4)" : "var(--color-bg)",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: isPending ? "not-allowed" : "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            {isPending ? "Saving…" : "✓ Confirm"}
-          </button>
-        </div>
+        <button
+          type="button"
+          className="ios-btn ios-btn--primary"
+          style={{ marginTop: 22, opacity: isPending ? 0.5 : 1 }}
+          onClick={handleSubmit}
+          disabled={isPending}
+        >
+          {isPending ? "Saving…" : "Confirm dose"}
+        </button>
       </div>
-    </div>
+    </>
   );
 }

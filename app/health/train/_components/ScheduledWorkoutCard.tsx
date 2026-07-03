@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { IconBadge, Icons } from "@/components/ios";
 import { deleteScheduledWorkout } from "../../workout/actions";
 
 export interface ScheduledWorkout {
@@ -21,7 +22,7 @@ function fmtDate(date: string, time: string) {
   const isToday = dt.toLocaleDateString("sv") === today.toLocaleDateString("sv");
   const isTomorrow =
     dt.toLocaleDateString("sv") ===
-    new Date(Date.now() + 86_400_000).toLocaleDateString("sv");
+    new Date(new Date().getTime() + 86_400_000).toLocaleDateString("sv");
   const dayLabel = isToday ? "Today" : isTomorrow ? "Tomorrow" : dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   const timeFmt = dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   return `${dayLabel} · ${timeFmt}`;
@@ -31,7 +32,7 @@ function minutesUntil(date: string, time: string): number {
   const [y, m, d] = date.split("-").map(Number);
   const [h, min] = time.split(":").map(Number);
   const dt = new Date(y, m - 1, d, h, min);
-  return Math.round((dt.getTime() - Date.now()) / 60_000);
+  return Math.round((dt.getTime() - new Date().getTime()) / 60_000);
 }
 
 interface Props {
@@ -96,64 +97,58 @@ export default function ScheduledWorkoutCard({ workouts }: Props) {
   };
 
   return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 8 }}>
-        Scheduled
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <section style={{ marginBottom: 16 }}>
+      <h2 className="ios-group-header" style={{ padding: "0 0 7px" }}>Scheduled</h2>
+      <div className="ios-list" style={{ margin: 0 }}>
         {workouts.map((w) => {
           const mins = minutesUntil(w.scheduledDate, w.scheduledTime);
           const isDue = mins <= w.reminderMin && mins > -60;
           return (
-            <div
-              key={w.id}
-              style={{
-                background: "var(--color-bg-raised)",
-                border: `1px solid ${isDue ? "var(--color-moss)" : "var(--color-line)"}`,
-                borderRadius: 14,
-                overflow: "hidden",
-              }}
-            >
-              <div style={{ padding: "14px 16px" }}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: isDue ? "var(--color-moss-soft)" : "var(--color-bg-sunk)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
-                    {isDue ? "🏃" : "📅"}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {isDue && (
-                      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-moss)", marginBottom: 2 }}>
-                        Starting soon
-                      </div>
-                    )}
-                    <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {w.label}
-                    </div>
-                    <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 2 }}>
-                      {fmtDate(w.scheduledDate, w.scheduledTime)}
-                      {isDue && mins > 0 && <span style={{ color: "var(--color-moss)", fontWeight: 500, marginLeft: 6 }}>· in {mins} min</span>}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleDelete(w.id)}
-                    style={{ background: "none", border: "none", color: "var(--color-ink-4)", fontSize: 16, cursor: "pointer", padding: "0 2px", lineHeight: 1, flexShrink: 0 }}
-                    aria-label="Delete scheduled workout"
-                  >
-                    ×
-                  </button>
-                </div>
+            <div key={w.id}>
+              <div className="ios-cell">
+                <span className="ios-cell-lead">
+                  <IconBadge color={isDue ? "var(--ios-green)" : "var(--ios-tint)"}>
+                    {isDue ? <Icons.DumbbellIcon /> : <Icons.CalendarIcon />}
+                  </IconBadge>
+                </span>
+                <span className="ios-cell-body">
+                  {isDue && (
+                    <span className="ios-caption" style={{ color: "var(--ios-green)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                      Starting soon
+                    </span>
+                  )}
+                  <span className="ios-cell-title ios-truncate">{w.label}</span>
+                  <span className="ios-cell-sub">
+                    {fmtDate(w.scheduledDate, w.scheduledTime)}
+                    {isDue && mins > 0 && <span style={{ color: "var(--ios-green)", fontWeight: 500 }}> · in {mins} min</span>}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(w.id)}
+                  aria-label="Delete scheduled workout"
+                  style={{ flexShrink: 0, color: "var(--ios-label-3)", display: "flex", padding: 4 }}
+                >
+                  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
+                </button>
               </div>
               {isDue && (
                 <button
+                  type="button"
                   onClick={() => handleStart(w)}
-                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "12px 16px", background: "var(--color-moss)", color: "#fff", border: "none", fontFamily: "inherit", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                  className="ios-cell"
+                  style={{ color: "var(--ios-green)", fontWeight: 600, justifyContent: "center", gap: 6 }}
                 >
-                  ▸ Start now
+                  <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M8 5v14l11-7z" /></svg>
+                  Start now
                 </button>
               )}
             </div>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }

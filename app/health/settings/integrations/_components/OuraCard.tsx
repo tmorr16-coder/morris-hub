@@ -2,6 +2,7 @@
 
 import { useTransition, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Cell, IconBadge } from "@/components/ios";
 import { triggerOuraSync, saveOuraToken, disconnectOura } from "../actions";
 
 interface Props {
@@ -10,12 +11,28 @@ interface Props {
 }
 
 function relativeTime(isoTs: string): string {
-  const mins = Math.floor((Date.now() - new Date(isoTs).getTime()) / 60_000);
+  const mins = Math.floor((new Date().getTime() - new Date(isoTs).getTime()) / 60_000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
+}
+
+const RingGlyph = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <circle cx="12" cy="13.5" r="6" />
+    <path d="M9.5 7l.7-3h3.6l.7 3" />
+  </svg>
+);
+
+function StatusPill({ on }: { on: boolean }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 15, color: on ? "var(--ios-green)" : "var(--ios-label-2)" }}>
+      <span style={{ width: 8, height: 8, borderRadius: "50%", background: on ? "var(--ios-green)" : "var(--ios-label-3)" }} />
+      {on ? "Connected" : "Not connected"}
+    </span>
+  );
 }
 
 export default function OuraCard({ tokenConfigured, lastSyncAt }: Props) {
@@ -29,7 +46,7 @@ export default function OuraCard({ tokenConfigured, lastSyncAt }: Props) {
   // Auto-sync if data is stale (>24h since last sync)
   useEffect(() => {
     if (!tokenConfigured || !lastSyncAt) return;
-    const staleMs = Date.now() - new Date(lastSyncAt).getTime();
+    const staleMs = new Date().getTime() - new Date(lastSyncAt).getTime();
     if (staleMs > 24 * 60 * 60 * 1000) {
       handleSync();
     }
@@ -68,126 +85,73 @@ export default function OuraCard({ tokenConfigured, lastSyncAt }: Props) {
   }
 
   return (
-    <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="ios-list" style={{ margin: 0 }}>
+        <Cell
+          chevron={false}
+          lead={<IconBadge color="#5E5CE6"><RingGlyph /></IconBadge>}
+          title="Oura Ring"
+          subtitle="Sleep · readiness · activity · HRV"
+          trailing={<StatusPill on={tokenConfigured} />}
+        />
 
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: "1px solid var(--color-line)" }}>
-        <div style={{ fontSize: 24, lineHeight: 1 }}>💍</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 500, color: "var(--color-ink)" }}>Oura Ring</div>
-          <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 1 }}>Sleep · readiness · activity · HRV</div>
-        </div>
-        <div style={{
-          fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase",
-          padding: "4px 10px", borderRadius: 999, whiteSpace: "nowrap",
-          background: tokenConfigured ? "var(--color-moss-soft)" : "var(--color-bg-sunk)",
-          color: tokenConfigured ? "var(--color-moss)" : "var(--color-ink-4)",
-          border: `1px solid ${tokenConfigured ? "var(--color-moss)" : "var(--color-line)"}`,
-        }}>
-          {tokenConfigured ? "Connected" : "Not connected"}
-        </div>
-      </div>
-
-      {/* Stats — only when connected */}
-      {tokenConfigured && lastSyncAt && (
-        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--color-line)" }}>
-          <div style={{ flex: 1, padding: "12px 14px" }}>
-            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 3 }}>
-              Last sync
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)" }}>
-              {relativeTime(lastSyncAt)}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Body */}
-      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.6 }}>
-          {tokenConfigured
-            ? "Data syncs automatically each day. Tap Sync Now to pull the latest."
-            : "Connect your Oura Ring using a Personal Access Token to sync sleep, readiness, and HRV data."}
-        </div>
-
-        {/* Setup steps */}
-        {!tokenConfigured && (
-          <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.8, display: "flex", flexDirection: "column", gap: 2 }}>
-            <li>Sign in at <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>cloud.ouraring.com</span>.</li>
-            <li>Go to <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Account → Personal Access Tokens</span> → Create new token.</li>
-            <li>Copy the token and paste it below.</li>
-          </ol>
-        )}
-
-        {/* Token input — not connected */}
-        {!tokenConfigured && (
-          <div>
-            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 5 }}>
-              Personal access token
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                type="password"
-                value={tokenInput}
-                onChange={(e) => setTokenInput(e.target.value)}
-                placeholder="Paste token here…"
-                style={{
-                  flex: 1, padding: "10px 12px", borderRadius: 10,
-                  border: "1px solid var(--color-line)", background: "var(--color-bg-sunk)",
-                  color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", outline: "none",
-                }}
-              />
-              <button onClick={handleSave} disabled={isPending || !tokenInput.trim()} style={{
-                padding: "10px 16px", borderRadius: 10, border: "none",
-                background: tokenInput.trim() ? "var(--color-ink)" : "var(--color-bg-sunk)",
-                color: tokenInput.trim() ? "var(--color-bg)" : "var(--color-ink-4)",
-                fontSize: 13, fontWeight: 600, cursor: tokenInput.trim() ? "pointer" : "default", fontFamily: "inherit",
-                whiteSpace: "nowrap",
-              }}>
-                {isPending ? "Saving…" : "Save"}
-              </button>
-            </div>
-            {saveErr && (
-              <div style={{ background: "var(--color-accent-soft)", border: "1px solid var(--color-accent)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--color-accent)", marginTop: 8 }}>
-                {saveErr}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Connected actions */}
-        {tokenConfigured && (
+        {tokenConfigured ? (
           <>
-            {syncMsg && (
-              <div style={{ background: "var(--color-moss-soft)", border: "1px solid var(--color-moss)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--color-moss)" }}>
-                ✓ {syncMsg}
-              </div>
+            {lastSyncAt && (
+              <Cell chevron={false} title="Last synced" trailing={<span className="ios-num">{relativeTime(lastSyncAt)}</span>} />
             )}
-            {syncErr && (
-              <div style={{ background: "var(--color-accent-soft)", border: "1px solid var(--color-accent)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--color-accent)" }}>
-                {syncErr}
-              </div>
-            )}
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={handleSync} disabled={isPending} style={{
-                padding: "10px 18px", borderRadius: 10, border: "none",
-                background: isPending ? "var(--color-bg-sunk)" : "var(--color-ink)",
-                color: isPending ? "var(--color-ink-4)" : "var(--color-bg)",
-                fontSize: 13, fontWeight: 600, cursor: isPending ? "wait" : "pointer", fontFamily: "inherit",
-              }}>
-                {isPending ? "Syncing…" : "Sync Now"}
-              </button>
-              <button onClick={handleDisconnect} disabled={isPending} style={{
-                padding: "10px 14px", borderRadius: 10, border: "1px solid var(--color-line)",
-                background: "transparent", color: "var(--color-ink-3)",
-                fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-              }}>
-                Disconnect
-              </button>
-            </div>
+            <Cell
+              chevron={false}
+              onClick={handleSync}
+              title={<span style={{ color: "var(--ios-tint)" }}>{isPending ? "Syncing…" : "Sync now"}</span>}
+            />
+            <Cell
+              chevron={false}
+              onClick={handleDisconnect}
+              title={<span style={{ color: "var(--ios-red)" }}>Disconnect</span>}
+            />
           </>
+        ) : (
+          <div className="ios-cell">
+            <input
+              type="password"
+              value={tokenInput}
+              onChange={(e) => setTokenInput(e.target.value)}
+              placeholder="Personal access token"
+              style={{ width: "100%", border: "none", background: "transparent", color: "var(--ios-label)", fontSize: 17, outline: "none", padding: 0 }}
+            />
+          </div>
         )}
       </div>
+
+      {tokenConfigured ? (
+        <>
+          {syncMsg && <p className="ios-footnote" style={{ color: "var(--ios-green)", padding: "2px 16px 0" }}>{syncMsg}</p>}
+          {syncErr && <p className="ios-footnote" style={{ color: "var(--ios-red)", padding: "2px 16px 0" }}>{syncErr}</p>}
+          {!syncMsg && !syncErr && (
+            <p className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "2px 16px 0" }}>
+              Data syncs automatically each day. Tap Sync now to pull the latest.
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          <button
+            className="ios-btn ios-btn--primary"
+            onClick={handleSave}
+            disabled={isPending || !tokenInput.trim()}
+            style={{ margin: "0 16px", width: "calc(100% - 32px)", opacity: tokenInput.trim() && !isPending ? 1 : 0.5 }}
+          >
+            {isPending ? "Connecting…" : "Connect Oura Ring"}
+          </button>
+          {saveErr && <p className="ios-footnote" style={{ color: "var(--ios-red)", padding: "2px 16px 0" }}>{saveErr}</p>}
+          <ol className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "2px 16px 0 34px", margin: 0, lineHeight: 1.7 }}>
+            <li>Sign in at <b style={{ fontWeight: 600 }}>cloud.ouraring.com</b>.</li>
+            <li>Go to <b style={{ fontWeight: 600 }}>Account → Personal Access Tokens</b> → Create new token.</li>
+            <li>Copy the token and paste it above.</li>
+          </ol>
+        </>
+      )}
     </div>
   );
 }

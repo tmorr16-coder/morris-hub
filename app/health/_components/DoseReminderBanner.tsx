@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { IconBadge, Icons } from "@/components/ios";
 import DoseLogModal from "./DoseLogModal";
 
 interface Props {
@@ -20,92 +21,31 @@ export default function DoseReminderBanner({
 
   return (
     <>
-      <div
-        style={{
-          gridColumn: "1 / -1",
-          background: "var(--color-bg-raised)",
-          border: "1px solid var(--color-line)",
-          borderRadius: 14,
-          padding: "20px 22px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 16,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: 12,
-                background: "var(--color-accent-soft)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 26,
-                flexShrink: 0,
-              }}
-            >
-              💉
+      <div className="ios-list" style={{ padding: "14px 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <IconBadge color="var(--ios-tint)"><Icons.PillIcon /></IconBadge>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="ios-footnote" style={{ color: "var(--ios-tint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              Next Zepbound Dose
             </div>
-            <div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "var(--color-accent)",
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  fontWeight: 500,
-                  marginBottom: 3,
-                }}
-              >
-                Next Zepbound Dose
-              </div>
-              <div
-                style={{
-                  fontFamily: "var(--font-display)",
-                  fontSize: 22,
-                  fontWeight: 400,
-                  letterSpacing: "-0.01em",
-                  lineHeight: 1.1,
-                  color: "var(--color-ink)",
-                }}
-              >
-                {nextDoseDate}{" "}
-                <span style={{ color: "var(--color-ink-3)", fontSize: 14, fontFamily: "var(--font-sans)", fontWeight: 400 }}>
-                  · 7:30 AM
-                </span>
-              </div>
-              <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 3 }}>
-                {defaultDoseMg} mg · Suggested site:{" "}
-                <span style={{ color: "var(--color-accent)", fontWeight: 500 }}>{recommendedSite}</span>
-              </div>
+            <div className="ios-headline" style={{ marginTop: 1 }}>
+              {nextDoseDate}{" "}
+              <span className="ios-num" style={{ color: "var(--ios-label-2)", fontWeight: 400 }}>· 7:30 AM</span>
+            </div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>
+              {defaultDoseMg} mg · Suggested site:{" "}
+              <span style={{ color: "var(--ios-tint)", fontWeight: 500 }}>{recommendedSite}</span>
             </div>
           </div>
-
-          <button
-            onClick={() => setShowModal(true)}
-            style={{
-              padding: "10px 18px",
-              borderRadius: 10,
-              border: "none",
-              cursor: "pointer",
-              background: "var(--color-ink)",
-              color: "var(--color-bg)",
-              fontSize: 13,
-              fontWeight: 600,
-              whiteSpace: "nowrap",
-            }}
-          >
-            ✓ Log Dose Now
-          </button>
         </div>
+        <button
+          type="button"
+          className="ios-btn ios-btn--primary"
+          style={{ marginTop: 14 }}
+          onClick={() => setShowModal(true)}
+        >
+          Log dose now
+        </button>
       </div>
 
       <DoseLogModal

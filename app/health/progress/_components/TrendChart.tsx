@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
+import { Segmented } from "@/components/ios";
 
 export interface DataPoint {
   date: Date;
@@ -129,7 +130,7 @@ export default function TrendChart({
   if (!filtered.length) {
     return (
       <div style={{ height, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ fontSize: 12, color: "var(--color-ink-4)" }}>No data yet</span>
+        <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>No data yet</span>
       </div>
     );
   }
@@ -147,13 +148,10 @@ export default function TrendChart({
           return (
             <button
               key={s.key}
+              type="button"
               onClick={() => setHidden((h) => ({ ...h, [s.key]: !h[s.key] }))}
               style={{
-                background: "transparent",
-                border: "none",
                 padding: 0,
-                cursor: "pointer",
-                fontFamily: "inherit",
                 textAlign: "left",
                 flex: 1,
                 minWidth: 0,
@@ -162,54 +160,18 @@ export default function TrendChart({
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 2,
-                    background: s.color,
-                    display: "inline-block",
-                    flexShrink: 0,
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: 9,
-                    fontWeight: 500,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    color: "var(--color-ink-3)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: s.color, display: "inline-block", flexShrink: 0 }} />
+                <span className="ios-caption" style={{ fontWeight: 500, letterSpacing: "0.02em", textTransform: "uppercase", color: "var(--ios-label-2)", whiteSpace: "nowrap" }}>
                   {s.label}
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-                <span
-                  style={{
-                    fontFamily: "var(--font-display)",
-                    fontSize: 22,
-                    fontWeight: 400,
-                    letterSpacing: "-0.02em",
-                    lineHeight: 1,
-                  }}
-                >
-                  {(activePoint
-                    ? (activePoint[s.key] as number)
-                    : s.last
-                  )?.toFixed(1)}
+                <span className="ios-num" style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.01em", lineHeight: 1 }}>
+                  {(activePoint ? (activePoint[s.key] as number) : s.last)?.toFixed(1)}
                 </span>
-                <span style={{ fontSize: 10, color: "var(--color-ink-3)" }}>{s.unit}</span>
+                <span className="ios-caption" style={{ color: "var(--ios-label-2)" }}>{s.unit}</span>
               </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  fontFamily: "var(--font-mono)",
-                  marginTop: 2,
-                  color: isGood ? "var(--color-moss)" : "var(--color-ink-3)",
-                }}
-              >
+              <div className="ios-num" style={{ fontSize: 11, marginTop: 2, color: isGood ? "var(--ios-green)" : "var(--ios-label-2)" }}>
                 {deltaNum >= 0 ? "+" : ""}{s.delta}
               </div>
             </button>
@@ -232,7 +194,7 @@ export default function TrendChart({
           <line
             key={i}
             x1={PAD.l} y1={y} x2={w - PAD.r} y2={y}
-            stroke="#e0dbd0"
+            style={{ stroke: "var(--ios-separator)" }}
             strokeWidth="0.6"
             strokeDasharray={i === gridCount - 1 ? "0" : "2,3"}
           />
@@ -245,9 +207,8 @@ export default function TrendChart({
             x={xFor(idx)}
             y={height - 8}
             fontSize="9"
-            fill="#9c968b"
+            style={{ fill: "var(--ios-label-3)" }}
             textAnchor="middle"
-            fontFamily="Geist, system-ui"
           >
             {fmtDate(filtered[idx].date as Date)}
           </text>
@@ -259,8 +220,8 @@ export default function TrendChart({
           const gy = yFor(gl.value, gl.metricKey);
           return (
             <g key={`goal-${gl.metricKey}`}>
-              <line x1={PAD.l} y1={gy} x2={w - PAD.r} y2={gy} stroke="#b84a2e" strokeWidth="1" strokeDasharray="4,3" opacity={0.6} />
-              <text x={w - PAD.r - 2} y={gy - 3} fontSize="8" fill="#b84a2e" textAnchor="end" fontFamily="Geist, system-ui" fontWeight="600" opacity={0.8}>
+              <line x1={PAD.l} y1={gy} x2={w - PAD.r} y2={gy} style={{ stroke: "var(--ios-red)" }} strokeWidth="1" strokeDasharray="4,3" opacity={0.6} />
+              <text x={w - PAD.r - 2} y={gy - 3} fontSize="8" style={{ fill: "var(--ios-red)" }} textAnchor="end" fontWeight="600" opacity={0.8}>
                 {gl.label}
               </text>
             </g>
@@ -285,7 +246,7 @@ export default function TrendChart({
           <g>
             <line
               x1={ax} y1={PAD.t} x2={ax} y2={height - PAD.b}
-              stroke="#9c968b"
+              style={{ stroke: "var(--ios-label-3)" }}
               strokeWidth="0.8"
               strokeDasharray="2,3"
             />
@@ -295,7 +256,7 @@ export default function TrendChart({
                 cx={ax}
                 cy={yFor(activePoint[m.key] as number, m.key)}
                 r="3.5"
-                fill="#ffffff"
+                style={{ fill: "var(--ios-cell)" }}
                 stroke={m.color}
                 strokeWidth="1.5"
               />
@@ -304,9 +265,8 @@ export default function TrendChart({
               x={ax}
               y={PAD.t - 5}
               fontSize="10"
-              fill="#3a3630"
+              style={{ fill: "var(--ios-label)" }}
               textAnchor={ax > w / 2 ? "end" : "start"}
-              fontFamily="Geist, system-ui"
               fontWeight="500"
             >
               {fmtDate(activePoint.date as Date)}
@@ -316,39 +276,13 @@ export default function TrendChart({
       </svg>
 
       {/* Range picker */}
-      <div
-        style={{
-          display: "flex",
-          background: "var(--color-bg-sunk)",
-          borderRadius: 8,
-          padding: 3,
-          gap: 2,
-          marginTop: 10,
-        }}
-      >
-        {RANGES.map((r) => (
-          <button
-            key={r.key}
-            onClick={() => setRange(r.key)}
-            style={{
-              flex: 1,
-              padding: "5px 0",
-              borderRadius: 6,
-              border: "none",
-              background: range === r.key ? "var(--color-bg-raised)" : "transparent",
-              color: range === r.key ? "var(--color-ink)" : "var(--color-ink-3)",
-              fontSize: 11,
-              fontWeight: range === r.key ? 600 : 400,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              boxShadow: range === r.key ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
-              transition: "background 120ms, color 120ms",
-            }}
-          >
-            {r.key}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        ariaLabel="Time range"
+        value={range}
+        onChange={setRange}
+        options={RANGES.map((r) => ({ value: r.key, label: r.key }))}
+        style={{ margin: "10px 0 0" }}
+      />
     </div>
   );
 }

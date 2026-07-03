@@ -4,6 +4,14 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { syncAll } from "../actions";
 
+function RefreshIcon() {
+  return (
+    <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M20 11a8 8 0 1 0-.9 4.7M20 4v5h-5" />
+    </svg>
+  );
+}
+
 export default function SyncButton() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -23,24 +31,17 @@ export default function SyncButton() {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       {result && (
-        <span style={{ fontSize: 11, color: "var(--color-moss)" }}>{result}</span>
+        <span className="ios-footnote" style={{ color: "var(--ios-green)" }}>{result}</span>
       )}
       <button
+        type="button"
         onClick={handleSync}
         disabled={isPending}
-        style={{
-          fontSize: 11,
-          color: isPending ? "var(--color-ink-4)" : "var(--color-ink-3)",
-          textDecoration: "none",
-          padding: "4px 10px",
-          border: "1px solid var(--color-line)",
-          borderRadius: 8,
-          background: "transparent",
-          cursor: isPending ? "wait" : "pointer",
-          fontFamily: "inherit",
-        }}
+        className="ios-chip ios-chip--sm"
+        style={{ color: "var(--ios-tint)", opacity: isPending ? 0.5 : 1, cursor: isPending ? "wait" : "pointer" }}
       >
-        {isPending ? "Syncing…" : "↻ Sync"}
+        <RefreshIcon />
+        {isPending ? "Syncing…" : "Sync"}
       </button>
     </div>
   );

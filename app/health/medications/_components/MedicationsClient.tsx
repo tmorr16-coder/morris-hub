@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import { Chip, IconBadge, Icons } from "@/components/ios";
 import { addMedication, updateMedication, removeMedication } from "../actions";
 
 export interface Med {
@@ -48,6 +49,13 @@ interface ZepboundData {
   logs: ZepboundLog[];
 }
 
+// Uppercase grouped-list-style section header, no horizontal inset (parent pads).
+const sectionHeader: React.CSSProperties = {
+  fontSize: 13, fontWeight: 400, lineHeight: "18px",
+  color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.02em",
+};
+
+// ── Zepbound tracker ────────────────────────────────────────────
 function ZepboundCard() {
   const [data, setData] = useState<ZepboundData | null>(null);
   const [editingDose, setEditingDose] = useState(false);
@@ -138,81 +146,41 @@ function ZepboundCard() {
     byMonth.get(key)!.push(log);
   }
 
+  const subFieldLabel: React.CSSProperties = {
+    fontSize: 12, fontWeight: 400, color: "var(--ios-label-2)",
+    textTransform: "uppercase", letterSpacing: "0.02em", marginBottom: 8,
+  };
+
   return (
-    <div
-      style={{
-        background: "var(--color-bg-raised)",
-        border: "1px solid var(--color-line)",
-        borderRadius: 14,
-        overflow: "hidden",
-        marginBottom: 12,
-        boxShadow: "var(--shadow-card)",
-      }}
-    >
-      {/* Header */}
-      <div style={{ padding: "14px 16px 12px", borderBottom: "1px solid var(--color-line)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <div
-              style={{
-                fontSize: 10, fontWeight: 500, letterSpacing: "0.14em",
-                textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 4,
-              }}
-            >
-              GLP-1 · Zepbound
-            </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-              <div
-                style={{
-                  fontFamily: "var(--font-display)",
-                  fontSize: 28,
-                  fontWeight: 400,
-                  letterSpacing: "-0.02em",
-                  color: "var(--color-ink)",
-                  lineHeight: 1,
-                }}
-              >
-                {data.dose} mg
-              </div>
-              <div style={{ fontSize: 12, color: "var(--color-ink-4)" }}>
-                {data.injectionDay}s
-              </div>
-            </div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginBottom: 2 }}>Next dose</div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: loggedToday ? "var(--color-moss)" : "var(--color-ink)" }}>
-              {loggedToday ? "✓ Logged" : nextInjectionDays()}
-            </div>
-          </div>
-        </div>
+    <div className="ios-list" style={{ margin: "0 0 12px" }}>
+      {/* Header cell */}
+      <div className="ios-cell">
+        <span className="ios-cell-lead">
+          <IconBadge color="var(--ios-tint)"><Icons.PillIcon /></IconBadge>
+        </span>
+        <span className="ios-cell-body">
+          <span className="ios-cell-title">
+            Zepbound <span className="ios-num" style={{ fontWeight: 600 }}>{data.dose} mg</span>
+          </span>
+          <span className="ios-cell-sub">{data.injectionDay}s</span>
+        </span>
+        <span className="ios-cell-trail" style={{ flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+          <span className="ios-caption" style={{ color: "var(--ios-label-2)" }}>Next dose</span>
+          <span className="ios-footnote" style={{ fontWeight: 600, color: loggedToday ? "var(--ios-green)" : "var(--ios-label)" }}>
+            {loggedToday ? "✓ Logged" : nextInjectionDays()}
+          </span>
+        </span>
       </div>
 
-      {/* Dose escalation */}
+      {/* Dose escalation picker */}
       {editingDose && (
-        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--color-line)" }}>
-          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 8 }}>
-            Current dose
-          </div>
+        <div className="ios-cell" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+          <span style={subFieldLabel}>Current dose</span>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {ZEPBOUND_DOSES.map((d) => (
-              <button
-                key={d}
-                onClick={() => { save({ ...data, dose: d }); setEditingDose(false); }}
-                style={{
-                  padding: "7px 12px",
-                  borderRadius: 8,
-                  border: `1px solid ${data.dose === d ? "var(--color-accent)" : "var(--color-line)"}`,
-                  background: data.dose === d ? "var(--color-accent-soft)" : "var(--color-bg-sunk)",
-                  color: data.dose === d ? "var(--color-accent)" : "var(--color-ink-2)",
-                  fontSize: 13,
-                  fontWeight: data.dose === d ? 600 : 400,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
+              <Chip key={d} small selected={data.dose === d} onClick={() => { save({ ...data, dose: d }); setEditingDose(false); }}>
                 {d} mg
-              </button>
+              </Chip>
             ))}
           </div>
         </div>
@@ -220,197 +188,126 @@ function ZepboundCard() {
 
       {/* Injection day picker */}
       {editingDay && (
-        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--color-line)" }}>
-          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 8 }}>
-            Injection day
-          </div>
+        <div className="ios-cell" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+          <span style={subFieldLabel}>Injection day</span>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {DAYS.map((d) => (
-              <button
-                key={d}
-                onClick={() => { save({ ...data, injectionDay: d }); setEditingDay(false); }}
-                style={{
-                  padding: "7px 12px",
-                  borderRadius: 8,
-                  border: `1px solid ${data.injectionDay === d ? "var(--color-slate)" : "var(--color-line)"}`,
-                  background: data.injectionDay === d ? "var(--color-slate-soft)" : "var(--color-bg-sunk)",
-                  color: data.injectionDay === d ? "var(--color-slate)" : "var(--color-ink-2)",
-                  fontSize: 13,
-                  fontWeight: data.injectionDay === d ? 600 : 400,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
+              <Chip key={d} small selected={data.injectionDay === d} onClick={() => { save({ ...data, injectionDay: d }); setEditingDay(false); }}>
                 {d.slice(0, 3)}
-              </button>
+              </Chip>
             ))}
           </div>
         </div>
       )}
 
       {/* Next injection site + log action */}
-      <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginBottom: 3 }}>Next injection site</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)" }}>{nextSite}</div>
-            <button
-              onClick={() => setEditingSite((v) => !v)}
-              style={{ fontSize: 10, padding: "2px 7px", borderRadius: 5, border: "1px solid var(--color-line)", background: editingSite ? "var(--color-ink)" : "var(--color-bg-sunk)", color: editingSite ? "var(--color-bg)" : "var(--color-ink-3)", cursor: "pointer", fontFamily: "inherit" }}
-            >
-              Override
-            </button>
-          </div>
-        </div>
+      <div className="ios-cell">
+        <span className="ios-cell-body">
+          <span className="ios-cell-sub" style={{ marginTop: 0 }}>Next injection site</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+            <span className="ios-headline">{nextSite}</span>
+            <Chip small selected={editingSite} onClick={() => setEditingSite((v) => !v)}>Override</Chip>
+          </span>
+        </span>
         <button
+          type="button"
           onClick={logDose}
           disabled={loggedToday}
+          className="ios-btn"
           style={{
-            padding: "10px 16px",
-            borderRadius: 10,
-            border: "none",
-            background: loggedToday ? "var(--color-bg-sunk)" : "var(--color-moss)",
-            color: loggedToday ? "var(--color-ink-4)" : "#fff",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: loggedToday ? "not-allowed" : "pointer",
-            fontFamily: "inherit",
-            whiteSpace: "nowrap",
+            minHeight: 0, padding: "9px 16px", borderRadius: 10, fontSize: 15,
+            background: loggedToday ? "var(--ios-fill)" : "var(--ios-green)",
+            color: loggedToday ? "var(--ios-label-3)" : "#fff",
+            cursor: loggedToday ? "not-allowed" : "pointer", whiteSpace: "nowrap",
           }}
         >
           {loggedToday ? "✓ Done" : "Log Dose"}
         </button>
       </div>
-      {editingSite && data && (
-        <div style={{ padding: "0 16px 12px" }}>
-          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>
-            Select next site
-          </div>
+      {editingSite && (
+        <div className="ios-cell" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+          <span style={subFieldLabel}>Select next site</span>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {INJECTION_SITES.map((s, idx) => (
-              <button
-                key={s}
-                onClick={() => { save({ ...data, siteIndex: idx }); setEditingSite(false); }}
-                style={{
-                  padding: "7px 12px", borderRadius: 8,
-                  border: `1px solid ${data.siteIndex === idx ? "var(--color-slate)" : "var(--color-line)"}`,
-                  background: data.siteIndex === idx ? "var(--color-slate-soft)" : "var(--color-bg-sunk)",
-                  color: data.siteIndex === idx ? "var(--color-slate)" : "var(--color-ink-2)",
-                  fontSize: 13, fontWeight: data.siteIndex === idx ? 600 : 400, cursor: "pointer", fontFamily: "inherit",
-                }}
-              >
+              <Chip key={s} small selected={data.siteIndex === idx} onClick={() => { save({ ...data, siteIndex: idx }); setEditingSite(false); }}>
                 {s}
-              </button>
+              </Chip>
             ))}
           </div>
         </div>
       )}
 
       {/* Backdate form */}
-      {showBackdate && data && (
-        <div style={{ margin: "0 16px 12px", background: "var(--color-bg-sunk)", border: "1px solid var(--color-line)", borderRadius: 10, padding: "12px" }}>
-          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 10 }}>
-            Log a past dose
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 5 }}>Date</div>
+      {showBackdate && (
+        <div className="ios-cell" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+          <span style={subFieldLabel}>Log a past dose</span>
+          <div>
+            <div style={{ ...subFieldLabel, marginBottom: 5 }}>Date</div>
             <input
               type="date"
               value={backdateDate}
               max={new Date().toLocaleDateString("sv")}
               onChange={(e) => setBackdateDate(e.target.value)}
-              style={{ width: "100%", padding: "9px 10px", borderRadius: 8, border: "1px solid var(--color-line)", background: "var(--color-bg-raised)", color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+              style={{ width: "100%", padding: "9px 12px", borderRadius: 10, border: "var(--ios-hair) solid var(--ios-separator)", background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 16, fontFamily: "inherit", outline: "none", boxSizing: "border-box", colorScheme: "light dark" }}
             />
             {backdateDate && data.logs.some((l) => l.date === backdateDate) && (
-              <div style={{ fontSize: 11, color: "var(--color-accent)", marginTop: 4 }}>Already logged on this date</div>
+              <div className="ios-footnote" style={{ color: "var(--ios-red)", marginTop: 4 }}>Already logged on this date</div>
             )}
           </div>
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 5 }}>Dose</div>
+          <div>
+            <div style={{ ...subFieldLabel, marginBottom: 5 }}>Dose</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
               {ZEPBOUND_DOSES.map((d) => (
-                <button key={d} onClick={() => setBackdateDose(d)}
-                  style={{ padding: "5px 10px", borderRadius: 7, border: `1px solid ${backdateDose === d ? "var(--color-accent)" : "var(--color-line)"}`, background: backdateDose === d ? "var(--color-accent-soft)" : "var(--color-bg-raised)", color: backdateDose === d ? "var(--color-accent)" : "var(--color-ink-2)", fontSize: 12, fontWeight: backdateDose === d ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
-                  {d} mg
-                </button>
+                <Chip key={d} small selected={backdateDose === d} onClick={() => setBackdateDose(d)}>{d} mg</Chip>
               ))}
             </div>
           </div>
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 5 }}>Injection site</div>
+          <div>
+            <div style={{ ...subFieldLabel, marginBottom: 5 }}>Injection site</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
               {INJECTION_SITES.map((s) => (
-                <button key={s} onClick={() => setBackdateSite(s)}
-                  style={{ padding: "5px 10px", borderRadius: 7, border: `1px solid ${backdateSite === s ? "var(--color-slate)" : "var(--color-line)"}`, background: backdateSite === s ? "var(--color-slate-soft)" : "var(--color-bg-raised)", color: backdateSite === s ? "var(--color-slate)" : "var(--color-ink-2)", fontSize: 12, fontWeight: backdateSite === s ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
-                  {s}
-                </button>
+                <Chip key={s} small selected={backdateSite === s} onClick={() => setBackdateSite(s)}>{s}</Chip>
               ))}
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button
+              type="button"
               onClick={saveBackdate}
               disabled={!backdateDate || !backdateDose || !backdateSite || data.logs.some((l) => l.date === backdateDate)}
-              style={{ flex: 1, padding: "9px", borderRadius: 8, border: "none", background: (backdateDate && backdateDose && backdateSite && !data.logs.some((l) => l.date === backdateDate)) ? "var(--color-moss)" : "var(--color-bg-raised)", color: (backdateDate && backdateDose && backdateSite && !data.logs.some((l) => l.date === backdateDate)) ? "#fff" : "var(--color-ink-4)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              className="ios-btn"
+              style={{
+                flex: 1, minHeight: 0, padding: "10px", borderRadius: 10, fontSize: 15,
+                background: (backdateDate && backdateDose && backdateSite && !data.logs.some((l) => l.date === backdateDate)) ? "var(--ios-green)" : "var(--ios-fill)",
+                color: (backdateDate && backdateDose && backdateSite && !data.logs.some((l) => l.date === backdateDate)) ? "#fff" : "var(--ios-label-3)",
+              }}
+            >
               Save
             </button>
-            <button onClick={() => setShowBackdate(false)} style={{ padding: "9px 14px", borderRadius: 8, border: "1px solid var(--color-line)", background: "transparent", color: "var(--color-ink-3)", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-              Cancel
-            </button>
+            <button type="button" onClick={() => setShowBackdate(false)} className="ios-btn--plain" style={{ padding: "10px 14px" }}>Cancel</button>
           </div>
         </div>
       )}
 
-      {/* Config buttons */}
-      <div style={{ padding: "0 16px 12px", display: "flex", gap: 8 }}>
-        <button
-          onClick={() => { setEditingDose((v) => !v); setEditingDay(false); }}
-          style={{
-            padding: "6px 12px", borderRadius: 8,
-            border: "1px solid var(--color-line)",
-            background: editingDose ? "var(--color-ink)" : "var(--color-bg-sunk)",
-            color: editingDose ? "var(--color-bg)" : "var(--color-ink-3)",
-            fontSize: 11, cursor: "pointer", fontFamily: "inherit",
-          }}
-        >
-          Change dose
-        </button>
-        <button
-          onClick={() => { setEditingDay((v) => !v); setEditingDose(false); }}
-          style={{
-            padding: "6px 12px", borderRadius: 8,
-            border: "1px solid var(--color-line)",
-            background: editingDay ? "var(--color-ink)" : "var(--color-bg-sunk)",
-            color: editingDay ? "var(--color-bg)" : "var(--color-ink-3)",
-            fontSize: 11, cursor: "pointer", fontFamily: "inherit",
-          }}
-        >
-          Change day
-        </button>
-        <button
-          onClick={openBackdate}
-          style={{
-            padding: "6px 12px", borderRadius: 8,
-            border: "1px solid var(--color-line)",
-            background: showBackdate ? "var(--color-ink)" : "var(--color-bg-sunk)",
-            color: showBackdate ? "var(--color-bg)" : "var(--color-ink-3)",
-            fontSize: 11, cursor: "pointer", fontFamily: "inherit",
-          }}
-        >
-          Log past dose
-        </button>
+      {/* Config chips */}
+      <div className="ios-cell" style={{ gap: 8, flexWrap: "wrap" }}>
+        <Chip small selected={editingDose} onClick={() => { setEditingDose((v) => !v); setEditingDay(false); }}>Change dose</Chip>
+        <Chip small selected={editingDay} onClick={() => { setEditingDay((v) => !v); setEditingDose(false); }}>Change day</Chip>
+        <Chip small selected={showBackdate} onClick={openBackdate}>Log past dose</Chip>
       </div>
 
       {/* Dose history */}
       {allLogs.length > 0 && (
-        <div style={{ borderTop: "1px solid var(--color-line)", padding: "12px 16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)" }}>
+        <div className="ios-cell" style={{ flexDirection: "column", alignItems: "stretch", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={sectionHeader}>
               Dose history · {allLogs.length} injection{allLogs.length !== 1 ? "s" : ""}
-            </div>
+            </span>
             <button
+              type="button"
               onClick={() => { setEditHistory((v) => !v); setEditingLogDate(null); }}
-              style={{ background: "none", border: "none", color: editHistory ? "var(--color-accent)" : "var(--color-ink-3)", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em", textTransform: "uppercase", padding: 0 }}
+              className="ios-btn--plain"
+              style={{ color: editHistory ? "var(--ios-red)" : "var(--ios-tint)", padding: 0 }}
             >
               {editHistory ? "Done" : "Edit"}
             </button>
@@ -418,7 +315,7 @@ function ZepboundCard() {
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {Array.from(byMonth.entries()).map(([month, logs]) => (
               <div key={month}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: "var(--color-ink-4)", marginBottom: 6, letterSpacing: "0.06em" }}>
+                <div className="ios-footnote" style={{ fontWeight: 600, color: "var(--ios-label-2)", marginBottom: 6 }}>
                   {month}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -431,51 +328,42 @@ function ZepboundCard() {
                       <div key={log.date}>
                         <div
                           style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            padding: "7px 10px",
-                            borderRadius: isEditing ? "8px 8px 0 0" : 8,
-                            background: isFirst ? "var(--color-moss-soft)" : "var(--color-bg-sunk)",
+                            display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
+                            borderRadius: isEditing ? "10px 10px 0 0" : 10,
+                            background: isFirst ? "rgba(52,199,89,0.12)" : "var(--ios-fill)",
                             cursor: editHistory ? "pointer" : "default",
                           }}
                           onClick={() => editHistory && setEditingLogDate(isEditing ? null : log.date)}
                         >
                           {editHistory && (
                             <button
+                              type="button"
                               onClick={(e) => { e.stopPropagation(); deleteLog(log.date); }}
-                              style={{ width: 22, height: 22, borderRadius: 11, background: "var(--color-accent)", border: "none", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 16, lineHeight: 1, fontWeight: 300, fontFamily: "inherit" }}
+                              aria-label="Delete dose"
+                              style={{ width: 22, height: 22, borderRadius: 11, background: "var(--ios-red)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}
                             >
-                              −
+                              <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" aria-hidden><path d="M5 12h14" /></svg>
                             </button>
                           )}
                           <div style={{ flex: 1 }}>
-                            <span style={{ fontSize: 12, color: "var(--color-ink-2)", fontWeight: 500 }}>{dayLabel}</span>
-                            <span style={{ marginLeft: 8, fontSize: 11, color: "var(--color-ink-4)" }}>{log.site}</span>
+                            <span className="ios-subhead" style={{ fontWeight: 500 }}>{dayLabel}</span>
+                            <span className="ios-footnote" style={{ marginLeft: 8, color: "var(--ios-label-2)" }}>{log.site}</span>
                           </div>
-                          <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600, color: "var(--color-ink)" }}>
-                            {log.dose} mg
-                          </div>
-                          {editHistory && <span style={{ fontSize: 13, color: "var(--color-ink-4)" }}>{isEditing ? "▲" : "›"}</span>}
+                          <div className="ios-num ios-subhead" style={{ fontWeight: 600 }}>{log.dose} mg</div>
+                          {editHistory && <span style={{ color: "var(--ios-label-3)" }}>{isEditing ? "▲" : "›"}</span>}
                         </div>
                         {isEditing && (
-                          <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderTop: "none", borderRadius: "0 0 8px 8px", padding: "10px 10px 12px" }}>
-                            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>Dose</div>
+                          <div style={{ background: "var(--ios-cell)", border: "var(--ios-hair) solid var(--ios-separator)", borderTop: "none", borderRadius: "0 0 10px 10px", padding: "10px 12px 12px" }}>
+                            <div style={{ ...subFieldLabel, marginBottom: 6 }}>Dose</div>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
                               {ZEPBOUND_DOSES.map((d) => (
-                                <button key={d} onClick={() => updateLog(log.date, { dose: d })}
-                                  style={{ padding: "5px 10px", borderRadius: 7, border: `1px solid ${log.dose === d ? "var(--color-accent)" : "var(--color-line)"}`, background: log.dose === d ? "var(--color-accent-soft)" : "var(--color-bg-sunk)", color: log.dose === d ? "var(--color-accent)" : "var(--color-ink-2)", fontSize: 12, fontWeight: log.dose === d ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
-                                  {d} mg
-                                </button>
+                                <Chip key={d} small selected={log.dose === d} onClick={() => updateLog(log.date, { dose: d })}>{d} mg</Chip>
                               ))}
                             </div>
-                            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>Site</div>
+                            <div style={{ ...subFieldLabel, marginBottom: 6 }}>Site</div>
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
                               {INJECTION_SITES.map((s) => (
-                                <button key={s} onClick={() => updateLog(log.date, { site: s })}
-                                  style={{ padding: "5px 10px", borderRadius: 7, border: `1px solid ${log.site === s ? "var(--color-slate)" : "var(--color-line)"}`, background: log.site === s ? "var(--color-slate-soft)" : "var(--color-bg-sunk)", color: log.site === s ? "var(--color-slate)" : "var(--color-ink-2)", fontSize: 12, fontWeight: log.site === s ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
-                                  {s}
-                                </button>
+                                <Chip key={s} small selected={log.site === s} onClick={() => updateLog(log.date, { site: s })}>{s}</Chip>
                               ))}
                             </div>
                           </div>
@@ -494,77 +382,43 @@ function ZepboundCard() {
 }
 
 const fieldLabel: React.CSSProperties = {
-  fontSize: 9,
-  fontWeight: 500,
-  letterSpacing: "0.14em",
-  textTransform: "uppercase",
-  color: "var(--color-ink-3)",
-  marginBottom: 5,
+  fontSize: 13, fontWeight: 400, color: "var(--ios-label-2)",
+  textTransform: "uppercase", letterSpacing: "0.02em", marginBottom: 6,
 };
 
 const fieldInput: React.CSSProperties = {
   width: "100%",
-  padding: "11px 12px",
+  padding: "11px 14px",
   borderRadius: 10,
-  border: "1px solid var(--color-line)",
-  background: "var(--color-bg-sunk)",
-  color: "var(--color-ink)",
-  fontSize: 14,
+  border: "var(--ios-hair) solid var(--ios-separator)",
+  background: "var(--ios-cell)",
+  color: "var(--ios-label)",
+  fontSize: 16,
   fontFamily: "inherit",
   outline: "none",
   boxSizing: "border-box",
 };
 
 // ── Shared sheet shell ─────────────────────────────────────────
-function Sheet({ onClose, title, subtitle, children }: {
+function Sheet({ onClose, title, children }: {
   onClose: () => void;
   title: string;
   subtitle: string;
   children: React.ReactNode;
 }) {
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(22,20,15,0.45)",
-        display: "flex",
-        alignItems: "flex-end",
-        zIndex: 60,
-      }}
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "100%",
-          background: "var(--color-bg)",
-          borderRadius: "20px 20px 0 0",
-          padding: "0 18px 32px",
-          maxHeight: "85vh",
-          overflowY: "auto",
-          animation: "slideUp 0.25s cubic-bezier(0.2, 0.9, 0.3, 1)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 6px" }}>
-          <div style={{ width: 36, height: 4, background: "var(--color-line-2)", borderRadius: 2 }} />
-        </div>
-        <div style={fieldLabel}>{title}</div>
-        <div
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: 26,
-            fontWeight: 400,
-            letterSpacing: "-0.01em",
-            color: "var(--color-ink)",
-            marginBottom: 20,
-          }}
-        >
-          {subtitle}
+    <>
+      <div className="ios-sheet-backdrop" onClick={onClose} aria-hidden="true" />
+      <div className="ios-sheet" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="ios-grabber" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <button type="button" className="ios-btn--plain" onClick={onClose}>Cancel</button>
+          <span className="ios-headline">{title}</span>
+          <span style={{ width: 52 }} />
         </div>
         {children}
       </div>
-    </div>
+    </>
   );
 }
 
@@ -587,27 +441,10 @@ function AddSheet({ onAdd, onClose }: {
 
   return (
     <Sheet onClose={onClose} title="Add medication" subtitle="What are you taking?">
-      <div style={{ ...fieldLabel, marginBottom: 8 }}>Common</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 20 }}>
+      <div style={fieldLabel}>Common</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
         {COMMON_MEDS.map((m) => (
-          <button
-            key={m.name}
-            onClick={() => pick(m)}
-            style={{
-              background: name === m.name ? "var(--color-ink)" : "var(--color-bg-sunk)",
-              color: name === m.name ? "var(--color-bg)" : "var(--color-ink-2)",
-              border: "none",
-              borderRadius: 8,
-              padding: "7px 11px",
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              transition: "background 120ms, color 120ms",
-            }}
-          >
-            {m.name}
-          </button>
+          <Chip key={m.name} small selected={name === m.name} onClick={() => pick(m)}>{m.name}</Chip>
         ))}
       </div>
 
@@ -622,28 +459,18 @@ function AddSheet({ onAdd, onClose }: {
         </div>
         <div>
           <div style={fieldLabel}>Schedule</div>
-          <select value={schedule} onChange={(e) => setSchedule(e.target.value)} style={fieldInput}>
+          <select value={schedule} onChange={(e) => setSchedule(e.target.value)} style={{ ...fieldInput, colorScheme: "light dark" }}>
             {SCHEDULES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
       </div>
 
       <button
+        type="button"
         disabled={!valid}
         onClick={() => valid && onAdd({ name: name.trim(), dose: dose.trim(), schedule })}
-        style={{
-          width: "100%",
-          padding: "14px",
-          borderRadius: 12,
-          border: "none",
-          background: valid ? "var(--color-ink)" : "var(--color-bg-sunk)",
-          color: valid ? "var(--color-bg)" : "var(--color-ink-3)",
-          fontSize: 15,
-          fontWeight: 600,
-          cursor: valid ? "pointer" : "not-allowed",
-          fontFamily: "inherit",
-          transition: "background 120ms",
-        }}
+        className="ios-btn ios-btn--primary"
+        style={{ opacity: valid ? 1 : 0.5, cursor: valid ? "pointer" : "not-allowed" }}
       >
         Add to my medications
       </button>
@@ -677,28 +504,18 @@ function EditSheet({ med, onSave, onClose }: {
         </div>
         <div>
           <div style={fieldLabel}>Schedule</div>
-          <select value={schedule} onChange={(e) => setSchedule(e.target.value)} style={fieldInput}>
+          <select value={schedule} onChange={(e) => setSchedule(e.target.value)} style={{ ...fieldInput, colorScheme: "light dark" }}>
             {SCHEDULES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
       </div>
 
       <button
+        type="button"
         disabled={!valid || !changed}
         onClick={() => valid && changed && onSave(med.id, { name: name.trim(), dose: dose.trim(), schedule })}
-        style={{
-          width: "100%",
-          padding: "14px",
-          borderRadius: 12,
-          border: "none",
-          background: valid && changed ? "var(--color-ink)" : "var(--color-bg-sunk)",
-          color: valid && changed ? "var(--color-bg)" : "var(--color-ink-3)",
-          fontSize: 15,
-          fontWeight: 600,
-          cursor: valid && changed ? "pointer" : "not-allowed",
-          fontFamily: "inherit",
-          transition: "background 120ms",
-        }}
+        className="ios-btn ios-btn--primary"
+        style={{ opacity: valid && changed ? 1 : 0.5, cursor: valid && changed ? "pointer" : "not-allowed" }}
       >
         Save changes
       </button>
@@ -738,7 +555,7 @@ export default function MedicationsClient({ initialMeds }: { initialMeds: Med[] 
   }
 
   const handleAdd = (data: Omit<Med, "id">) => {
-    const tempId = `temp-${Date.now()}`;
+    const tempId = `temp-${new Date().getTime()}`;
     setMeds((prev) => [...prev, { id: tempId, ...data }]);
     setShowAdd(false);
     startTransition(async () => {
@@ -771,64 +588,22 @@ export default function MedicationsClient({ initialMeds }: { initialMeds: Med[] 
 
   return (
     <div>
-      <div
-        style={{
-          background: "var(--color-bg-raised)",
-          border: "1px solid var(--color-line)",
-          borderRadius: 14,
-          overflow: "hidden",
-          boxShadow: "var(--shadow-card)",
-        }}
-      >
-        {/* Tile header */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "14px 16px 10px",
-          }}
+      {/* Section header + edit toggle */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0 7px" }}>
+        <span style={sectionHeader}>Medications</span>
+        <button
+          type="button"
+          onClick={() => setEditMode((e) => !e)}
+          className="ios-btn--plain"
+          style={{ color: editMode ? "var(--ios-red)" : "var(--ios-tint)", padding: 0 }}
         >
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 500,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: "var(--color-ink-3)",
-            }}
-          >
-            Medications
-          </span>
-          <button
-            onClick={() => setEditMode((e) => !e)}
-            style={{
-              background: "none",
-              border: "none",
-              color: editMode ? "var(--color-accent)" : "var(--color-ink-3)",
-              fontSize: 11,
-              fontWeight: 500,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              padding: 0,
-            }}
-          >
-            {editMode ? "Done" : "Edit"}
-          </button>
-        </div>
+          {editMode ? "Done" : "Edit"}
+        </button>
+      </div>
 
+      <div className="ios-list" style={{ margin: 0 }}>
         {meds.length === 0 && !editMode && (
-          <div
-            style={{
-              padding: "16px",
-              borderTop: "1px solid var(--color-line)",
-              fontSize: 13,
-              color: "var(--color-ink-4)",
-              textAlign: "center",
-            }}
-          >
+          <div className="ios-cell" style={{ justifyContent: "center", color: "var(--ios-label-2)" }}>
             No medications yet
           </div>
         )}
@@ -836,92 +611,56 @@ export default function MedicationsClient({ initialMeds }: { initialMeds: Med[] 
         {meds.map((m) => {
           const isTaken = !!taken[m.id];
           return (
-            <div
-              key={m.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "12px 16px",
-                borderTop: "1px solid var(--color-line)",
-              }}
-            >
-              {editMode ? (
-                <button
-                  onClick={() => handleRemove(m.id)}
-                  style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: 13,
-                    background: "var(--color-accent)",
-                    border: "none",
-                    cursor: "pointer",
-                    flexShrink: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#fff",
-                    fontSize: 18,
-                    lineHeight: 1,
-                    fontWeight: 300,
-                    fontFamily: "inherit",
-                  }}
-                >
-                  −
-                </button>
-              ) : (
-                <button
-                  onClick={() => setTaken((t) => ({ ...t, [m.id]: !t[m.id] }))}
-                  style={{
-                    width: 26,
-                    height: 26,
-                    borderRadius: 8,
-                    background: isTaken ? "var(--color-moss)" : "transparent",
-                    border: isTaken ? "none" : "1.5px solid var(--color-line-2)",
-                    cursor: "pointer",
-                    flexShrink: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontFamily: "inherit",
-                    transition: "background 120ms",
-                  }}
-                >
-                  {isTaken && <span style={{ color: "#fff", fontSize: 13, lineHeight: 1 }}>✓</span>}
-                </button>
-              )}
+            <div key={m.id} className="ios-cell">
+              <span className="ios-cell-lead">
+                {editMode ? (
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(m.id)}
+                    aria-label="Remove medication"
+                    style={{ width: 26, height: 26, borderRadius: 13, background: "var(--ios-red)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}
+                  >
+                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" aria-hidden><path d="M5 12h14" /></svg>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setTaken((t) => ({ ...t, [m.id]: !t[m.id] }))}
+                    aria-label={isTaken ? "Mark not taken" : "Mark taken"}
+                    aria-pressed={isTaken}
+                    style={{
+                      width: 26, height: 26, borderRadius: "50%",
+                      background: isTaken ? "var(--ios-green)" : "transparent",
+                      border: isTaken ? "none" : "1.5px solid var(--ios-label-3)",
+                      flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                    }}
+                  >
+                    {isTaken && (
+                      <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 13l4 4L19 7" /></svg>
+                    )}
+                  </button>
+                )}
+              </span>
 
               {/* Row body — tappable in edit mode to open edit sheet */}
-              <div
-                style={{ flex: 1, minWidth: 0, cursor: editMode ? "pointer" : "default" }}
+              <span
+                className="ios-cell-body"
+                style={{ cursor: editMode ? "pointer" : "default" }}
                 onClick={() => editMode && setEditTarget(m)}
               >
-                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 500, color: "var(--color-ink)" }}>
-                    {m.name}
-                  </span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--color-ink-3)" }}>
-                    {m.dose}
-                  </span>
-                </div>
-                <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 1 }}>
-                  {m.schedule}
-                </div>
-              </div>
+                <span className="ios-cell-title" style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                  {m.name}
+                  <span className="ios-num ios-footnote" style={{ color: "var(--ios-label-2)" }}>{m.dose}</span>
+                </span>
+                <span className="ios-cell-sub">{m.schedule}</span>
+              </span>
 
               {editMode && (
                 <button
+                  type="button"
                   onClick={() => setEditTarget(m)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "var(--color-ink-3)",
-                    fontSize: 16,
-                    cursor: "pointer",
-                    padding: "0 4px",
-                    fontFamily: "inherit",
-                    flexShrink: 0,
-                  }}
+                  aria-label="Edit medication"
+                  style={{ flexShrink: 0, color: "var(--ios-label-3)", fontSize: 17, padding: "0 4px" }}
                 >
                   ›
                 </button>
@@ -931,76 +670,52 @@ export default function MedicationsClient({ initialMeds }: { initialMeds: Med[] 
         })}
 
         <button
+          type="button"
           onClick={() => { setEditMode(false); setShowAdd(true); }}
-          style={{
-            width: "100%",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: "12px 16px",
-            background: "transparent",
-            border: "none",
-            borderTop: "1px solid var(--color-line)",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            textAlign: "left",
-          }}
+          className="ios-cell"
+          style={{ color: "var(--ios-tint)" }}
         >
-          <div
-            style={{
-              width: 26,
-              height: 26,
-              borderRadius: 8,
-              background: "var(--color-bg-sunk)",
-              border: "1.5px dashed var(--color-line-2)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-              fontSize: 18,
-              color: "var(--color-ink-3)",
-              lineHeight: 1,
-            }}
-          >
-            +
-          </div>
-          <span style={{ fontSize: 14, fontWeight: 500, color: "var(--color-ink-2)" }}>
-            Add medication
+          <span className="ios-cell-lead">
+            <span style={{ width: 26, height: 26, borderRadius: "50%", border: "1.5px dashed var(--ios-label-3)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ios-tint)" }}>
+              <Icons.PlusIcon width={16} height={16} />
+            </span>
+          </span>
+          <span className="ios-cell-body">
+            <span className="ios-cell-title" style={{ color: "var(--ios-tint)" }}>Add medication</span>
           </span>
         </button>
       </div>
 
       {/* Zepbound tracker — opt-in */}
-      {zepboundEnabled ? (
-        <>
-          <ZepboundCard />
+      <div style={{ marginTop: 12 }}>
+        {zepboundEnabled ? (
+          <>
+            <ZepboundCard />
+            <button
+              type="button"
+              onClick={disableZepbound}
+              className="ios-footnote"
+              style={{ display: "block", margin: "0 auto 12px", color: "var(--ios-label-2)" }}
+            >
+              Hide Zepbound tracker
+            </button>
+          </>
+        ) : (
           <button
-            onClick={disableZepbound}
-            style={{ display: "block", margin: "0 auto 12px", background: "none", border: "none", color: "var(--color-ink-4)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}
+            type="button"
+            onClick={enableZepbound}
+            className="ios-list"
+            style={{ display: "flex", width: "100%", alignItems: "center", gap: 12, padding: "14px 16px", margin: "0 0 12px", textAlign: "left" }}
           >
-            Hide Zepbound tracker
+            <IconBadge color="var(--ios-tint)"><Icons.PillIcon /></IconBadge>
+            <span className="ios-cell-body">
+              <span className="ios-cell-title">Track Zepbound / GLP-1</span>
+              <span className="ios-cell-sub">Log doses, track injection sites &amp; escalation</span>
+            </span>
+            <Icons.ChevronRight className="ios-chevron" />
           </button>
-        </>
-      ) : (
-        <button
-          onClick={enableZepbound}
-          style={{
-            width: "100%", display: "flex", alignItems: "center", gap: 12,
-            padding: "14px 16px", marginBottom: 12, borderRadius: 14,
-            background: "var(--color-bg-raised)", border: "1px dashed var(--color-line-2)",
-            cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--color-accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
-            💉
-          </div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>Track Zepbound / GLP-1</div>
-            <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 1 }}>Log doses, track injection sites &amp; escalation</div>
-          </div>
-        </button>
-      )}
+        )}
+      </div>
 
       {showAdd && <AddSheet onAdd={handleAdd} onClose={() => setShowAdd(false)} />}
       {editTarget && (
