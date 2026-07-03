@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useRef, useEffect } from "react";
 
 export interface SubNavTab {
   href: string;
@@ -14,71 +15,70 @@ interface Props {
   isActive?: (pathname: string, href: string) => boolean;
 }
 
+// iOS-native section sub-nav: a single horizontally-scrollable row of pills.
+// Works at every width — the row scrolls (with trailing padding so the last
+// pill is never clipped) and auto-scrolls the active pill into view. Replaces
+// the old desktop-row / mobile-dropdown split that cut off on narrow screens.
 export default function SubNav({ tabs, isActive }: Props) {
   const pathname = usePathname();
-  const router = useRouter();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef<HTMLAnchorElement>(null);
 
   const activeCheck =
     isActive ?? ((p: string, href: string) => (href === tabs[0].href ? p === href : p.startsWith(href)));
 
-  const activeTab = tabs.find((t) => activeCheck(pathname, t.href)) ?? tabs[0];
+  useEffect(() => {
+    const el = activeRef.current;
+    if (el) el.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [pathname]);
 
   return (
-    <div style={{ background: "var(--color-bg-card)", borderBottom: "1px solid var(--color-rule)" }}>
-      {/* Desktop / wide viewports — horizontal tab row */}
+    <div
+      style={{
+        background: "var(--ios-bg-elevated)",
+        borderBottom: "0.5px solid var(--ios-separator)",
+        position: "sticky",
+        top: 0,
+        zIndex: 5,
+      }}
+    >
       <div
-        className="subnav-desktop"
-        style={{ overflowX: "auto", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}
+        ref={scrollRef}
+        style={{
+          display: "flex",
+          gap: 8,
+          overflowX: "auto",
+          scrollbarWidth: "none",
+          WebkitOverflowScrolling: "touch",
+          padding: "10px 16px 10px",
+        }}
       >
-        <div style={{ display: "flex", gap: 0, maxWidth: 1180, margin: "0 auto", padding: "0 28px" }}>
-          {tabs.map(({ href, label }) => {
-            const active = activeCheck(pathname, href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                style={{
-                  display: "inline-block",
-                  padding: "10px 14px",
-                  fontSize: 13,
-                  fontWeight: active ? 600 : 400,
-                  color: active ? "var(--color-accent)" : "var(--color-ink-2)",
-                  textDecoration: "none",
-                  borderBottom: active ? "2px solid var(--color-accent)" : "2px solid transparent",
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
-                  transition: "color 0.15s",
-                }}
-              >
-                {label}
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Narrow viewports — dropdown, always fully accessible regardless of tab count */}
-      <div className="subnav-mobile" style={{ padding: "8px 16px" }}>
-        <select
-          value={activeTab.href}
-          onChange={(e) => router.push(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "9px 12px",
-            borderRadius: 8,
-            border: "1px solid var(--color-rule)",
-            background: "var(--color-bg-card)",
-            color: "var(--color-ink)",
-            fontSize: 14,
-            fontFamily: "inherit",
-          }}
-        >
-          {tabs.map(({ href, label }) => (
-            <option key={href} value={href}>
+        {tabs.map(({ href, label }) => {
+          const active = activeCheck(pathname, href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              ref={active ? activeRef : undefined}
+              className="ios-footnote"
+              style={{
+                flex: "0 0 auto",
+                padding: "7px 14px",
+                borderRadius: 980,
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+                textDecoration: "none",
+                background: active ? "var(--ios-tint)" : "var(--ios-fill)",
+                color: active ? "#fff" : "var(--ios-label)",
+                transition: "background 0.15s, color 0.15s",
+              }}
+            >
               {label}
-            </option>
-          ))}
-        </select>
+            </Link>
+          );
+        })}
+        {/* trailing spacer so the last pill clears the edge */}
+        <span aria-hidden style={{ flex: "0 0 8px" }} />
       </div>
     </div>
   );

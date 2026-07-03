@@ -52,6 +52,11 @@ export default function ChatWidget({
   const [enrichedContext, setEnrichedContext] = useState(systemContext);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Skip the auto-scroll on first render — otherwise scrollIntoView yanks the
+  // whole page down to this (often mid-page) chat on load. Only follow new
+  // messages the user actually generates, and scroll within the nearest
+  // scroll container rather than hijacking the page.
+  const didMountRef = useRef(false);
 
   useEffect(() => {
     if (!addProfileContext) return;
@@ -60,7 +65,11 @@ export default function ChatWidget({
   }, [systemContext, addProfileContext]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages]);
 
   async function send() {

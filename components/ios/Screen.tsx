@@ -41,12 +41,18 @@ export function LargeTitle({
   subtitle,
   avatarInitial,
   onCompose,
+  composeIcon,
+  composeLabel = "Compose",
   trailing,
 }: {
   title: string;
   subtitle?: ReactNode;
   avatarInitial?: string;
   onCompose?: () => void;
+  /** Custom icon for the compose affordance (defaults to a pencil). */
+  composeIcon?: ReactNode;
+  /** Accessible label for the compose affordance. */
+  composeLabel?: string;
   trailing?: ReactNode;
 }) {
   return (
@@ -57,8 +63,8 @@ export function LargeTitle({
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0, paddingTop: 6 }}>
         {onCompose && (
-          <button onClick={onCompose} aria-label="Compose" style={{ color: "var(--ios-tint)", display: "flex" }}>
-            <ComposeIcon aria-hidden style={{ width: 24, height: 24 }} />
+          <button onClick={onCompose} aria-label={composeLabel} title={composeLabel} style={{ color: "var(--ios-tint)", display: "flex" }}>
+            {composeIcon ?? <ComposeIcon aria-hidden style={{ width: 24, height: 24 }} />}
           </button>
         )}
         {trailing}

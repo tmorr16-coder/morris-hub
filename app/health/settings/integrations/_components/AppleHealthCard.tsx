@@ -65,7 +65,7 @@ export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, 
             <Cell chevron={false} title="Metrics synced" trailing={<span className="ios-num">{metricsCount.toLocaleString()}</span>} />
             <Cell chevron={false} title="Workouts" trailing={<span className="ios-num">{workoutsCount.toLocaleString()}</span>} />
             <Cell chevron={false} title="Last sync" trailing={<span className="ios-num">{lastSyncAt ? relativeTime(lastSyncAt) : "Never"}</span>} />
-            <Cell href="/health/progress" title={<span style={{ color: "var(--ios-tint)" }}>View health trends</span>} />
+            <Cell href="/health" title={<span style={{ color: "var(--ios-tint)" }}>View health dashboard</span>} />
           </>
         )}
 

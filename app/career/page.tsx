@@ -106,6 +106,11 @@ export default async function CareerPage() {
         <Cell lead={<IconBadge color="#8E8E93"><Icons.ChartIcon /></IconBadge>} title="Timeline & milestones" href="/career/timeline" />
       </Group>
 
+      <Group header="Profile & setup">
+        <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.PersonIcon /></IconBadge>} title="Profile & assessment" subtitle="Resume, title & career interest assessment" href="/career/profile" />
+        <Cell lead={<IconBadge color="#0077B5"><Icons.BriefcaseIcon /></IconBadge>} title="Settings" subtitle="LinkedIn, notifications & LSAT" href="/career/settings" />
+      </Group>
+
       <div style={{ height: 12 }} />
     </div>
   );

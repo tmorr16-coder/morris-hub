@@ -22,7 +22,7 @@ export default function HealthScreen() {
         <Cell lead={<IconBadge color="var(--ios-green)"><Icons.HeartIcon /></IconBadge>} title="Steps" trailing={<span className="ios-num">8,240</span>} chevron={false} />
         <Cell lead={<IconBadge color="#FA114F"><Icons.HeartIcon /></IconBadge>} title="Resting heart rate" trailing={<span className="ios-num">58 bpm</span>} chevron={false} />
         <Cell lead={<IconBadge color="#5E5CE6"><Icons.MoonIcon /></IconBadge>} title="Sleep" trailing={<span className="ios-num">7h 12m</span>} chevron={false} />
-        <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.TrendUpIcon /></IconBadge>} title="Weight" subtitle="Down 0.6 lb from yesterday" trailing={<span className="ios-num">182.4 lb</span>} href="/health/progress" />
+        <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.TrendUpIcon /></IconBadge>} title="Weight" subtitle="Down 0.6 lb from yesterday" trailing={<span className="ios-num">182.4 lb</span>} href="/health" />
       </Group>
 
       <Group header="Medications">
