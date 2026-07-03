@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ClaudeTip } from "@/lib/tips";
+import { IconBadge, Icons } from "@/components/ios";
 
 const CATEGORY_LABEL: Record<string, string> = {
   general: "General", prompting: "Prompting", tools: "Tools",
@@ -17,45 +18,49 @@ export default function ClaudeTipClient({ tips }: { tips: ClaudeTip[] }) {
   const tip = tips[idx];
 
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-        <h2 className="serif" style={{ fontSize: 22 }}>
-          Morris <span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>tips</span>
-        </h2>
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "12px 16px 6px" }}>
+        <span className="ios-headline">Morris tips</span>
         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 10, color: "var(--color-ink-4)" }}>{idx + 1} / {tips.length}</span>
+          <span className="ios-caption ios-num" style={{ color: "var(--ios-label-3)" }}>{idx + 1} / {tips.length}</span>
           <button
             onClick={() => setIdx((i) => (i - 1 + tips.length) % tips.length)}
             style={navBtn}
-            title="Previous tip"
-          >‹</button>
+            aria-label="Previous tip"
+          ><Icons.ChevronLeft width={15} height={15} /></button>
           <button
             onClick={() => setIdx((i) => (i + 1) % tips.length)}
             style={navBtn}
-            title="Next tip"
-          >›</button>
+            aria-label="Next tip"
+          ><Icons.ChevronRight width={15} height={15} /></button>
         </span>
       </div>
 
       {tip ? (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
-          <div style={{ display: "flex", gap: 10, alignItems: "baseline", marginBottom: 8 }}>
-            <span style={{
-              fontSize: 9, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase",
-              color: CATEGORY_COLOR[tip.category] ?? "var(--color-ink-3)", minWidth: 60,
-            }}>
+        <div className="ios-cell" style={{ alignItems: "flex-start" }}>
+          <span className="ios-cell-lead" style={{ marginTop: 2 }}>
+            <IconBadge color={CATEGORY_COLOR[tip.category] ?? "var(--ios-tint)"}>
+              <Icons.SparkleIcon />
+            </IconBadge>
+          </span>
+          <span className="ios-cell-body">
+            <span
+              className="ios-caption"
+              style={{
+                fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase",
+                color: CATEGORY_COLOR[tip.category] ?? "var(--ios-label-2)",
+              }}
+            >
               {CATEGORY_LABEL[tip.category] ?? tip.category}
             </span>
-            <span style={{ fontSize: 14, color: "var(--color-ink)", fontWeight: 600, lineHeight: 1.4 }}>
-              {tip.title}
+            <span className="ios-headline" style={{ marginTop: 2 }}>{tip.title}</span>
+            <span className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.6, marginTop: 4 }}>
+              {tip.body}
             </span>
-          </div>
-          <p style={{ fontSize: 13, color: "var(--color-ink-2)", lineHeight: 1.65, margin: 0, marginLeft: 70 }}>
-            {tip.body}
-          </p>
+          </span>
         </div>
       ) : (
-        <p style={{ fontSize: 13, color: "var(--color-ink-4)", padding: "30px 0", textAlign: "center" }}>
+        <p className="ios-footnote" style={{ color: "var(--ios-label-3)", padding: "24px 16px", textAlign: "center" }}>
           No tips yet
         </p>
       )}
@@ -64,17 +69,14 @@ export default function ClaudeTipClient({ tips }: { tips: ClaudeTip[] }) {
 }
 
 const navBtn: React.CSSProperties = {
-  background: "transparent",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 5,
-  width: 22,
-  height: 22,
-  fontSize: 14,
-  lineHeight: "1",
+  width: 28,
+  height: 28,
+  borderRadius: "50%",
+  background: "var(--ios-fill)",
+  border: "none",
+  color: "var(--ios-label-2)",
   cursor: "pointer",
-  color: "var(--color-ink-3)",
   padding: 0,
-  fontFamily: "inherit",
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",

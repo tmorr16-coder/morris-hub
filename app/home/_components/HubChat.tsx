@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { Chip } from "@/components/ios";
 
 interface Message {
   role: "user" | "assistant";
@@ -58,39 +59,15 @@ export default function HubChat({ firstName }: { firstName: string }) {
   }
 
   return (
-    <div
-      style={{
-        background: "var(--color-bg-card)",
-        border: "1px solid var(--color-rule)",
-        borderRadius: 14,
-        padding: "22px 26px",
-        boxShadow: "var(--shadow-card)",
-      }}
-    >
+    <div>
       {messages.length === 0 && (
         <div style={{ marginBottom: 14 }}>
-          <p style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 10 }}>
+          <p className="ios-subhead" style={{ color: "var(--ios-label-2)", marginBottom: 12 }}>
             Hi {firstName}. Ask anything about your day, your todos, the weather, your watchlist. Try one:
           </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {SUGGESTED_PROMPTS.map((p) => (
-              <button
-                key={p}
-                onClick={() => send(p)}
-                disabled={sending}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 18,
-                  border: "1px solid var(--color-rule)",
-                  background: "var(--color-bg)",
-                  color: "var(--color-ink-2)",
-                  fontSize: 12,
-                  fontFamily: "inherit",
-                  cursor: sending ? "wait" : "pointer",
-                }}
-              >
-                {p}
-              </button>
+              <Chip key={p} small onClick={() => send(p)}>{p}</Chip>
             ))}
           </div>
         </div>
@@ -100,36 +77,26 @@ export default function HubChat({ firstName }: { firstName: string }) {
         <div
           ref={scrollRef}
           style={{
-            maxHeight: 380,
+            maxHeight: 420,
             overflowY: "auto",
             marginBottom: 14,
             display: "flex",
             flexDirection: "column",
-            gap: 12,
+            gap: 8,
             paddingRight: 4,
           }}
         >
           {messages.map((m, i) => (
             <div
               key={i}
-              style={{
-                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                maxWidth: "85%",
-                padding: "10px 14px",
-                borderRadius: 12,
-                background: m.role === "user" ? "var(--color-accent)" : "var(--color-bg)",
-                color: m.role === "user" ? "#FFFDF8" : "var(--color-ink)",
-                border: m.role === "assistant" ? "1px solid var(--color-rule)" : "none",
-                fontSize: 13,
-                lineHeight: 1.55,
-                whiteSpace: "pre-wrap",
-              }}
+              className={`ios-bubble ios-bubble--${m.role === "user" ? "me" : "ai"}`}
+              style={{ whiteSpace: "pre-wrap" }}
             >
               {m.content}
             </div>
           ))}
           {sending && (
-            <div style={{ alignSelf: "flex-start", padding: "10px 14px", fontSize: 13, color: "var(--color-ink-3)", fontStyle: "italic" }}>
+            <div className="ios-bubble ios-bubble--ai" style={{ color: "var(--ios-label-2)", fontStyle: "italic" }}>
               Thinking…
             </div>
           )}
@@ -138,13 +105,12 @@ export default function HubChat({ firstName }: { firstName: string }) {
 
       {error && (
         <div
+          className="ios-footnote"
           style={{
-            background: "rgba(154, 59, 42, 0.08)",
-            border: "1px solid rgba(154, 59, 42, 0.3)",
-            borderRadius: 8,
+            background: "var(--ios-fill)",
+            borderRadius: 10,
             padding: "8px 12px",
-            fontSize: 12,
-            color: "var(--color-red)",
+            color: "var(--ios-red)",
             marginBottom: 10,
           }}
         >
@@ -152,7 +118,7 @@ export default function HubChat({ firstName }: { firstName: string }) {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", gap: 8 }}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -160,33 +126,26 @@ export default function HubChat({ firstName }: { firstName: string }) {
           placeholder="Ask anything…"
           style={{
             flex: 1,
-            padding: "11px 14px",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 10,
-            background: "var(--color-bg)",
-            color: "var(--color-ink)",
-            fontSize: 13,
-            fontFamily: "inherit",
+            minWidth: 0,
+            padding: "10px 16px",
+            border: "var(--ios-hair) solid var(--ios-separator)",
+            borderRadius: 999,
+            background: "var(--ios-cell)",
+            color: "var(--ios-label)",
+            fontSize: 16,
             outline: "none",
           }}
         />
         <button
           type="submit"
+          className="ios-send"
           disabled={sending || !input.trim()}
-          style={{
-            padding: "11px 22px",
-            borderRadius: 10,
-            border: "1px solid var(--color-accent-dark)",
-            background: "var(--color-accent)",
-            color: "#FFFDF8",
-            fontSize: 13,
-            fontWeight: 500,
-            fontFamily: "inherit",
-            cursor: sending || !input.trim() ? "not-allowed" : "pointer",
-            opacity: sending || !input.trim() ? 0.5 : 1,
-          }}
+          aria-label="Send"
+          style={{ opacity: sending || !input.trim() ? 0.4 : 1 }}
         >
-          Ask
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M12 19V5M6 11l6-6 6 6" />
+          </svg>
         </button>
       </form>
     </div>

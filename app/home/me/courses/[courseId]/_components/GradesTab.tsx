@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Icons } from "@/components/ios";
 
 interface GradeComponent {
   id: string;
@@ -28,11 +29,11 @@ const DEFAULT_CATEGORIES = [
 ];
 
 function getLetterGrade(pct: number): { letter: string; color: string } {
-  if (pct >= 90) return { letter: "A", color: "#16a34a" };
-  if (pct >= 80) return { letter: "B", color: "#2563eb" };
-  if (pct >= 70) return { letter: "C", color: "#ca8a04" };
-  if (pct >= 60) return { letter: "D", color: "#ea580c" };
-  return { letter: "F", color: "#dc2626" };
+  if (pct >= 90) return { letter: "A", color: "var(--ios-green)" };
+  if (pct >= 80) return { letter: "B", color: "var(--ios-tint)" };
+  if (pct >= 70) return { letter: "C", color: "var(--ios-orange)" };
+  if (pct >= 60) return { letter: "D", color: "#FF7A00" };
+  return { letter: "F", color: "var(--ios-red)" };
 }
 
 function calcContribution(row: GradeComponent): number | null {
@@ -231,15 +232,16 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
+          className={align === "right" ? "ios-num" : undefined}
           style={{
             width: "100%",
             padding: "4px 6px",
             border: `1px solid ${colorTag}`,
-            borderRadius: 4,
-            fontSize: 13,
+            borderRadius: 6,
+            fontSize: 14,
             fontFamily: "inherit",
-            background: "var(--color-bg)",
-            color: "var(--color-ink)",
+            background: "var(--ios-bg)",
+            color: "var(--ios-label)",
             outline: "none",
             textAlign: align,
             boxSizing: "border-box",
@@ -251,28 +253,22 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
     return (
       <div
         onClick={() => startEdit(rowId, field, value)}
-        title="Click to edit"
+        title="Tap to edit"
+        className={align === "right" ? "ios-num" : undefined}
         style={{
           padding: "4px 6px",
           minHeight: 28,
-          borderRadius: 4,
+          borderRadius: 6,
           cursor: "text",
-          fontSize: 13,
-          color: displayValue ? "var(--color-ink)" : "var(--color-ink-3)",
+          fontSize: 14,
+          color: displayValue ? "var(--ios-label)" : "var(--ios-label-3)",
           textAlign: align,
           opacity: isSaving ? 0.5 : 1,
-          transition: "background 0.15s",
           userSelect: "none",
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLDivElement).style.background = "var(--color-paper-deep)";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLDivElement).style.background = "transparent";
         }}
       >
         {displayValue || (
-          <span style={{ fontStyle: "italic", fontSize: 12 }}>{placeholder ?? "—"}</span>
+          <span style={{ fontStyle: "italic", fontSize: 13 }}>{placeholder ?? "—"}</span>
         )}
       </div>
     );
@@ -281,7 +277,7 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
   // ── Loading / error states ──────────────────────────────────────
   if (loading) {
     return (
-      <div style={{ color: "var(--color-ink-3)", fontSize: 13, paddingTop: 24 }}>
+      <div className="ios-footnote" style={{ color: "var(--ios-label-2)", paddingTop: 24 }}>
         Loading grade components…
       </div>
     );
@@ -289,12 +285,11 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
 
   if (error) {
     return (
-      <div style={{
+      <div className="ios-footnote" style={{
         padding: "12px 16px",
-        borderRadius: 8,
-        background: "#fee2e2",
-        color: "#991b1b",
-        fontSize: 13,
+        borderRadius: 10,
+        background: "var(--ios-cell)",
+        color: "var(--ios-red)",
         marginTop: 8,
       }}>
         {error}
@@ -305,7 +300,7 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
   // ── Grade summary badge ─────────────────────────────────────────
   const { letter, color: badgeColor } = totalGrade !== null
     ? getLetterGrade(totalGrade)
-    : { letter: "—", color: "var(--color-ink-3)" };
+    : { letter: "—", color: "var(--ios-label-3)" };
 
   // ── Render ──────────────────────────────────────────────────────
   return (
@@ -315,24 +310,14 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
         display: "flex",
         justifyContent: "space-between",
         alignItems: "flex-start",
-        marginBottom: 24,
+        marginBottom: 20,
         gap: 16,
         flexWrap: "wrap",
       }}>
         <div>
-          <h2
-            className="serif"
-            style={{
-              fontSize: 20,
-              fontWeight: 700,
-              margin: "0 0 4px 0",
-              color: "var(--color-ink)",
-            }}
-          >
-            Grade Tracker
-          </h2>
-          <p style={{ fontSize: 12, color: "var(--color-ink-3)", margin: 0 }}>
-            Click any cell to edit. Changes save automatically on blur.
+          <h2 className="ios-title-3" style={{ margin: "0 0 4px 0" }}>Grade Tracker</h2>
+          <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: 0 }}>
+            Tap any cell to edit. Changes save automatically on blur.
           </p>
         </div>
 
@@ -344,18 +329,15 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
             title={rows.length > 0 ? "Regenerate from course content" : "Generate grade structure from course content"}
             style={{
               padding: "8px 16px",
-              borderRadius: 8,
-              border: "none",
-              background: generating ? "var(--color-paper-deep)" : colorTag,
-              color: "white",
-              fontSize: 12,
+              borderRadius: 10,
+              background: generating ? "var(--ios-fill)" : colorTag,
+              color: generating ? "var(--ios-label-2)" : "#fff",
+              fontSize: 13,
               fontWeight: 600,
-              cursor: generating ? "default" : "pointer",
-              opacity: generating ? 0.7 : 1,
+              opacity: generating ? 0.9 : 1,
               display: "flex",
               alignItems: "center",
               gap: 6,
-              transition: "opacity 0.15s",
               whiteSpace: "nowrap",
             }}
           >
@@ -369,13 +351,16 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
                 Generating…
               </>
             ) : rows.length > 0 ? (
-              "↺ Regenerate"
+              "Regenerate"
             ) : (
-              "✨ Generate from Content"
+              <>
+                <Icons.SparkleIcon style={{ width: 15, height: 15 }} />
+                Generate from Content
+              </>
             )}
           </button>
           {generateError && (
-            <span style={{ fontSize: 11, color: "#dc2626", maxWidth: 220, textAlign: "right" }}>
+            <span className="ios-caption" style={{ color: "var(--ios-red)", maxWidth: 220, textAlign: "right" }}>
               {generateError}
             </span>
           )}
@@ -393,32 +378,25 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            background: badgeColor + "18",
+            background: "var(--ios-cell)",
             border: `2px solid ${badgeColor}`,
-            borderRadius: 12,
+            borderRadius: "var(--ios-radius-tile)",
             padding: "12px 20px",
             minWidth: 100,
           }}>
-            <div style={{
+            <div className="ios-num" style={{
               fontSize: 48,
               fontWeight: 800,
               lineHeight: 1,
               color: badgeColor,
-              fontFamily: "serif",
             }}>
               {letter}
             </div>
-            <div style={{
-              fontSize: 13,
-              fontWeight: 600,
-              color: badgeColor,
-              marginTop: 4,
-            }}>
+            <div className="ios-footnote ios-num" style={{ fontWeight: 600, color: badgeColor, marginTop: 4 }}>
               {totalGrade !== null ? `${totalGrade.toFixed(1)}%` : "No data"}
             </div>
-            <div style={{
-              fontSize: 10,
-              color: "var(--color-ink-3)",
+            <div className="ios-caption" style={{
+              color: "var(--ios-label-3)",
               marginTop: 2,
               textTransform: "uppercase",
               letterSpacing: "0.08em",
@@ -432,24 +410,17 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
       {/* Empty state */}
       {rows.length === 0 && !addingRow ? (
         <div style={{
-          background: "var(--color-bg-card)",
-          border: "1px dashed var(--color-rule)",
-          borderRadius: 12,
+          background: "var(--ios-cell)",
+          borderRadius: "var(--ios-radius-card)",
           padding: "48px 24px",
           textAlign: "center",
-          color: "var(--color-ink-3)",
           marginBottom: 16,
         }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
-          <p style={{
-            fontSize: 14,
-            fontWeight: 500,
-            color: "var(--color-ink-2)",
-            margin: "0 0 8px 0",
-          }}>
-            No grade components yet
-          </p>
-          <p style={{ fontSize: 12, margin: "0 0 20px 0" }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 12, color: "var(--ios-label-3)" }}>
+            <Icons.ChartIcon style={{ width: 34, height: 34 }} />
+          </div>
+          <p className="ios-headline" style={{ margin: "0 0 8px 0" }}>No grade components yet</p>
+          <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: "0 0 20px 0" }}>
             Generate a grade structure from your course content, or add categories manually.
           </p>
           <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
@@ -457,66 +428,71 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
               onClick={handleGenerate}
               disabled={generating}
               style={{
-                padding: "8px 20px",
-                borderRadius: 8,
-                border: "none",
-                background: generating ? "var(--color-paper-deep)" : colorTag,
-                color: "white",
-                fontSize: 13,
+                padding: "9px 20px",
+                borderRadius: 10,
+                background: generating ? "var(--ios-fill)" : colorTag,
+                color: generating ? "var(--ios-label-2)" : "#fff",
+                fontSize: 14,
                 fontWeight: 600,
-                cursor: generating ? "default" : "pointer",
-                opacity: generating ? 0.7 : 1,
+                opacity: generating ? 0.9 : 1,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
               }}
             >
-              {generating ? "Generating…" : "✨ Generate from Content"}
+              {generating ? "Generating…" : (
+                <>
+                  <Icons.SparkleIcon style={{ width: 15, height: 15 }} />
+                  Generate from Content
+                </>
+              )}
             </button>
             <button
               onClick={() => setShowSuggestions(true)}
               style={{
-                padding: "8px 20px",
-                borderRadius: 8,
-                border: `1px dashed ${colorTag}`,
+                padding: "9px 20px",
+                borderRadius: 10,
+                border: `1px solid ${colorTag}`,
                 background: "transparent",
                 color: colorTag,
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 600,
-                cursor: "pointer",
               }}
             >
-              + Add Manually
+              Add Manually
             </button>
           </div>
           {generateError && (
-            <p style={{ fontSize: 12, color: "#dc2626", marginTop: 12 }}>{generateError}</p>
+            <p className="ios-footnote" style={{ color: "var(--ios-red)", marginTop: 12 }}>{generateError}</p>
           )}
         </div>
       ) : (
         /* Grade table */
-        <div style={{ overflowX: "auto", marginBottom: 16 }}>
+        <div style={{ overflowX: "auto", marginBottom: 16, background: "var(--ios-cell)", borderRadius: "var(--ios-radius-card)" }}>
           <table style={{
             width: "100%",
             borderCollapse: "collapse",
-            fontSize: 13,
+            fontSize: 14,
           }}>
             <thead>
               <tr style={{
                 position: "sticky",
                 top: 0,
                 zIndex: 1,
-                background: colorTag + "15",
+                background: "var(--ios-fill-2)",
                 borderBottom: `2px solid ${colorTag}`,
               }}>
-                {["Category", "Weight %", "Points Earned", "Points Possible", "Contribution", "Actions"].map((col) => (
+                {["Category", "Weight %", "Points Earned", "Points Possible", "Contribution", ""].map((col, i) => (
                   <th
-                    key={col}
+                    key={col || `col-${i}`}
+                    className="ios-caption"
                     style={{
                       padding: "10px 10px",
-                      textAlign: col === "Actions" ? "center" : col === "Weight %" || col === "Points Earned" || col === "Points Possible" || col === "Contribution" ? "right" : "left",
-                      fontSize: 11,
+                      textAlign: col === "" ? "center" : col === "Weight %" || col === "Points Earned" || col === "Points Possible" || col === "Contribution" ? "right" : "left",
                       fontWeight: 700,
-                      letterSpacing: "0.08em",
+                      letterSpacing: "0.06em",
                       textTransform: "uppercase",
-                      color: "var(--color-ink-2)",
+                      color: "var(--ios-label-2)",
                       whiteSpace: "nowrap",
                     }}
                   >
@@ -527,7 +503,7 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
             </thead>
 
             <tbody>
-              {rows.map((row, idx) => {
+              {rows.map((row) => {
                 const contribution = calcContribution(row);
                 const isDeleting = deletingId === row.id;
 
@@ -535,13 +511,12 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
                   <tr
                     key={row.id}
                     style={{
-                      background: idx % 2 === 0 ? "var(--color-bg-card)" : "var(--color-bg)",
                       opacity: isDeleting ? 0.4 : 1,
                       transition: "opacity 0.2s",
                     }}
                   >
                     {/* Category */}
-                    <td style={{ padding: "4px 10px", borderBottom: "1px solid var(--color-rule)" }}>
+                    <td style={{ padding: "4px 10px", borderBottom: "var(--ios-hair) solid var(--ios-separator)" }}>
                       <EditableCell
                         rowId={row.id}
                         field="category"
@@ -551,7 +526,7 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
                     </td>
 
                     {/* Weight % */}
-                    <td style={{ padding: "4px 10px", borderBottom: "1px solid var(--color-rule)" }}>
+                    <td style={{ padding: "4px 10px", borderBottom: "var(--ios-hair) solid var(--ios-separator)" }}>
                       <EditableCell
                         rowId={row.id}
                         field="weight"
@@ -562,7 +537,7 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
                     </td>
 
                     {/* Points Earned */}
-                    <td style={{ padding: "4px 10px", borderBottom: "1px solid var(--color-rule)" }}>
+                    <td style={{ padding: "4px 10px", borderBottom: "var(--ios-hair) solid var(--ios-separator)" }}>
                       <EditableCell
                         rowId={row.id}
                         field="points_earned"
@@ -573,7 +548,7 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
                     </td>
 
                     {/* Points Possible */}
-                    <td style={{ padding: "4px 10px", borderBottom: "1px solid var(--color-rule)" }}>
+                    <td style={{ padding: "4px 10px", borderBottom: "var(--ios-hair) solid var(--ios-separator)" }}>
                       <EditableCell
                         rowId={row.id}
                         field="points_possible"
@@ -584,12 +559,12 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
                     </td>
 
                     {/* Contribution */}
-                    <td style={{
+                    <td className="ios-num" style={{
                       padding: "4px 10px",
-                      borderBottom: "1px solid var(--color-rule)",
+                      borderBottom: "var(--ios-hair) solid var(--ios-separator)",
                       textAlign: "right",
                       fontWeight: contribution !== null ? 600 : 400,
-                      color: contribution !== null ? colorTag : "var(--color-ink-3)",
+                      color: contribution !== null ? colorTag : "var(--ios-label-3)",
                       whiteSpace: "nowrap",
                     }}>
                       {contribution !== null ? `${contribution.toFixed(1)}%` : "—"}
@@ -598,30 +573,26 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
                     {/* Actions */}
                     <td style={{
                       padding: "4px 10px",
-                      borderBottom: "1px solid var(--color-rule)",
+                      borderBottom: "var(--ios-hair) solid var(--ios-separator)",
                       textAlign: "center",
                     }}>
                       <button
                         onClick={() => handleDelete(row.id)}
                         disabled={isDeleting}
-                        title="Delete row"
+                        aria-label="Delete row"
                         style={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: 4,
-                          border: "1px solid #fecaca",
-                          background: "#fee2e2",
-                          color: "#991b1b",
-                          fontSize: 14,
-                          lineHeight: 1,
-                          cursor: isDeleting ? "default" : "pointer",
+                          width: 26,
+                          height: 26,
+                          borderRadius: "50%",
+                          color: "var(--ios-red)",
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontWeight: 600,
                         }}
                       >
-                        ×
+                        <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M6 6l12 12M18 6L6 18" />
+                        </svg>
                       </button>
                     </td>
                   </tr>
@@ -633,35 +604,34 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
             {rows.length > 0 && (
               <tfoot>
                 <tr style={{
-                  background: "var(--color-paper-deep)",
+                  background: "var(--ios-fill-2)",
                   borderTop: `2px solid ${colorTag}`,
                 }}>
-                  <td style={{
+                  <td className="ios-caption" style={{
                     padding: "10px 10px",
                     fontWeight: 700,
-                    fontSize: 12,
                     textTransform: "uppercase",
                     letterSpacing: "0.06em",
-                    color: "var(--color-ink-2)",
+                    color: "var(--ios-label-2)",
                   }}>
                     Total Weight
                   </td>
-                  <td style={{
+                  <td className="ios-num" style={{
                     padding: "10px 10px",
                     textAlign: "right",
                     fontWeight: 700,
-                    color: Math.abs(totalWeight - 100) < 0.01 ? "#16a34a" : "var(--color-ink)",
+                    color: Math.abs(totalWeight - 100) < 0.01 ? "var(--ios-green)" : "var(--ios-label)",
                   }}>
                     {totalWeight.toFixed(1)}%
                   </td>
-                  <td style={{ padding: "10px 10px", textAlign: "right", color: "var(--color-ink-3)" }}>—</td>
-                  <td style={{ padding: "10px 10px", textAlign: "right", color: "var(--color-ink-3)" }}>—</td>
-                  <td style={{
+                  <td style={{ padding: "10px 10px", textAlign: "right", color: "var(--ios-label-3)" }}>—</td>
+                  <td style={{ padding: "10px 10px", textAlign: "right", color: "var(--ios-label-3)" }}>—</td>
+                  <td className="ios-num" style={{
                     padding: "10px 10px",
                     textAlign: "right",
                     fontWeight: 800,
-                    fontSize: 14,
-                    color: totalGrade !== null ? getLetterGrade(totalGrade).color : "var(--color-ink-3)",
+                    fontSize: 15,
+                    color: totalGrade !== null ? getLetterGrade(totalGrade).color : "var(--ios-label-3)",
                   }}>
                     {totalGrade !== null ? `${totalGrade.toFixed(1)}%` : "—"}
                   </td>
@@ -679,28 +649,25 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
           onClick={() => setShowSuggestions((v) => !v)}
           disabled={addingRow}
           style={{
-            padding: "7px 16px",
-            borderRadius: 7,
-            border: `1px dashed ${colorTag}`,
+            padding: "8px 16px",
+            borderRadius: 10,
+            border: `1px solid ${colorTag}`,
             background: "transparent",
             color: colorTag,
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: 600,
-            cursor: addingRow ? "default" : "pointer",
             opacity: addingRow ? 0.6 : 1,
             display: "flex",
             alignItems: "center",
             gap: 6,
-            transition: "background 0.15s",
-          }}
-          onMouseEnter={(e) => {
-            if (!addingRow) (e.currentTarget as HTMLButtonElement).style.background = colorTag + "12";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "transparent";
           }}
         >
-          {addingRow ? "Adding…" : "+ Add Row"}
+          {addingRow ? "Adding…" : (
+            <>
+              <Icons.PlusIcon style={{ width: 15, height: 15 }} />
+              Add Row
+            </>
+          )}
         </button>
 
         {/* Suggestions dropdown */}
@@ -710,21 +677,19 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
             top: "calc(100% + 6px)",
             left: 0,
             zIndex: 50,
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 8,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-            minWidth: 180,
+            background: "var(--ios-bg-elevated)",
+            borderRadius: 12,
+            boxShadow: "0 8px 30px rgba(0,0,0,0.18)",
+            minWidth: 200,
             overflow: "hidden",
           }}>
-            <div style={{
-              padding: "6px 12px",
-              fontSize: 10,
+            <div className="ios-caption" style={{
+              padding: "8px 14px",
               fontWeight: 700,
-              letterSpacing: "0.1em",
+              letterSpacing: "0.08em",
               textTransform: "uppercase",
-              color: "var(--color-ink-3)",
-              borderBottom: "1px solid var(--color-rule)",
+              color: "var(--ios-label-3)",
+              borderBottom: "var(--ios-hair) solid var(--ios-separator)",
             }}>
               Quick Add
             </div>
@@ -732,54 +697,33 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
               <button
                 key={cat}
                 onClick={() => handleAddRow(cat)}
+                className="ios-body"
                 style={{
                   display: "block",
                   width: "100%",
-                  padding: "8px 14px",
+                  padding: "10px 14px",
                   textAlign: "left",
-                  background: "transparent",
-                  border: "none",
-                  fontSize: 13,
-                  color: "var(--color-ink)",
-                  cursor: "pointer",
-                  transition: "background 0.1s",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "var(--color-paper-deep)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                  color: "var(--ios-label)",
+                  borderBottom: "var(--ios-hair) solid var(--ios-separator)",
                 }}
               >
                 {cat}
               </button>
             ))}
-            <div style={{ borderTop: "1px solid var(--color-rule)" }}>
-              <button
-                onClick={() => handleAddRow("New Category")}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  padding: "8px 14px",
-                  textAlign: "left",
-                  background: "transparent",
-                  border: "none",
-                  fontSize: 13,
-                  color: colorTag,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  transition: "background 0.1s",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "var(--color-paper-deep)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-                }}
-              >
-                + Custom category…
-              </button>
-            </div>
+            <button
+              onClick={() => handleAddRow("New Category")}
+              className="ios-body"
+              style={{
+                display: "block",
+                width: "100%",
+                padding: "10px 14px",
+                textAlign: "left",
+                color: "var(--ios-tint)",
+                fontWeight: 500,
+              }}
+            >
+              Custom category…
+            </button>
           </div>
         )}
       </div>
@@ -798,9 +742,8 @@ export default function GradesTab({ courseId, colorTag }: GradesTabProps) {
 
       {/* Weight hint */}
       {rows.length > 0 && Math.abs(totalWeight - 100) > 0.01 && (
-        <p style={{
-          fontSize: 11,
-          color: totalWeight > 100 ? "#dc2626" : "#ca8a04",
+        <p className="ios-caption ios-num" style={{
+          color: totalWeight > 100 ? "var(--ios-red)" : "var(--ios-orange)",
           marginTop: 10,
           marginBottom: 0,
         }}>

@@ -10,9 +10,9 @@ const PRIORITY_LABEL: Record<Priority, string> = {
 };
 
 const PRIORITY_COLOR: Record<Priority, string> = {
-  high: "#9A3B2A",
-  medium: "#B88A2E",
-  low: "#6B6258",
+  high: "var(--ios-red)",
+  medium: "var(--ios-orange)",
+  low: "var(--ios-label-2)",
 };
 
 const PRIORITY_RANK: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
@@ -30,12 +30,12 @@ function daysFromNow(dateStr: string): number {
 
 function dueLabel(dateStr: string): { text: string; color: string } {
   const days = daysFromNow(dateStr);
-  if (days < 0) return { text: `${Math.abs(days)}d overdue`, color: "#9A3B2A" };
-  if (days === 0) return { text: "today", color: "#B88A2E" };
-  if (days === 1) return { text: "tomorrow", color: "#6B6258" };
-  if (days <= 7) return { text: `in ${days}d`, color: "#6B6258" };
+  if (days < 0) return { text: `${Math.abs(days)}d overdue`, color: "var(--ios-red)" };
+  if (days === 0) return { text: "today", color: "var(--ios-orange)" };
+  if (days === 1) return { text: "tomorrow", color: "var(--ios-label-2)" };
+  if (days <= 7) return { text: `in ${days}d`, color: "var(--ios-label-2)" };
   const d = new Date(dateStr + "T00:00:00");
-  return { text: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }), color: "#8A8278" };
+  return { text: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }), color: "var(--ios-label-3)" };
 }
 
 function sortTodos(todos: Todo[]): Todo[] {
@@ -115,15 +115,15 @@ export default function TodosWidget({ initialTodos }: { initialTodos: Todo[] }) 
 
   return (
     <div style={card}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-        <h2 className="serif" style={{ fontSize: 20 }}>To-dos</h2>
-        <span style={{ fontSize: 10, color: "var(--color-ink-3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, padding: "12px 16px 6px" }}>
+        <span className="ios-headline">To-dos</span>
+        <span className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)" }}>
           {open.length} open · {done.length} done
         </span>
       </div>
 
-      <form onSubmit={handleAdd} style={{ marginBottom: 12 }}>
-        <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+      <form onSubmit={handleAdd} style={{ padding: "6px 16px 12px" }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -136,13 +136,13 @@ export default function TodosWidget({ initialTodos }: { initialTodos: Todo[] }) 
             type="submit"
             disabled={pending || !input.trim()}
             style={{
-              padding: "8px 14px",
-              borderRadius: 8,
-              border: "1px solid var(--color-accent-dark)",
-              background: "var(--color-accent)",
-              color: "#FFFDF8",
-              fontSize: 13,
-              fontWeight: 500,
+              padding: "0 16px",
+              borderRadius: 10,
+              border: "none",
+              background: "var(--ios-tint)",
+              color: "var(--ios-on-tint)",
+              fontSize: 15,
+              fontWeight: 600,
               fontFamily: "inherit",
               cursor: pending || !input.trim() ? "not-allowed" : "pointer",
               opacity: pending || !input.trim() ? 0.5 : 1,
@@ -154,25 +154,13 @@ export default function TodosWidget({ initialTodos }: { initialTodos: Todo[] }) 
 
         {(showOptions || priority || dueDate) && (
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ display: "flex", gap: 4 }}>
+            <div style={{ display: "flex", gap: 6 }}>
               {(["high", "medium", "low"] as const).map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setPriority(priority === p ? null : p)}
-                  style={{
-                    padding: "3px 9px",
-                    borderRadius: 12,
-                    border: `1px solid ${priority === p ? PRIORITY_COLOR[p] : "var(--color-rule)"}`,
-                    background: priority === p ? PRIORITY_COLOR[p] : "transparent",
-                    color: priority === p ? "#FFFDF8" : PRIORITY_COLOR[p],
-                    fontSize: 10,
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    fontFamily: "inherit",
-                    cursor: "pointer",
-                  }}
+                  style={priorityChip(priority === p, PRIORITY_COLOR[p])}
                 >
                   {PRIORITY_LABEL[p]}
                 </button>
@@ -183,18 +171,18 @@ export default function TodosWidget({ initialTodos }: { initialTodos: Todo[] }) 
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
               min={todayLocal()}
-              style={{ ...inputStyle, padding: "5px 8px", fontSize: 11, width: 130 }}
+              style={{ ...inputStyle, flex: "0 0 auto", padding: "7px 10px", fontSize: 13, width: 140 }}
             />
           </div>
         )}
       </form>
 
       {todos.length === 0 ? (
-        <p style={{ fontSize: 12, color: "var(--color-ink-4)", padding: "20px 0", textAlign: "center" }}>
+        <p className="ios-footnote" style={{ color: "var(--ios-label-3)", padding: "16px", textAlign: "center" }}>
           Nothing yet. Add your first one above.
         </p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", maxHeight: 320, overflowY: "auto" }}>
+        <div style={{ maxHeight: 320, overflowY: "auto" }}>
           {sorted.map((t) => (
             <TodoRow
               key={t.id}
@@ -228,25 +216,19 @@ function TodoRow({
   const due = todo.due_date ? dueLabel(todo.due_date) : null;
 
   return (
-    <div
-      style={{
-        padding: "8px 0",
-        borderTop: "1px solid var(--color-rule-soft)",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+    <div className="ios-cell" style={{ flexDirection: "column", alignItems: "stretch", gap: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <button
           onClick={onToggle}
           aria-label={todo.completed ? "Mark incomplete" : "Mark complete"}
           style={{
-            width: 18,
-            height: 18,
-            borderRadius: 4,
-            border: `1.5px solid ${todo.completed ? "var(--color-accent)" : "var(--color-rule)"}`,
-            background: todo.completed ? "var(--color-accent)" : "transparent",
-            color: "#FFFDF8",
+            width: 22,
+            height: 22,
+            borderRadius: "50%",
+            border: `1.6px solid ${todo.completed ? "var(--ios-green)" : "var(--ios-label-3)"}`,
+            background: todo.completed ? "var(--ios-green)" : "transparent",
+            color: "#fff",
             cursor: "pointer",
-            fontSize: 12,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -254,14 +236,18 @@ function TodoRow({
             flexShrink: 0,
           }}
         >
-          {todo.completed && "✓"}
+          {todo.completed && (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" width={13} height={13} aria-hidden>
+              <path d="M5 12.5l4.5 4.5L19 6.5" />
+            </svg>
+          )}
         </button>
 
         {todo.priority && !todo.completed && (
           <span
             style={{
-              width: 6,
-              height: 6,
+              width: 7,
+              height: 7,
               borderRadius: "50%",
               background: PRIORITY_COLOR[todo.priority],
               display: "inline-block",
@@ -273,14 +259,11 @@ function TodoRow({
 
         <span
           onClick={() => !todo.completed && setEditing(!editing)}
+          className="ios-cell-title ios-truncate"
           style={{
             flex: 1,
-            fontSize: 13,
-            color: todo.completed ? "var(--color-ink-4)" : "var(--color-ink)",
+            color: todo.completed ? "var(--ios-label-3)" : "var(--ios-label)",
             textDecoration: todo.completed ? "line-through" : undefined,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
             cursor: todo.completed ? "default" : "pointer",
           }}
         >
@@ -288,49 +271,27 @@ function TodoRow({
         </span>
 
         {due && !todo.completed && (
-          <span style={{ fontSize: 10, color: due.color, whiteSpace: "nowrap", fontWeight: 500 }}>
+          <span className="ios-caption ios-num" style={{ color: due.color, whiteSpace: "nowrap", fontWeight: 500 }}>
             {due.text}
           </span>
         )}
 
-        <button
-          onClick={onDelete}
-          aria-label="Delete"
-          style={{
-            background: "none",
-            border: "none",
-            color: "var(--color-ink-4)",
-            fontSize: 14,
-            cursor: "pointer",
-            padding: "2px 4px",
-            flexShrink: 0,
-          }}
-        >
-          ×
+        <button onClick={onDelete} aria-label="Delete" style={iconBtn}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" width={15} height={15} aria-hidden>
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
         </button>
       </div>
 
       {editing && !todo.completed && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, marginLeft: 28, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", gap: 3 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, marginLeft: 34, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 6 }}>
             {(["high", "medium", "low"] as const).map((p) => (
               <button
                 key={p}
                 type="button"
                 onClick={() => onSetPriority(todo.priority === p ? null : p)}
-                style={{
-                  padding: "2px 7px",
-                  borderRadius: 10,
-                  border: `1px solid ${todo.priority === p ? PRIORITY_COLOR[p] : "var(--color-rule)"}`,
-                  background: todo.priority === p ? PRIORITY_COLOR[p] : "transparent",
-                  color: todo.priority === p ? "#FFFDF8" : PRIORITY_COLOR[p],
-                  fontSize: 9,
-                  fontWeight: 600,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                }}
+                style={priorityChip(todo.priority === p, PRIORITY_COLOR[p])}
               >
                 {PRIORITY_LABEL[p]}
               </button>
@@ -341,19 +302,14 @@ function TodoRow({
             value={todo.due_date ?? ""}
             onChange={(e) => onSetDue(e.target.value || null)}
             min={todayLocal()}
-            style={{ ...inputStyle, padding: "4px 7px", fontSize: 11, width: 130 }}
+            style={{ ...inputStyle, flex: "0 0 auto", padding: "6px 9px", fontSize: 13, width: 140 }}
           />
           {todo.due_date && (
             <button
               type="button"
               onClick={() => onSetDue(null)}
-              style={{
-                background: "none",
-                border: "none",
-                color: "var(--color-ink-3)",
-                fontSize: 11,
-                cursor: "pointer",
-              }}
+              className="ios-caption"
+              style={{ background: "none", border: "none", color: "var(--ios-tint)", cursor: "pointer" }}
             >
               clear date
             </button>
@@ -365,25 +321,48 @@ function TodoRow({
 }
 
 const card: React.CSSProperties = {
-  background: "var(--color-bg-card)",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 12,
-  padding: "18px 20px",
-  boxShadow: "var(--shadow-card)",
+  background: "var(--ios-cell)",
+  borderRadius: "var(--ios-radius-card)",
+  overflow: "hidden",
   minHeight: 320,
-  height: "100%",
-  boxSizing: "border-box" as const,
 };
 
 const inputStyle: React.CSSProperties = {
   flex: 1,
-  padding: "8px 12px",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 8,
-  background: "var(--color-bg)",
-  color: "var(--color-ink)",
-  fontSize: 13,
+  minWidth: 0,
+  padding: "10px 12px",
+  border: "var(--ios-hair) solid var(--ios-separator)",
+  borderRadius: 10,
+  background: "var(--ios-bg)",
+  color: "var(--ios-label)",
+  fontSize: 15,
   fontFamily: "inherit",
   outline: "none",
   boxSizing: "border-box",
 };
+
+const iconBtn: React.CSSProperties = {
+  background: "none",
+  border: "none",
+  color: "var(--ios-label-3)",
+  cursor: "pointer",
+  padding: "2px 4px",
+  flexShrink: 0,
+  display: "inline-flex",
+  alignItems: "center",
+};
+
+function priorityChip(selected: boolean, color: string): React.CSSProperties {
+  return {
+    padding: "5px 12px",
+    borderRadius: 999,
+    border: "none",
+    background: selected ? color : "var(--ios-fill)",
+    color: selected ? "#fff" : "var(--ios-label)",
+    fontSize: 13,
+    fontWeight: 500,
+    fontFamily: "inherit",
+    cursor: "pointer",
+    lineHeight: 1,
+  };
+}

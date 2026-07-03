@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { RssArticle } from "@/lib/news";
 import type { NewsSource } from "@/lib/prefs-shared";
+import { Chip, Icons } from "@/components/ios";
 
 interface Props {
   articles: RssArticle[];
@@ -31,125 +32,111 @@ export default function NewsSubscriptionsClient({ articles, sources }: Props) {
   }, {});
 
   return (
-    <div style={{
-      background: "var(--color-bg-card)",
-      border: "1px solid var(--color-rule)",
-      borderRadius: 12,
-      boxShadow: "var(--shadow-card)",
-      overflow: "hidden",
-      display: "flex",
-      flexDirection: "column",
-    }}>
+    <div style={card}>
       {/* ── Header ── */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "16px 20px 12px",
-        borderBottom: articles.length > 0 ? "1px solid var(--color-rule-soft)" : "none",
+        padding: "12px 16px 8px",
       }}>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)" }}>
-          My Subscriptions
-        </span>
-        <a href="/home/settings#news-subscriptions" style={{ fontSize: 11, color: "var(--color-accent)", textDecoration: "none", fontWeight: 500 }}>
+        <span className="ios-headline">My Subscriptions</span>
+        <a href="/home/settings#news-subscriptions" className="ios-footnote" style={{ color: "var(--ios-tint)", fontWeight: 500 }}>
           Manage
         </a>
       </div>
 
-      {/* ── Source filter tabs (only when > 1 source has articles) ── */}
+      {/* ── Source filter chips (only when > 1 source has articles) ── */}
       {sources.length > 1 && articles.length > 0 && (
         <div style={{
-          display: "flex", gap: 0,
-          borderBottom: "1px solid var(--color-rule-soft)",
-          overflowX: "auto",
+          display: "flex", gap: 8, padding: "2px 16px 10px",
+          overflowX: "auto", scrollbarWidth: "none",
         }}>
-          <TabButton label="All" count={articles.length} active={!activeSource} onClick={() => setActiveSource(null)} />
+          <Chip small selected={!activeSource} onClick={() => setActiveSource(null)}>
+            All {articles.length}
+          </Chip>
           {sources.filter((s) => countBySource[s.id]).map((s) => (
-            <TabButton
+            <Chip
               key={s.id}
-              label={s.name}
-              count={countBySource[s.id] ?? 0}
-              active={activeSource === s.id}
+              small
+              selected={activeSource === s.id}
               onClick={() => setActiveSource(activeSource === s.id ? null : s.id)}
-              accent={SOURCE_ACCENT[s.id]}
-            />
+            >
+              {s.name} {countBySource[s.id] ?? 0}
+            </Chip>
           ))}
         </div>
       )}
 
       {/* ── Empty state ── */}
       {filtered.length === 0 && (
-        <div style={{ padding: "32px 20px", textAlign: "center", color: "var(--color-ink-3)" }}>
-          <div style={{ fontSize: 28, marginBottom: 10 }}>📰</div>
-          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>No articles yet</div>
-          <div style={{ fontSize: 12 }}>
+        <div style={{ padding: "28px 16px", textAlign: "center", color: "var(--ios-label-2)" }}>
+          <Icons.NewsIcon width={30} height={30} style={{ color: "var(--ios-label-3)" }} />
+          <div className="ios-subhead" style={{ fontWeight: 500, margin: "8px 0 4px", color: "var(--ios-label)" }}>No articles yet</div>
+          <div className="ios-footnote">
             {sources.length === 0
-              ? <a href="/home/settings#news-subscriptions" style={{ color: "var(--color-accent)" }}>Add a subscription →</a>
+              ? <a href="/home/settings#news-subscriptions" style={{ color: "var(--ios-tint)" }}>Add a subscription →</a>
               : "Feeds refresh every 30 minutes."}
           </div>
         </div>
       )}
 
       {/* ── Article list ── */}
-      <div style={{ flex: 1 }}>
+      <div>
         {filtered.slice(0, 8).map((article, i) => {
-          const accent = SOURCE_ACCENT[article.sourceId] ?? "var(--color-accent)";
-          const isLast = i === Math.min(filtered.length, 8) - 1;
+          const accent = SOURCE_ACCENT[article.sourceId] ?? "var(--ios-tint)";
           return (
             <a
               key={article.url + i}
               href={article.url}
               target="_blank"
               rel="noopener noreferrer"
+              className="ios-cell"
               style={{
-                display: "block",
-                padding: "13px 20px 13px 16px",
-                borderBottom: isLast ? "none" : "1px solid var(--color-rule-soft)",
-                textDecoration: "none",
+                alignItems: "flex-start",
+                color: "inherit",
                 borderLeft: `3px solid ${accent}`,
-                transition: "background 120ms",
               }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-bg-deep)"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
             >
-              {/* Meta row */}
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: accent, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                  {article.sourceName}
+              <span className="ios-cell-body">
+                {/* Meta row */}
+                <span style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                  <span className="ios-caption" style={{ fontWeight: 700, color: accent, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                    {article.sourceName}
+                  </span>
+                  <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>·</span>
+                  <span className="ios-caption ios-num" style={{ color: "var(--ios-label-3)" }}>
+                    {formatDate(article.pubDate)}
+                  </span>
                 </span>
-                <span style={{ fontSize: 10, color: "var(--color-ink-4)" }}>·</span>
-                <span style={{ fontSize: 10, color: "var(--color-ink-4)" }}>
-                  {formatDate(article.pubDate)}
-                </span>
-              </div>
 
-              {/* Headline */}
-              <div style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: "var(--color-ink)",
-                lineHeight: 1.45,
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-              }}>
-                {article.title}
-              </div>
-
-              {/* Summary preview */}
-              {article.summary && (
-                <div style={{
-                  fontSize: 12,
-                  color: "var(--color-ink-3)",
-                  lineHeight: 1.5,
-                  marginTop: 4,
+                {/* Headline */}
+                <span style={{
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: "var(--ios-label)",
+                  lineHeight: 1.4,
                   display: "-webkit-box",
                   WebkitLineClamp: 2,
                   WebkitBoxOrient: "vertical",
                   overflow: "hidden",
                 }}>
-                  {article.summary}
-                </div>
-              )}
+                  {article.title}
+                </span>
+
+                {/* Summary preview */}
+                {article.summary && (
+                  <span className="ios-footnote" style={{
+                    color: "var(--ios-label-2)",
+                    lineHeight: 1.45,
+                    marginTop: 3,
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}>
+                    {article.summary}
+                  </span>
+                )}
+              </span>
             </a>
           );
         })}
@@ -158,12 +145,11 @@ export default function NewsSubscriptionsClient({ articles, sources }: Props) {
       {/* ── Quick-access footer ── */}
       {sources.length > 0 && (
         <div style={{
-          borderTop: "1px solid var(--color-rule-soft)",
-          padding: "10px 20px",
+          borderTop: "var(--ios-hair) solid var(--ios-separator)",
+          padding: "10px 16px",
           display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center",
-          background: "var(--color-bg)",
         }}>
-          <span style={{ fontSize: 10, color: "var(--color-ink-4)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>
+          <span className="ios-caption" style={{ color: "var(--ios-label-3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0 }}>
             Open
           </span>
           {sources.map((s) => (
@@ -173,12 +159,11 @@ export default function NewsSubscriptionsClient({ articles, sources }: Props) {
               target="_blank"
               rel="noopener noreferrer"
               style={{
-                display: "inline-flex", alignItems: "center", gap: 4,
-                padding: "4px 10px", borderRadius: 6,
-                border: "1px solid var(--color-rule)",
-                background: "var(--color-bg-card)",
-                color: "var(--color-ink-2)", textDecoration: "none",
-                fontSize: 11, fontWeight: 500,
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "5px 12px", borderRadius: 999,
+                background: "var(--ios-fill)",
+                color: "var(--ios-label)", textDecoration: "none",
+                fontSize: 13, fontWeight: 500,
               }}
             >
               {s.auth === "google" && <GoogleDot />}
@@ -191,40 +176,9 @@ export default function NewsSubscriptionsClient({ articles, sources }: Props) {
   );
 }
 
-function TabButton({ label, count, active, onClick, accent }: {
-  label: string; count: number; active: boolean;
-  onClick: () => void; accent?: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: "9px 14px",
-        border: "none",
-        borderBottom: active ? `2px solid ${accent ?? "var(--color-accent)"}` : "2px solid transparent",
-        background: "transparent",
-        color: active ? (accent ?? "var(--color-accent)") : "var(--color-ink-3)",
-        fontSize: 12, fontWeight: active ? 700 : 500,
-        cursor: "pointer", whiteSpace: "nowrap",
-        transition: "color 100ms",
-      }}
-    >
-      {label}
-      {count > 0 && (
-        <span style={{
-          marginLeft: 5, fontSize: 10, fontWeight: 700,
-          color: active ? (accent ?? "var(--color-accent)") : "var(--color-ink-4)",
-        }}>
-          {count}
-        </span>
-      )}
-    </button>
-  );
-}
-
 function GoogleDot() {
   return (
-    <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
       <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
       <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
       <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
@@ -243,3 +197,9 @@ function formatDate(iso: string): string {
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   } catch { return ""; }
 }
+
+const card: React.CSSProperties = {
+  background: "var(--ios-cell)",
+  borderRadius: "var(--ios-radius-card)",
+  overflow: "hidden",
+};

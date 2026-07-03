@@ -1,5 +1,8 @@
 "use client";
 
+import type { ComponentType, SVGProps } from "react";
+import { Icons } from "@/components/ios";
+
 interface GradeComponent {
   id: string;
   category: string;
@@ -28,11 +31,11 @@ interface SharedCourseClientProps {
 }
 
 function getLetterGrade(pct: number): { letter: string; color: string } {
-  if (pct >= 90) return { letter: "A", color: "#16a34a" };
-  if (pct >= 80) return { letter: "B", color: "#2563eb" };
-  if (pct >= 70) return { letter: "C", color: "#ca8a04" };
-  if (pct >= 60) return { letter: "D", color: "#ea580c" };
-  return { letter: "F", color: "#dc2626" };
+  if (pct >= 90) return { letter: "A", color: "var(--ios-green)" };
+  if (pct >= 80) return { letter: "B", color: "var(--ios-tint)" };
+  if (pct >= 70) return { letter: "C", color: "var(--ios-orange)" };
+  if (pct >= 60) return { letter: "D", color: "#FF7A00" };
+  return { letter: "F", color: "var(--ios-red)" };
 }
 
 function calcContribution(row: GradeComponent): number | null {
@@ -42,12 +45,12 @@ function calcContribution(row: GradeComponent): number | null {
   return (row.points_earned / row.points_possible) * row.weight;
 }
 
-const TYPE_EMOJI: Record<string, string> = {
-  test: "📝",
-  assignment: "📋",
-  quiz: "❓",
-  practice: "🔁",
-  extra_credit: "⭐",
+const TYPE_ICON: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
+  test: Icons.ComposeIcon,
+  assignment: Icons.ChecklistIcon,
+  quiz: Icons.BookIcon,
+  practice: Icons.ChartIcon,
+  extra_credit: Icons.SparkleIcon,
 };
 
 function formatDate(dateStr: string): string {
@@ -77,7 +80,7 @@ export default function SharedCourseClient({
 
   const { letter, color: badgeColor } = totalGrade !== null
     ? getLetterGrade(totalGrade)
-    : { letter: "—", color: "var(--color-ink-3)" };
+    : { letter: "—", color: "var(--ios-label-3)" };
 
   const upcoming = assignments
     .filter((a) => !a.is_completed && daysUntil(a.due_date) >= 0)
@@ -93,24 +96,22 @@ export default function SharedCourseClient({
       {/* ── Grades panel ── */}
       {canViewGrades && (
         <div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <h2 className="serif" style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>
-              📊 Grade Tracker
-            </h2>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <h2 className="ios-title-3" style={{ margin: 0 }}>Grade Tracker</h2>
             {totalGrade !== null && (
               <div style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
-                background: badgeColor + "15",
+                background: "var(--ios-cell)",
                 border: `2px solid ${badgeColor}`,
                 borderRadius: 10,
                 padding: "6px 14px",
               }}>
-                <span style={{ fontSize: 28, fontWeight: 800, color: badgeColor, fontFamily: "serif", lineHeight: 1 }}>
+                <span className="ios-num" style={{ fontSize: 28, fontWeight: 800, color: badgeColor, lineHeight: 1 }}>
                   {letter}
                 </span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: badgeColor }}>
+                <span className="ios-subhead ios-num" style={{ fontWeight: 700, color: badgeColor }}>
                   {totalGrade.toFixed(1)}%
                 </span>
               </div>
@@ -118,33 +119,31 @@ export default function SharedCourseClient({
           </div>
 
           {grades.length === 0 ? (
-            <div style={{
-              background: "var(--color-bg-card)",
-              border: "1px dashed var(--color-rule)",
-              borderRadius: 10,
+            <div className="ios-footnote" style={{
+              background: "var(--ios-cell)",
+              borderRadius: "var(--ios-radius-card)",
               padding: "32px 20px",
               textAlign: "center",
-              color: "var(--color-ink-3)",
-              fontSize: 13,
+              color: "var(--ios-label-2)",
             }}>
               No grade components added yet.
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <div style={{ overflowX: "auto", background: "var(--ios-cell)", borderRadius: "var(--ios-radius-card)" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                 <thead>
-                  <tr style={{ background: colorTag + "15", borderBottom: `2px solid ${colorTag}` }}>
+                  <tr style={{ background: "var(--ios-fill-2)", borderBottom: `2px solid ${colorTag}` }}>
                     {["Category", "Weight", "Earned", "Possible", "Score"].map((col) => (
                       <th
                         key={col}
+                        className="ios-caption"
                         style={{
                           padding: "8px 10px",
                           textAlign: col === "Category" ? "left" : "right",
-                          fontSize: 11,
                           fontWeight: 700,
                           letterSpacing: "0.06em",
                           textTransform: "uppercase",
-                          color: "var(--color-ink-2)",
+                          color: "var(--ios-label-2)",
                           whiteSpace: "nowrap",
                         }}
                       >
@@ -154,38 +153,33 @@ export default function SharedCourseClient({
                   </tr>
                 </thead>
                 <tbody>
-                  {grades.map((row, idx) => {
+                  {grades.map((row) => {
                     const contribution = calcContribution(row);
                     return (
-                      <tr
-                        key={row.id}
-                        style={{
-                          background: idx % 2 === 0 ? "var(--color-bg-card)" : "var(--color-bg)",
-                        }}
-                      >
-                        <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--color-rule)" }}>
+                      <tr key={row.id}>
+                        <td style={{ padding: "8px 10px", borderBottom: "var(--ios-hair) solid var(--ios-separator)" }}>
                           <div style={{ fontWeight: 500 }}>{row.category}</div>
                           {row.notes && (
-                            <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 2 }}>
+                            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 2 }}>
                               {row.notes}
                             </div>
                           )}
                         </td>
-                        <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--color-rule)", textAlign: "right", color: "var(--color-ink-2)" }}>
+                        <td className="ios-num" style={{ padding: "8px 10px", borderBottom: "var(--ios-hair) solid var(--ios-separator)", textAlign: "right", color: "var(--ios-label-2)" }}>
                           {row.weight}%
                         </td>
-                        <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--color-rule)", textAlign: "right" }}>
-                          {row.points_earned ?? <span style={{ color: "var(--color-ink-3)" }}>—</span>}
+                        <td className="ios-num" style={{ padding: "8px 10px", borderBottom: "var(--ios-hair) solid var(--ios-separator)", textAlign: "right" }}>
+                          {row.points_earned ?? <span style={{ color: "var(--ios-label-3)" }}>—</span>}
                         </td>
-                        <td style={{ padding: "8px 10px", borderBottom: "1px solid var(--color-rule)", textAlign: "right" }}>
-                          {row.points_possible ?? <span style={{ color: "var(--color-ink-3)" }}>—</span>}
+                        <td className="ios-num" style={{ padding: "8px 10px", borderBottom: "var(--ios-hair) solid var(--ios-separator)", textAlign: "right" }}>
+                          {row.points_possible ?? <span style={{ color: "var(--ios-label-3)" }}>—</span>}
                         </td>
-                        <td style={{
+                        <td className="ios-num" style={{
                           padding: "8px 10px",
-                          borderBottom: "1px solid var(--color-rule)",
+                          borderBottom: "var(--ios-hair) solid var(--ios-separator)",
                           textAlign: "right",
                           fontWeight: contribution !== null ? 600 : 400,
-                          color: contribution !== null ? colorTag : "var(--color-ink-3)",
+                          color: contribution !== null ? colorTag : "var(--ios-label-3)",
                         }}>
                           {contribution !== null ? `${contribution.toFixed(1)}%` : "—"}
                         </td>
@@ -194,26 +188,26 @@ export default function SharedCourseClient({
                   })}
                 </tbody>
                 <tfoot>
-                  <tr style={{ background: "var(--color-paper-deep)", borderTop: `2px solid ${colorTag}` }}>
-                    <td style={{ padding: "8px 10px", fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-ink-2)" }}>
+                  <tr style={{ background: "var(--ios-fill-2)", borderTop: `2px solid ${colorTag}` }}>
+                    <td className="ios-caption" style={{ padding: "8px 10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--ios-label-2)" }}>
                       Total
                     </td>
-                    <td style={{
+                    <td className="ios-num" style={{
                       padding: "8px 10px",
                       textAlign: "right",
                       fontWeight: 700,
-                      color: Math.abs(totalWeight - 100) < 0.01 ? "#16a34a" : "var(--color-ink)",
+                      color: Math.abs(totalWeight - 100) < 0.01 ? "var(--ios-green)" : "var(--ios-label)",
                     }}>
                       {totalWeight.toFixed(1)}%
                     </td>
                     <td style={{ padding: "8px 10px" }} />
                     <td style={{ padding: "8px 10px" }} />
-                    <td style={{
+                    <td className="ios-num" style={{
                       padding: "8px 10px",
                       textAlign: "right",
                       fontWeight: 800,
-                      fontSize: 14,
-                      color: totalGrade !== null ? getLetterGrade(totalGrade).color : "var(--color-ink-3)",
+                      fontSize: 15,
+                      color: totalGrade !== null ? getLetterGrade(totalGrade).color : "var(--ios-label-3)",
                     }}>
                       {totalGrade !== null ? `${totalGrade.toFixed(1)}%` : "—"}
                     </td>
@@ -228,19 +222,15 @@ export default function SharedCourseClient({
       {/* ── Assignments panel ── */}
       {canViewAssignments && (
         <div>
-          <h2 className="serif" style={{ fontSize: 20, fontWeight: 700, margin: "0 0 16px 0" }}>
-            📋 Assignments
-          </h2>
+          <h2 className="ios-title-3" style={{ margin: "0 0 12px 0" }}>Assignments</h2>
 
           {assignments.length === 0 ? (
-            <div style={{
-              background: "var(--color-bg-card)",
-              border: "1px dashed var(--color-rule)",
-              borderRadius: 10,
+            <div className="ios-footnote" style={{
+              background: "var(--ios-cell)",
+              borderRadius: "var(--ios-radius-card)",
               padding: "32px 20px",
               textAlign: "center",
-              color: "var(--color-ink-3)",
-              fontSize: 13,
+              color: "var(--ios-label-2)",
             }}>
               No assignments added yet.
             </div>
@@ -249,25 +239,24 @@ export default function SharedCourseClient({
               {/* Upcoming */}
               {upcoming.length > 0 && (
                 <>
-                  <div style={{
-                    fontSize: 10,
+                  <div className="ios-caption" style={{
                     fontWeight: 700,
                     letterSpacing: "0.1em",
                     textTransform: "uppercase",
-                    color: "var(--color-ink-3)",
+                    color: "var(--ios-label-3)",
                     marginBottom: 4,
                   }}>
                     Upcoming ({upcoming.length})
                   </div>
                   {upcoming.map((a) => {
                     const days = daysUntil(a.due_date);
-                    const urgentColor = days === 0 ? "#dc2626" : days <= 3 ? "#ea580c" : days <= 7 ? "#ca8a04" : colorTag;
+                    const urgentColor = days === 0 ? "var(--ios-red)" : days <= 3 ? "#FF7A00" : days <= 7 ? "var(--ios-orange)" : colorTag;
+                    const TypeIcon = TYPE_ICON[a.type] ?? Icons.BellIcon;
                     return (
                       <div
                         key={a.id}
                         style={{
-                          background: "var(--color-bg-card)",
-                          border: `1px solid ${urgentColor}30`,
+                          background: "var(--ios-cell)",
                           borderLeft: `3px solid ${urgentColor}`,
                           borderRadius: 8,
                           padding: "10px 14px",
@@ -278,25 +267,23 @@ export default function SharedCourseClient({
                         }}
                       >
                         <div style={{ display: "flex", alignItems: "flex-start", gap: 8, flex: 1 }}>
-                          <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>
-                            {TYPE_EMOJI[a.type] ?? "📌"}
-                          </span>
+                          <TypeIcon style={{ width: 16, height: 16, flexShrink: 0, marginTop: 2, color: urgentColor }} />
                           <div>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>
+                            <div className="ios-subhead" style={{ fontWeight: 600, color: "var(--ios-label)" }}>
                               {a.title}
                             </div>
                             {a.description && (
-                              <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 2 }}>
+                              <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 2 }}>
                                 {a.description}
                               </div>
                             )}
                           </div>
                         </div>
                         <div style={{ textAlign: "right", flexShrink: 0 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: urgentColor }}>
+                          <div className="ios-footnote ios-num" style={{ fontWeight: 600, color: urgentColor }}>
                             {days === 0 ? "Today" : days === 1 ? "Tomorrow" : `${days}d`}
                           </div>
-                          <div style={{ fontSize: 10, color: "var(--color-ink-3)" }}>
+                          <div className="ios-caption ios-num" style={{ color: "var(--ios-label-3)" }}>
                             {formatDate(a.due_date)}
                           </div>
                         </div>
@@ -309,45 +296,50 @@ export default function SharedCourseClient({
               {/* Past / completed */}
               {past.length > 0 && (
                 <>
-                  <div style={{
-                    fontSize: 10,
+                  <div className="ios-caption" style={{
                     fontWeight: 700,
                     letterSpacing: "0.1em",
                     textTransform: "uppercase",
-                    color: "var(--color-ink-3)",
+                    color: "var(--ios-label-3)",
                     marginTop: 12,
                     marginBottom: 4,
                   }}>
                     Past ({past.length})
                   </div>
-                  {past.map((a) => (
-                    <div
-                      key={a.id}
-                      style={{
-                        background: a.is_completed ? "#f0fdf4" : "var(--color-bg-card)",
-                        border: "1px solid var(--color-rule)",
-                        borderRadius: 8,
-                        padding: "10px 14px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        opacity: 0.7,
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, flex: 1 }}>
-                        <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>
-                          {a.is_completed ? "✅" : TYPE_EMOJI[a.type] ?? "📌"}
-                        </span>
-                        <div style={{ fontSize: 13, color: "var(--color-ink-2)", textDecoration: a.is_completed ? "line-through" : "none" }}>
-                          {a.title}
+                  {past.map((a) => {
+                    const TypeIcon = TYPE_ICON[a.type] ?? Icons.BellIcon;
+                    return (
+                      <div
+                        key={a.id}
+                        style={{
+                          background: "var(--ios-cell)",
+                          borderRadius: 8,
+                          padding: "10px 14px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          opacity: 0.7,
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, flex: 1 }}>
+                          {a.is_completed ? (
+                            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="var(--ios-green)" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ flexShrink: 0, marginTop: 2 }}>
+                              <path d="M5 12l5 5 9-11" />
+                            </svg>
+                          ) : (
+                            <TypeIcon style={{ width: 16, height: 16, flexShrink: 0, marginTop: 2, color: "var(--ios-label-3)" }} />
+                          )}
+                          <div className="ios-subhead" style={{ color: "var(--ios-label-2)", textDecoration: a.is_completed ? "line-through" : "none" }}>
+                            {a.title}
+                          </div>
+                        </div>
+                        <div className="ios-caption ios-num" style={{ color: "var(--ios-label-3)", flexShrink: 0 }}>
+                          {formatDate(a.due_date)}
                         </div>
                       </div>
-                      <div style={{ fontSize: 10, color: "var(--color-ink-3)", flexShrink: 0 }}>
-                        {formatDate(a.due_date)}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </>
               )}
             </div>

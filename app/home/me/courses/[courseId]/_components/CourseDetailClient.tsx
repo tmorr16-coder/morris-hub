@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Segmented } from "@/components/ios";
 import ContentTab from "./ContentTab";
 import RemindersTab from "./RemindersTab";
 import FlashcardsTab from "./FlashcardsTab";
@@ -65,39 +66,27 @@ export default function CourseDetailClient({
   const [reminders, setReminders] = useState(initialReminders);
   const [flashcardSets, setFlashcardSets] = useState(initialFlashcardSets);
 
-  const tabs = [
-    { id: "content",    label: "📚 Content"   },
-    { id: "grades",     label: "📊 Grades"    },
-    { id: "schedule",   label: "📅 Schedule"  },
-    { id: "reminders",  label: "⏰ Reminders" },
-    { id: "flashcards", label: "🎯 Flashcards"},
-    { id: "chat",       label: "💬 Course Chat"},
-    { id: "share",      label: "🔗 Share"     },
-  ] as const;
+  const tabs: { value: TabType; label: string }[] = [
+    { value: "content",    label: "Content"    },
+    { value: "grades",     label: "Grades"     },
+    { value: "schedule",   label: "Schedule"   },
+    { value: "reminders",  label: "Reminders"  },
+    { value: "flashcards", label: "Cards"      },
+    { value: "chat",       label: "Chat"       },
+    { value: "share",      label: "Share"      },
+  ];
 
   return (
     <div>
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--color-rule)", marginBottom: 32 }}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: "12px 20px",
-              fontSize: 14,
-              fontWeight: activeTab === tab.id ? 600 : 400,
-              color: activeTab === tab.id ? "var(--color-accent-dark)" : "var(--color-ink-2)",
-              background: "transparent",
-              border: "none",
-              borderBottom: activeTab === tab.id ? `2px solid ${course.color_tag}` : "none",
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div style={{ overflowX: "auto", scrollbarWidth: "none", margin: "0 0 24px" }}>
+        <Segmented<TabType>
+          options={tabs}
+          value={activeTab}
+          onChange={setActiveTab}
+          ariaLabel="Course sections"
+          style={{ minWidth: 560 }}
+        />
       </div>
 
       {/* Tab Content */}

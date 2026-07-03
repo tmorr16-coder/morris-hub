@@ -17,11 +17,7 @@ export default async function ClaudeTipCard() {
 }
 
 const card: React.CSSProperties = {
-  background: "var(--color-bg-card)",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 12,
-  padding: "20px 24px",
-  boxShadow: "var(--shadow-card)",
-  height: "100%",
-  boxSizing: "border-box",
+  background: "var(--ios-cell)",
+  borderRadius: "var(--ios-radius-card)",
+  overflow: "hidden",
 };

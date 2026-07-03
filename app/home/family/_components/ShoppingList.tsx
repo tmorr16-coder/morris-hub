@@ -54,56 +54,52 @@ export default function ShoppingList({
   const checked = items.filter((i) => i.checked);
 
   return (
-    <div style={{ marginBottom: 28 }}>
-      <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", margin: "0 0 12px", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-        🛒 Shopping list
-      </h2>
-      <form onSubmit={addItem} style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+    <section className="ios-group">
+      <h2 className="ios-group-header">Shopping list</h2>
+      <form onSubmit={addItem} style={{ display: "flex", gap: 8, margin: "0 var(--ios-gutter) 10px" }}>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Add an item…"
-          style={{ flex: 1, padding: "8px 12px", border: "1px solid var(--color-rule)", borderRadius: 8, fontSize: 13, fontFamily: "inherit" }}
+          style={{ flex: 1, padding: "10px 14px", border: "var(--ios-hair) solid var(--ios-separator)", borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 16 }}
         />
-        <button type="submit" disabled={adding || !text.trim()}
-          style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+        <button type="submit" disabled={adding || !text.trim()} className="ios-btn ios-btn--primary" style={{ width: "auto", minHeight: 0, padding: "10px 18px", fontSize: 15, opacity: adding || !text.trim() ? 0.5 : 1 }}>
           Add
         </button>
       </form>
       {items.length === 0 ? (
-        <div style={{ fontSize: 13, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>List is empty.</div>
+        <p className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "0 var(--ios-gutter)" }}>List is empty.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div className="ios-list">
           {[...unchecked, ...checked].map((i) => (
-            <div key={i.id} style={{
-              display: "flex", alignItems: "center", gap: 10, padding: "8px 14px",
-              background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 8,
-              opacity: i.checked ? 0.55 : 1,
-            }}>
-              <button onClick={() => toggle(i.id, i.checked)} aria-label={i.checked ? "Uncheck" : "Check off"}
-                style={{
-                  width: 18, height: 18, borderRadius: 5, flexShrink: 0, cursor: "pointer",
-                  border: `2px solid ${i.checked ? "var(--color-accent)" : "var(--color-rule)"}`,
-                  background: i.checked ? "var(--color-accent)" : "transparent",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                {i.checked && <span style={{ color: "#fff", fontSize: 11 }}>✓</span>}
-              </button>
-              <span style={{
-                flex: 1, fontSize: 13, color: "var(--color-ink-2)", fontFamily: "var(--font-geist, system-ui), sans-serif",
-                textDecoration: i.checked ? "line-through" : "none",
-              }}>
-                {i.item}{i.quantity ? ` · ${i.quantity}` : ""}
+            <div key={i.id} className="ios-cell">
+              <span className="ios-cell-lead">
+                <button onClick={() => toggle(i.id, i.checked)} aria-label={i.checked ? "Uncheck" : "Check off"}
+                  style={{
+                    width: 24, height: 24, borderRadius: "50%", flexShrink: 0,
+                    border: `2px solid ${i.checked ? "var(--ios-green)" : "var(--ios-label-3)"}`,
+                    background: i.checked ? "var(--ios-green)" : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                  {i.checked && <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12l5 5L20 7" /></svg>}
+                </button>
               </span>
-              <span style={{ fontSize: 10, color: "var(--color-ink-4)", flexShrink: 0 }}>{nameMap[i.added_by] ?? "Family"}</span>
-              <button onClick={() => remove(i.id)} aria-label="Remove"
-                style={{ background: "none", border: "none", color: "var(--color-ink-4)", cursor: "pointer", fontSize: 13, flexShrink: 0 }}>
-                ✕
+              <span className="ios-cell-body">
+                <span className="ios-cell-title ios-subhead" style={{
+                  textDecoration: i.checked ? "line-through" : "none",
+                  color: i.checked ? "var(--ios-label-2)" : "var(--ios-label)",
+                }}>
+                  {i.item}{i.quantity ? ` · ${i.quantity}` : ""}
+                </span>
+              </span>
+              <span className="ios-caption" style={{ color: "var(--ios-label-3)", flexShrink: 0 }}>{nameMap[i.added_by] ?? "Family"}</span>
+              <button onClick={() => remove(i.id)} aria-label="Remove" className="ios-cell-trail" style={{ color: "var(--ios-label-3)" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
               </button>
             </div>
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }

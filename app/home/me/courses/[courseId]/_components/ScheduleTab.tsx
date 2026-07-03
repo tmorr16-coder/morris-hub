@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import type { ComponentType, SVGProps } from "react";
+import { Icons } from "@/components/ios";
 
 // Map schedule item_type → course_reminders.type
 // All item types can become reminders; unmapped types default to "assignment"
@@ -34,16 +36,40 @@ interface ScheduleTabProps {
   colorTag: string;
 }
 
-const TYPE_META: Record<string, { label: string; color: string; emoji: string }> = {
-  study:      { label: "Study",      color: "#3b82f6", emoji: "📖" },
-  reading:    { label: "Reading",    color: "#6366f1", emoji: "📄" },
-  review:     { label: "Review",     color: "#8b5cf6", emoji: "🔍" },
-  assignment: { label: "Assignment", color: "#f59e0b", emoji: "📝" },
-  exam:       { label: "Exam",       color: "#ef4444", emoji: "🎓" },
-  quiz:       { label: "Quiz",       color: "#ec4899", emoji: "❓" },
-  practice:   { label: "Practice",   color: "#10b981", emoji: "🎯" },
-  other:      { label: "Other",      color: "#6b7280", emoji: "📌" },
+const TYPE_META: Record<string, { label: string; color: string; Icon: ComponentType<SVGProps<SVGSVGElement>> }> = {
+  study:      { label: "Study",      color: "var(--ios-tint)",   Icon: Icons.BookIcon },
+  reading:    { label: "Reading",    color: "#5856D6",           Icon: Icons.NewsIcon },
+  review:     { label: "Review",     color: "#AF52DE",           Icon: Icons.SparkleIcon },
+  assignment: { label: "Assignment", color: "var(--ios-orange)", Icon: Icons.ChecklistIcon },
+  exam:       { label: "Exam",       color: "var(--ios-red)",    Icon: Icons.ComposeIcon },
+  quiz:       { label: "Quiz",       color: "#FF2D55",           Icon: Icons.BookIcon },
+  practice:   { label: "Practice",   color: "var(--ios-green)",  Icon: Icons.ChartIcon },
+  other:      { label: "Other",      color: "var(--ios-label-2)", Icon: Icons.CalendarIcon },
 };
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "9px 12px",
+  borderRadius: 8,
+  border: "var(--ios-hair) solid var(--ios-separator)",
+  background: "var(--ios-cell)",
+  color: "var(--ios-label)",
+  fontSize: 14,
+  fontFamily: "inherit",
+  boxSizing: "border-box",
+  outline: "none",
+  colorScheme: "light dark",
+};
+
+const editLabel: React.CSSProperties = { display: "block", marginBottom: 4, color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.06em" };
+
+function ClockIcon(p: SVGProps<SVGSVGElement>) {
+  return (
+    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden {...p}>
+      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
 
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "No date";
@@ -201,8 +227,8 @@ export default function ScheduleTab({ courseId, courseName, colorTag }: Schedule
 
   if (loading) {
     return (
-      <div style={{ color: "var(--color-ink-3)", fontSize: 13, paddingTop: 24 }}>
-        Loading schedule...
+      <div className="ios-footnote" style={{ color: "var(--ios-label-2)", paddingTop: 24 }}>
+        Loading schedule…
       </div>
     );
   }
@@ -210,15 +236,15 @@ export default function ScheduleTab({ courseId, courseName, colorTag }: Schedule
   return (
     <div>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <h2 style={{ fontSize: 18, fontWeight: 600, margin: "0 0 4px 0" }}>Study Schedule</h2>
+          <h2 className="ios-title-3" style={{ margin: "0 0 4px 0" }}>Study Schedule</h2>
           {hasSchedule && items.length > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 160, height: 6, background: "var(--color-rule)", borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ width: 160, height: 6, background: "var(--ios-fill)", borderRadius: 3, overflow: "hidden" }}>
                 <div style={{ width: `${progress}%`, height: "100%", background: colorTag, borderRadius: 3, transition: "width 0.3s" }} />
               </div>
-              <span style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+              <span className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)" }}>
                 {completedCount}/{items.length} done
               </span>
             </div>
@@ -229,23 +255,29 @@ export default function ScheduleTab({ courseId, courseName, colorTag }: Schedule
           disabled={generating}
           style={{
             padding: "8px 16px",
-            borderRadius: 8,
-            border: "none",
-            background: generating ? "var(--color-paper-deep)" : colorTag,
-            color: "white",
-            fontSize: 12,
+            borderRadius: 10,
+            background: generating ? "var(--ios-fill)" : colorTag,
+            color: generating ? "var(--ios-label-2)" : "#fff",
+            fontSize: 13,
             fontWeight: 600,
-            cursor: generating ? "not-allowed" : "pointer",
-            opacity: generating ? 0.7 : 1,
+            opacity: generating ? 0.9 : 1,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
             whiteSpace: "nowrap",
           }}
         >
-          {generating ? "Generating…" : hasSchedule ? "↺ Regenerate Schedule" : "✨ Generate Schedule"}
+          {generating ? "Generating…" : hasSchedule ? "Regenerate" : (
+            <>
+              <Icons.SparkleIcon style={{ width: 15, height: 15 }} />
+              Generate Schedule
+            </>
+          )}
         </button>
       </div>
 
       {error && (
-        <div style={{ padding: "10px 14px", borderRadius: 6, background: "#fee2e2", color: "#991b1b", fontSize: 12, marginBottom: 16 }}>
+        <div className="ios-footnote" style={{ padding: "10px 14px", borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-red)", marginBottom: 16 }}>
           {error}
         </div>
       )}
@@ -253,28 +285,26 @@ export default function ScheduleTab({ courseId, courseName, colorTag }: Schedule
       {/* Empty state */}
       {!hasSchedule && !generating && (
         <div style={{
-          background: "var(--color-bg-card)",
-          border: "1px dashed var(--color-rule)",
-          borderRadius: 12,
+          background: "var(--ios-cell)",
+          borderRadius: "var(--ios-radius-card)",
           padding: "48px 24px",
           textAlign: "center",
-          color: "var(--color-ink-3)",
         }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>📅</div>
-          <p style={{ fontSize: 14, fontWeight: 500, color: "var(--color-ink-2)", margin: "0 0 8px" }}>
-            No schedule yet
-          </p>
-          <p style={{ fontSize: 12, margin: 0 }}>
-            Upload course materials and click <strong>Generate Schedule</strong> — Morris will create a week-by-week study plan based on your content and deadlines.
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 12, color: "var(--ios-label-3)" }}>
+            <Icons.CalendarIcon style={{ width: 34, height: 34 }} />
+          </div>
+          <p className="ios-headline" style={{ margin: "0 0 8px" }}>No schedule yet</p>
+          <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: 0 }}>
+            Upload course materials and tap <strong>Generate Schedule</strong> — Morris will create a week-by-week study plan based on your content and deadlines.
           </p>
         </div>
       )}
 
       {/* Generating spinner */}
       {generating && (
-        <div style={{ padding: "32px 0", textAlign: "center", color: "var(--color-ink-3)", fontSize: 13 }}>
-          <div style={{ marginBottom: 8 }}>Building your schedule…</div>
-          <div style={{ fontSize: 11 }}>Reading your course materials — this takes about 10 seconds.</div>
+        <div style={{ padding: "32px 0", textAlign: "center" }}>
+          <div className="ios-body" style={{ color: "var(--ios-label-2)", marginBottom: 8 }}>Building your schedule…</div>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>Reading your course materials — this takes about 10 seconds.</div>
         </div>
       )}
 
@@ -283,18 +313,17 @@ export default function ScheduleTab({ courseId, courseName, colorTag }: Schedule
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           {[...grouped.entries()].map(([weekKey, weekItems]) => (
             <div key={weekKey}>
-              <div style={{
-                fontSize: 11,
+              <div className="ios-caption" style={{
                 fontWeight: 700,
-                letterSpacing: "0.12em",
+                letterSpacing: "0.1em",
                 textTransform: "uppercase",
-                color: "var(--color-ink-3)",
+                color: "var(--ios-label-3)",
                 marginBottom: 10,
                 paddingBottom: 6,
-                borderBottom: "1px solid var(--color-rule)",
+                borderBottom: "var(--ios-hair) solid var(--ios-separator)",
               }}>
                 {weekLabel(weekKey)}
-                <span style={{ marginLeft: 8, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+                <span className="ios-num" style={{ marginLeft: 8, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
                   ({weekItems.filter((i) => i.is_completed).length}/{weekItems.length} done)
                 </span>
               </div>
@@ -307,9 +336,9 @@ export default function ScheduleTab({ courseId, courseName, colorTag }: Schedule
                   if (isEditing) {
                     return (
                       <div key={item.id} style={{
-                        background: "var(--color-bg-card)",
+                        background: "var(--ios-cell)",
                         border: `1px solid ${colorTag}`,
-                        borderRadius: 8,
+                        borderRadius: "var(--ios-radius-card)",
                         padding: "14px 16px",
                       }}>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
@@ -318,56 +347,56 @@ export default function ScheduleTab({ courseId, courseName, colorTag }: Schedule
                               autoFocus
                               value={editForm.title ?? ""}
                               onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                              style={{ width: "100%", padding: "6px 10px", borderRadius: 5, border: "1px solid var(--color-rule)", fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }}
+                              style={inputStyle}
                             />
                           </div>
                           <div>
-                            <label style={{ fontSize: 10, fontWeight: 600, color: "var(--color-ink-3)", display: "block", marginBottom: 4 }}>TYPE</label>
+                            <label className="ios-caption" style={editLabel}>Type</label>
                             <select
                               value={editForm.item_type ?? "study"}
                               onChange={(e) => setEditForm({ ...editForm, item_type: e.target.value })}
-                              style={{ width: "100%", padding: "6px 10px", borderRadius: 5, border: "1px solid var(--color-rule)", fontSize: 12, fontFamily: "inherit" }}
+                              style={inputStyle}
                             >
                               {Object.entries(TYPE_META).map(([k, v]) => (
-                                <option key={k} value={k}>{v.emoji} {v.label}</option>
+                                <option key={k} value={k}>{v.label}</option>
                               ))}
                             </select>
                           </div>
                           <div>
-                            <label style={{ fontSize: 10, fontWeight: 600, color: "var(--color-ink-3)", display: "block", marginBottom: 4 }}>DATE</label>
+                            <label className="ios-caption" style={editLabel}>Date</label>
                             <input
                               type="date"
                               value={editForm.scheduled_date ?? ""}
                               onChange={(e) => setEditForm({ ...editForm, scheduled_date: e.target.value })}
-                              style={{ width: "100%", padding: "6px 10px", borderRadius: 5, border: "1px solid var(--color-rule)", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
+                              style={inputStyle}
                             />
                           </div>
                           <div>
-                            <label style={{ fontSize: 10, fontWeight: 600, color: "var(--color-ink-3)", display: "block", marginBottom: 4 }}>DURATION (min)</label>
+                            <label className="ios-caption" style={editLabel}>Duration (min)</label>
                             <input
                               type="number"
                               min={15}
                               step={15}
                               value={editForm.duration_minutes ?? ""}
                               onChange={(e) => setEditForm({ ...editForm, duration_minutes: parseInt(e.target.value) || undefined })}
-                              style={{ width: "100%", padding: "6px 10px", borderRadius: 5, border: "1px solid var(--color-rule)", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
+                              style={inputStyle}
                             />
                           </div>
                           <div style={{ gridColumn: "1/-1" }}>
-                            <label style={{ fontSize: 10, fontWeight: 600, color: "var(--color-ink-3)", display: "block", marginBottom: 4 }}>NOTES</label>
+                            <label className="ios-caption" style={editLabel}>Notes</label>
                             <textarea
                               value={editForm.description ?? ""}
                               onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                               rows={2}
-                              style={{ width: "100%", padding: "6px 10px", borderRadius: 5, border: "1px solid var(--color-rule)", fontSize: 12, fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }}
+                              style={{ ...inputStyle, resize: "vertical" }}
                             />
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                          <button onClick={() => setEditingId(null)} style={{ padding: "5px 12px", borderRadius: 5, border: "1px solid var(--color-rule)", background: "transparent", fontSize: 12, cursor: "pointer" }}>
+                          <button onClick={() => setEditingId(null)} className="ios-footnote" style={{ padding: "6px 14px", borderRadius: 8, background: "var(--ios-fill)", fontWeight: 600 }}>
                             Cancel
                           </button>
-                          <button onClick={() => handleSaveEdit(item.id)} style={{ padding: "5px 12px", borderRadius: 5, border: "none", background: colorTag, color: "white", fontSize: 12, fontWeight: 500, cursor: "pointer" }}>
+                          <button onClick={() => handleSaveEdit(item.id)} className="ios-footnote" style={{ padding: "6px 14px", borderRadius: 8, background: colorTag, color: "#fff", fontWeight: 600 }}>
                             Save
                           </button>
                         </div>
@@ -380,9 +409,8 @@ export default function ScheduleTab({ courseId, courseName, colorTag }: Schedule
                       display: "flex",
                       alignItems: "flex-start",
                       gap: 12,
-                      background: "var(--color-bg-card)",
-                      border: "1px solid var(--color-rule)",
-                      borderRadius: 8,
+                      background: "var(--ios-cell)",
+                      borderRadius: "var(--ios-radius-card)",
                       padding: "12px 14px",
                       opacity: item.is_completed ? 0.6 : 1,
                       transition: "opacity 0.2s",
@@ -391,42 +419,46 @@ export default function ScheduleTab({ courseId, courseName, colorTag }: Schedule
                       <button
                         onClick={() => handleToggleComplete(item)}
                         style={{
-                          width: 18,
-                          height: 18,
-                          borderRadius: 4,
-                          border: `2px solid ${item.is_completed ? colorTag : "var(--color-rule)"}`,
+                          width: 22,
+                          height: 22,
+                          borderRadius: "50%",
+                          border: `2px solid ${item.is_completed ? colorTag : "var(--ios-separator)"}`,
                           background: item.is_completed ? colorTag : "transparent",
-                          cursor: "pointer",
                           flexShrink: 0,
-                          marginTop: 2,
+                          marginTop: 1,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          color: "white",
-                          fontSize: 10,
+                          color: "#fff",
                         }}
-                        title={item.is_completed ? "Mark incomplete" : "Mark complete"}
+                        aria-label={item.is_completed ? "Mark incomplete" : "Mark complete"}
                       >
-                        {item.is_completed && "✓"}
+                        {item.is_completed && (
+                          <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d="M5 12l5 5 9-11" />
+                          </svg>
+                        )}
                       </button>
 
                       {/* Content */}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <span style={{
-                            fontSize: 10,
+                          <span className="ios-caption" style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
                             fontWeight: 600,
-                            padding: "2px 7px",
-                            borderRadius: 10,
-                            background: `${meta.color}18`,
+                            padding: "2px 8px",
+                            borderRadius: 999,
+                            background: "var(--ios-fill)",
                             color: meta.color,
                           }}>
-                            {meta.emoji} {meta.label}
+                            <meta.Icon style={{ width: 12, height: 12 }} />
+                            {meta.label}
                           </span>
-                          <span style={{
-                            fontSize: 13,
+                          <span className="ios-subhead" style={{
                             fontWeight: 500,
-                            color: "var(--color-ink)",
+                            color: "var(--ios-label)",
                             textDecoration: item.is_completed ? "line-through" : "none",
                           }}>
                             {item.title}
@@ -434,81 +466,74 @@ export default function ScheduleTab({ courseId, courseName, colorTag }: Schedule
                         </div>
 
                         {item.description && (
-                          <p style={{ fontSize: 12, color: "var(--color-ink-3)", margin: "5px 0 0 0" }}>
+                          <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: "5px 0 0 0" }}>
                             {item.description}
                           </p>
                         )}
 
-                        <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 11, color: "var(--color-ink-4)" }}>
-                          <span>📅 {formatDate(item.scheduled_date)}</span>
-                          {item.duration_minutes && <span>⏱ {item.duration_minutes} min</span>}
+                        <div className="ios-caption ios-num" style={{ display: "flex", gap: 12, marginTop: 6, color: "var(--ios-label-3)" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <Icons.CalendarIcon style={{ width: 12, height: 12 }} /> {formatDate(item.scheduled_date)}
+                          </span>
+                          {item.duration_minutes && (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                              <ClockIcon style={{ width: 12, height: 12 }} /> {item.duration_minutes} min
+                            </span>
+                          )}
                         </div>
                       </div>
 
                       {/* Actions */}
-                      <div style={{ display: "flex", gap: 4, flexShrink: 0, alignItems: "center" }}>
+                      <div style={{ display: "flex", gap: 8, flexShrink: 0, alignItems: "center" }}>
                         {/* Remind button — any item with a date can become a platform reminder */}
                         {item.scheduled_date && (
                           remindedIds.has(item.id) ? (
-                            <span style={{
-                              padding: "4px 8px",
-                              borderRadius: 4,
-                              fontSize: 11,
-                              color: "#16a34a",
-                              fontWeight: 600,
-                            }}>
-                              ✓ Reminded
+                            <span className="ios-caption" style={{ display: "inline-flex", alignItems: "center", gap: 3, color: "var(--ios-green)", fontWeight: 600 }}>
+                              <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                <path d="M5 12l5 5 9-11" />
+                              </svg>
+                              Reminded
                             </span>
                           ) : (
                             <button
                               onClick={() => handleAddReminder(item)}
                               disabled={addingReminderId === item.id}
-                              title="Add to platform reminders"
+                              aria-label="Add to platform reminders"
+                              className="ios-caption"
                               style={{
-                                padding: "4px 8px",
-                                borderRadius: 4,
-                                border: `1px solid ${colorTag}50`,
-                                background: `${colorTag}10`,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 3,
                                 color: colorTag,
-                                fontSize: 11,
-                                cursor: addingReminderId === item.id ? "default" : "pointer",
+                                fontWeight: 600,
                                 opacity: addingReminderId === item.id ? 0.6 : 1,
                                 whiteSpace: "nowrap",
                               }}
                             >
-                              {addingReminderId === item.id ? "…" : "🔔 Remind"}
+                              {addingReminderId === item.id ? "…" : (
+                                <>
+                                  <Icons.BellIcon style={{ width: 13, height: 13 }} /> Remind
+                                </>
+                              )}
                             </button>
                           )
                         )}
                         <button
                           onClick={() => handleStartEdit(item)}
-                          style={{
-                            padding: "4px 8px",
-                            borderRadius: 4,
-                            border: "1px solid var(--color-rule)",
-                            background: "transparent",
-                            fontSize: 11,
-                            cursor: "pointer",
-                            color: "var(--color-ink-3)",
-                          }}
+                          className="ios-caption"
+                          style={{ color: "var(--ios-label-2)", fontWeight: 600 }}
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => handleDelete(item.id)}
                           disabled={deletingId === item.id}
-                          style={{
-                            padding: "4px 8px",
-                            borderRadius: 4,
-                            border: "1px solid #fecaca",
-                            background: "#fee2e2",
-                            color: "#991b1b",
-                            fontSize: 11,
-                            cursor: "pointer",
-                            opacity: deletingId === item.id ? 0.5 : 1,
-                          }}
+                          aria-label="Delete item"
+                          style={{ color: "var(--ios-red)", opacity: deletingId === item.id ? 0.5 : 1, display: "inline-flex" }}
                         >
-                          ×
+                          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d="M6 6l12 12M18 6L6 18" />
+                          </svg>
                         </button>
                       </div>
                     </div>

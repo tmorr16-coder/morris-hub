@@ -1,17 +1,10 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useState, useTransition } from "react";
 import type { Reminder, Recurrence, Category } from "@/lib/reminders";
+import { IconBadge, Icons } from "@/components/ios";
 import { addReminder, completeReminder, completeCourseReminder, snoozeReminder, deleteReminder, updateReminder } from "../actions";
-
-const CATEGORY_ICON: Record<Category, string> = {
-  bill: "💸",
-  medication: "💊",
-  workout: "🏋️",
-  appointment: "📅",
-  personal: "✦",
-  general: "•",
-};
 
 const CATEGORY_COLOR: Record<Category, string> = {
   bill: "#8B6A47",
@@ -21,6 +14,43 @@ const CATEGORY_COLOR: Record<Category, string> = {
   personal: "#B88A2E",
   general: "#6B6258",
 };
+
+function categoryIcon(category: Category): ReactNode {
+  switch (category) {
+    case "bill": return <Icons.WalletIcon />;
+    case "medication": return <Icons.PillIcon />;
+    case "workout": return <Icons.DumbbellIcon />;
+    case "appointment": return <Icons.CalendarIcon />;
+    case "personal": return <Icons.SparkleIcon />;
+    default: return <Icons.BellIcon />;
+  }
+}
+
+function QuestionGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" width="1em" height="1em" aria-hidden>
+      <path d="M9.2 9a2.8 2.8 0 1 1 4 2.5c-.8.5-1.2 1-1.2 2M12 17.5h.01" />
+    </svg>
+  );
+}
+function RepeatGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" width="1em" height="1em" aria-hidden>
+      <path d="M4 9a5 5 0 0 1 5-5h7l-2.5-2.5M20 15a5 5 0 0 1-5 5H8l2.5 2.5" />
+    </svg>
+  );
+}
+
+function courseIcon(type: string | null | undefined): ReactNode {
+  switch (type) {
+    case "test": return <Icons.ComposeIcon />;
+    case "assignment": return <Icons.ChecklistIcon />;
+    case "quiz": return <QuestionGlyph />;
+    case "practice": return <RepeatGlyph />;
+    case "extra_credit": return <Icons.SparkleIcon />;
+    default: return <Icons.BookIcon />;
+  }
+}
 
 const RECURRENCE_LABEL: Record<Recurrence, string> = {
   once: "once",
@@ -40,24 +70,24 @@ function formatDue(iso: string, tz: string): { text: string; color: string } {
 
   if (diffMin < 0) {
     const absMin = Math.abs(diffMin);
-    if (absMin < 60) return { text: `${absMin}m overdue`, color: "#9A3B2A" };
+    if (absMin < 60) return { text: `${absMin}m overdue`, color: "var(--ios-red)" };
     const hrs = Math.round(absMin / 60);
-    if (hrs < 24) return { text: `${hrs}h overdue`, color: "#9A3B2A" };
-    return { text: `${Math.round(hrs / 24)}d overdue`, color: "#9A3B2A" };
+    if (hrs < 24) return { text: `${hrs}h overdue`, color: "var(--ios-red)" };
+    return { text: `${Math.round(hrs / 24)}d overdue`, color: "var(--ios-red)" };
   }
-  if (diffMin < 60) return { text: `in ${diffMin}m`, color: "#B88A2E" };
+  if (diffMin < 60) return { text: `in ${diffMin}m`, color: "var(--ios-orange)" };
   const diffHr = Math.round(diffMin / 60);
   if (diffHr < 24) {
     return {
       text: due.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz }),
-      color: "#6B6258",
+      color: "var(--ios-label-2)",
     };
   }
   const diffDay = Math.round(diffHr / 24);
   if (diffDay === 1) {
     return {
       text: `tom ${due.toLocaleTimeString("en-US", { hour: "numeric", timeZone: tz })}`,
-      color: "#8A8278",
+      color: "var(--ios-label-3)",
     };
   }
   if (diffDay < 7) {
@@ -66,12 +96,12 @@ function formatDue(iso: string, tz: string): { text: string; color: string } {
         due.toLocaleDateString("en-US", { weekday: "short", timeZone: tz }) +
         " " +
         due.toLocaleTimeString("en-US", { hour: "numeric", timeZone: tz }),
-      color: "#8A8278",
+      color: "var(--ios-label-3)",
     };
   }
   return {
     text: due.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tz }),
-    color: "#8A8278",
+    color: "var(--ios-label-3)",
   };
 }
 
@@ -164,118 +194,109 @@ export default function RemindersWidget({
 
   return (
     <div style={card}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
-        <h2 className="serif" style={{ fontSize: 20 }}>Reminders</h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "12px 16px 8px" }}>
+        <span className="ios-headline">Reminders</span>
         <button
           onClick={() => setShowAdd(!showAdd)}
           style={{
-            padding: "3px 10px",
-            borderRadius: 14,
-            border: "1px solid var(--color-rule)",
-            background: showAdd ? "var(--color-accent)" : "transparent",
-            color: showAdd ? "#FFFDF8" : "var(--color-ink-2)",
-            fontSize: 11,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            padding: "5px 12px",
+            borderRadius: 999,
+            border: "none",
+            background: showAdd ? "var(--ios-tint)" : "var(--ios-fill)",
+            color: showAdd ? "var(--ios-on-tint)" : "var(--ios-tint)",
+            fontSize: 13,
+            fontWeight: 500,
             fontFamily: "inherit",
             cursor: "pointer",
           }}
         >
-          {showAdd ? "Cancel" : "+ Add"}
+          {showAdd ? "Cancel" : (<><Icons.PlusIcon width={14} height={14} /> Add</>)}
         </button>
       </div>
 
       {showAdd && (
-        <AddReminderForm
-          tz={tz}
-          categories={categories}
-          onAdded={(r) => {
-            setReminders((prev) =>
-              [...prev, r].sort((a, b) => (a.due_at < b.due_at ? -1 : 1))
-            );
-            setShowAdd(false);
-          }}
-        />
+        <div style={{ padding: "0 16px 12px" }}>
+          <AddReminderForm
+            tz={tz}
+            categories={categories}
+            onAdded={(r) => {
+              setReminders((prev) =>
+                [...prev, r].sort((a, b) => (a.due_at < b.due_at ? -1 : 1))
+              );
+              setShowAdd(false);
+            }}
+          />
+        </div>
       )}
 
       {reminders.length === 0 ? (
-        <p style={{ fontSize: 12, color: "var(--color-ink-4)", padding: "20px 0", textAlign: "center" }}>
+        <p className="ios-footnote" style={{ color: "var(--ios-label-3)", padding: "16px", textAlign: "center" }}>
           Nothing upcoming.
         </p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", maxHeight: 280, overflowY: "auto" }}>
+        <div style={{ maxHeight: 280, overflowY: "auto" }}>
           {reminders.map((r, idx) => {
             const due = formatDue(r.due_at, tz);
             const isExpanded = expandedId === r.id;
             const isCourse = r.source_app === "student-success";
-
-            const COURSE_TYPE_EMOJI: Record<string, string> = {
-              test: "📝", assignment: "📋", quiz: "❓",
-              practice: "🔁", extra_credit: "⭐",
-            };
+            const color = isCourse ? "#6B5B95" : CATEGORY_COLOR[r.category];
 
             return (
               <div key={r.id}>
                 <div
                   style={{
-                    padding: "9px 0",
-                    borderTop: idx === 0 ? undefined : "1px solid var(--color-rule-soft)",
+                    padding: "10px 16px",
+                    borderTop: idx === 0 ? undefined : "var(--ios-hair) solid var(--ios-separator)",
                     display: "flex",
                     alignItems: "center",
-                    gap: 10,
+                    gap: 12,
                   }}
                 >
-                  {/* Icon — course type emoji or category icon */}
-                  <span style={{ fontSize: 14, color: isCourse ? "#6B5B95" : CATEGORY_COLOR[r.category], flexShrink: 0, width: 18, textAlign: "center" }}>
-                    {isCourse
-                      ? (r.reminder_type ? COURSE_TYPE_EMOJI[r.reminder_type] ?? "📚" : "📚")
-                      : CATEGORY_ICON[r.category]}
-                  </span>
+                  {/* Icon — course type or category badge */}
+                  <IconBadge color={color}>
+                    {isCourse ? courseIcon(r.reminder_type) : categoryIcon(r.category)}
+                  </IconBadge>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          color: "var(--color-ink)",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          maxWidth: "100%",
-                        }}
-                      >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <div className="ios-truncate" style={{ fontSize: 15, color: "var(--ios-label)", maxWidth: "100%" }}>
                         {r.title}
                       </div>
                       {/* Course badge */}
                       {isCourse && r.course_name && (
                         <a
                           href={`/home/me/courses/${r.course_id}`}
+                          className="ios-caption"
                           style={{
-                            fontSize: 9,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
                             fontWeight: 600,
-                            padding: "1px 5px",
-                            borderRadius: 8,
-                            background: "#6B5B9520",
+                            padding: "1px 7px",
+                            borderRadius: 999,
+                            background: "var(--ios-fill)",
                             color: "#6B5B95",
-                            border: "1px solid #6B5B9530",
-                            textDecoration: "none",
                             whiteSpace: "nowrap",
                             flexShrink: 0,
-                            letterSpacing: "0.04em",
                           }}
                           title={`Go to ${r.course_name}`}
                         >
-                          📚 {r.course_name}
+                          <Icons.BookIcon width={11} height={11} /> {r.course_name}
                         </a>
                       )}
                     </div>
-                    <div style={{ fontSize: 10, color: due.color, marginTop: 1 }}>
+                    <div className="ios-caption" style={{ color: due.color, marginTop: 1 }}>
                       {due.text}
                       {r.recurrence !== "once" && (
-                        <span style={{ color: "var(--color-ink-4)" }}> · {RECURRENCE_LABEL[r.recurrence]}</span>
+                        <span style={{ color: "var(--ios-label-3)" }}> · {RECURRENCE_LABEL[r.recurrence]}</span>
                       )}
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                  <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
                     {/* Expand — only for hub reminders (course reminders have no next_steps) */}
                     {!isCourse && (
                       <button
@@ -284,7 +305,9 @@ export default function RemindersWidget({
                         title="Show details"
                         style={iconBtn}
                       >
-                        {isExpanded ? "▼" : "▶"}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" width={16} height={16} aria-hidden style={{ transform: isExpanded ? "rotate(90deg)" : undefined, transition: "transform 120ms" }}>
+                          <path d="M9 5l7 7-7 7" />
+                        </svg>
                       </button>
                     )}
                     {/* Complete */}
@@ -292,9 +315,11 @@ export default function RemindersWidget({
                       onClick={() => handleComplete(r.id)}
                       disabled={pending}
                       title="Mark done"
-                      style={iconBtn}
+                      style={{ ...iconBtn, color: "var(--ios-green)" }}
                     >
-                      ✓
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" width={16} height={16} aria-hidden>
+                        <path d="M5 12.5l4.5 4.5L19 6.5" />
+                      </svg>
                     </button>
                     {/* Snooze — hub reminders only */}
                     {!isCourse && (
@@ -304,7 +329,9 @@ export default function RemindersWidget({
                         title="Snooze 1 day"
                         style={iconBtn}
                       >
-                        ⏰
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" width={16} height={16} aria-hidden>
+                          <circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 1.5M9 2.5L5.5 5M15 2.5L18.5 5" />
+                        </svg>
                       </button>
                     )}
                     {/* Delete — hub reminders only (course reminders are managed in Student Success) */}
@@ -313,9 +340,11 @@ export default function RemindersWidget({
                         onClick={() => handleDelete(r.id)}
                         disabled={pending}
                         title="Delete"
-                        style={{ ...iconBtn, color: "var(--color-ink-4)" }}
+                        style={{ ...iconBtn, color: "var(--ios-label-3)" }}
                       >
-                        ×
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" width={16} height={16} aria-hidden>
+                          <path d="M6 6l12 12M18 6L6 18" />
+                        </svg>
                       </button>
                     )}
                   </div>
@@ -348,7 +377,7 @@ function AddReminderForm({
   onAdded: (r: Reminder) => void;
 }) {
   const [title, setTitle] = useState("");
-  const defaultWhen = new Date(Date.now() + 86_400_000);
+  const defaultWhen = new Date(new Date().getTime() + 86_400_000);
   const [when, setWhen] = useState(toLocalDatetimeInput(defaultWhen, tz));
   const [recurrence, setRecurrence] = useState<Recurrence>("once");
   const [category, setCategory] = useState<Category>("general");
@@ -420,14 +449,12 @@ function AddReminderForm({
     <form
       onSubmit={handleSubmit}
       style={{
-        background: "var(--color-bg)",
-        border: "1px solid var(--color-rule)",
-        borderRadius: 8,
-        padding: "10px 12px",
-        marginBottom: 12,
+        background: "var(--ios-bg)",
+        borderRadius: 12,
+        padding: "12px",
         display: "flex",
         flexDirection: "column",
-        gap: 6,
+        gap: 8,
       }}
     >
       <input
@@ -465,27 +492,27 @@ function AddReminderForm({
         type="button"
         onClick={toggleHousehold}
         style={{
-          display: "flex", alignItems: "center", gap: 7,
-          padding: "5px 10px", borderRadius: 6, alignSelf: "flex-start",
-          border: isHousehold ? "1.5px solid var(--color-accent)" : "1px solid var(--color-rule)",
-          background: isHousehold ? "var(--color-accent-soft)" : "transparent",
-          color: isHousehold ? "var(--color-accent)" : "var(--color-ink-4)",
-          fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+          display: "inline-flex", alignItems: "center", gap: 7,
+          padding: "6px 12px", borderRadius: 999, alignSelf: "flex-start",
+          border: "none",
+          background: isHousehold ? "var(--ios-tint)" : "var(--ios-fill)",
+          color: isHousehold ? "var(--ios-on-tint)" : "var(--ios-label-2)",
+          fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
         }}
       >
-        🏠 {isHousehold ? "Household task" : "Make household"}
+        <Icons.HomeIcon width={14} height={14} /> {isHousehold ? "Household task" : "Make household"}
       </button>
 
       {/* ── Assign to family member ── */}
       {isHousehold && (
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 11, color: "var(--color-ink-3)" }}>Assign to:</span>
+          <span className="ios-caption" style={{ color: "var(--ios-label-2)" }}>Assign to:</span>
           {loadingMembers ? (
-            <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>Loading…</span>
+            <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>Loading…</span>
           ) : familyMembers.length === 0 ? (
-            <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
+            <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>
               No family members —{" "}
-              <a href="/home/settings/family" style={{ color: "var(--color-accent)", textDecoration: "none" }}>invite someone</a>
+              <a href="/home/settings/family" style={{ color: "var(--ios-tint)" }}>invite someone</a>
             </span>
           ) : (
             <select
@@ -502,16 +529,17 @@ function AddReminderForm({
         </div>
       )}
 
-      {error && <span style={{ fontSize: 11, color: "var(--color-red)" }}>{error}</span>}
+      {error && <span className="ios-caption" style={{ color: "var(--ios-red)" }}>{error}</span>}
       <button
         type="submit"
         disabled={pending || !title.trim()}
         style={{
-          padding: "6px 12px", borderRadius: 6,
-          border: "1px solid var(--color-accent-dark)",
-          background: "var(--color-accent)", color: "#FFFDF8",
-          fontSize: 12, fontWeight: 500, fontFamily: "inherit",
+          padding: "8px 14px", borderRadius: 10,
+          border: "none",
+          background: "var(--ios-tint)", color: "var(--ios-on-tint)",
+          fontSize: 14, fontWeight: 600, fontFamily: "inherit",
           cursor: pending || !title.trim() ? "not-allowed" : "pointer",
+          opacity: pending || !title.trim() ? 0.5 : 1,
           alignSelf: "flex-start",
         }}
       >
@@ -522,23 +550,19 @@ function AddReminderForm({
 }
 
 const card: React.CSSProperties = {
-  background: "var(--color-bg-card)",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 12,
-  padding: "18px 20px",
-  boxShadow: "var(--shadow-card)",
+  background: "var(--ios-cell)",
+  borderRadius: "var(--ios-radius-card)",
+  overflow: "hidden",
   minHeight: 320,
-  height: "100%",
-  boxSizing: "border-box" as const,
 };
 
 const miniInput: React.CSSProperties = {
-  padding: "6px 9px",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 6,
-  background: "var(--color-bg-card)",
-  color: "var(--color-ink)",
-  fontSize: 12,
+  padding: "8px 10px",
+  border: "var(--ios-hair) solid var(--ios-separator)",
+  borderRadius: 8,
+  background: "var(--ios-cell)",
+  color: "var(--ios-label)",
+  fontSize: 13,
   fontFamily: "inherit",
   outline: "none",
 };
@@ -546,11 +570,13 @@ const miniInput: React.CSSProperties = {
 const iconBtn: React.CSSProperties = {
   background: "none",
   border: "none",
-  color: "var(--color-ink-3)",
-  fontSize: 12,
+  color: "var(--ios-label-2)",
   cursor: "pointer",
-  padding: "2px 5px",
-  borderRadius: 4,
+  padding: "3px",
+  borderRadius: 6,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
 
 function ReminderDetails({
@@ -584,35 +610,34 @@ function ReminderDetails({
   return (
     <div
       style={{
-        padding: "8px 0 12px 28px",
-        borderBottom: "1px solid var(--color-rule-soft)",
-        fontSize: 12,
-        color: "var(--color-ink-2)",
+        padding: "6px 16px 12px 56px",
+        color: "var(--ios-label-2)",
       }}
     >
       {reminder.notes && (
         <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "var(--color-ink-3)", marginBottom: 2 }}>
-            NOTES
+          <div className="ios-caption" style={{ fontWeight: 600, color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 2 }}>
+            Notes
           </div>
-          <div style={{ fontSize: 11, whiteSpace: "pre-wrap" }}>{reminder.notes}</div>
+          <div className="ios-footnote" style={{ whiteSpace: "pre-wrap", color: "var(--ios-label)" }}>{reminder.notes}</div>
         </div>
       )}
       <div>
-        <div style={{ fontSize: 10, fontWeight: 600, color: "var(--color-ink-3)", marginBottom: 4 }}>
-          RESEARCH NEXT STEPS
+        <div className="ios-caption" style={{ fontWeight: 600, color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>
+          Research next steps
         </div>
         {nextSteps.length > 0 && (
-          <ul style={{ margin: "0 0 6px 16px", padding: 0 }}>
+          <ul style={{ margin: "0 0 6px", padding: 0, listStyle: "none" }}>
             {nextSteps.map((step, idx) => (
               <li
                 key={idx}
+                className="ios-footnote"
                 style={{
                   marginBottom: 4,
                   display: "flex",
                   alignItems: "flex-start",
                   gap: 6,
-                  fontSize: 11,
+                  color: "var(--ios-label)",
                 }}
               >
                 <span style={{ flexShrink: 0 }}>{step}</span>
@@ -622,22 +647,25 @@ function ReminderDetails({
                   style={{
                     background: "none",
                     border: "none",
-                    color: "var(--color-ink-4)",
-                    fontSize: 10,
+                    color: "var(--ios-label-3)",
                     cursor: "pointer",
                     padding: 0,
                     marginLeft: "auto",
                     flexShrink: 0,
+                    display: "inline-flex",
+                    alignItems: "center",
                   }}
                   title="Remove"
                 >
-                  ×
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" width={13} height={13} aria-hidden>
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
                 </button>
               </li>
             ))}
           </ul>
         )}
-        <div style={{ display: "flex", gap: 4 }}>
+        <div style={{ display: "flex", gap: 6 }}>
           <input
             value={newStep}
             onChange={(e) => setNewStep(e.target.value)}
@@ -652,20 +680,20 @@ function ReminderDetails({
             style={{
               ...miniInput,
               flex: 1,
-              fontSize: 11,
-              padding: "4px 8px",
+              fontSize: 13,
+              padding: "6px 10px",
             }}
           />
           <button
             onClick={handleAddStep}
             disabled={pending || !newStep.trim()}
             style={{
-              padding: "4px 8px",
-              borderRadius: 4,
-              border: "1px solid var(--color-rule)",
-              background: newStep.trim() ? "var(--color-accent)" : "transparent",
-              color: newStep.trim() ? "#FFFDF8" : "var(--color-ink-4)",
-              fontSize: 10,
+              padding: "6px 12px",
+              borderRadius: 8,
+              border: "none",
+              background: newStep.trim() ? "var(--ios-tint)" : "var(--ios-fill)",
+              color: newStep.trim() ? "var(--ios-on-tint)" : "var(--ios-label-3)",
+              fontSize: 13,
               fontWeight: 500,
               cursor: newStep.trim() ? "pointer" : "not-allowed",
               fontFamily: "inherit",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Icons } from "@/components/ios";
 
 interface Flashcard {
   id: string;
@@ -222,7 +223,7 @@ export default function FlashcardSetViewer({
 
   if (loading) {
     return (
-      <div style={{ color: "var(--color-ink-3)", padding: "40px 0", textAlign: "center" }}>
+      <div className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "40px 0", textAlign: "center" }}>
         Loading flashcards…
       </div>
     );
@@ -234,13 +235,16 @@ export default function FlashcardSetViewer({
   // ── Shared input style ──────────────────────────────────────────────────────
   const inputStyle: React.CSSProperties = {
     width: "100%",
-    padding: "8px 12px",
-    border: "1px solid var(--color-rule)",
-    borderRadius: 6,
-    fontSize: 13,
+    padding: "10px 12px",
+    border: "var(--ios-hair) solid var(--ios-separator)",
+    borderRadius: 10,
+    fontSize: 15,
     boxSizing: "border-box",
-    background: "var(--color-paper)",
-    color: "var(--color-ink)",
+    background: "var(--ios-cell)",
+    color: "var(--ios-label)",
+    fontFamily: "inherit",
+    outline: "none",
+    colorScheme: "light dark",
   };
 
   const selectStyle: React.CSSProperties = {
@@ -250,24 +254,41 @@ export default function FlashcardSetViewer({
     paddingRight: 28,
   };
 
+  const genLabel: React.CSSProperties = {
+    display: "block",
+    marginBottom: 5,
+    color: "var(--ios-label-2)",
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+  };
+
+  const chevronDown = (
+    <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--ios-label-3)", display: "flex" }}>
+      <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </span>
+  );
+
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div style={{ maxWidth: 680 }}>
       {/* Back */}
       <button
         onClick={onBack}
+        className="ios-subhead"
         style={{
           color: colorTag,
-          background: "transparent",
-          border: "none",
-          fontSize: 13,
-          cursor: "pointer",
-          marginBottom: 20,
-          fontWeight: 500,
+          marginBottom: 16,
+          fontWeight: 600,
           padding: 0,
+          display: "flex",
+          alignItems: "center",
+          gap: 2,
         }}
       >
-        ← Back to Sets
+        <Icons.ChevronLeft style={{ width: 18, height: 18 }} />
+        Sets
       </button>
 
       {/* Header */}
@@ -281,45 +302,48 @@ export default function FlashcardSetViewer({
           flexWrap: "wrap",
         }}
       >
-        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: "var(--color-ink)" }}>
-          {setName}
-        </h2>
+        <h2 className="ios-title-3" style={{ margin: 0 }}>{setName}</h2>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button
             onClick={() => {
               setShowGenPanel((v) => !v);
               setShowAddForm(false);
             }}
+            className="ios-footnote"
             style={{
-              padding: "6px 14px",
-              borderRadius: 6,
-              border: "none",
+              padding: "7px 14px",
+              borderRadius: 10,
               background: colorTag,
-              color: "white",
-              fontSize: 12,
-              cursor: "pointer",
+              color: "#fff",
               fontWeight: 600,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
             }}
           >
-            ✨ Generate Cards
+            <Icons.SparkleIcon style={{ width: 15, height: 15 }} />
+            Generate
           </button>
           <button
             onClick={() => {
               setShowAddForm((v) => !v);
               setShowGenPanel(false);
             }}
+            className="ios-footnote"
             style={{
-              padding: "6px 14px",
-              borderRadius: 6,
-              border: `1.5px solid ${colorTag}`,
+              padding: "7px 14px",
+              borderRadius: 10,
+              border: `1px solid ${colorTag}`,
               background: "transparent",
               color: colorTag,
-              fontSize: 12,
-              cursor: "pointer",
               fontWeight: 600,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
             }}
           >
-            + Add Card
+            <Icons.PlusIcon style={{ width: 15, height: 15 }} />
+            Add Card
           </button>
         </div>
       </div>
@@ -328,40 +352,21 @@ export default function FlashcardSetViewer({
       {showGenPanel && (
         <div
           style={{
-            background: "var(--color-bg-card)",
-            border: `1.5px solid ${colorTag}40`,
-            borderRadius: 10,
+            background: "var(--ios-cell)",
+            border: `1px solid ${colorTag}`,
+            borderRadius: "var(--ios-radius-card)",
             padding: 20,
             marginBottom: 20,
           }}
         >
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 700,
-              marginBottom: 16,
-              color: colorTag,
-              letterSpacing: "0.02em",
-            }}
-          >
-            ✨ AI Card Generator
+          <div className="ios-subhead" style={{ fontWeight: 700, marginBottom: 16, color: colorTag, display: "flex", alignItems: "center", gap: 6 }}>
+            <Icons.SparkleIcon style={{ width: 16, height: 16 }} />
+            AI Card Generator
           </div>
 
           {/* Topic */}
           <div style={{ marginBottom: 14 }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: 11,
-                fontWeight: 600,
-                marginBottom: 5,
-                color: "var(--color-ink-2)",
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-              }}
-            >
-              Focus Topic
-            </label>
+            <label className="ios-caption" style={{ ...genLabel, fontWeight: 600 }}>Focus Topic</label>
             <input
               type="text"
               value={genTopic}
@@ -374,19 +379,7 @@ export default function FlashcardSetViewer({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
             {/* Card Style */}
             <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  marginBottom: 5,
-                  color: "var(--color-ink-2)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                }}
-              >
-                Card Style
-              </label>
+              <label className="ios-caption" style={{ ...genLabel, fontWeight: 600 }}>Card Style</label>
               <div style={{ position: "relative" }}>
                 <select
                   value={genStyle}
@@ -399,37 +392,13 @@ export default function FlashcardSetViewer({
                     </option>
                   ))}
                 </select>
-                <span
-                  style={{
-                    position: "absolute",
-                    right: 10,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    pointerEvents: "none",
-                    fontSize: 10,
-                    color: "var(--color-ink-3)",
-                  }}
-                >
-                  ▾
-                </span>
+                {chevronDown}
               </div>
             </div>
 
             {/* Difficulty */}
             <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  marginBottom: 5,
-                  color: "var(--color-ink-2)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                }}
-              >
-                Difficulty
-              </label>
+              <label className="ios-caption" style={{ ...genLabel, fontWeight: 600 }}>Difficulty</label>
               <div style={{ position: "relative" }}>
                 <select
                   value={genDifficulty}
@@ -442,37 +411,13 @@ export default function FlashcardSetViewer({
                     </option>
                   ))}
                 </select>
-                <span
-                  style={{
-                    position: "absolute",
-                    right: 10,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    pointerEvents: "none",
-                    fontSize: 10,
-                    color: "var(--color-ink-3)",
-                  }}
-                >
-                  ▾
-                </span>
+                {chevronDown}
               </div>
             </div>
 
             {/* Count */}
             <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  marginBottom: 5,
-                  color: "var(--color-ink-2)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                }}
-              >
-                # of Cards
-              </label>
+              <label className="ios-caption" style={{ ...genLabel, fontWeight: 600 }}># of Cards</label>
               <div style={{ position: "relative" }}>
                 <select
                   value={genCount}
@@ -485,34 +430,13 @@ export default function FlashcardSetViewer({
                     </option>
                   ))}
                 </select>
-                <span
-                  style={{
-                    position: "absolute",
-                    right: 10,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    pointerEvents: "none",
-                    fontSize: 10,
-                    color: "var(--color-ink-3)",
-                  }}
-                >
-                  ▾
-                </span>
+                {chevronDown}
               </div>
             </div>
           </div>
 
           {genError && (
-            <div
-              style={{
-                padding: "8px 12px",
-                borderRadius: 6,
-                background: "#fee2e2",
-                color: "#991b1b",
-                fontSize: 12,
-                marginBottom: 12,
-              }}
-            >
+            <div className="ios-footnote" style={{ padding: "8px 12px", borderRadius: 8, background: "var(--ios-fill)", color: "var(--ios-red)", marginBottom: 12 }}>
               {genError}
             </div>
           )}
@@ -524,33 +448,23 @@ export default function FlashcardSetViewer({
                 setShowGenPanel(false);
                 setGenError(null);
               }}
-              style={{
-                padding: "8px 16px",
-                borderRadius: 6,
-                border: "1px solid var(--color-rule)",
-                background: "transparent",
-                cursor: "pointer",
-                fontSize: 12,
-                color: "var(--color-ink-2)",
-              }}
+              className="ios-footnote"
+              style={{ padding: "9px 16px", borderRadius: 10, background: "var(--ios-fill)", color: "var(--ios-label-2)", fontWeight: 600 }}
             >
               Cancel
             </button>
             <button
               onClick={handleGenerate}
               disabled={genLoading}
+              className="ios-subhead"
               style={{
                 flex: 1,
-                padding: "8px 16px",
-                borderRadius: 6,
-                border: "none",
-                background: genLoading ? "var(--color-paper-deep)" : colorTag,
-                color: "white",
-                cursor: genLoading ? "default" : "pointer",
-                fontSize: 13,
+                padding: "9px 16px",
+                borderRadius: 10,
+                background: genLoading ? "var(--ios-fill)" : colorTag,
+                color: genLoading ? "var(--ios-label-2)" : "#fff",
                 fontWeight: 600,
-                opacity: genLoading ? 0.7 : 1,
-                transition: "opacity 0.15s",
+                opacity: genLoading ? 0.9 : 1,
               }}
             >
               {genLoading ? `Generating ${genCount} cards…` : `Generate ${genCount} Cards`}
@@ -563,38 +477,16 @@ export default function FlashcardSetViewer({
       {showAddForm && (
         <div
           style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 10,
+            background: "var(--ios-cell)",
+            borderRadius: "var(--ios-radius-card)",
             padding: 20,
             marginBottom: 20,
           }}
         >
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 700,
-              marginBottom: 16,
-              color: "var(--color-ink)",
-            }}
-          >
-            New Flashcard
-          </div>
+          <div className="ios-subhead" style={{ fontWeight: 700, marginBottom: 16 }}>New Flashcard</div>
           <form onSubmit={handleAddCard}>
             <div style={{ marginBottom: 14 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  marginBottom: 5,
-                  color: "var(--color-ink-2)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                }}
-              >
-                Question *
-              </label>
+              <label className="ios-caption" style={{ ...genLabel, fontWeight: 600 }}>Question *</label>
               <textarea
                 value={formData.question}
                 onChange={(e) => setFormData({ ...formData, question: e.target.value })}
@@ -605,19 +497,7 @@ export default function FlashcardSetViewer({
             </div>
 
             <div style={{ marginBottom: 14 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  marginBottom: 5,
-                  color: "var(--color-ink-2)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                }}
-              >
-                Answer *
-              </label>
+              <label className="ios-caption" style={{ ...genLabel, fontWeight: 600 }}>Answer *</label>
               <textarea
                 value={formData.answer}
                 onChange={(e) => setFormData({ ...formData, answer: e.target.value })}
@@ -628,17 +508,7 @@ export default function FlashcardSetViewer({
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  marginBottom: 5,
-                  color: "var(--color-ink-2)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                }}
-              >
+              <label className="ios-caption" style={{ ...genLabel, fontWeight: 600 }}>
                 Context / Note{" "}
                 <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
                   (optional)
@@ -656,36 +526,26 @@ export default function FlashcardSetViewer({
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 6,
-                  border: "1px solid var(--color-rule)",
-                  background: "transparent",
-                  cursor: "pointer",
-                  fontSize: 12,
-                  color: "var(--color-ink-2)",
-                }}
+                className="ios-footnote"
+                style={{ padding: "9px 16px", borderRadius: 10, background: "var(--ios-fill)", color: "var(--ios-label-2)", fontWeight: 600 }}
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={addLoading || !formData.question || !formData.answer}
+                className="ios-subhead"
                 style={{
                   flex: 1,
-                  padding: "8px 16px",
-                  borderRadius: 6,
-                  border: "none",
+                  padding: "9px 16px",
+                  borderRadius: 10,
                   background:
                     addLoading || !formData.question || !formData.answer
-                      ? "var(--color-paper-deep)"
+                      ? "var(--ios-fill)"
                       : colorTag,
-                  color: "white",
-                  cursor:
-                    addLoading || !formData.question || !formData.answer ? "default" : "pointer",
-                  fontSize: 13,
+                  color: addLoading || !formData.question || !formData.answer ? "var(--ios-label-2)" : "#fff",
                   fontWeight: 600,
-                  opacity: addLoading || !formData.question || !formData.answer ? 0.6 : 1,
+                  opacity: addLoading || !formData.question || !formData.answer ? 0.7 : 1,
                 }}
               >
                 {addLoading ? "Adding…" : "Add Card"}
@@ -699,20 +559,18 @@ export default function FlashcardSetViewer({
       {flashcards.length === 0 ? (
         <div
           style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 10,
+            background: "var(--ios-cell)",
+            borderRadius: "var(--ios-radius-card)",
             padding: "48px 24px",
             textAlign: "center",
-            color: "var(--color-ink-3)",
           }}
         >
-          <div style={{ fontSize: 36, marginBottom: 12 }}>🃏</div>
-          <p style={{ margin: "0 0 6px 0", fontWeight: 500, color: "var(--color-ink-2)" }}>
-            No flashcards yet.
-          </p>
-          <p style={{ margin: 0, fontSize: 13 }}>
-            Generate some with AI or add one manually to start studying!
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 12, color: "var(--ios-label-3)" }}>
+            <Icons.BookIcon style={{ width: 34, height: 34 }} />
+          </div>
+          <p className="ios-headline" style={{ margin: "0 0 6px 0" }}>No flashcards yet</p>
+          <p className="ios-footnote" style={{ margin: 0, color: "var(--ios-label-2)" }}>
+            Generate some with AI or add one manually to start studying.
           </p>
         </div>
       ) : (
@@ -725,7 +583,7 @@ export default function FlashcardSetViewer({
               style={{
                 height: 4,
                 borderRadius: 2,
-                background: "var(--color-paper-deep)",
+                background: "var(--ios-fill)",
                 overflow: "hidden",
               }}
             >
@@ -750,51 +608,48 @@ export default function FlashcardSetViewer({
               marginBottom: 14,
             }}
           >
-            <div
-              style={{
-                fontSize: 15,
-                fontWeight: 700,
-                color: colorTag,
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
+            <div className="ios-num" style={{ fontSize: 15, fontWeight: 700, color: colorTag }}>
               {currentIndex + 1}{" "}
-              <span style={{ fontWeight: 400, color: "var(--color-ink-3)", fontSize: 13 }}>
+              <span style={{ fontWeight: 400, color: "var(--ios-label-3)", fontSize: 13 }}>
                 / {orderedCards.length}
               </span>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               <button
                 onClick={handleShuffle}
-                title="Shuffle deck"
+                aria-label="Shuffle deck"
+                className="ios-caption"
                 style={{
-                  padding: "4px 10px",
-                  borderRadius: 5,
-                  border: "1px solid var(--color-rule)",
-                  background: isShuffled ? colorTag + "18" : "transparent",
-                  color: isShuffled ? colorTag : "var(--color-ink-3)",
-                  fontSize: 12,
-                  cursor: "pointer",
-                  fontWeight: 500,
+                  padding: "5px 11px",
+                  borderRadius: 8,
+                  background: isShuffled ? "var(--ios-fill)" : "transparent",
+                  border: "1px solid var(--ios-separator)",
+                  color: isShuffled ? colorTag : "var(--ios-label-2)",
+                  fontWeight: 600,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
                 }}
               >
-                ⇄ Shuffle
+                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+                </svg>
+                Shuffle
               </button>
               {isShuffled && (
                 <button
                   onClick={handleReset}
-                  title="Reset order"
+                  aria-label="Reset order"
+                  className="ios-caption"
                   style={{
-                    padding: "4px 10px",
-                    borderRadius: 5,
-                    border: "1px solid var(--color-rule)",
-                    background: "transparent",
-                    color: "var(--color-ink-3)",
-                    fontSize: 12,
-                    cursor: "pointer",
+                    padding: "5px 11px",
+                    borderRadius: 8,
+                    border: "1px solid var(--ios-separator)",
+                    color: "var(--ios-label-2)",
+                    fontWeight: 600,
                   }}
                 >
-                  ↺ Reset
+                  Reset
                 </button>
               )}
             </div>
@@ -831,51 +686,26 @@ export default function FlashcardSetViewer({
                     inset: 0,
                     backfaceVisibility: "hidden",
                     WebkitBackfaceVisibility: "hidden",
-                    background: "white",
-                    border: `2px solid ${colorTag}`,
-                    borderRadius: 12,
+                    background: "var(--ios-cell)",
+                    borderRadius: "var(--ios-radius-tile)",
                     padding: "36px 32px",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "center",
                     alignItems: "center",
                     textAlign: "center",
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.09)",
+                    boxShadow: "0 4px 24px rgba(0,0,0,0.10)",
                     minHeight: 220,
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      letterSpacing: "0.1em",
-                      textTransform: "uppercase",
-                      color: colorTag,
-                      marginBottom: 18,
-                      opacity: 0.8,
-                    }}
-                  >
+                  <div className="ios-caption" style={{ fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: colorTag, marginBottom: 18 }}>
                     Question
                   </div>
-                  <div
-                    style={{
-                      fontSize: 20,
-                      fontWeight: 600,
-                      lineHeight: 1.5,
-                      color: "#1a1a2e",
-                      maxWidth: 520,
-                    }}
-                  >
+                  <div className="ios-title-3" style={{ lineHeight: 1.5, color: "var(--ios-label)", maxWidth: 520 }}>
                     {currentCard.question}
                   </div>
-                  <div
-                    style={{
-                      marginTop: 24,
-                      fontSize: 11,
-                      color: "#a0a0b0",
-                    }}
-                  >
-                    Space or click to flip
+                  <div className="ios-caption" style={{ marginTop: 24, color: "var(--ios-label-3)" }}>
+                    Tap to flip
                   </div>
                 </div>
 
@@ -888,52 +718,25 @@ export default function FlashcardSetViewer({
                     WebkitBackfaceVisibility: "hidden",
                     transform: "rotateY(180deg)",
                     background: colorTag,
-                    borderRadius: 12,
+                    borderRadius: "var(--ios-radius-tile)",
                     padding: "36px 32px",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "center",
                     alignItems: "center",
                     textAlign: "center",
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                    boxShadow: "0 4px 24px rgba(0,0,0,0.16)",
                     minHeight: 220,
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      letterSpacing: "0.1em",
-                      textTransform: "uppercase",
-                      color: "rgba(255,255,255,0.75)",
-                      marginBottom: 18,
-                    }}
-                  >
+                  <div className="ios-caption" style={{ fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.75)", marginBottom: 18 }}>
                     Answer
                   </div>
-                  <div
-                    style={{
-                      fontSize: 20,
-                      fontWeight: 600,
-                      lineHeight: 1.5,
-                      color: "white",
-                      maxWidth: 520,
-                    }}
-                  >
+                  <div className="ios-title-3" style={{ lineHeight: 1.5, color: "#fff", maxWidth: 520 }}>
                     {currentCard.answer}
                   </div>
                   {currentCard.context && (
-                    <div
-                      style={{
-                        marginTop: 20,
-                        fontSize: 12,
-                        color: "rgba(255,255,255,0.7)",
-                        lineHeight: 1.5,
-                        maxWidth: 460,
-                        borderTop: "1px solid rgba(255,255,255,0.25)",
-                        paddingTop: 16,
-                      }}
-                    >
+                    <div className="ios-footnote" style={{ marginTop: 20, color: "rgba(255,255,255,0.75)", lineHeight: 1.5, maxWidth: 460, borderTop: "1px solid rgba(255,255,255,0.25)", paddingTop: 16 }}>
                       {currentCard.context}
                     </div>
                   )}
@@ -953,57 +756,52 @@ export default function FlashcardSetViewer({
             <button
               onClick={() => goTo(currentIndex - 1)}
               disabled={currentIndex === 0}
+              className="ios-subhead"
               style={{
                 flex: 1,
-                padding: "10px",
-                borderRadius: 7,
-                border: "1px solid var(--color-rule)",
-                background: currentIndex === 0 ? "var(--color-paper-deep)" : "transparent",
-                cursor: currentIndex === 0 ? "default" : "pointer",
-                fontSize: 13,
+                padding: "11px",
+                borderRadius: 10,
+                background: "var(--ios-cell)",
                 fontWeight: 500,
-                color: currentIndex === 0 ? "var(--color-ink-3)" : "var(--color-ink)",
+                color: currentIndex === 0 ? "var(--ios-label-3)" : "var(--ios-label)",
                 opacity: currentIndex === 0 ? 0.5 : 1,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 4,
               }}
             >
-              ← Previous
+              <Icons.ChevronLeft style={{ width: 16, height: 16 }} />
+              Previous
             </button>
             <button
               onClick={() => goTo(currentIndex + 1)}
               disabled={currentIndex === orderedCards.length - 1}
+              className="ios-subhead"
               style={{
                 flex: 1,
-                padding: "10px",
-                borderRadius: 7,
-                border: "1px solid var(--color-rule)",
-                background:
-                  currentIndex === orderedCards.length - 1
-                    ? "var(--color-paper-deep)"
-                    : "transparent",
-                cursor:
-                  currentIndex === orderedCards.length - 1 ? "default" : "pointer",
-                fontSize: 13,
+                padding: "11px",
+                borderRadius: 10,
+                background: "var(--ios-cell)",
                 fontWeight: 500,
                 color:
                   currentIndex === orderedCards.length - 1
-                    ? "var(--color-ink-3)"
-                    : "var(--color-ink)",
+                    ? "var(--ios-label-3)"
+                    : "var(--ios-label)",
                 opacity: currentIndex === orderedCards.length - 1 ? 0.5 : 1,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 4,
               }}
             >
-              Next →
+              Next
+              <Icons.ChevronRight style={{ width: 16, height: 16 }} />
             </button>
           </div>
 
           {/* Keyboard hint */}
-          <div
-            style={{
-              textAlign: "center",
-              fontSize: 11,
-              color: "var(--color-ink-3)",
-              marginBottom: 24,
-            }}
-          >
+          <div className="ios-caption" style={{ textAlign: "center", color: "var(--ios-label-3)", marginBottom: 24 }}>
             ← → to navigate · Space to flip
           </div>
 
@@ -1011,22 +809,17 @@ export default function FlashcardSetViewer({
           <div>
             <button
               onClick={() => setShowAllCards((v) => !v)}
+              className="ios-footnote"
               style={{
-                background: "transparent",
-                border: "none",
-                color: "var(--color-ink-2)",
-                fontSize: 12,
+                color: "var(--ios-label-2)",
                 fontWeight: 600,
-                cursor: "pointer",
                 padding: "0 0 12px 0",
                 display: "flex",
                 alignItems: "center",
                 gap: 6,
               }}
             >
-              <span style={{ color: colorTag }}>
-                {showAllCards ? "▾" : "▸"}
-              </span>
+              <Icons.ChevronRight style={{ width: 14, height: 14, color: colorTag, transform: showAllCards ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
               {showAllCards ? "Hide all cards" : `Show all ${flashcards.length} cards`}
             </button>
 
@@ -1042,8 +835,7 @@ export default function FlashcardSetViewer({
                   <div
                     key={card.id}
                     style={{
-                      background: "var(--color-bg-card)",
-                      border: "1px solid var(--color-rule)",
+                      background: "var(--ios-cell)",
                       borderLeft: `3px solid ${colorTag}`,
                       borderRadius: 8,
                       padding: "12px 14px",
@@ -1054,57 +846,29 @@ export default function FlashcardSetViewer({
                     }}
                   >
                     <div>
-                      <div
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.06em",
-                          color: colorTag,
-                          marginBottom: 4,
-                        }}
-                      >
+                      <div className="ios-caption ios-num" style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: colorTag, marginBottom: 4 }}>
                         #{idx + 1} · Q
                       </div>
-                      <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--color-ink)" }}>
+                      <div className="ios-footnote" style={{ lineHeight: 1.5, color: "var(--ios-label)" }}>
                         {card.question}
                       </div>
                     </div>
                     <div>
-                      <div
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.06em",
-                          color: "var(--color-ink-3)",
-                          marginBottom: 4,
-                        }}
-                      >
+                      <div className="ios-caption" style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--ios-label-3)", marginBottom: 4 }}>
                         A
                       </div>
-                      <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--color-ink-2)" }}>
+                      <div className="ios-footnote" style={{ lineHeight: 1.5, color: "var(--ios-label-2)" }}>
                         {card.answer}
                       </div>
                     </div>
                     <button
                       onClick={() => handleDeleteCard(card.id)}
-                      title="Delete card"
-                      style={{
-                        padding: "3px 7px",
-                        borderRadius: 4,
-                        border: "1px solid #fecaca",
-                        background: "#fee2e2",
-                        color: "#991b1b",
-                        fontSize: 13,
-                        lineHeight: 1,
-                        cursor: "pointer",
-                        fontWeight: 700,
-                        flexShrink: 0,
-                        marginTop: 14,
-                      }}
+                      aria-label="Delete card"
+                      style={{ color: "var(--ios-red)", flexShrink: 0, marginTop: 14, display: "inline-flex" }}
                     >
-                      ×
+                      <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M6 6l12 12M18 6L6 18" />
+                      </svg>
                     </button>
                   </div>
                 ))}

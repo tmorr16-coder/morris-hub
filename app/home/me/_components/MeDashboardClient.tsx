@@ -52,14 +52,13 @@ export default function MeDashboardClient({ domains, order: initialOrder, disabl
   const visibleDomains = order.map((k) => byKey.get(k)).filter((d): d is DomainCardData => !!d && !disabledKeys.includes(d.key));
 
   return (
-    <div>
-      <div style={{
+    <div style={{ paddingBottom: 20 }}>
+      <div className="ios-footnote" style={{
         display: "flex", alignItems: "center", gap: 8,
-        fontSize: 12, color: "var(--color-ink-3)", marginBottom: 20, padding: "10px 14px",
-        background: "var(--color-bg-deep)", borderRadius: 10, lineHeight: 1.5,
-        fontFamily: "var(--font-geist, system-ui), sans-serif",
+        color: "var(--ios-label-2)", marginBottom: 20, padding: "12px 14px",
+        background: "var(--ios-cell)", borderRadius: "var(--ios-radius-card)", lineHeight: 1.5,
       }}>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true">
           <rect x="3" y="11" width="18" height="11" rx="2" />
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
@@ -71,7 +70,7 @@ export default function MeDashboardClient({ domains, order: initialOrder, disabl
           <DomainCard key={d.key} domain={d} />
         ))}
         {visibleDomains.length === 0 && (
-          <div style={{ fontSize: 13, color: "var(--color-ink-4)", padding: "20px 0" }}>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "20px 0" }}>
             All domains are hidden. Use Customize below to bring one back.
           </div>
         )}
@@ -79,19 +78,16 @@ export default function MeDashboardClient({ domains, order: initialOrder, disabl
 
       <button
         onClick={() => setCustomizeOpen((o) => !o)}
-        style={{
-          fontSize: 12, fontWeight: 600, color: "var(--color-ink-3)", background: "none",
-          border: "1px solid var(--color-rule)", borderRadius: 8, padding: "7px 14px",
-          cursor: "pointer", fontFamily: "var(--font-geist, system-ui), sans-serif",
-        }}
+        className="ios-subhead"
+        style={{ fontWeight: 500, color: "var(--ios-tint)" }}
       >
         {customizeOpen ? "Hide customize" : "Customize"}
       </button>
 
       {customizeOpen && (
         <div style={{
-          marginTop: 12, background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
-          borderRadius: 12, padding: "16px 18px",
+          marginTop: 12, background: "var(--ios-cell)",
+          borderRadius: "var(--ios-radius-card)", padding: "16px 18px",
         }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
             {order.map((key, i) => {
@@ -104,42 +100,42 @@ export default function MeDashboardClient({ domains, order: initialOrder, disabl
                       disabled={i === 0}
                       style={{ ...reorderBtn, opacity: i === 0 ? 0.3 : 1 }}
                       aria-label="Move up"
-                    >↑</button>
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 19V5M6 11l6-6 6 6" /></svg>
+                    </button>
                     <button
                       onClick={() => moveDomain(key, 1)}
                       disabled={i === order.length - 1}
                       style={{ ...reorderBtn, opacity: i === order.length - 1 ? 0.3 : 1 }}
                       aria-label="Move down"
-                    >↓</button>
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 5v14M6 13l6 6 6-6" /></svg>
+                    </button>
                   </div>
-                  <span style={{
-                    flex: 1, fontSize: 13, fontWeight: 500,
-                    color: isDisabled ? "var(--color-ink-4)" : "var(--color-ink-2)",
-                    fontFamily: "var(--font-geist, system-ui), sans-serif",
+                  <span className="ios-subhead" style={{
+                    flex: 1, fontWeight: 500,
+                    color: isDisabled ? "var(--ios-label-3)" : "var(--ios-label)",
                   }}>
                     {DOMAIN_LABELS[key]}
                   </span>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--color-ink-3)", cursor: "pointer" }}>
-                    <input type="checkbox" checked={!isDisabled} onChange={() => toggleDomain(key)} />
+                  <label className="ios-footnote" style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ios-label-2)", cursor: "pointer" }}>
+                    <input type="checkbox" checked={!isDisabled} onChange={() => toggleDomain(key)} style={{ accentColor: "var(--ios-tint)" }} />
                     Enabled
                   </label>
                 </div>
               );
             })}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button
               onClick={handleSave}
               disabled={pending}
-              style={{
-                padding: "8px 18px", borderRadius: 8, border: "none",
-                background: "var(--color-accent)", color: "#FFFDF8", fontSize: 13, fontWeight: 600,
-                cursor: pending ? "wait" : "pointer", fontFamily: "var(--font-geist, system-ui), sans-serif",
-              }}
+              className="ios-btn ios-btn--primary"
+              style={{ width: "auto", minHeight: 0, padding: "10px 20px", fontSize: 15, cursor: pending ? "wait" : "pointer" }}
             >
               {pending ? "Saving…" : "Save"}
             </button>
-            {saveMsg && <span style={{ fontSize: 12, color: "var(--color-ink-3)" }}>{saveMsg}</span>}
+            {saveMsg && <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>{saveMsg}</span>}
           </div>
         </div>
       )}
@@ -148,12 +144,12 @@ export default function MeDashboardClient({ domains, order: initialOrder, disabl
 }
 
 const reorderBtn: React.CSSProperties = {
-  background: "transparent",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 6,
-  width: 26,
-  height: 26,
-  cursor: "pointer",
-  fontSize: 12,
-  color: "var(--color-ink-2)",
+  background: "var(--ios-fill)",
+  borderRadius: 7,
+  width: 28,
+  height: 28,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "var(--ios-tint)",
 };
