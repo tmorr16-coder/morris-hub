@@ -9,6 +9,8 @@ interface Props {
   metricsCount: number;
   workoutsCount: number;
   webhookUrl: string;
+  /** The api-key header value the export app must send. Empty = hidden (non-admin). */
+  apiKey?: string;
 }
 
 function relativeTime(isoTs: string): string {
@@ -36,8 +38,10 @@ function StatusPill({ on }: { on: boolean }) {
   );
 }
 
-export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, workoutsCount, webhookUrl }: Props) {
+export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, workoutsCount, webhookUrl, apiKey }: Props) {
   const [copied, setCopied] = useState(false);
+  const [keyCopied, setKeyCopied] = useState(false);
+  const [keyShown, setKeyShown] = useState(false);
   const urlRef = useRef<HTMLElement>(null);
 
   // Select the whole URL so the user can copy manually if the clipboard API
@@ -118,6 +122,40 @@ export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, 
           >
             {webhookUrl}
           </code>
+
+          {apiKey ? (
+            <>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 4 }}>
+                <span className="ios-cell-sub" style={{ marginTop: 0 }}>Request header — <code>api-key</code></span>
+                <div style={{ display: "flex", gap: 14, flexShrink: 0 }}>
+                  <button onClick={() => setKeyShown((s) => !s)} style={{ color: "var(--ios-tint)", fontSize: 15 }}>
+                    {keyShown ? "Hide" : "Show"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard?.writeText(apiKey).then(() => {
+                        setKeyCopied(true);
+                        setTimeout(() => setKeyCopied(false), 2000);
+                      }).catch(() => setKeyShown(true));
+                    }}
+                    style={{ color: "var(--ios-tint)", fontSize: 15, fontWeight: keyCopied ? 600 : 400 }}
+                  >
+                    {keyCopied ? "Copied ✓" : "Copy"}
+                  </button>
+                </div>
+              </div>
+              <code
+                className="ios-num"
+                style={{
+                  display: "block", fontSize: 12, lineHeight: 1.5, color: "var(--ios-label)",
+                  background: "var(--ios-fill)", borderRadius: 8, padding: "10px 12px",
+                  wordBreak: "break-all", WebkitUserSelect: "all", userSelect: "all",
+                }}
+              >
+                {keyShown ? apiKey : "•".repeat(Math.min(apiKey.length, 40))}
+              </code>
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -133,6 +171,7 @@ export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, 
           <li>Open the app → <b style={{ fontWeight: 600 }}>Settings → Automation</b>.</li>
           <li>Set <b style={{ fontWeight: 600 }}>Export Format: JSON</b>, <b style={{ fontWeight: 600 }}>Export Type: Apple Health</b>.</li>
           <li>Add the webhook URL above as the endpoint.</li>
+          <li>Add a request <b style={{ fontWeight: 600 }}>Header</b>: name <code>api-key</code>, value = your export secret{apiKey ? " (shown above)" : ""}. Without it the server returns <b style={{ fontWeight: 600 }}>401</b>.</li>
           <li>Tap <b style={{ fontWeight: 600 }}>Export Now</b> to sync immediately.</li>
         </ol>
       )}

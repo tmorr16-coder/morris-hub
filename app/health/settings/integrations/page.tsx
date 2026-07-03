@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
+import { isCurrentUserAdmin } from "@/lib/supabase/auth-utils";
 import { publicOrigin } from "@/lib/site-url";
 import { LargeTitle, Icons } from "@/components/ios";
 import WithingsCard from "./_components/WithingsCard";
@@ -116,6 +117,7 @@ export default async function IntegrationsPage({
           metricsCount={appleMetricsCount ?? 0}
           workoutsCount={appleWorkoutsCount ?? 0}
           webhookUrl={webhookUrl}
+          apiKey={(await isCurrentUserAdmin()) ? (process.env.HEALTH_AUTO_EXPORT_SECRET ?? "") : ""}
         />
         <WithingsCard
           connected={connected}
