@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import type { SVGProps } from "react";
 import { useRouter } from "next/navigation";
 import type { BibleChapter } from "@/lib/bible-api";
 
@@ -15,6 +16,40 @@ interface Props {
   nextReadingHref?: string;
   nextReadingLabel?: string;
 }
+
+// ── Inline SF-style glyphs (24×24, currentColor) ─────────────
+const strokeSvg = (p: SVGProps<SVGSVGElement>) => ({
+  viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
+  strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
+  width: "1em", height: "1em", "aria-hidden": true, ...p,
+});
+const CloseIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...strokeSvg(p)}><path d="M6 6l12 12M18 6L6 18" /></svg>
+);
+const RestartIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...strokeSvg(p)}><path d="M4.5 12a7.5 7.5 0 1 0 2.3-5.4M4.5 4v4h4" /></svg>
+);
+const PlayIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em" aria-hidden {...p}>
+    <path d="M7 5.3v13.4a1 1 0 0 0 1.5.87l11-6.7a1 1 0 0 0 0-1.74l-11-6.7A1 1 0 0 0 7 5.3Z" />
+  </svg>
+);
+const PauseIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...strokeSvg(p)} strokeWidth={2}><path d="M8.5 5v14M15.5 5v14" /></svg>
+);
+const PrevIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em" aria-hidden {...p}>
+    <path d="M18 5.5v13a.8.8 0 0 1-1.2.66L8 13.3V18a1 1 0 0 1-2 0V6a1 1 0 0 1 2 0v4.7l8.8-5.86A.8.8 0 0 1 18 5.5Z" />
+  </svg>
+);
+const NextIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em" aria-hidden {...p}>
+    <path d="M6 5.5v13a.8.8 0 0 0 1.2.66L16 13.3V18a1 1 0 0 0 2 0V6a1 1 0 0 0-2 0v4.7L7.2 4.84A.8.8 0 0 0 6 5.5Z" />
+  </svg>
+);
+const CheckIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...strokeSvg(p)} strokeWidth={2}><path d="M5 12.5l4.5 4.5L19 7" /></svg>
+);
 
 export default function FocusReader({ book, chapterNum, chapterData, onClose, initialVerseIdx = 0, nextReadingHref, nextReadingLabel }: Props) {
   const verses = chapterData.verses;
@@ -224,47 +259,55 @@ export default function FocusReader({ book, chapterNum, chapterData, onClose, in
 
   const pct = ((currentVerseIdx + 1) / verses.length) * 100;
 
+  const roundBtn: React.CSSProperties = {
+    background: "var(--ios-fill)", border: "none", color: "var(--ios-label)",
+    fontSize: 18, cursor: "pointer", width: 44, height: 44, borderRadius: "50%",
+    display: "flex", alignItems: "center", justifyContent: "center",
+  };
+
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 200,
-      background: "#0d0d0f",
+      background: "var(--ios-bg)",
       display: "flex", flexDirection: "column",
-      fontFamily: "var(--font-display, Georgia, serif)",
-      color: "#f0ebe0",
+      color: "var(--ios-label)",
     }}>
       {/* ── Top bar ── */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "14px 24px", borderBottom: "1px solid rgba(255,255,255,0.07)",
+        padding: "14px 20px", borderBottom: "1px solid var(--ios-separator)",
         flexShrink: 0,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <button onClick={() => { stop(); onClose(); }}
-            style={{ background: "none", border: "none", color: "#666", fontSize: 20, cursor: "pointer", padding: 4, lineHeight: 1 }}>
-            ✕
+            aria-label="Close focus reader"
+            style={{ background: "var(--ios-fill)", border: "none", color: "var(--ios-label)", fontSize: 18, cursor: "pointer", width: 36, height: 36, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <CloseIcon />
           </button>
-          <span style={{ fontSize: 15, color: "#c0b8a8" }}>{book.name} {chapterNum}</span>
-          <span style={{ fontSize: 11, color: "#444", fontFamily: "system-ui" }}>
+          <span className="ios-headline" style={{ color: "var(--ios-label)" }}>{book.name} {chapterNum}</span>
+          <span className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)" }}>
             {currentVerseIdx + 1} / {verses.length}
           </span>
         </div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <select value={selectedVoice?.name ?? ""} onChange={e => handleVoiceChange(e.target.value)}
-            style={{ padding: "5px 8px", borderRadius: 7, border: "1px solid #2a2a2f", background: "#1a1a1f", color: "#c0b8a8", fontSize: 11, fontFamily: "system-ui", cursor: "pointer", maxWidth: 170 }}>
+            aria-label="Voice"
+            style={{ padding: "6px 8px", borderRadius: 8, border: "none", background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 13, fontFamily: "inherit", cursor: "pointer", maxWidth: 170 }}>
             {voices.map(v => <option key={v.name} value={v.name}>{shortVoiceName(v)}</option>)}
           </select>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <input type="range" min={0.5} max={1.4} step={0.05} value={speechRate}
               onChange={e => setSpeechRate(parseFloat(e.target.value))}
-              style={{ width: 70, accentColor: "#7c5cbf" }} />
-            <span style={{ fontSize: 11, color: "#555", fontFamily: "system-ui", minWidth: 28 }}>{speechRate.toFixed(2)}×</span>
+              aria-label="Reading speed"
+              style={{ width: 70, accentColor: "var(--ios-tint)" }} />
+            <span className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)", minWidth: 32 }}>{speechRate.toFixed(2)}×</span>
           </div>
 
           <button onClick={restart} title="Restart (R)"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid #2a2a2f", color: "#777", fontSize: 14, cursor: "pointer", padding: "5px 10px", borderRadius: 7 }}>
-            ↺ Restart
+            style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--ios-fill)", border: "none", color: "var(--ios-label)", fontSize: 14, cursor: "pointer", padding: "7px 12px", borderRadius: 999, fontWeight: 500 }}>
+            <RestartIcon style={{ fontSize: 15 }} /> Restart
           </button>
         </div>
       </div>
@@ -287,15 +330,15 @@ export default function FocusReader({ book, chapterNum, chapterData, onClose, in
               style={{
                 cursor: "pointer",
                 padding: "16px 10vw",
-                background: isActive ? "rgba(124,92,191,0.09)" : "transparent",
-                borderLeft: isActive ? "3px solid #7c5cbf" : "3px solid transparent",
+                background: isActive ? "color-mix(in srgb, var(--ios-tint) 10%, transparent)" : "transparent",
+                borderLeft: isActive ? "3px solid var(--ios-tint)" : "3px solid transparent",
                 transition: "background 200ms",
               }}
             >
-              <div style={{
-                fontSize: 10, fontWeight: 700, fontFamily: "system-ui",
-                color: isActive ? "#7c5cbf" : "#383330",
-                textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 7,
+              <div className="ios-caption" style={{
+                fontWeight: 700,
+                color: isActive ? "var(--ios-tint)" : "var(--ios-label-3)",
+                textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 7,
               }}>
                 Verse {verse.number}
               </div>
@@ -303,17 +346,16 @@ export default function FocusReader({ book, chapterNum, chapterData, onClose, in
               <div style={{
                 fontSize: isActive ? 26 : isFuture ? 18 : 16,
                 lineHeight: isActive ? 1.9 : 1.7,
-                color: isActive ? "#f5efe0" : isPast ? "#2e2b26" : "#6a6258",
+                color: isActive ? "var(--ios-label)" : isPast ? "var(--ios-label-3)" : "var(--ios-label-2)",
                 transition: "font-size 250ms, color 200ms",
-                letterSpacing: "0.01em",
               }}>
                 {isActive && words ? (
                   // Current verse: word-by-word highlighting
                   words.map((word, wi) => (
                     <span key={wi} style={{
                       display: "inline",
-                      background: currentWordIdx === wi ? "#7c5cbf" : "transparent",
-                      color: currentWordIdx === wi ? "#fff" : undefined,
+                      background: currentWordIdx === wi ? "var(--ios-tint)" : "transparent",
+                      color: currentWordIdx === wi ? "var(--ios-on-tint)" : undefined,
                       borderRadius: currentWordIdx === wi ? 4 : 0,
                       padding: currentWordIdx === wi ? "0 3px" : undefined,
                       transition: "background 60ms",
@@ -333,17 +375,23 @@ export default function FocusReader({ book, chapterNum, chapterData, onClose, in
         {/* Done state */}
         {done && (
           <div style={{ textAlign: "center", padding: "40px 20px" }}>
-            <div style={{ fontSize: 36, marginBottom: 10 }}>✓</div>
-            <div style={{ fontSize: 18, color: "#c0b8a8", fontFamily: "var(--font-display, Georgia, serif)", marginBottom: 4 }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: "50%", margin: "0 auto 14px",
+              background: "color-mix(in srgb, var(--ios-tint) 16%, transparent)",
+              display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ios-tint)",
+            }}>
+              <CheckIcon style={{ fontSize: 32 }} />
+            </div>
+            <div className="ios-title-3" style={{ color: "var(--ios-label)", marginBottom: 4 }}>
               {book.name} {chapterNum} complete
             </div>
 
             {nextReadingHref && nextReadingLabel ? (
               <div style={{ marginTop: 20 }}>
-                <div style={{ fontSize: 12, color: "#555", fontFamily: "system-ui", marginBottom: 12 }}>
+                <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
                   Up next
                 </div>
-                <div style={{ fontSize: 20, color: "#a78bdc", fontFamily: "var(--font-display, Georgia, serif)", marginBottom: 20 }}>
+                <div className="ios-title-3" style={{ color: "var(--ios-tint)", marginBottom: 20 }}>
                   {nextReadingLabel}
                 </div>
 
@@ -352,18 +400,18 @@ export default function FocusReader({ book, chapterNum, chapterData, onClose, in
                   <button
                     onClick={() => { setCountdown(null); setDone(false); router.push(nextReadingHref); }}
                     style={{
-                      padding: "12px 28px", borderRadius: 10, border: "none",
-                      background: "linear-gradient(135deg, #7c5cbf, #a78bdc)",
-                      color: "#fff", fontSize: 15, fontWeight: 600,
-                      fontFamily: "system-ui", cursor: "pointer",
+                      padding: "12px 28px", borderRadius: 12, border: "none",
+                      background: "var(--ios-tint)",
+                      color: "var(--ios-on-tint)", fontSize: 16, fontWeight: 600,
+                      cursor: "pointer",
                       display: "flex", alignItems: "center", gap: 8,
                     }}
                   >
                     Continue
                     {countdown !== null && (
-                      <span style={{
+                      <span className="ios-num" style={{
                         width: 24, height: 24, borderRadius: "50%",
-                        background: "rgba(255,255,255,0.25)",
+                        background: "color-mix(in srgb, var(--ios-on-tint) 25%, transparent)",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         fontSize: 12, fontWeight: 700,
                       }}>
@@ -374,9 +422,9 @@ export default function FocusReader({ book, chapterNum, chapterData, onClose, in
                   <button
                     onClick={() => setCountdown(null)}
                     style={{
-                      padding: "12px 20px", borderRadius: 10,
-                      border: "1px solid #2a2a2f", background: "transparent",
-                      color: "#666", fontSize: 13, fontFamily: "system-ui", cursor: "pointer",
+                      padding: "12px 20px", borderRadius: 12,
+                      border: "none", background: "var(--ios-fill)",
+                      color: "var(--ios-label)", fontSize: 15, fontWeight: 500, cursor: "pointer",
                     }}
                   >
                     Pause
@@ -387,7 +435,8 @@ export default function FocusReader({ book, chapterNum, chapterData, onClose, in
                   <div style={{ marginTop: 14 }}>
                     <button
                       onClick={() => router.push(nextReadingHref)}
-                      style={{ background: "none", border: "none", color: "#7c5cbf", fontSize: 13, fontFamily: "system-ui", cursor: "pointer", textDecoration: "underline" }}
+                      className="ios-footnote"
+                      style={{ background: "none", border: "none", color: "var(--ios-tint)", cursor: "pointer", fontWeight: 500 }}
                     >
                       Go to {nextReadingLabel} →
                     </button>
@@ -397,7 +446,7 @@ export default function FocusReader({ book, chapterNum, chapterData, onClose, in
             ) : (
               <div style={{ marginTop: 20 }}>
                 <button onClick={() => startFrom(0)}
-                  style={{ padding: "10px 22px", borderRadius: 8, border: "none", background: "#7c5cbf", color: "#fff", fontSize: 14, fontFamily: "system-ui", cursor: "pointer" }}>
+                  style={{ padding: "12px 24px", borderRadius: 12, border: "none", background: "var(--ios-tint)", color: "var(--ios-on-tint)", fontSize: 15, fontWeight: 600, cursor: "pointer" }}>
                   Read again
                 </button>
               </div>
@@ -409,16 +458,16 @@ export default function FocusReader({ book, chapterNum, chapterData, onClose, in
       {/* ── Bottom bar ── */}
       <div style={{
         position: "fixed", bottom: 0, left: 0, right: 0,
-        background: "rgba(13,13,15,0.96)", backdropFilter: "blur(16px)",
-        borderTop: "1px solid rgba(255,255,255,0.07)",
+        background: "var(--ios-bg-elevated)", backdropFilter: "blur(16px)",
+        borderTop: "1px solid var(--ios-separator)",
         display: "flex", flexDirection: "column", alignItems: "center",
         padding: "14px 24px 18px", gap: 12, flexShrink: 0,
       }}>
         {/* Progress */}
-        <div style={{ width: "100%", maxWidth: 560, height: 3, background: "#1e1e22", borderRadius: 2 }}>
+        <div style={{ width: "100%", maxWidth: 560, height: 4, background: "var(--ios-fill)", borderRadius: 2 }}>
           <div style={{
             height: "100%", borderRadius: 2,
-            background: "linear-gradient(90deg, #7c5cbf, #a78bdc)",
+            background: "var(--ios-tint)",
             width: `${pct}%`, transition: "width 400ms",
           }} />
         </div>
@@ -426,44 +475,43 @@ export default function FocusReader({ book, chapterNum, chapterData, onClose, in
         {/* Playback controls */}
         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
           <button onClick={() => startFrom(Math.max(0, currentVerseIdx - 1))}
-            title="Previous verse (←)"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid #2a2a2f", color: "#777", fontSize: 18, cursor: "pointer", width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            ⏮
+            title="Previous verse (←)" aria-label="Previous verse"
+            style={roundBtn}>
+            <PrevIcon />
           </button>
 
           {!speaking ? (
             <button onClick={() => startFrom(currentVerseIdx)}
-              title="Play (Space)"
+              title="Play (Space)" aria-label="Play"
               style={{
                 width: 64, height: 64, borderRadius: "50%", border: "none",
-                background: "linear-gradient(135deg, #7c5cbf, #a78bdc)",
-                color: "#fff", fontSize: 26, cursor: "pointer",
+                background: "var(--ios-tint)",
+                color: "var(--ios-on-tint)", fontSize: 26, cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                boxShadow: "0 4px 20px rgba(124,92,191,0.4)",
               }}>
-              ▶
+              <PlayIcon />
             </button>
           ) : (
             <button onClick={pauseResume}
-              title="Pause/Resume (Space)"
+              title="Pause/Resume (Space)" aria-label={paused ? "Resume" : "Pause"}
               style={{
                 width: 64, height: 64, borderRadius: "50%", border: "none",
-                background: paused ? "linear-gradient(135deg, #7c5cbf, #a78bdc)" : "rgba(255,255,255,0.10)",
-                color: "#fff", fontSize: 22, cursor: "pointer",
+                background: paused ? "var(--ios-tint)" : "var(--ios-fill)",
+                color: paused ? "var(--ios-on-tint)" : "var(--ios-label)", fontSize: 24, cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}>
-              {paused ? "▶" : "⏸"}
+              {paused ? <PlayIcon /> : <PauseIcon />}
             </button>
           )}
 
           <button onClick={() => startFrom(Math.min(verses.length - 1, currentVerseIdx + 1))}
-            title="Next verse (→)"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid #2a2a2f", color: "#777", fontSize: 18, cursor: "pointer", width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            ⏭
+            title="Next verse (→)" aria-label="Next verse"
+            style={roundBtn}>
+            <NextIcon />
           </button>
         </div>
 
-        <div style={{ fontSize: 10, color: "#333", fontFamily: "system-ui" }}>
+        <div className="ios-caption" style={{ color: "var(--ios-label-3)" }}>
           Space · R = restart · ← → = prev/next verse · Esc = close · Click any verse to jump
         </div>
       </div>

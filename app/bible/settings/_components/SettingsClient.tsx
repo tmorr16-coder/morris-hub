@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { List, Segmented } from "@/components/ios";
 import type { BibleVersion } from "@/lib/bible-api";
 
 const FONT_SIZES = [
@@ -25,6 +26,7 @@ export default function SettingsClient({ versions, initialPrefs }: Props) {
 
   async function save() {
     setSaving(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createClient() as any;
     const { data: { user } } = await db.auth.getUser();
     if (!user) { setSaving(false); return; }
@@ -37,73 +39,79 @@ export default function SettingsClient({ versions, initialPrefs }: Props) {
     setTimeout(() => setSaved(false), 2500);
   }
 
-  const label: React.CSSProperties = { display: "block", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 8 };
-  const card: React.CSSProperties = { background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 12, padding: "18px 20px", marginBottom: 14 };
-  const select: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "var(--color-bg)", color: "var(--color-ink)", fontSize: 14, fontFamily: "inherit", outline: "none" };
+  const header: React.CSSProperties = { padding: "0 4px 7px" };
+  const footnote: React.CSSProperties = { color: "var(--ios-label-2)", padding: "7px 4px 0" };
+  const control: React.CSSProperties = {
+    width: "100%", padding: "12px 16px", background: "transparent", border: "none",
+    color: "var(--ios-label)", fontSize: 17, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+  };
+  const activeSize = FONT_SIZES.find((f) => f.key === fontSize)?.size ?? 16;
 
   return (
-    <div>
+    <>
       {/* Translation */}
-      <div style={card}>
-        <label style={label}>Preferred Translation</label>
-        <select value={bibleId} onChange={(e) => setBibleId(e.target.value)} style={select}>
-          {versions.map((v) => (
-            <option key={v.id} value={v.id}>{v.abbreviation} — {v.name}</option>
-          ))}
-        </select>
-        <p style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 8 }}>
+      <section style={{ marginTop: 16 }}>
+        <h2 className="ios-group-header" style={header}>Preferred translation</h2>
+        <List style={{ margin: 0 }}>
+          <select value={bibleId} onChange={(e) => setBibleId(e.target.value)} style={{ ...control, appearance: "none", WebkitAppearance: "none" }}>
+            {versions.map((v) => (
+              <option key={v.id} value={v.id}>{v.abbreviation} — {v.name}</option>
+            ))}
+          </select>
+        </List>
+        <p className="ios-footnote" style={footnote}>
           Used as the default when you open a chapter. You can still switch translations while reading.
         </p>
-      </div>
+      </section>
 
       {/* Font size */}
-      <div style={card}>
-        <label style={label}>Reading Font Size</label>
-        <div style={{ display: "flex", gap: 8 }}>
-          {FONT_SIZES.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setFontSize(f.key)}
-              style={{
-                flex: 1, padding: "10px 6px", borderRadius: 8,
-                border: `1.5px solid ${fontSize === f.key ? "var(--color-accent)" : "var(--color-rule)"}`,
-                background: fontSize === f.key ? "var(--color-accent-soft)" : "transparent",
-                color: fontSize === f.key ? "var(--color-accent)" : "var(--color-ink-3)",
-                fontFamily: "var(--font-instrument-serif, serif)",
-                fontSize: f.size, cursor: "pointer", textAlign: "center",
-              }}
-            >
-              <div style={{ fontSize: 10, fontFamily: "inherit", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4, color: fontSize === f.key ? "var(--color-accent)" : "var(--color-ink-4)" }}>{f.label}</div>
-              Aa
-            </button>
-          ))}
-        </div>
-        <p style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 8 }}>
+      <section style={{ marginTop: 22 }}>
+        <h2 className="ios-group-header" style={header}>Reading font size</h2>
+        <Segmented
+          ariaLabel="Reading font size"
+          value={fontSize}
+          onChange={(v) => setFontSize(v)}
+          options={FONT_SIZES.map((f) => ({ value: f.key, label: f.label }))}
+          style={{ margin: 0 }}
+        />
+        <List style={{ margin: "12px 0 0" }}>
+          <div style={{ padding: "16px", color: "var(--ios-label)", fontSize: activeSize, lineHeight: 1.5 }}>
+            “The Lord is my shepherd; I shall not want.”
+          </div>
+        </List>
+        <p className="ios-footnote" style={footnote}>
           Applied to chapter reading text. Headings and UI elements are unaffected.
         </p>
-      </div>
+      </section>
 
       {/* Reading reminder */}
-      <div style={card}>
-        <label style={label}>Daily Reading Reminder</label>
-        <input
-          type="time"
-          value={reminderTime}
-          onChange={(e) => setReminderTime(e.target.value)}
-          style={{ ...select, width: "auto", minWidth: 140 }}
-        />
-        <p style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 8 }}>
+      <section style={{ marginTop: 22 }}>
+        <h2 className="ios-group-header" style={header}>Daily reading reminder</h2>
+        <List style={{ margin: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px" }}>
+            <span className="ios-body">Reminder time</span>
+            <input
+              type="time"
+              value={reminderTime}
+              onChange={(e) => setReminderTime(e.target.value)}
+              className="ios-num"
+              style={{ background: "var(--ios-fill)", border: "none", borderRadius: 8, padding: "6px 10px", color: "var(--ios-label)", fontSize: 16, outline: "none", colorScheme: "light dark" }}
+            />
+          </div>
+        </List>
+        <p className="ios-footnote" style={footnote}>
           Optional. Your preferred time for a daily reading reminder. Push notification support coming soon.
         </p>
-      </div>
+      </section>
 
       <button
         onClick={save}
         disabled={saving}
-        style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: saved ? "var(--color-green)" : "var(--color-accent)", color: "#FFFDF8", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1, transition: "background 0.2s" }}
+        className="ios-btn ios-btn--primary"
+        style={{ marginTop: 26, background: saved ? "var(--ios-green)" : "var(--ios-tint)", opacity: saving ? 0.7 : 1 }}
       >
-        {saving ? "Saving…" : saved ? "✓ Saved" : "Save settings"}
+        {saving ? "Saving…" : saved ? "Saved" : "Save settings"}
       </button>
-    </div>
+    </>
   );
 }

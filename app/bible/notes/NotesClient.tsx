@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { LargeTitle, IconBadge, Icons } from "@/components/ios";
 
 interface Note {
   id: string;
@@ -16,12 +17,32 @@ interface Note {
   updated_at: string;
 }
 
+function SearchGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" style={{ width: 17, height: 17, flex: "0 0 auto" }} aria-hidden>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.2-3.2" />
+    </svg>
+  );
+}
+
+function TrashGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }} aria-hidden>
+      <path d="M4 7h16" />
+      <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7" />
+      <path d="M6.5 7l.7 11a1.5 1.5 0 0 0 1.5 1.4h6.6a1.5 1.5 0 0 0 1.5-1.4l.7-11" />
+    </svg>
+  );
+}
+
 export default function NotesClient({ initialNotes, userId }: { initialNotes: Note[]; userId: string }) {
   const [notes, setNotes] = useState(initialNotes);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [saving, setSaving] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createClient() as any;
 
   const filtered = notes.filter((n) =>
@@ -45,101 +66,107 @@ export default function NotesClient({ initialNotes, userId }: { initialNotes: No
   }
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px 20px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <h1 style={{ fontFamily: "var(--font-instrument-serif, serif)", fontSize: 26, fontWeight: 400, margin: 0 }}>
-          My Notes
-        </h1>
-        <span style={{ fontSize: 13, color: "var(--color-ink-3)" }}>{notes.length} notes</span>
+    <>
+      <LargeTitle title="Notes" subtitle={`${notes.length} ${notes.length === 1 ? "note" : "notes"}`} />
+
+      {/* Search field */}
+      <div style={{ padding: "6px var(--ios-gutter) 0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--ios-fill)", borderRadius: 10, padding: "9px 12px", color: "var(--ios-label-3)" }}>
+          <SearchGlyph />
+          <input
+            placeholder="Search notes"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", fontSize: 17, color: "var(--ios-label)" }}
+          />
+        </div>
       </div>
 
-      <input
-        placeholder="Search notes…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{
-          width: "100%", padding: "10px 14px", border: "1px solid var(--color-rule)",
-          borderRadius: 10, fontSize: 14, fontFamily: "inherit",
-          background: "var(--color-bg-card)", marginBottom: 20, boxSizing: "border-box",
-        }}
-      />
-
       {filtered.length === 0 && (
-        <div style={{ textAlign: "center", padding: "60px 0", color: "var(--color-ink-3)" }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>📝</div>
-          {notes.length === 0
-            ? <div>No notes yet. Tap a verse while reading to add one.</div>
-            : <div>No notes match your search.</div>
-          }
+        <div style={{ textAlign: "center", padding: "64px 24px", color: "var(--ios-label-2)" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 52, height: 52, borderRadius: 26, background: "var(--ios-fill)", color: "var(--ios-label-3)", marginBottom: 14 }}>
+            <Icons.ComposeIcon aria-hidden style={{ width: 26, height: 26 }} />
+          </span>
+          <div className="ios-body">
+            {notes.length === 0
+              ? "No notes yet. Tap a verse while reading to add one."
+              : "No notes match your search."}
+          </div>
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "14px 0 8px" }}>
         {filtered.map((note) => (
-          <div key={note.id} style={{
-            background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
-            borderRadius: 12, padding: "16px 20px", boxShadow: "var(--shadow-card)",
-          }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-              <Link href={`/bible/read/${note.book_id}/${note.chapter_num}`} style={{
-                fontSize: 12, fontWeight: 700, color: "var(--color-accent)", textDecoration: "none",
-              }}>
-                {note.reference}
-              </Link>
-              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                <button onClick={() => { setEditing(note.id); setEditContent(note.content); }}
-                  style={{ background: "none", border: "none", fontSize: 13, cursor: "pointer", color: "var(--color-ink-3)" }}>
-                  ✎ Edit
+          <div key={note.id} style={{ background: "var(--ios-cell)", borderRadius: "var(--ios-radius-card)", margin: "0 var(--ios-gutter)", padding: "14px 16px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <IconBadge color="#5E5CE6"><Icons.ComposeIcon /></IconBadge>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <Link href={`/bible/read/${note.book_id}/${note.chapter_num}`} className="ios-headline" style={{ color: "var(--ios-tint)", textDecoration: "none" }}>
+                  {note.reference}
+                </Link>
+                <div className="ios-footnote ios-num" style={{ color: "var(--ios-label-3)", marginTop: 1 }}>
+                  {new Date(note.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                <button
+                  onClick={() => { setEditing(note.id); setEditContent(note.content); }}
+                  aria-label="Edit note"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: 17, color: "var(--ios-tint)" }}
+                >
+                  <Icons.ComposeIcon aria-hidden style={{ width: 19, height: 19 }} />
                 </button>
-                <button onClick={() => deleteNote(note.id)}
-                  style={{ background: "none", border: "none", fontSize: 13, cursor: "pointer", color: "var(--color-red)" }}>
-                  ✕
+                <button
+                  onClick={() => deleteNote(note.id)}
+                  aria-label="Delete note"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 34, height: 34, borderRadius: 17, color: "var(--ios-red)" }}
+                >
+                  <TrashGlyph />
                 </button>
               </div>
             </div>
 
             {editing === note.id ? (
-              <div>
-                <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)}
-                  style={{
-                    width: "100%", minHeight: 80, padding: "8px 10px",
-                    border: "1px solid var(--color-rule)", borderRadius: 8,
-                    fontSize: 13, fontFamily: "inherit", resize: "vertical", boxSizing: "border-box",
-                  }}
+              <div style={{ marginTop: 12 }}>
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  style={{ width: "100%", minHeight: 88, padding: "10px 12px", background: "var(--ios-fill)", border: "none", borderRadius: 10, fontSize: 16, lineHeight: 1.5, color: "var(--ios-label)", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box", outline: "none" }}
                 />
-                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                  <button onClick={() => saveEdit(note.id)} disabled={saving}
-                    style={{ padding: "6px 14px", background: "var(--color-accent)", color: "#fff", border: "none", borderRadius: 8, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button
+                    onClick={() => saveEdit(note.id)}
+                    disabled={saving}
+                    style={{ padding: "8px 18px", borderRadius: 999, background: "var(--ios-tint)", color: "var(--ios-on-tint)", fontSize: 15, fontWeight: 600, opacity: saving ? 0.6 : 1 }}
+                  >
                     {saving ? "Saving…" : "Save"}
                   </button>
-                  <button onClick={() => setEditing(null)}
-                    style={{ padding: "6px 12px", border: "1px solid var(--color-rule)", background: "transparent", borderRadius: 8, fontSize: 12, cursor: "pointer" }}>
+                  <button
+                    onClick={() => setEditing(null)}
+                    style={{ padding: "8px 16px", borderRadius: 999, background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 15, fontWeight: 500 }}
+                  >
                     Cancel
                   </button>
                 </div>
               </div>
             ) : (
-              <div style={{ fontSize: 14, color: "var(--color-ink-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+              <div className="ios-body" style={{ color: "var(--ios-label)", lineHeight: 1.5, whiteSpace: "pre-wrap", marginTop: 10 }}>
                 {note.content}
               </div>
             )}
 
             {(note.tags ?? []).length > 0 && (
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
                 {note.tags.map((tag) => (
-                  <span key={tag} style={{ padding: "2px 8px", background: "var(--color-accent-soft)", color: "var(--color-accent)", borderRadius: 12, fontSize: 11, fontWeight: 500 }}>
-                    #{tag}
-                  </span>
+                  <span key={tag} className="ios-chip ios-chip--sm">#{tag}</span>
                 ))}
               </div>
             )}
-
-            <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 10 }}>
-              {new Date(note.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-            </div>
           </div>
         ))}
       </div>
-    </div>
+
+      <div style={{ height: 12 }} />
+    </>
   );
 }

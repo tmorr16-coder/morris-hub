@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { List } from "@/components/ios";
 
 interface Book { id: string; name: string; chapters: number; testament: "OT" | "NT" }
 
@@ -13,11 +14,11 @@ interface Props {
 export default function BookPickerClient({ books, preferredBibleId }: Props) {
   const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [testament, setTestament] = useState<"OT" | "NT">("OT");
   const [goTo, setGoTo] = useState("");
   const [goToError, setGoToError] = useState("");
 
-  const ot = books.filter((b) => b.testament === "OT");
-  const nt = books.filter((b) => b.testament === "NT");
+  const list = books.filter((b) => b.testament === testament);
 
   // Parse "John 3:16" or "John 3" or "Joh 3:16"
   function handleGoTo(e: React.FormEvent) {
@@ -39,92 +40,91 @@ export default function BookPickerClient({ books, preferredBibleId }: Props) {
     router.push(`/bible/read/${found.id}/${ch}?bibleId=${preferredBibleId}${verse}`);
   }
 
-  function renderBookGrid(list: Book[]) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {list.map((book) => (
-          <div key={book.id}>
-            {/* Book row */}
-            <button
-              onClick={() => setExpanded(expanded === book.id ? null : book.id)}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "10px 14px", background: expanded === book.id ? "var(--color-accent-soft)" : "var(--color-bg-card)",
-                border: `1px solid ${expanded === book.id ? "var(--color-accent)" : "var(--color-rule)"}`,
-                borderRadius: expanded === book.id ? "8px 8px 0 0" : 8,
-                cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-              }}
-            >
-              <span style={{ fontSize: 14, fontWeight: 500, color: expanded === book.id ? "var(--color-accent)" : "var(--color-ink)" }}>{book.name}</span>
-              <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>{book.chapters} ch. {expanded === book.id ? "▲" : "▼"}</span>
-            </button>
-
-            {/* Chapter grid — shows when expanded */}
-            {expanded === book.id && (
-              <div style={{ padding: "10px 12px 12px", background: "var(--color-bg-deep)", border: "1px solid var(--color-accent)", borderTop: "none", borderRadius: "0 0 8px 8px" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 8 }}>
-                  Chapter
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(38px, 1fr))", gap: 4 }}>
-                  {Array.from({ length: book.chapters }, (_, i) => i + 1).map((ch) => (
-                    <a
-                      key={ch}
-                      href={`/bible/read/${book.id}/${ch}?bibleId=${preferredBibleId}`}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        height: 36, borderRadius: 6,
-                        background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
-                        color: "var(--color-ink)", fontSize: 13, fontWeight: 500,
-                        textDecoration: "none", transition: "background 0.1s",
-                      }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-accent)"; (e.currentTarget as HTMLElement).style.color = "#FFFDF8"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-bg-card)"; (e.currentTarget as HTMLElement).style.color = "var(--color-ink)"; }}
-                    >
-                      {ch}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   return (
-    <div>
+    <>
       {/* Go To reference */}
-      <form onSubmit={handleGoTo} style={{ marginBottom: 24, display: "flex", gap: 8 }}>
-        <div style={{ flex: 1 }}>
-          <input
-            value={goTo}
-            onChange={(e) => { setGoTo(e.target.value); setGoToError(""); }}
-            placeholder="Go to a reference — e.g. John 3:16"
-            style={{ width: "100%", padding: "11px 14px", borderRadius: 8, border: `1px solid ${goToError ? "var(--color-red)" : "var(--color-rule)"}`, background: "var(--color-bg-card)", color: "var(--color-ink)", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
-          />
-          {goToError && <div style={{ fontSize: 11, color: "var(--color-red)", marginTop: 4 }}>{goToError}</div>}
+      <form onSubmit={handleGoTo} style={{ marginTop: 16, display: "flex", gap: 8, alignItems: "flex-start" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--ios-fill)", borderRadius: 10, padding: "10px 12px", border: goToError ? "1px solid var(--ios-red)" : "1px solid transparent" }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" style={{ width: 17, height: 17, flex: "0 0 auto", color: "var(--ios-label-3)" }} aria-hidden>
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.2-3.2" />
+            </svg>
+            <input
+              value={goTo}
+              onChange={(e) => { setGoTo(e.target.value); setGoToError(""); }}
+              placeholder="Go to a reference — e.g. John 3:16"
+              style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", fontSize: 17, color: "var(--ios-label)" }}
+            />
+          </div>
+          {goToError && <div className="ios-footnote" style={{ color: "var(--ios-red)", marginTop: 5, paddingLeft: 4 }}>{goToError}</div>}
         </div>
-        <button type="submit" style={{ padding: "11px 16px", borderRadius: 8, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap" }}>
-          Go →
+        <button
+          type="submit"
+          style={{ flexShrink: 0, padding: "11px 18px", borderRadius: 10, background: "var(--ios-tint)", color: "var(--ios-on-tint)", fontSize: 15, fontWeight: 600, whiteSpace: "nowrap" }}
+        >
+          Go
         </button>
       </form>
 
-      {/* OT */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-3)", marginBottom: 10 }}>
-          Old Testament
-        </div>
-        {renderBookGrid(ot)}
+      {/* Testament switch */}
+      <div className="ios-segmented" role="tablist" aria-label="Testament" style={{ margin: "18px 0 14px" }}>
+        <button type="button" role="tab" aria-selected={testament === "OT"} onClick={() => { setTestament("OT"); setExpanded(null); }}>Old Testament</button>
+        <button type="button" role="tab" aria-selected={testament === "NT"} onClick={() => { setTestament("NT"); setExpanded(null); }}>New Testament</button>
       </div>
 
-      {/* NT */}
-      <div>
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-3)", marginBottom: 10 }}>
-          New Testament
-        </div>
-        {renderBookGrid(nt)}
-      </div>
-    </div>
+      <List style={{ margin: 0 }}>
+        {list.map((book) => {
+          const isOpen = expanded === book.id;
+          return (
+            <div key={book.id}>
+              <button
+                type="button"
+                className="ios-cell"
+                onClick={() => setExpanded(isOpen ? null : book.id)}
+                style={{ background: isOpen ? "var(--ios-cell-pressed)" : undefined }}
+              >
+                <span className="ios-cell-body">
+                  <span className="ios-cell-title" style={{ color: isOpen ? "var(--ios-tint)" : "var(--ios-label)" }}>{book.name}</span>
+                </span>
+                <span className="ios-cell-trail">
+                  <span className="ios-num ios-footnote">{book.chapters} ch</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" style={{ width: 15, height: 15, color: "var(--ios-label-3)", transform: isOpen ? "rotate(-90deg)" : "rotate(90deg)", transition: "transform 0.15s" }} aria-hidden>
+                    <path d="m9 6 6 6-6 6" />
+                  </svg>
+                </span>
+              </button>
+
+              {isOpen && (
+                <div style={{ padding: "10px 14px 14px", background: "var(--ios-bg)" }}>
+                  <div className="ios-group-header" style={{ padding: "0 0 8px" }}>Chapter</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(40px, 1fr))", gap: 6 }}>
+                    {Array.from({ length: book.chapters }, (_, i) => i + 1).map((ch) => (
+                      <a
+                        key={ch}
+                        href={`/bible/read/${book.id}/${ch}?bibleId=${preferredBibleId}`}
+                        className="ios-num"
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          height: 40, borderRadius: 8,
+                          background: "var(--ios-cell)", color: "var(--ios-label)",
+                          fontSize: 15, fontWeight: 500, textDecoration: "none", transition: "background 0.1s",
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--ios-tint)"; (e.currentTarget as HTMLElement).style.color = "var(--ios-on-tint)"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--ios-cell)"; (e.currentTarget as HTMLElement).style.color = "var(--ios-label)"; }}
+                      >
+                        {ch}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </List>
+
+      <div style={{ height: 12 }} />
+    </>
   );
 }

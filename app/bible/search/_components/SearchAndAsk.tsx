@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { BibleVersion } from "@/lib/bible-api";
+import { Segmented, Chip, Group, List, Cell, IconBadge, Icons } from "@/components/ios";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,27 @@ interface Props {
   defaultBibleId: string;
   initialTab: "search" | "ask";
   firstName: string;
+}
+
+// ── Local inline icons (shared stroke style) ─────────────────────────────────
+
+function MagnifierIcon({ style }: { style?: React.CSSProperties }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7}
+      strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.5-3.5" />
+    </svg>
+  );
+}
+
+function ArrowUpIcon({ style }: { style?: React.CSSProperties }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+      strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <path d="M12 19V5M6 11l6-6 6 6" />
+    </svg>
+  );
 }
 
 // ── Starters ─────────────────────────────────────────────────────────────────
@@ -154,165 +176,168 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
     setChatLoading(false);
   }
 
-  // ── Styles ────────────────────────────────────────────────────────────────
+  // ── Shared field styles ─────────────────────────────────────────────────────
 
-  const tabBtn = (active: boolean): React.CSSProperties => ({
-    flex: 1,
-    padding: "10px 16px",
-    border: "none",
-    borderBottom: active ? "2px solid var(--color-accent)" : "2px solid transparent",
-    background: "transparent",
-    color: active ? "var(--color-ink)" : "var(--color-ink-3)",
-    fontWeight: active ? 600 : 500,
-    fontSize: 14,
-    cursor: "pointer",
-    fontFamily: "var(--font-geist, system-ui), sans-serif",
-    transition: "color 100ms, border-color 100ms",
-  });
+  const selectStyle: React.CSSProperties = {
+    flexShrink: 0,
+    padding: "9px 12px",
+    borderRadius: 999,
+    border: "var(--ios-hair) solid var(--ios-separator)",
+    background: "var(--ios-cell)",
+    color: "var(--ios-label)",
+    fontSize: 15,
+    fontFamily: "inherit",
+    outline: "none",
+    appearance: "none",
+    WebkitAppearance: "none",
+  };
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px 20px" }}>
-      {/* Tabs */}
-      <div style={{ display: "flex", borderBottom: "1px solid var(--color-rule)", marginBottom: 24 }}>
-        <button style={tabBtn(tab === "search")} onClick={() => setTab("search")}>
-          Search Scripture
-        </button>
-        <button style={tabBtn(tab === "ask")} onClick={() => setTab("ask")}>
-          Ask Morris
-        </button>
+    <div style={{ maxWidth: 640, margin: "0 auto", padding: "12px 0 32px" }}>
+      {/* Segmented tab switch */}
+      <div style={{ padding: "0 var(--ios-gutter) 6px" }}>
+        <Segmented
+          ariaLabel="Search Scripture or Ask Morris"
+          options={[
+            { value: "search", label: "Search" },
+            { value: "ask", label: "Ask Morris" },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
       </div>
 
       {/* ── SEARCH TAB ─────────────────────────────────────────────────── */}
       {tab === "search" && (
         <div>
-          {/* Translation + query */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          {/* Translation + search field */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px var(--ios-gutter) 0" }}>
             <select
               value={bibleId}
               onChange={(e) => setBibleId(e.target.value)}
-              style={{
-                padding: "10px 12px", borderRadius: 8,
-                border: "1px solid var(--color-rule)",
-                background: "var(--color-bg-card)", color: "var(--color-ink)",
-                fontSize: 13, fontFamily: "inherit", flexShrink: 0,
-              }}
+              aria-label="Translation"
+              style={selectStyle}
             >
               {versions.map((v) => <option key={v.id} value={v.id}>{v.abbreviation}</option>)}
             </select>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") search(); }}
-              placeholder="Search scripture, topic, or phrase…"
+            <div
               style={{
-                flex: 1, padding: "10px 14px", borderRadius: 8,
-                border: "1px solid var(--color-rule)",
-                background: "var(--color-bg-card)", color: "var(--color-ink)",
-                fontSize: 14, fontFamily: "inherit", outline: "none",
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "9px 14px",
+                borderRadius: 999,
+                background: "var(--ios-cell)",
+                border: "var(--ios-hair) solid var(--ios-separator)",
               }}
-            />
+            >
+              <MagnifierIcon style={{ width: 17, height: 17, color: "var(--ios-label-3)", flexShrink: 0 }} />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") search(); }}
+                placeholder="Search scripture, topic, or phrase…"
+                style={{
+                  flex: 1, minWidth: 0, border: "none", outline: "none",
+                  background: "transparent", color: "var(--ios-label)",
+                  fontSize: 16, fontFamily: "inherit",
+                }}
+              />
+            </div>
             <button
               onClick={() => search()}
               disabled={searching}
-              style={{
-                padding: "10px 16px", borderRadius: 8, border: "none",
-                background: "var(--color-accent)", color: "#FFFDF8",
-                fontSize: 13, fontWeight: 600, fontFamily: "inherit",
-                cursor: searching ? "wait" : "pointer", whiteSpace: "nowrap",
-              }}
+              aria-label="Search"
+              className="ios-send"
+              style={{ opacity: searching ? 0.5 : 1, cursor: searching ? "wait" : "pointer" }}
             >
-              {searching ? "…" : "Search"}
+              <MagnifierIcon style={{ width: 17, height: 17 }} />
             </button>
           </div>
 
           {/* Topic chips */}
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", padding: "14px var(--ios-gutter) 4px" }}>
             {TOPICS.map((t) => (
-              <button key={t} onClick={() => { setQuery(t); search(t); }}
-                style={{
-                  fontSize: 11, padding: "4px 10px", borderRadius: 16,
-                  border: "1px solid var(--color-rule)",
-                  background: "var(--color-bg-card)", color: "var(--color-ink-3)",
-                  cursor: "pointer", fontFamily: "inherit",
-                }}
-              >
-                {t}
-              </button>
+              <Chip key={t} small onClick={() => { setQuery(t); search(t); }}>{t}</Chip>
             ))}
           </div>
 
           {/* Go to reference */}
-          <form
-            onSubmit={handleGoTo}
-            style={{
-              display: "flex", gap: 8, marginBottom: 24, padding: "14px 16px",
-              background: "var(--color-bg-deep)", borderRadius: 10,
-              border: "1px solid var(--color-rule)",
-            }}
-          >
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>
-                Go to reference
-              </div>
-              <input
-                value={goTo}
-                onChange={(e) => { setGoTo(e.target.value); setGoToError(""); }}
-                placeholder="John 3:16  ·  Psalms 23  ·  Romans 8:28"
-                style={{
-                  width: "100%", padding: "9px 12px", borderRadius: 8,
-                  border: `1px solid ${goToError ? "var(--color-red)" : "var(--color-rule)"}`,
-                  background: "var(--color-bg)", color: "var(--color-ink)",
-                  fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
-                }}
-              />
-              {goToError && <div style={{ fontSize: 11, color: "var(--color-red)", marginTop: 3 }}>{goToError}</div>}
-            </div>
-            <button
-              type="submit"
+          <div style={{ marginTop: 20 }}>
+            <h2 className="ios-group-header">Go to reference</h2>
+            <form
+              onSubmit={handleGoTo}
               style={{
-                alignSelf: "flex-end", padding: "9px 14px", borderRadius: 8,
-                border: "none", background: "var(--color-accent)", color: "#FFFDF8",
-                fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer",
+                margin: "0 var(--ios-gutter)", padding: "12px 14px",
+                background: "var(--ios-cell)", borderRadius: "var(--ios-radius-card)",
+                display: "flex", flexDirection: "column", gap: 8,
               }}
             >
-              Go →
-            </button>
-          </form>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  value={goTo}
+                  onChange={(e) => { setGoTo(e.target.value); setGoToError(""); }}
+                  placeholder="John 3:16  ·  Psalms 23  ·  Romans 8:28"
+                  style={{
+                    flex: 1, minWidth: 0, padding: "9px 12px", borderRadius: 8,
+                    border: `var(--ios-hair) solid ${goToError ? "var(--ios-red)" : "var(--ios-separator)"}`,
+                    background: "var(--ios-bg)", color: "var(--ios-label)",
+                    fontSize: 15, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+                  }}
+                />
+                <button
+                  type="submit"
+                  className="ios-btn ios-btn--plain"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 2, fontWeight: 600, whiteSpace: "nowrap" }}
+                >
+                  Go
+                  <Icons.ChevronRight style={{ width: 16, height: 16 }} />
+                </button>
+              </div>
+              {goToError && (
+                <div className="ios-footnote" style={{ color: "var(--ios-red)" }}>{goToError}</div>
+              )}
+            </form>
+          </div>
 
           {/* Results */}
           {searched && results.length === 0 && (
-            <div style={{ textAlign: "center", padding: "32px 0", color: "var(--color-ink-4)", fontSize: 14 }}>
-              No results for &ldquo;{query}&rdquo; — try Ask Morris for a question
+            <div style={{ textAlign: "center", padding: "40px 24px", color: "var(--ios-label-2)" }}>
+              <MagnifierIcon style={{ width: 30, height: 30, color: "var(--ios-label-3)", margin: "0 auto 10px" }} />
+              <div className="ios-subhead">
+                No results for &ldquo;{query}&rdquo; — try Ask Morris for a question
+              </div>
             </div>
           )}
           {results.length > 0 && (
-            <div>
-              <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginBottom: 12 }}>
+            <div style={{ marginTop: 20 }}>
+              <h2 className="ios-group-header">
                 {results.length} result{results.length !== 1 ? "s" : ""}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              </h2>
+              <List>
                 {results.map((r, i) => (
                   <a
                     key={r.id || i}
                     href={resultHref(r)}
-                    style={{
-                      display: "block", padding: "12px 14px",
-                      background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
-                      borderRadius: 10, textDecoration: "none",
-                    }}
+                    className="ios-cell"
+                    style={{ alignItems: "flex-start" }}
                   >
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-accent)", marginBottom: 4 }}>
-                      {r.reference}
-                    </div>
-                    <div
-                      style={{ fontSize: 14, color: "var(--color-ink)", lineHeight: 1.6 }}
-                      dangerouslySetInnerHTML={{ __html: r.text }}
-                    />
+                    <span className="ios-cell-body">
+                      <span className="ios-footnote" style={{ fontWeight: 600, color: "var(--ios-tint)", marginBottom: 3 }}>
+                        {r.reference}
+                      </span>
+                      <span
+                        style={{ fontSize: 16, color: "var(--ios-label)", lineHeight: 1.55 }}
+                        dangerouslySetInnerHTML={{ __html: r.text }}
+                      />
+                    </span>
+                    <Icons.ChevronRight className="ios-chevron" style={{ marginTop: 3 }} />
                   </a>
                 ))}
-              </div>
+              </List>
             </div>
           )}
         </div>
@@ -320,62 +345,51 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
 
       {/* ── ASK TAB ────────────────────────────────────────────────────── */}
       {tab === "ask" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+        <div style={{ paddingBottom: 80 }}>
           {/* Empty state / starters */}
           {messages.length === 0 && (
-            <div style={{ marginBottom: 20 }}>
-              <p style={{ fontSize: 14, color: "var(--color-ink-3)", marginBottom: 12 }}>
+            <>
+              <p className="ios-subhead" style={{ color: "var(--ios-label-2)", padding: "14px var(--ios-gutter) 4px", margin: 0 }}>
                 {firstName ? `Hi ${firstName}. ` : ""}Ask anything about Scripture, theology, or a specific passage.
               </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <Group header="Try asking">
                 {ASK_STARTERS.map((s) => (
-                  <button
+                  <Cell
                     key={s}
+                    title={s}
                     onClick={() => send(s)}
-                    disabled={chatLoading}
-                    style={{
-                      textAlign: "left", padding: "10px 14px", borderRadius: 10,
-                      border: "1px solid var(--color-rule)", background: "var(--color-bg-card)",
-                      color: "var(--color-ink-2)", fontSize: 13,
-                      cursor: chatLoading ? "wait" : "pointer", fontFamily: "inherit",
-                    }}
-                  >
-                    {s}
-                  </button>
+                    lead={<IconBadge color="var(--ios-tint)"><Icons.SparkleIcon /></IconBadge>}
+                  />
                 ))}
-              </div>
-            </div>
+              </Group>
+            </>
           )}
 
           {/* Chat messages */}
           {messages.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "16px var(--ios-gutter) 0" }}>
               {messages.map((m, i) => (
                 <div
                   key={i}
-                  style={{
-                    alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                    maxWidth: "88%",
-                    padding: "10px 14px",
-                    borderRadius: 12,
-                    background: m.role === "user" ? "var(--color-accent)" : "var(--color-bg-card)",
-                    color: m.role === "user" ? "#FFFDF8" : "var(--color-ink)",
-                    border: m.role === "assistant" ? "1px solid var(--color-rule)" : "none",
-                    fontSize: 14,
-                    lineHeight: 1.65,
-                    whiteSpace: "pre-wrap",
-                  }}
+                  className={`ios-bubble ${m.role === "user" ? "ios-bubble--me" : "ios-bubble--ai"}`}
+                  style={{ whiteSpace: "pre-wrap" }}
                 >
                   {m.content}
                 </div>
               ))}
               {chatLoading && (
-                <div style={{ alignSelf: "flex-start", padding: "10px 14px", fontSize: 13, color: "var(--color-ink-3)", fontStyle: "italic" }}>
+                <div className="ios-bubble ios-bubble--ai" style={{ color: "var(--ios-label-2)", fontStyle: "italic" }}>
                   Thinking…
                 </div>
               )}
               {chatError && (
-                <div style={{ fontSize: 12, color: "var(--color-red)", padding: "8px 12px", background: "rgba(154,59,42,0.06)", borderRadius: 8 }}>
+                <div
+                  className="ios-footnote"
+                  style={{
+                    color: "var(--ios-red)", padding: "8px 12px", alignSelf: "flex-start",
+                    background: "var(--ios-fill)", borderRadius: 10,
+                  }}
+                >
                   {chatError}
                 </div>
               )}
@@ -383,33 +397,26 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
             </div>
           )}
 
-          {/* Input */}
-          <div style={{ display: "flex", gap: 8, position: "sticky", bottom: 80, background: "var(--color-bg)", paddingTop: 8 }}>
+          {/* Composer */}
+          <div className="ios-composer">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
               placeholder="Ask about a verse, passage, or theology…"
               disabled={chatLoading}
-              style={{
-                flex: 1, padding: "11px 14px", borderRadius: 10,
-                border: "1px solid var(--color-rule)",
-                background: "var(--color-bg-card)", color: "var(--color-ink)",
-                fontSize: 14, fontFamily: "inherit", outline: "none",
-              }}
             />
             <button
               onClick={() => send()}
               disabled={chatLoading || !input.trim()}
+              aria-label="Send"
+              className="ios-send"
               style={{
-                padding: "11px 20px", borderRadius: 10, border: "none",
-                background: "var(--color-accent)", color: "#FFFDF8",
-                fontSize: 13, fontWeight: 600, fontFamily: "inherit",
+                opacity: chatLoading || !input.trim() ? 0.4 : 1,
                 cursor: chatLoading || !input.trim() ? "not-allowed" : "pointer",
-                opacity: chatLoading || !input.trim() ? 0.5 : 1,
               }}
             >
-              Ask
+              <ArrowUpIcon style={{ width: 18, height: 18 }} />
             </button>
           </div>
         </div>
