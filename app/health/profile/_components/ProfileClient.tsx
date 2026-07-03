@@ -194,13 +194,6 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
   return (
     <div style={{ padding: "20px 20px 0" }}>
 
-      <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>
-        Profile
-      </div>
-      <div style={{ fontFamily: "var(--font-display)", fontSize: 36, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1, color: "var(--color-ink)", marginBottom: 24 }}>
-        Your<br /><span style={{ color: "var(--color-accent)" }}>preferences.</span>
-      </div>
-
       {/* OAuth identity */}
       {oauthUser && (
         <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, padding: "16px", display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>

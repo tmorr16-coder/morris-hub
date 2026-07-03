@@ -46,8 +46,8 @@ export default function LoginPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ fontSize: 13, color: "var(--color-ink-3)" }}>Loading…</span>
+      <div data-ui="ios" style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>Loading…</span>
       </div>
     );
   }
@@ -77,39 +77,39 @@ export default function LoginPage() {
   }
 
   const input: React.CSSProperties = {
-    width: "100%", padding: "11px 14px", borderRadius: 10,
-    border: "1px solid var(--color-rule)", background: "var(--color-bg)",
-    color: "var(--color-ink)", fontSize: 14, fontFamily: "inherit",
+    width: "100%", padding: "13px 15px", borderRadius: 10,
+    border: "0.5px solid var(--ios-separator)", background: "var(--ios-bg-elevated)",
+    color: "var(--ios-label)", fontSize: 17, fontFamily: "inherit",
     outline: "none", boxSizing: "border-box",
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", background: "var(--color-bg)" }}>
+    <div data-ui="ios" className="ios-scroll" style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px var(--ios-gutter)" }}>
       {/* Logo */}
-      <Link href="/" style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 40, textDecoration: "none" }}>
-        <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-accent)", alignSelf: "center", flexShrink: 0 }} />
-        <span className="serif" style={{ fontSize: 22, color: "var(--color-ink)" }}>morrisai</span>
-        <span className="serif" style={{ color: "var(--color-accent-dark)", fontStyle: "italic", fontSize: 20 }}>.family</span>
+      <Link href="/" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 32 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--ios-tint)", flexShrink: 0 }} />
+        <span className="ios-title-3" style={{ letterSpacing: "-0.01em", color: "var(--ios-label)" }}>
+          morrisai<span style={{ color: "var(--ios-tint)" }}>.family</span>
+        </span>
       </Link>
 
       {/* Card */}
-      <div style={{ width: "100%", maxWidth: 360, background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 16, padding: "36px 32px", boxShadow: "0 4px 24px rgba(0,0,0,0.06)" }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--color-ink)", marginBottom: 6, textAlign: "center" }}>
+      <div style={{ width: "100%", maxWidth: 360, background: "var(--ios-cell)", borderRadius: "var(--ios-radius-tile)", padding: "32px 26px" }}>
+        <h1 className="ios-title-2" style={{ textAlign: "center", marginBottom: 4 }}>
           Sign in
         </h1>
-        <p style={{ fontSize: 13, color: "var(--color-ink-3)", textAlign: "center", marginBottom: 28, lineHeight: 1.5 }}>
+        <p className="ios-subhead" style={{ color: "var(--ios-label-2)", textAlign: "center", marginBottom: 26, lineHeight: 1.4 }}>
           Access the Morris family platform
         </p>
 
         {/* Google OAuth — primary */}
         <button
           onClick={signInWithGoogle}
+          className="ios-btn ios-btn--full"
           style={{
-            width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-            gap: 10, padding: "13px 20px", borderRadius: 10,
-            border: "1px solid var(--color-rule)", background: "var(--color-bg)",
-            color: "var(--color-ink)", fontSize: 14, fontWeight: 500,
-            cursor: "pointer", fontFamily: "inherit",
+            gap: 10, background: "var(--ios-bg-elevated)",
+            border: "0.5px solid var(--ios-separator)", color: "var(--ios-label)",
+            fontSize: 17, fontWeight: 500,
           }}
         >
           <GoogleIcon />
@@ -120,26 +120,25 @@ export default function LoginPage() {
         {TEST_AUTH_ENABLED && (
           <>
             <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "20px 0 0" }}>
-              <div style={{ flex: 1, height: 1, background: "var(--color-rule)" }} />
-              <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>or</span>
-              <div style={{ flex: 1, height: 1, background: "var(--color-rule)" }} />
+              <div style={{ flex: 1, height: "0.5px", background: "var(--ios-separator)" }} />
+              <span className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>or</span>
+              <div style={{ flex: 1, height: "0.5px", background: "var(--ios-separator)" }} />
             </div>
 
             {!showTestForm ? (
               <button
                 onClick={() => setShowTestForm(true)}
+                className="ios-btn ios-btn--full"
                 style={{
-                  width: "100%", marginTop: 12, padding: "11px 20px", borderRadius: 10,
-                  border: "1px dashed var(--color-rule)", background: "transparent",
-                  color: "var(--color-ink-3)", fontSize: 13, fontWeight: 500,
-                  cursor: "pointer", fontFamily: "inherit",
+                  marginTop: 12, background: "var(--ios-fill)",
+                  color: "var(--ios-label-2)", fontSize: 15, fontWeight: 500,
                 }}
               >
                 🧪 Sign in with test account
               </button>
             ) : (
               <form onSubmit={handleTestLogin} style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-4)", textAlign: "center" }}>
+                <div className="ios-caption" style={{ fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--ios-label-3)", textAlign: "center" }}>
                   Test account login
                 </div>
                 <input
@@ -160,26 +159,23 @@ export default function LoginPage() {
                   style={input}
                 />
                 {error && (
-                  <div style={{ fontSize: 12, color: "var(--color-red)", padding: "8px 12px", background: "rgba(154,59,42,0.06)", borderRadius: 8 }}>
+                  <div className="ios-footnote" style={{ color: "var(--ios-red)", padding: "8px 12px", background: "var(--ios-fill)", borderRadius: 8 }}>
                     {error}
                   </div>
                 )}
                 <button
                   type="submit"
                   disabled={submitting}
-                  style={{
-                    padding: "12px", borderRadius: 10, border: "none",
-                    background: "var(--color-accent)", color: "#FFFDF8",
-                    fontSize: 14, fontWeight: 600, fontFamily: "inherit",
-                    cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1,
-                  }}
+                  className="ios-btn ios-btn--primary"
+                  style={{ cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.6 : 1 }}
                 >
                   {submitting ? "Signing in…" : "Sign in"}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setShowTestForm(false); setError(null); }}
-                  style={{ background: "none", border: "none", fontSize: 12, color: "var(--color-ink-4)", cursor: "pointer", fontFamily: "inherit" }}
+                  className="ios-footnote"
+                  style={{ color: "var(--ios-label-3)", padding: 4 }}
                 >
                   Cancel
                 </button>
@@ -188,9 +184,9 @@ export default function LoginPage() {
           </>
         )}
 
-        <p style={{ fontSize: 11, color: "var(--color-ink-4)", textAlign: "center", marginTop: 20, lineHeight: 1.5 }}>
+        <p className="ios-footnote" style={{ color: "var(--ios-label-2)", textAlign: "center", marginTop: 20, lineHeight: 1.4 }}>
           Access is by invitation only.{" "}
-          <Link href="/#waitlist" style={{ color: "var(--color-accent)" }}>Request access →</Link>
+          <Link href="/#waitlist" style={{ color: "var(--ios-tint)" }}>Request access →</Link>
         </p>
       </div>
     </div>

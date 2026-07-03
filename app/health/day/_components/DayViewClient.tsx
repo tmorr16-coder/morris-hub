@@ -79,11 +79,6 @@ const MEAL_LABEL: Record<string, string> = {
 
 // ── Helpers ──────────────────────────────────────────────────
 
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr + "T12:00:00");
-  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-}
-
 function addDays(dateStr: string, n: number): string {
   const d = new Date(dateStr + "T12:00:00");
   d.setDate(d.getDate() + n);
@@ -110,6 +105,24 @@ function EmptyRow({ label }: { label: string }) {
     <div style={{ padding: "14px 0", fontSize: 13, color: "var(--color-ink-4)", textAlign: "center" }}>
       {label}
     </div>
+  );
+}
+
+function EditIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+    </svg>
   );
 }
 
@@ -203,7 +216,7 @@ function WorkoutRow({ w, onDeleted }: { w: Workout; onDeleted: () => void }) {
           {w.notes ? ` · ${w.notes}` : ""}
         </div>
       </div>
-      <button onClick={() => setEditing(true)} style={iconBtn} title="Edit">✏️</button>
+      <button onClick={() => setEditing(true)} style={iconBtn} title="Edit"><EditIcon /></button>
       {confirmDelete ? (
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <button onClick={handleDelete} disabled={pending} style={{ ...btnSmall, background: "#ef4444", color: "#fff", border: "none" }}>
@@ -212,7 +225,7 @@ function WorkoutRow({ w, onDeleted }: { w: Workout; onDeleted: () => void }) {
           <button onClick={() => setConfirmDelete(false)} style={btnSmall}>Cancel</button>
         </div>
       ) : (
-        <button onClick={() => setConfirmDelete(true)} style={iconBtn} title="Delete">🗑️</button>
+        <button onClick={() => setConfirmDelete(true)} style={iconBtn} title="Delete"><TrashIcon /></button>
       )}
     </div>
   );
@@ -294,7 +307,7 @@ function MealRow({ m, onDeleted }: { m: Meal; onDeleted: () => void }) {
           {m.notes ? ` · ${m.notes}` : ""}
         </div>
       </div>
-      <button onClick={() => setEditing(true)} style={iconBtn} title="Edit">✏️</button>
+      <button onClick={() => setEditing(true)} style={iconBtn} title="Edit"><EditIcon /></button>
       {confirmDelete ? (
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <button onClick={handleDelete} disabled={pending} style={{ ...btnSmall, background: "#ef4444", color: "#fff", border: "none" }}>
@@ -303,7 +316,7 @@ function MealRow({ m, onDeleted }: { m: Meal; onDeleted: () => void }) {
           <button onClick={() => setConfirmDelete(false)} style={btnSmall}>Cancel</button>
         </div>
       ) : (
-        <button onClick={() => setConfirmDelete(true)} style={iconBtn} title="Delete">🗑️</button>
+        <button onClick={() => setConfirmDelete(true)} style={iconBtn} title="Delete"><TrashIcon /></button>
       )}
     </div>
   );
@@ -390,7 +403,7 @@ function DoseRow({ dose, onDeleted }: { dose: Dose; onDeleted: () => void }) {
           {dose.notes ? ` · ${dose.notes}` : ""}
         </div>
       </div>
-      <button onClick={() => setEditing(true)} style={iconBtn} title="Edit">✏️</button>
+      <button onClick={() => setEditing(true)} style={iconBtn} title="Edit"><EditIcon /></button>
       {confirmDelete ? (
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <button onClick={handleDelete} disabled={pending} style={{ ...btnSmall, background: "#ef4444", color: "#fff", border: "none" }}>
@@ -399,7 +412,7 @@ function DoseRow({ dose, onDeleted }: { dose: Dose; onDeleted: () => void }) {
           <button onClick={() => setConfirmDelete(false)} style={btnSmall}>Cancel</button>
         </div>
       ) : (
-        <button onClick={() => setConfirmDelete(true)} style={iconBtn} title="Delete">🗑️</button>
+        <button onClick={() => setConfirmDelete(true)} style={iconBtn} title="Delete"><TrashIcon /></button>
       )}
     </div>
   );
@@ -431,13 +444,6 @@ export default function DayViewClient({ data }: { data: DayData }) {
 
       {/* Date navigation */}
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>
-          Day view
-        </div>
-        <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1.1, color: "var(--color-ink)", marginBottom: 16 }}>
-          {isToday ? "Today." : formatDate(data.date)}
-        </div>
-
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button
             onClick={() => navigate(addDays(data.date, -1))}

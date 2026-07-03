@@ -75,8 +75,7 @@ export default function JournalClient({ initialEntries, userId }: { initialEntri
 
   return (
     <main style={{ maxWidth: 680, margin: "0 auto", padding: "28px 20px 100px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
-        <h1 className="serif" style={{ fontSize: 30, margin: 0 }}>Journal</h1>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, marginBottom: 6 }}>
         <button onClick={() => setFormOpen((o) => !o)}
           style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
           {formOpen ? "Cancel" : "+ New entry"}
@@ -84,10 +83,15 @@ export default function JournalClient({ initialEntries, userId }: { initialEntri
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 24 }}>
         <span style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
           fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
           padding: "2px 8px", borderRadius: 8, background: "rgba(59,92,127,0.1)", color: "var(--color-accent)",
         }}>
-          🔒 Private to you
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true">
+            <rect x="3" y="11" width="18" height="11" rx="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          Private to you
         </span>
         <span style={{ fontSize: 12, color: "var(--color-ink-4)" }}>Never shared, no matter what — that&apos;s the point.</span>
       </div>

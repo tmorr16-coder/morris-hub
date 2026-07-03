@@ -41,18 +41,19 @@ export default function WellnessClient({ initialEntries, userId }: { initialEntr
 
   return (
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "28px 20px 100px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        <h1 className="serif" style={{ fontSize: 28, margin: 0 }}>Mental Wellness</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
         <span style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
           fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
           padding: "2px 8px", borderRadius: 8, background: "rgba(59,92,127,0.1)", color: "var(--color-accent)",
         }}>
-          🔒 Private to you
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true">
+            <rect x="3" y="11" width="18" height="11" rx="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          Private to you
         </span>
       </div>
-      <p style={{ fontSize: 14, color: "var(--color-ink-3)", marginBottom: 24 }}>
-        A quick daily mood check-in. Never shared with your family circle.
-      </p>
 
       {!loggedToday && (
         <form onSubmit={logToday} style={{

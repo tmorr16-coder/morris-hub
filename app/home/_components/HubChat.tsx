@@ -67,15 +67,6 @@ export default function HubChat({ firstName }: { firstName: string }) {
         boxShadow: "var(--shadow-card)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-        <h2 className="serif" style={{ fontSize: 24 }}>
-          Ask <span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>Morris</span>
-        </h2>
-        <span style={{ fontSize: 10, color: "var(--color-ink-3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-          Knows your weather · todos · stocks
-        </span>
-      </div>
-
       {messages.length === 0 && (
         <div style={{ marginBottom: 14 }}>
           <p style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 10 }}>

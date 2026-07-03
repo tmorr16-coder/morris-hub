@@ -54,11 +54,16 @@ export default function MeDashboardClient({ domains, order: initialOrder, disabl
   return (
     <div>
       <div style={{
+        display: "flex", alignItems: "center", gap: 8,
         fontSize: 12, color: "var(--color-ink-3)", marginBottom: 20, padding: "10px 14px",
         background: "var(--color-bg-deep)", borderRadius: 10, lineHeight: 1.5,
         fontFamily: "var(--font-geist, system-ui), sans-serif",
       }}>
-        🔒 Your Mind and Spirit reflections stay private — never shown in Family views.
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true">
+          <rect x="3" y="11" width="18" height="11" rx="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+        <span>Your Mind and Spirit reflections stay private — never shown in Family views.</span>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>

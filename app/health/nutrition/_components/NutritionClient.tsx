@@ -422,35 +422,6 @@ export default function NutritionClient({ date, meals: initialMeals, favorites: 
   return (
     <div style={{ padding: "20px 20px 0" }}>
 
-      {/* Header */}
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 500,
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-          color: "var(--color-ink-3)",
-          marginBottom: 6,
-        }}
-      >
-        Nutrition
-      </div>
-      <div
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: 36,
-          fontWeight: 400,
-          letterSpacing: "-0.02em",
-          lineHeight: 1,
-          color: "var(--color-ink)",
-          marginBottom: 20,
-        }}
-      >
-        Today&apos;s
-        <br />
-        <span style={{ color: "var(--color-accent)" }}>meals.</span>
-      </div>
-
       {/* Calorie summary */}
       {(totalCalories > 0 || calorieGoal) && (
         <div
