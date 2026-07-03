@@ -46,6 +46,7 @@ export default function WatchlistSidebar({
 }: WatchlistSidebarProps) {
   const [items, setItems] = useState<WatchlistItemData[]>([]);
   const [loading, setLoading] = useState(initialTickers.length > 0);
+  const [notConfigured, setNotConfigured] = useState(false);
   const [suggested, setSuggested] = useState<SuggestedStock[]>([]);
 
   // Stable string key — doesn't change on every render if content is same
@@ -61,8 +62,10 @@ export default function WatchlistSidebar({
 
     Promise.all(
       initialTickers.map(async (ticker) => {
+        // quote=1 → live Finnhub quote only, skips the slow AI summary the
+        // watchlist never displays (keeps rows fast + resilient to AI failures).
         const [stockRes, candleRes] = await Promise.all([
-          fetch(`/api/investments/stock-summary?ticker=${ticker}`).then((r) => r.json()),
+          fetch(`/api/investments/stock-summary?ticker=${ticker}&quote=1`).then((r) => r.json()),
           fetch(`/api/investments/candle?ticker=${ticker}&range=1mo&interval=1d`).then((r) => r.json()),
         ]);
         const stock: Stock = {
@@ -74,10 +77,13 @@ export default function WatchlistSidebar({
           sector: stockRes.sector,
         };
         const sparkline: number[] = (candleRes.points || []).map((p: { close: number }) => p.close);
-        return { stock, sparkline };
+        return { stock, sparkline, notConfigured: !!stockRes.notConfigured };
       })
     )
-      .then((data) => setItems(data.filter((d) => d.stock.price > 0)))
+      .then((data) => {
+        setNotConfigured(data.some((d) => d.notConfigured));
+        setItems(data.filter((d) => d.stock.price > 0).map(({ stock, sparkline }) => ({ stock, sparkline })));
+      })
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -113,7 +119,10 @@ export default function WatchlistSidebar({
         {loading && (
           <div className="ios-cell" style={{ color: "var(--ios-label-2)" }}>Loading…</div>
         )}
-        {!loading && items.length === 0 && (
+        {!loading && items.length === 0 && notConfigured && (
+          <div className="ios-cell" style={{ color: "var(--ios-label-2)" }}>Stock data isn&apos;t configured yet</div>
+        )}
+        {!loading && items.length === 0 && !notConfigured && (
           <div className="ios-cell" style={{ color: "var(--ios-label-2)" }}>No quotes available</div>
         )}
         {items.map(({ stock, sparkline }) => {
@@ -168,7 +177,7 @@ export default function WatchlistSidebar({
               key={s.ticker}
               className="ios-cell"
               onClick={async () => {
-                const res = await fetch(`/api/investments/stock-summary?ticker=${s.ticker}`).then((r) => r.json());
+                const res = await fetch(`/api/investments/stock-summary?ticker=${s.ticker}&quote=1`).then((r) => r.json());
                 if (res.price) onSelectStock({ ticker: res.ticker, name: res.name, price: res.price, change: res.change, changeDirection: res.changeDirection, sector: res.sector });
               }}
             >

@@ -5,6 +5,10 @@ export async function POST(request: Request) {
   const userId = await getCurrentUserId();
   if (!userId) return Response.json({ error: "Not authenticated" }, { status: 401 });
 
+  if (!process.env.ALPACA_API_KEY || !process.env.ALPACA_API_SECRET) {
+    return Response.json({ error: "Alpaca API keys not configured" }, { status: 503 });
+  }
+
   let body: OrderRequest;
   try {
     body = await request.json();

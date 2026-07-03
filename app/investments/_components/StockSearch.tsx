@@ -21,6 +21,7 @@ export default function StockSearch({ onSelectStock }: StockSearchProps) {
   const [results, setResults] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notConfigured, setNotConfigured] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const searchTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
 
@@ -47,6 +48,7 @@ export default function StockSearch({ onSelectStock }: StockSearchProps) {
 
       const data = await response.json();
       setResults(data.stocks || []);
+      setNotConfigured(!!data.notConfigured);
       setShowResults(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Search error");
@@ -156,7 +158,13 @@ export default function StockSearch({ onSelectStock }: StockSearchProps) {
             </div>
           )}
 
-          {!loading && results.length === 0 && (
+          {!loading && results.length === 0 && notConfigured && (
+            <div className="ios-cell" style={{ justifyContent: "center", textAlign: "center", color: "var(--ios-label-2)" }}>
+              Live quotes aren&apos;t configured — try a multi-word topic search
+            </div>
+          )}
+
+          {!loading && results.length === 0 && !notConfigured && (
             <div className="ios-cell" style={{ justifyContent: "center", color: "var(--ios-label-2)" }}>
               No stocks found
             </div>

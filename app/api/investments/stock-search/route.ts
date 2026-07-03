@@ -22,6 +22,10 @@ export async function POST(request: Request) {
     return Response.json({
       stocks: results,
       count: results.length,
+      // Ticker/company lookup relies on Finnhub. If the key is absent and we
+      // found nothing, flag it so the UI can explain (topic search still works
+      // via Claude, so this is a hint, not a hard error).
+      notConfigured: results.length === 0 && !process.env.FINNHUB_API_KEY,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
