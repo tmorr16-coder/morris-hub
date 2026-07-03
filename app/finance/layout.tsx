@@ -2,9 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
-import PlatformMenu from "@/components/PlatformMenu";
-import PrivateIndicator from "@/components/PrivateIndicator";
-import MoneySubNav from "./_components/MoneySubNav";
+import { TabBar } from "@/components/ios";
 import PinGate from "./_components/PinGate";
 
 export const metadata: Metadata = { title: "Money · morrisai.family" };
@@ -30,24 +28,12 @@ export default async function FinanceLayout({ children }: { children: React.Reac
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const financePin: string | null = (pinResult.data as any)?.finance_pin ?? null;
 
-  const menuUser = {
-    name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-    email: user.email ?? null,
-    avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
-    isAdmin: false,
-    appAccess: prefs.app_access ?? null,
-  };
-
   return (
-    <>
-      <PlatformMenu currentApp="finance" user={menuUser} />
-      <MoneySubNav />
+    <div data-ui="ios">
       <PinGate enabled={!!financePin} correctPin={financePin ?? ""}>
-        <div data-section="finance" style={{ paddingBottom: 100 }}>
-          <div style={{ maxWidth: 1280, margin: "0 auto", padding: "16px 20px 0" }}><PrivateIndicator /></div>
-          {children}
-        </div>
+        {children}
       </PinGate>
-    </>
+      <TabBar current="more" currentUserId={user.id} sourceApp="finance" />
+    </div>
   );
 }
