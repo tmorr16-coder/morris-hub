@@ -16,10 +16,10 @@ interface TickerBarProps {
 function TickerItem({ q }: { q: Quote }) {
   const isUp = q.direction === "up";
   return (
-    <span style={{ display: "inline-flex", alignItems: "baseline", gap: 5, padding: "0 20px", borderRight: "1px solid rgba(255,255,255,0.08)", whiteSpace: "nowrap" }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color: "#e8ecf0", letterSpacing: "0.04em" }}>{q.symbol}</span>
-      <span style={{ fontSize: 11, color: "#e8ecf0" }}>${(q.price ?? 0).toFixed(2)}</span>
-      <span style={{ fontSize: 10, fontWeight: 600, color: isUp ? "#4ade80" : "#f87171" }}>
+    <span style={{ display: "inline-flex", alignItems: "baseline", gap: 5, padding: "0 20px", borderRight: "1px solid var(--ios-separator)", whiteSpace: "nowrap" }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--ios-label)", letterSpacing: "0.04em" }}>{q.symbol}</span>
+      <span style={{ fontSize: 11, color: "var(--ios-label)" }}>${(q.price ?? 0).toFixed(2)}</span>
+      <span style={{ fontSize: 10, fontWeight: 600, color: isUp ? "var(--ios-green)" : "var(--ios-red)" }}>
         {isUp ? "▲" : "▼"} {Math.abs(q.change ?? 0).toFixed(2)}%
       </span>
     </span>
@@ -60,8 +60,8 @@ export default function TickerBar({ symbols }: TickerBarProps) {
   return (
     <div
       style={{
-        background: "#0f1117",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        background: "var(--ios-cell)",
+        borderBottom: "1px solid var(--ios-separator)",
         height: 32,
         overflow: "hidden",
         position: "relative",
@@ -76,8 +76,8 @@ export default function TickerBar({ symbols }: TickerBarProps) {
       `}</style>
 
       {/* Fade edges */}
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 48, background: "linear-gradient(to right, #0f1117, transparent)", zIndex: 1, pointerEvents: "none" }} />
-      <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 48, background: "linear-gradient(to left, #0f1117, transparent)", zIndex: 1, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 48, background: "linear-gradient(to right, var(--ios-bg), transparent)", zIndex: 1, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 48, background: "linear-gradient(to left, var(--ios-bg), transparent)", zIndex: 1, pointerEvents: "none" }} />
 
       <div
         style={{

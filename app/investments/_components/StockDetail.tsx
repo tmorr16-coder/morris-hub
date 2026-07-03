@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { Stock } from "@/lib/stock-research";
+import { Icons } from "@/components/ios";
 
 interface StockDetailProps {
   stock: Stock;
@@ -78,14 +79,19 @@ export default function StockDetail({
     }
   };
 
+  const changeColor =
+    stock.changeDirection === "up"
+      ? "var(--ios-green)"
+      : stock.changeDirection === "down"
+        ? "var(--ios-red)"
+        : "var(--ios-label-3)";
+
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
         gap: 16,
-        padding: "20px 24px",
-        maxWidth: 800,
       }}
     >
       {/* Header */}
@@ -94,292 +100,225 @@ export default function StockDetail({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
+          gap: 12,
         }}
       >
-        <div>
-          <h1
-            className="serif"
-            style={{
-              fontSize: 24,
-              margin: "0 0 4px 0",
-              color: "var(--color-ink)",
-            }}
-          >
+        <div style={{ minWidth: 0 }}>
+          <h1 className="ios-title-2 ios-num" style={{ margin: "0 0 2px" }}>
             {stock.ticker}
           </h1>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 13,
-              color: "var(--color-ink-2)",
-            }}
-          >
+          <p className="ios-subhead" style={{ margin: 0, color: "var(--ios-label-2)" }}>
             {stock.name}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
           <button
             onClick={onAddToWatchlist}
             style={{
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1px solid var(--color-rule)",
-              background: isWatched ? "var(--color-accent)" : "transparent",
-              color: isWatched ? "#FFFDF8" : "var(--color-ink)",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "8px 14px",
+              borderRadius: 999,
+              border: "none",
+              background: isWatched ? "var(--ios-tint)" : "var(--ios-fill)",
+              color: isWatched ? "var(--ios-on-tint)" : "var(--ios-label)",
               cursor: "pointer",
               fontFamily: "inherit",
-              fontSize: 13,
-              fontWeight: 500,
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              if (!isWatched) {
-                (e.currentTarget as HTMLElement).style.background =
-                  "var(--color-bg)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isWatched) {
-                (e.currentTarget as HTMLElement).style.background =
-                  "transparent";
-              }
+              fontSize: 14,
+              fontWeight: 600,
             }}
           >
-            {isWatched ? "❤️ Watched" : "🤍 Watch"}
+            <Icons.HeartIcon style={{ width: 16, height: 16, fill: isWatched ? "currentColor" : "none" }} />
+            {isWatched ? "Watching" : "Watch"}
           </button>
           <button
             onClick={onClose}
+            aria-label="Close"
             style={{
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1px solid var(--color-rule)",
-              background: "transparent",
-              color: "var(--color-ink-3)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 34,
+              height: 34,
+              borderRadius: 999,
+              border: "none",
+              background: "var(--ios-fill)",
+              color: "var(--ios-label-3)",
               cursor: "pointer",
               fontFamily: "inherit",
-              fontSize: 16,
+              fontSize: 20,
+              lineHeight: 1,
             }}
           >
-            ✕
+            ×
           </button>
         </div>
       </div>
 
-      {/* Price Card */}
+      {/* Price Hero */}
       <div
         style={{
-          background: "var(--color-bg-card)",
-          border: "1px solid var(--color-rule)",
-          borderRadius: 12,
-          padding: "16px 20px",
-          boxShadow: "var(--shadow-card)",
+          background: "var(--ios-cell)",
+          borderRadius: "var(--ios-radius-card)",
+          padding: 16,
         }}
       >
-        <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-          <span style={{ fontSize: 32, fontWeight: 600, color: "var(--color-ink)" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+          <span className="ios-num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.01em", color: "var(--ios-label)" }}>
             ${stock.price.toFixed(2)}
           </span>
-          <span
-            style={{
-              fontSize: 16,
-              fontWeight: 500,
-              color:
-                stock.changeDirection === "up"
-                  ? "var(--color-green)"
-                  : stock.changeDirection === "down"
-                    ? "var(--color-red)"
-                    : "var(--color-ink-3)",
-            }}
-          >
-            {stock.changeDirection === "up" ? "↑" : "↓"} {Math.abs(stock.change).toFixed(2)}% today
+          <span className="ios-num" style={{ fontSize: 16, fontWeight: 600, color: changeColor }}>
+            {stock.changeDirection === "up" ? "▲" : "▼"} {Math.abs(stock.change).toFixed(2)}% today
           </span>
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-            gap: 12,
-            marginTop: 16,
-            paddingTop: 16,
-            borderTop: "1px solid var(--color-rule)",
-            fontSize: 12,
-          }}
-        >
-          {stock.peRatio && (
-            <div>
-              <span style={{ color: "var(--color-ink-3)" }}>P/E Ratio</span>
-              <div style={{ fontSize: 16, fontWeight: 600, color: "var(--color-ink)" }}>
-                {stock.peRatio.toFixed(1)}
+        {(stock.peRatio || stock.dividend || stock.sector) && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+              gap: 12,
+              marginTop: 16,
+              paddingTop: 16,
+              borderTop: "var(--ios-hair) solid var(--ios-separator)",
+            }}
+          >
+            {stock.peRatio && (
+              <div>
+                <div className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>P/E Ratio</div>
+                <div className="ios-num" style={{ fontSize: 17, fontWeight: 600, color: "var(--ios-label)" }}>
+                  {stock.peRatio.toFixed(1)}
+                </div>
               </div>
-            </div>
-          )}
-          {stock.dividend && (
-            <div>
-              <span style={{ color: "var(--color-ink-3)" }}>Dividend Yield</span>
-              <div style={{ fontSize: 16, fontWeight: 600, color: "var(--color-ink)" }}>
-                {stock.dividend.toFixed(2)}%
+            )}
+            {stock.dividend && (
+              <div>
+                <div className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>Dividend Yield</div>
+                <div className="ios-num" style={{ fontSize: 17, fontWeight: 600, color: "var(--ios-label)" }}>
+                  {stock.dividend.toFixed(2)}%
+                </div>
               </div>
-            </div>
-          )}
-          {stock.sector && (
-            <div>
-              <span style={{ color: "var(--color-ink-3)" }}>Sector</span>
-              <div style={{ fontSize: 16, fontWeight: 600, color: "var(--color-ink)" }}>
-                {stock.sector}
+            )}
+            {stock.sector && (
+              <div>
+                <div className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>Sector</div>
+                <div style={{ fontSize: 17, fontWeight: 600, color: "var(--ios-label)" }}>
+                  {stock.sector}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* AI Summary */}
-      <div
-        style={{
-          background: "var(--color-bg-card)",
-          border: "1px solid var(--color-rule)",
-          borderRadius: 12,
-          padding: "16px 20px",
-          boxShadow: "var(--shadow-card)",
-        }}
-      >
-        <h3
-          style={{
-            fontSize: 14,
-            fontWeight: 600,
-            margin: "0 0 12px 0",
-            color: "var(--color-ink)",
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-          }}
-        >
-          📊 AI Analysis
+      <div>
+        <h3 className="ios-group-header" style={{ padding: "0 0 7px" }}>
+          AI Analysis
         </h3>
-
-        {loading && (
-          <div style={{ fontSize: 13, color: "var(--color-ink-3)" }}>
-            Generating analysis...
-          </div>
-        )}
-
-        {error && (
-          <div
-            style={{
-              fontSize: 13,
-              color: "var(--color-red)",
-              padding: "8px 12px",
-              background: "rgba(154,59,42,0.08)",
-              borderRadius: 6,
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {!loading && summary && (
-          <p
-            style={{
-              fontSize: 13,
-              lineHeight: 1.6,
-              color: "var(--color-ink-2)",
-              margin: 0,
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {summary}
-          </p>
-        )}
-      </div>
-
-      {/* Action Buttons */}
-      <div style={{ display: "flex", gap: 8, paddingTop: 8 }}>
-        <button
-          onClick={() => setShowChat((v) => !v)}
+        <div
           style={{
-            flex: 1,
-            padding: "10px 14px",
-            borderRadius: 8,
-            border: "1px solid var(--color-rule)",
-            background: showChat ? "var(--color-bg)" : "var(--color-accent)",
-            color: showChat ? "var(--color-ink)" : "#FFFDF8",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            fontSize: 13,
-            fontWeight: 500,
-            transition: "all 0.2s",
+            background: "var(--ios-cell)",
+            borderRadius: "var(--ios-radius-card)",
+            padding: 16,
           }}
         >
-          💬 {showChat ? "Close Chat" : "Ask About This Stock"}
-        </button>
+          {loading && (
+            <div className="ios-subhead" style={{ color: "var(--ios-label-3)" }}>
+              Generating analysis…
+            </div>
+          )}
+
+          {error && (
+            <div
+              className="ios-footnote"
+              style={{
+                color: "var(--ios-red)",
+                padding: "8px 12px",
+                background: "color-mix(in srgb, var(--ios-red) 12%, transparent)",
+                borderRadius: 10,
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          {!loading && summary && (
+            <p
+              className="ios-subhead"
+              style={{
+                color: "var(--ios-label-2)",
+                margin: 0,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {summary}
+            </p>
+          )}
+        </div>
       </div>
+
+      {/* Chat toggle */}
+      <button
+        onClick={() => setShowChat((v) => !v)}
+        className={showChat ? "" : "ios-btn ios-btn--primary"}
+        style={
+          showChat
+            ? {
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                padding: "13px 20px",
+                borderRadius: 12,
+                minHeight: 50,
+                border: "none",
+                background: "var(--ios-fill)",
+                color: "var(--ios-label)",
+                fontSize: 17,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }
+            : { fontFamily: "inherit", cursor: "pointer" }
+        }
+      >
+        <Icons.SparkleIcon style={{ width: 18, height: 18 }} />
+        {showChat ? "Close Chat" : "Ask About This Stock"}
+      </button>
 
       {/* Inline Stock Chat */}
       {showChat && (
         <div
           style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 12,
-            padding: "16px 20px",
+            background: "var(--ios-cell)",
+            borderRadius: "var(--ios-radius-card)",
+            padding: 16,
             display: "flex",
             flexDirection: "column",
             gap: 10,
           }}
         >
-          <h3
-            style={{
-              fontSize: 14,
-              fontWeight: 600,
-              margin: "0 0 4px 0",
-              color: "var(--color-ink)",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-            }}
-          >
-            💬 Ask About {stock.ticker}
+          <h3 className="ios-group-header" style={{ padding: 0 }}>
+            Ask About {stock.ticker}
           </h3>
 
           {chatMessages.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto" }}>
               {chatMessages.map((m, i) =>
                 m.role === "user" ? (
-                  <div
-                    key={i}
-                    style={{
-                      alignSelf: "flex-end",
-                      maxWidth: "80%",
-                      padding: "8px 12px",
-                      borderRadius: 10,
-                      background: "var(--color-accent)",
-                      color: "#FFFDF8",
-                      fontSize: 13,
-                      lineHeight: 1.5,
-                    }}
-                  >
+                  <div key={i} className="ios-bubble ios-bubble--me">
                     {m.content}
                   </div>
                 ) : (
-                  <div
-                    key={i}
-                    style={{
-                      alignSelf: "flex-start",
-                      maxWidth: "92%",
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      background: "var(--color-bg)",
-                      border: "1px solid var(--color-rule)",
-                      fontSize: 13,
-                      color: "var(--color-ink)",
-                      lineHeight: 1.6,
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
+                  <div key={i} className="ios-bubble ios-bubble--ai" style={{ maxWidth: "85%", whiteSpace: "pre-wrap" }}>
                     {m.content}
                   </div>
                 )
               )}
               {chatSending && (
-                <div style={{ fontSize: 12, color: "var(--color-ink-3)", fontStyle: "italic" }}>
+                <div className="ios-bubble ios-bubble--ai" style={{ color: "var(--ios-label-2)", fontStyle: "italic" }}>
                   Thinking…
                 </div>
               )}
@@ -388,12 +327,12 @@ export default function StockDetail({
 
           {chatError && (
             <div
+              className="ios-footnote"
               style={{
-                fontSize: 12,
-                color: "var(--color-red)",
+                color: "var(--ios-red)",
                 padding: "6px 10px",
-                background: "rgba(154,59,42,0.08)",
-                borderRadius: 6,
+                background: "color-mix(in srgb, var(--ios-red) 12%, transparent)",
+                borderRadius: 10,
               }}
             >
               {chatError}
@@ -406,7 +345,7 @@ export default function StockDetail({
               const text = chatInput.trim();
               if (text && !chatSending) sendChatMessage(text);
             }}
-            style={{ display: "flex", gap: 8 }}
+            style={{ display: "flex", gap: 8, alignItems: "center" }}
           >
             <input
               value={chatInput}
@@ -415,33 +354,29 @@ export default function StockDetail({
               placeholder={`Ask anything about ${stock.ticker}…`}
               style={{
                 flex: 1,
-                padding: "9px 12px",
-                border: "1px solid var(--color-rule)",
-                borderRadius: 8,
-                background: "var(--color-bg)",
-                color: "var(--color-ink)",
-                fontSize: 13,
+                minWidth: 0,
+                padding: "9px 14px",
+                borderRadius: 999,
+                background: "var(--ios-fill)",
+                border: "var(--ios-hair) solid var(--ios-separator)",
+                color: "var(--ios-label)",
+                fontSize: 16,
                 fontFamily: "inherit",
                 outline: "none",
               }}
             />
             <button
               type="submit"
+              className="ios-send"
               disabled={chatSending || !chatInput.trim()}
+              aria-label="Send"
               style={{
-                padding: "9px 16px",
-                borderRadius: 8,
                 border: "none",
-                background: "var(--color-accent)",
-                color: "#FFFDF8",
-                fontSize: 13,
-                fontWeight: 500,
-                fontFamily: "inherit",
                 cursor: chatSending || !chatInput.trim() ? "not-allowed" : "pointer",
                 opacity: chatSending || !chatInput.trim() ? 0.5 : 1,
               }}
             >
-              Ask
+              <Icons.ChevronRight style={{ width: 18, height: 18, transform: "rotate(-90deg)" }} />
             </button>
           </form>
         </div>

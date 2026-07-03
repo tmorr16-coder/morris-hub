@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from "react";
 import type { Stock } from "@/lib/stock-research";
+import { NavBar, Segmented, Group, Icons } from "@/components/ios";
 import PriceChart from "./PriceChart";
 import DeepResearchPanel from "./DeepResearchPanel";
 import QuickTradePanel from "./QuickTradePanel";
+import NewsPanel from "./NewsPanel";
 
 interface StockMetrics {
   weekHigh52: number | null;
@@ -22,18 +24,7 @@ interface StockMainViewProps {
   onClose: () => void;
 }
 
-function MetricBox({ label, value }: { label: string; value: string | null }) {
-  return (
-    <div style={{ textAlign: "center" }}>
-      <div style={{ fontSize: 10, color: "var(--color-ink-3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>
-        {value ?? "—"}
-      </div>
-    </div>
-  );
-}
+type Tab = "overview" | "research" | "news" | "trade";
 
 export default function StockMainView({
   stock,
@@ -43,6 +34,7 @@ export default function StockMainView({
 }: StockMainViewProps) {
   const [metrics, setMetrics] = useState<StockMetrics | null>(null);
   const [showTrade, setShowTrade] = useState(false);
+  const [tab, setTab] = useState<Tab>("overview");
 
   useEffect(() => {
     fetch(`/api/investments/metrics?ticker=${stock.ticker}`)
@@ -52,177 +44,110 @@ export default function StockMainView({
   }, [stock.ticker]);
 
   const isUp = stock.changeDirection !== "down";
+  const trendColor = isUp ? "var(--ios-green)" : "var(--ios-red)";
 
   const weekRange =
     metrics?.weekHigh52 && metrics?.weekLow52
-      ? `$${metrics.weekLow52.toFixed(0)}–${metrics.weekHigh52.toFixed(0)}`
+      ? `$${metrics.weekLow52.toFixed(0)} – $${metrics.weekHigh52.toFixed(0)}`
       : null;
 
+  const statRows: { label: string; value: string | null }[] = [
+    { label: "Market cap", value: metrics?.marketCap ?? null },
+    { label: "P/E (TTM)", value: metrics?.peRatio ? metrics.peRatio.toFixed(1) : null },
+    { label: "Avg volume", value: metrics?.avgVolume ?? null },
+    { label: "52-week range", value: weekRange },
+    { label: "Exchange", value: metrics?.exchange ?? null },
+    { label: "Sector", value: stock.sector ?? null },
+  ];
+
   return (
-    <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
-      {/* Stock header */}
-      <div
-        style={{
-          padding: "20px 28px 16px",
-          borderBottom: "1px solid var(--color-rule)",
-          background: "var(--color-bg)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-          }}
-        >
-          {/* Left: ticker + name */}
-          <div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 2 }}>
-              <h1
-                style={{
-                  fontSize: 28,
-                  fontWeight: 800,
-                  letterSpacing: "-0.03em",
-                  margin: 0,
-                  color: "var(--color-ink)",
-                }}
-              >
-                {stock.ticker}
-              </h1>
-              {metrics?.exchange && (
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 500,
-                    color: "var(--color-ink-3)",
-                    background: "var(--color-bg-deep)",
-                    padding: "2px 7px",
-                    borderRadius: 5,
-                  }}
-                >
-                  {metrics.exchange}
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: 13, color: "var(--color-ink-3)" }}>{stock.name}</div>
-          </div>
+    <div>
+      <NavBar
+        back={{ label: "Stocks", onBack: onClose }}
+        trailing={
+          <button
+            onClick={onToggleWatch}
+            aria-label={isWatched ? "Remove from watchlist" : "Add to watchlist"}
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, color: isWatched ? "var(--ios-red)" : "var(--ios-tint)" }}
+          >
+            <Icons.HeartIcon style={{ width: 22, height: 22 }} />
+          </button>
+        }
+      />
 
-          {/* Right: price + controls */}
-          <div style={{ textAlign: "right" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "flex-end", marginBottom: 4 }}>
-              <span style={{ fontSize: 28, fontWeight: 800, color: "var(--color-ink)", letterSpacing: "-0.03em" }}>
-                ${(stock.price ?? 0).toFixed(2)}
+      {/* Price hero */}
+      <div style={{ padding: "4px var(--ios-gutter) 0" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          <h1 className="ios-large-title" style={{ margin: 0 }}>{stock.ticker}</h1>
+          {metrics?.exchange && <span className="ios-chip ios-chip--sm">{metrics.exchange}</span>}
+        </div>
+        <div className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>{stock.name}</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 8 }}>
+          <span className="ios-num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.01em" }}>
+            ${(stock.price ?? 0).toFixed(2)}
+          </span>
+          <span className="ios-num ios-headline" style={{ color: trendColor }}>
+            {isUp ? "▲" : "▼"} {Math.abs(stock.change ?? 0).toFixed(2)}% today
+          </span>
+        </div>
+      </div>
+
+      {/* Price chart hero */}
+      <div className="ios-list" style={{ margin: "14px var(--ios-gutter) 0", padding: "14px 16px" }}>
+        <PriceChart
+          ticker={stock.ticker}
+          currentPrice={stock.price}
+          changeDirection={stock.changeDirection}
+        />
+      </div>
+
+      <Segmented
+        ariaLabel="Section"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "overview", label: "Overview" },
+          { value: "research", label: "Research" },
+          { value: "news", label: "News" },
+          { value: "trade", label: "Trade" },
+        ]}
+      />
+
+      {tab === "overview" && (
+        <Group header="Key statistics">
+          {statRows.map((r) => (
+            <div key={r.label} className="ios-cell">
+              <span className="ios-cell-body"><span className="ios-cell-title" style={{ fontSize: 16 }}>{r.label}</span></span>
+              <span className="ios-cell-trail ios-num" style={{ color: "var(--ios-label)" }}>{r.value ?? "—"}</span>
+            </div>
+          ))}
+        </Group>
+      )}
+
+      {tab === "research" && (
+        <div style={{ padding: "16px var(--ios-gutter) 0" }}>
+          <DeepResearchPanel stock={stock} />
+        </div>
+      )}
+
+      {tab === "news" && <NewsPanel ticker={stock.ticker} tickerName={stock.name} />}
+
+      {tab === "trade" && (
+        <Group header="Paper trade" footer="Orders route to your Alpaca paper account — no real money.">
+          <button className="ios-cell" onClick={() => setShowTrade(true)}>
+            <span className="ios-cell-body">
+              <span className="ios-cell-title" style={{ color: "var(--ios-tint)", fontWeight: 600 }}>
+                Trade {stock.ticker}
               </span>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={() => setShowTrade(true)}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: 8,
-                    border: "none",
-                    background: "var(--color-accent)",
-                    color: "#FFFDF8",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    fontFamily: "inherit",
-                    cursor: "pointer",
-                  }}
-                >
-                  Trade
-                </button>
-                <button
-                  onClick={onToggleWatch}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 8,
-                    border: "1px solid var(--color-rule)",
-                    background: isWatched ? "var(--color-accent-soft)" : "transparent",
-                    color: isWatched ? "var(--color-accent)" : "var(--color-ink)",
-                    fontSize: 12,
-                    fontWeight: 500,
-                    fontFamily: "inherit",
-                    cursor: "pointer",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {isWatched ? "❤️ Watching" : "🤍 Watch"}
-                </button>
-                <button
-                  onClick={onClose}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: 8,
-                    border: "1px solid var(--color-rule)",
-                    background: "transparent",
-                    color: "var(--color-ink-3)",
-                    fontSize: 16,
-                    fontFamily: "inherit",
-                    cursor: "pointer",
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 600,
-                color: isUp ? "var(--color-green)" : "var(--color-red)",
-              }}
-            >
-              {isUp ? "+" : ""}
-              {(stock.change ?? 0).toFixed(2)}% today
-            </div>
-          </div>
-        </div>
+              <span className="ios-cell-sub">Buy or sell at ${(stock.price ?? 0).toFixed(2)}</span>
+            </span>
+            <Icons.ChevronRight className="ios-chevron" />
+          </button>
+        </Group>
+      )}
 
-        {/* Metrics row */}
-        <div
-          style={{
-            display: "flex",
-            gap: 32,
-            marginTop: 16,
-            paddingTop: 14,
-            borderTop: "1px solid var(--color-rule)",
-          }}
-        >
-          <MetricBox label="Mkt Cap" value={metrics?.marketCap ?? null} />
-          <MetricBox
-            label="P/E (TTM)"
-            value={metrics?.peRatio ? metrics.peRatio.toFixed(1) : null}
-          />
-          <MetricBox label="Avg Vol" value={metrics?.avgVolume ?? null} />
-          <MetricBox label="52-Wk" value={weekRange} />
-          {stock.sector && (
-            <MetricBox label="Sector" value={stock.sector} />
-          )}
-        </div>
-      </div>
+      <div style={{ height: 20 }} />
 
-      {/* Content area */}
-      <div style={{ padding: "20px 28px", display: "flex", flexDirection: "column", gap: 20 }}>
-        {/* Price chart */}
-        <div
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 12,
-            padding: "16px 20px",
-          }}
-        >
-          <PriceChart
-            ticker={stock.ticker}
-            currentPrice={stock.price}
-            changeDirection={stock.changeDirection}
-          />
-        </div>
-
-        {/* Deep Research */}
-        <DeepResearchPanel stock={stock} />
-      </div>
-
-      {/* Quick Trade slide-over */}
       {showTrade && <QuickTradePanel stock={stock} onClose={() => setShowTrade(false)} />}
     </div>
   );

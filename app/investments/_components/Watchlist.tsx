@@ -53,23 +53,17 @@ export default function Watchlist({ initialTickers, onSelectStock }: WatchlistPr
 
   if (!initialTickers.length) {
     return (
-      <div
-        style={{
-          textAlign: "center",
-          padding: "40px 20px",
-          color: "var(--color-ink-3)",
-        }}
-      >
-        <p style={{ fontSize: 14, marginBottom: 8 }}>No stocks in your watchlist yet</p>
-        <p style={{ fontSize: 12 }}>Search for a stock and add it to get started</p>
+      <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--ios-label-3)" }}>
+        <p className="ios-body" style={{ marginBottom: 4 }}>No stocks in your watchlist yet</p>
+        <p className="ios-footnote">Search for a stock and add it to get started</p>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div style={{ textAlign: "center", padding: "20px", color: "var(--color-ink-3)" }}>
-        Loading watchlist...
+      <div style={{ textAlign: "center", padding: "24px", color: "var(--ios-label-3)" }} className="ios-footnote">
+        Loading watchlist…
       </div>
     );
   }
@@ -79,10 +73,9 @@ export default function Watchlist({ initialTickers, onSelectStock }: WatchlistPr
       <div
         style={{
           padding: "12px 16px",
-          background: "rgba(154,59,42,0.08)",
-          border: "1px solid #9A3B2A",
-          borderRadius: 8,
-          color: "#9A3B2A",
+          background: "color-mix(in srgb, var(--ios-red) 10%, transparent)",
+          borderRadius: "var(--ios-radius-card)",
+          color: "var(--ios-red)",
           fontSize: 13,
         }}
       >
@@ -92,115 +85,68 @@ export default function Watchlist({ initialTickers, onSelectStock }: WatchlistPr
   }
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-        gap: 12,
-      }}
-    >
-      {stocks.map((stock) => (
-        <div
-          key={stock.ticker}
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 12,
-            padding: "16px",
-            boxShadow: "var(--shadow-card)",
-            cursor: "pointer",
-            transition: "all 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.boxShadow = "var(--shadow-card)";
-          }}
-        >
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {stocks.map((stock) => {
+        const dir = stock.changeDirection;
+        const changeColor =
+          dir === "up" ? "var(--ios-green)" : dir === "down" ? "var(--ios-red)" : "var(--ios-label-3)";
+        return (
           <div
+            key={stock.ticker}
             style={{
+              background: "var(--ios-cell)",
+              borderRadius: "var(--ios-radius-card)",
+              padding: "14px 16px",
               display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              marginBottom: 12,
+              alignItems: "center",
+              gap: 12,
             }}
           >
-            <div onClick={() => onSelectStock(stock)} style={{ flex: 1, cursor: "pointer" }}>
-              <h3 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 4px 0" }}>
-                {stock.ticker}
-              </h3>
-              <p
-                style={{
-                  fontSize: 12,
-                  color: "var(--color-ink-3)",
-                  margin: 0,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
+            <button
+              onClick={() => onSelectStock(stock)}
+              style={{ flex: 1, minWidth: 0, textAlign: "left", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+            >
+              <div className="ios-headline" style={{ color: "var(--ios-label)" }}>{stock.ticker}</div>
+              <div
+                className="ios-footnote"
+                style={{ color: "var(--ios-label-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
               >
                 {stock.name}
-              </p>
-            </div>
+              </div>
+              {stock.peRatio ? (
+                <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 3 }}>
+                  PE {stock.peRatio.toFixed(1)}
+                  {stock.dividend ? ` · Div ${stock.dividend.toFixed(2)}%` : ""}
+                </div>
+              ) : null}
+            </button>
+
+            <button
+              onClick={() => onSelectStock(stock)}
+              style={{ textAlign: "right", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+            >
+              <div className="ios-num" style={{ fontSize: 17, fontWeight: 600, color: "var(--ios-label)" }}>
+                ${stock.price.toFixed(2)}
+              </div>
+              <div className="ios-num" style={{ fontSize: 13, fontWeight: 600, color: changeColor }}>
+                {dir === "up" ? "▲" : dir === "down" ? "▼" : ""} {Math.abs(stock.change).toFixed(2)}%
+              </div>
+            </button>
+
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 handleRemove(stock.ticker);
               }}
-              style={{
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                color: "var(--color-ink-3)",
-                fontSize: 18,
-                padding: 0,
-                lineHeight: 1,
-              }}
+              style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--ios-label-3)", padding: 4, display: "flex", flexShrink: 0 }}
               title="Remove from watchlist"
+              aria-label={`Remove ${stock.ticker} from watchlist`}
             >
-              ✕
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
             </button>
           </div>
-
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "baseline",
-              padding: "12px 0",
-              borderTop: "1px solid var(--color-rule)",
-              cursor: "pointer",
-            }}
-            onClick={() => onSelectStock(stock)}
-          >
-            <span style={{ fontSize: 18, fontWeight: 600, color: "var(--color-ink)" }}>
-              ${stock.price.toFixed(2)}
-            </span>
-            <span
-              style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color:
-                  stock.changeDirection === "up"
-                    ? "var(--color-green)"
-                    : stock.changeDirection === "down"
-                      ? "var(--color-red)"
-                      : "var(--color-ink-3)",
-              }}
-            >
-              {stock.changeDirection === "up" ? "↑" : "↓"} {Math.abs(stock.change).toFixed(2)}%
-            </span>
-          </div>
-
-          {stock.peRatio && (
-            <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 8 }}>
-              PE: {stock.peRatio.toFixed(1)}
-              {stock.dividend && ` • Div: ${stock.dividend.toFixed(2)}%`}
-            </div>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

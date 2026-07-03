@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { AlpacaAccount, AlpacaPosition, AlpacaClock } from "@/lib/alpaca";
 import type { Stock } from "@/lib/stock-research";
+import { Group } from "@/components/ios";
 
 interface AccountData {
   account: AlpacaAccount;
@@ -24,6 +25,36 @@ function pct(n: number | string): string {
   const v = typeof n === "string" ? parseFloat(n) : n;
   if (isNaN(v)) return "—";
   return (v >= 0 ? "+" : "") + (v * 100).toFixed(2) + "%";
+}
+
+function MarketDot({ open }: { open: boolean }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 5,
+        fontSize: 12, fontWeight: 600,
+        color: open ? "var(--ios-green)" : "var(--ios-label-2)",
+      }}
+    >
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: open ? "var(--ios-green)" : "var(--ios-label-3)" }} />
+      {open ? "Market open" : "Market closed"}
+    </span>
+  );
+}
+
+function TickerBadge({ sym }: { sym: string }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: 38, height: 38, borderRadius: 9, background: "var(--ios-fill)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 12, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--ios-label)", flexShrink: 0,
+      }}
+    >
+      {sym.slice(0, 4)}
+    </span>
+  );
 }
 
 export default function AccountDashboard({ onSelectStock }: AccountDashboardProps) {
@@ -50,18 +81,17 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
 
   if (loading) {
     return (
-      <div style={{ padding: "16px 28px", fontSize: 12, color: "var(--color-ink-3)", borderBottom: "1px solid var(--color-rule)" }}>
-        Loading account…
-      </div>
+      <Group header="Paper account">
+        <div className="ios-cell" style={{ color: "var(--ios-label-2)" }}>Loading account…</div>
+      </Group>
     );
   }
 
   if (error) {
     return (
-      <div style={{ padding: "16px 28px", borderBottom: "1px solid var(--color-rule)" }}>
-        <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginBottom: 4 }}>Alpaca Paper Trading</div>
-        <div style={{ fontSize: 12, color: "var(--color-red)" }}>{error}</div>
-      </div>
+      <Group header="Alpaca paper trading">
+        <div className="ios-cell" style={{ color: "var(--ios-red)" }}>{error}</div>
+      </Group>
     );
   }
 
@@ -73,124 +103,93 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
   const dayPnl = portfolioValue - lastEquity;
   const dayPnlPct = lastEquity ? ((dayPnl / lastEquity) * 100).toFixed(2) : "0.00";
   const buyingPower = parseFloat(account.buying_power);
-  const dayPnlColor = dayPnl >= 0 ? "var(--color-green)" : "var(--color-red)";
+  const dayPnlColor = dayPnl >= 0 ? "var(--ios-green)" : "var(--ios-red)";
 
-  // ── Collapsed: single-line summary bar ──────────────────────────────────────
-  if (collapsed) {
-    return (
-      <div
-        style={{ borderBottom: "1px solid var(--color-rule)", background: "var(--color-bg)", cursor: "pointer" }}
-        onClick={() => setCollapsed(false)}
-      >
-        <div style={{ padding: "8px 20px", display: "flex", alignItems: "center", gap: 12, fontSize: 12 }}>
-          <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 8, background: clock.is_open ? "rgba(74,107,58,0.1)" : "rgba(138,130,120,0.1)", color: clock.is_open ? "var(--color-green)" : "var(--color-ink-3)", whiteSpace: "nowrap" }}>
-            {clock.is_open ? "● Open" : "○ Closed"}
-          </span>
-          <span style={{ fontWeight: 600, color: "var(--color-ink)", whiteSpace: "nowrap" }}>Alpaca Paper</span>
-          <span style={{ color: "var(--color-ink-3)", fontSize: 11 }}>BP: <span style={{ color: "var(--color-ink)", fontWeight: 500 }}>{fmt(buyingPower)}</span></span>
-          <span style={{ color: "var(--color-ink-3)", fontSize: 11 }}>Day: <span style={{ color: dayPnlColor, fontWeight: 500 }}>{(dayPnl >= 0 ? "+" : "") + fmt(Math.abs(dayPnl))}</span> <span style={{ color: dayPnlColor }}>({dayPnl >= 0 ? "+" : ""}{dayPnlPct}%)</span></span>
-          {positions.length > 0 && <span style={{ color: "var(--color-ink-4)", fontSize: 11 }}>{positions.length} position{positions.length !== 1 ? "s" : ""}</span>}
-          <span style={{ marginLeft: "auto", color: "var(--color-ink-4)", fontSize: 13 }}>▼</span>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Expanded ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ borderBottom: "1px solid var(--color-rule)" }}>
-      {/* Header */}
-      <div style={{ padding: "12px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10, background: clock.is_open ? "rgba(74,107,58,0.1)" : "rgba(138,130,120,0.12)", color: clock.is_open ? "var(--color-green)" : "var(--color-ink-3)" }}>
-            {clock.is_open ? "● Market Open" : "○ Market Closed"}
+    <>
+      <Group header="Alpaca paper account">
+        {/* Hero summary */}
+        <button
+          className="ios-cell"
+          onClick={() => setCollapsed((c) => !c)}
+          aria-expanded={!collapsed}
+          style={{ alignItems: "flex-start" }}
+        >
+          <span className="ios-cell-body">
+            <span style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <MarketDot open={clock.is_open} />
+              <span className="ios-footnote" style={{ color: "var(--ios-tint)" }}>{collapsed ? "Show positions" : "Hide"}</span>
+            </span>
+            <span className="ios-num" style={{ fontSize: 30, fontWeight: 700, letterSpacing: "-0.01em", color: "var(--ios-label)" }}>
+              {fmt(portfolioValue)}
+            </span>
+            <span className="ios-subhead" style={{ color: dayPnlColor, marginTop: 2 }}>
+              {dayPnl >= 0 ? "▲" : "▼"} {fmt(Math.abs(dayPnl))} ({dayPnl >= 0 ? "+" : ""}{dayPnlPct}%) today
+            </span>
           </span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink)" }}>Alpaca Paper</span>
-        </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button onClick={load} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--color-ink-4)", padding: 0 }}>↻</button>
-          <button onClick={() => setCollapsed(true)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "var(--color-ink-4)", padding: 0 }}>▲</button>
-        </div>
-      </div>
+        </button>
 
-      {/* Key metrics */}
-      <div style={{ display: "flex", gap: 0, padding: "0 20px 12px" }}>
-        {[
-          { label: "Buying Power", value: fmt(buyingPower), sub: "available cash", color: "var(--color-ink)" },
-          { label: "Day P&L", value: (dayPnl >= 0 ? "+" : "") + fmt(Math.abs(dayPnl)), sub: (parseFloat(dayPnlPct) >= 0 ? "+" : "") + dayPnlPct + "%", color: dayPnl >= 0 ? "var(--color-green)" : "var(--color-red)" },
-          { label: "Portfolio Value", value: fmt(portfolioValue), sub: `${positions.length} positions`, color: "var(--color-ink)" },
-        ].map((m) => (
-          <div key={m.label} style={{ flex: 1, paddingRight: 16 }}>
-            <div style={{ fontSize: 9, color: "var(--color-ink-4)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>{m.label}</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: m.color, letterSpacing: "-0.01em" }}>{m.value}</div>
-            <div style={{ fontSize: 10, color: "var(--color-ink-4)" }}>{m.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Positions table */}
-      {positions.length > 0 && (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-            <thead>
-              <tr style={{ borderTop: "1px solid var(--color-rule)", borderBottom: "1px solid var(--color-rule)" }}>
-                {["Symbol", "Qty", "Avg Cost", "Price", "Mkt Value", "Day P&L", "Total P&L"].map((h) => (
-                  <th key={h} style={{ padding: "6px 12px 6px 0", textAlign: h === "Symbol" ? "left" : "right", fontWeight: 600, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-4)", whiteSpace: "nowrap" }}>
-                    {h === "Symbol" ? <span style={{ paddingLeft: 28 }}>{h}</span> : h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {positions.map((pos) => {
-                const dayGain = parseFloat(pos.unrealized_intraday_pl);
-                const totalGain = parseFloat(pos.unrealized_pl);
-                const price = parseFloat(pos.current_price);
-                const mktVal = parseFloat(pos.market_value);
-                const avgCost = parseFloat(pos.avg_entry_price);
-                const qty = parseFloat(pos.qty);
-                const dayPct = parseFloat(pos.unrealized_intraday_plpc);
-                const totalPct = parseFloat(pos.unrealized_plpc);
-                return (
-                  <tr
-                    key={pos.symbol}
-                    style={{ borderBottom: "1px solid var(--color-rule-soft)", cursor: onSelectStock ? "pointer" : "default" }}
-                    onClick={() => onSelectStock?.({
-                      ticker: pos.symbol,
-                      name: pos.symbol,
-                      price,
-                      change: dayPct * 100,
-                      changeDirection: dayGain >= 0 ? "up" : "down",
-                    })}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-bg-deep)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
-                  >
-                    <td style={{ padding: "8px 0 8px 20px", fontWeight: 700, color: "var(--color-ink)" }}>{pos.symbol}</td>
-                    <td style={{ padding: "8px 12px 8px 0", textAlign: "right", color: "var(--color-ink)" }}>{qty.toLocaleString()}</td>
-                    <td style={{ padding: "8px 12px 8px 0", textAlign: "right", color: "var(--color-ink-2)" }}>{fmt(avgCost)}</td>
-                    <td style={{ padding: "8px 12px 8px 0", textAlign: "right", color: "var(--color-ink)" }}>{fmt(price)}</td>
-                    <td style={{ padding: "8px 12px 8px 0", textAlign: "right", color: "var(--color-ink)" }}>{fmt(mktVal)}</td>
-                    <td style={{ padding: "8px 12px 8px 0", textAlign: "right", color: dayGain >= 0 ? "var(--color-green)" : "var(--color-red)" }}>
-                      {(dayGain >= 0 ? "+" : "") + fmt(Math.abs(dayGain))}
-                      <div style={{ fontSize: 10 }}>{pct(dayPct)}</div>
-                    </td>
-                    <td style={{ padding: "8px 12px 8px 0", textAlign: "right", color: totalGain >= 0 ? "var(--color-green)" : "var(--color-red)" }}>
-                      {(totalGain >= 0 ? "+" : "") + fmt(Math.abs(totalGain))}
-                      <div style={{ fontSize: 10 }}>{pct(totalPct)}</div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        {/* Stat row */}
+        <div className="ios-cell" style={{ gap: 0 }}>
+          <span className="ios-cell-body" style={{ flexDirection: "row", gap: 0 }}>
+            {[
+              { label: "Buying power", value: fmt(buyingPower), color: "var(--ios-label)" },
+              { label: "Day P&L", value: (dayPnl >= 0 ? "+" : "") + fmt(Math.abs(dayPnl)), color: dayPnlColor },
+              { label: "Positions", value: String(positions.length), color: "var(--ios-label)" },
+            ].map((m) => (
+              <span key={m.label} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+                <span className="ios-caption" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.03em" }}>{m.label}</span>
+                <span className="ios-num" style={{ fontSize: 16, fontWeight: 700, color: m.color }}>{m.value}</span>
+              </span>
+            ))}
+          </span>
         </div>
+      </Group>
+
+      {!collapsed && positions.length > 0 && (
+        <Group header="Positions">
+          {positions.map((pos) => {
+            const dayGain = parseFloat(pos.unrealized_intraday_pl);
+            const totalGain = parseFloat(pos.unrealized_pl);
+            const price = parseFloat(pos.current_price);
+            const mktVal = parseFloat(pos.market_value);
+            const qty = parseFloat(pos.qty);
+            const dayPct = parseFloat(pos.unrealized_intraday_plpc);
+            const totalPct = parseFloat(pos.unrealized_plpc);
+            return (
+              <button
+                key={pos.symbol}
+                className="ios-cell"
+                onClick={() => onSelectStock?.({
+                  ticker: pos.symbol,
+                  name: pos.symbol,
+                  price,
+                  change: dayPct * 100,
+                  changeDirection: dayGain >= 0 ? "up" : "down",
+                })}
+              >
+                <span className="ios-cell-lead"><TickerBadge sym={pos.symbol} /></span>
+                <span className="ios-cell-body">
+                  <span className="ios-cell-title" style={{ fontWeight: 600 }}>{pos.symbol}</span>
+                  <span className="ios-cell-sub">{qty.toLocaleString()} sh · {fmt(mktVal)}</span>
+                </span>
+                <span className="ios-cell-trail" style={{ flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+                  <span className="ios-num" style={{ color: "var(--ios-label)", fontSize: 15 }}>{fmt(price)}</span>
+                  <span className="ios-num" style={{ color: totalGain >= 0 ? "var(--ios-green)" : "var(--ios-red)", fontSize: 13, fontWeight: 600 }}>
+                    {(totalGain >= 0 ? "+" : "−")}{fmt(Math.abs(totalGain))} ({pct(totalPct)})
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </Group>
       )}
 
-      {positions.length === 0 && (
-        <div style={{ padding: "8px 20px 14px", fontSize: 12, color: "var(--color-ink-3)" }}>
-          No open positions · Paper trading account ready
-        </div>
+      {!collapsed && positions.length === 0 && (
+        <Group footer="Paper trading account ready · no real money">
+          <div className="ios-cell" style={{ color: "var(--ios-label-2)" }}>No open positions</div>
+        </Group>
       )}
-    </div>
+    </>
   );
 }

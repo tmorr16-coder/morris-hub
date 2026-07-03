@@ -3,45 +3,51 @@
 import { useState, useEffect, useRef } from "react";
 import type { Stock } from "@/lib/stock-research";
 import type { FullReport, ReportRisk } from "@/app/api/investments/full-report/route";
+import { Cell, Chip, Icons } from "@/components/ios";
+import type { SVGProps } from "react";
 
 interface FullReportPanelProps {
   stock: Stock;
   onClose: () => void;
 }
 
-const SEVERITY_STYLES: Record<ReportRisk["severity"], { bg: string; color: string; label: string }> = {
-  high: { bg: "rgba(154,59,42,0.1)", color: "var(--color-red)", label: "High" },
-  medium: { bg: "rgba(184,138,46,0.1)", color: "var(--color-amber)", label: "Medium" },
-  low: { bg: "rgba(74,107,58,0.1)", color: "var(--color-green)", label: "Low" },
+const SEVERITY_STYLES: Record<ReportRisk["severity"], { color: string; label: string }> = {
+  high: { color: "var(--ios-red)", label: "High" },
+  medium: { color: "var(--ios-orange)", label: "Medium" },
+  low: { color: "var(--ios-green)", label: "Low" },
 };
 
-const SOURCE_TYPE_ICONS: Record<string, string> = {
-  earnings: "📊",
-  news: "📰",
-  analyst: "🔍",
-  filing: "📄",
-  other: "🔗",
+function LinkGlyph(p: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" width="1em" height="1em" aria-hidden {...p}>
+      <path d="M10 13a5 5 0 0 0 7.5.5l2-2A5 5 0 0 0 12.5 4.5l-1 1" />
+      <path d="M14 11a5 5 0 0 0-7.5-.5l-2 2A5 5 0 0 0 11.5 19.5l1-1" />
+    </svg>
+  );
+}
+
+const SOURCE_TYPE_ICONS: Record<string, (p: SVGProps<SVGSVGElement>) => React.ReactElement> = {
+  earnings: Icons.ChartIcon,
+  news: Icons.NewsIcon,
+  analyst: Icons.SparkleIcon,
+  filing: Icons.BookIcon,
+  other: LinkGlyph,
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section style={{ marginBottom: 28 }}>
-      <h3
-        style={{
-          fontSize: 10,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: "0.12em",
-          color: "var(--color-ink-3)",
-          margin: "0 0 12px 0",
-          paddingBottom: 8,
-          borderBottom: "1px solid var(--color-rule)",
-        }}
-      >
-        {title}
-      </h3>
-      {children}
+    <section style={{ marginTop: 22 }}>
+      <h3 className="ios-group-header">{title}</h3>
+      <div className="ios-list">{children}</div>
     </section>
+  );
+}
+
+function TextBlock({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="ios-subhead" style={{ padding: 16, lineHeight: 1.6, color: "var(--ios-label)", whiteSpace: "pre-wrap" }}>
+      {children}
+    </div>
   );
 }
 
@@ -87,394 +93,193 @@ export default function FullReportPanel({ stock, onClose }: FullReportPanelProps
     : null;
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 200,
-        display: "flex",
-        pointerEvents: "auto",
-      }}
-    >
+    <>
       {/* Backdrop */}
       <div
+        className="ios-sheet-backdrop"
         onClick={handleClose}
-        style={{
-          flex: 1,
-          background: "rgba(0,0,0,0.25)",
-          transition: "opacity 0.24s",
-          opacity: visible ? 1 : 0,
-        }}
+        style={{ opacity: visible ? 1 : 0, transition: "opacity 0.24s" }}
       />
 
-      {/* Slide-over panel */}
+      {/* Bottom sheet */}
       <div
         ref={panelRef}
-        style={{
-          width: 520,
-          maxWidth: "90vw",
-          height: "100%",
-          background: "var(--color-bg-card)",
-          borderLeft: "1px solid var(--color-rule)",
-          display: "flex",
-          flexDirection: "column",
-          transform: visible ? "translateX(0)" : "translateX(100%)",
-          transition: "transform 0.24s cubic-bezier(0.4,0,0.2,1)",
-          boxShadow: "-8px 0 32px rgba(0,0,0,0.08)",
-        }}
+        className="ios-sheet"
+        style={{ transform: visible ? "translateY(0)" : "translateY(100%)", transition: "transform 0.24s cubic-bezier(0.32,0.72,0,1)" }}
       >
-        {/* Sticky header */}
-        <div
-          style={{
-            padding: "16px 24px",
-            borderBottom: "1px solid var(--color-rule)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            background: "var(--color-bg-card)",
-            flexShrink: 0,
-          }}
-        >
+        <div className="ios-grabber" />
+
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, padding: "0 4px 4px" }}>
           <div>
-            <div
-              style={{
-                fontSize: 9,
-                fontWeight: 700,
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: "var(--color-accent)",
-                marginBottom: 2,
-              }}
-            >
-              ◆ Full Research Report
+            <div className="ios-footnote" style={{ color: "var(--ios-tint)", fontWeight: 600 }}>
+              Full research report
             </div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: "var(--color-ink)" }}>
+            <div className="ios-title-3" style={{ marginTop: 2 }}>
               {stock.ticker}
-              <span style={{ fontWeight: 400, fontSize: 13, color: "var(--color-ink-3)", marginLeft: 8 }}>
+              <span style={{ fontWeight: 400, fontSize: 15, color: "var(--ios-label-2)", marginLeft: 8 }}>
                 {stock.name}
               </span>
             </div>
           </div>
-          <button
-            onClick={handleClose}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 20,
-              color: "var(--color-ink-3)",
-              padding: "4px 8px",
-              borderRadius: 6,
-              lineHeight: 1,
-            }}
-          >
-            ✕
+          <button className="ios-btn--plain" onClick={handleClose} style={{ color: "var(--ios-tint)", fontSize: 17 }}>
+            Done
           </button>
         </div>
 
-        {/* Scrollable body */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "24px 24px 40px" }}>
-          {loading && (
-            <div
-              style={{
-                padding: "60px 0",
-                textAlign: "center",
-                color: "var(--color-ink-3)",
-                fontSize: 13,
-              }}
-            >
-              <div style={{ fontSize: 24, marginBottom: 12 }}>🔍</div>
+        {loading && (
+          <div style={{ padding: "56px 16px", textAlign: "center", color: "var(--ios-label-2)" }}>
+            <Icons.SparkleIcon style={{ width: 26, height: 26, color: "var(--ios-tint)" }} />
+            <div className="ios-subhead" style={{ marginTop: 10 }}>
               Researching {stock.ticker} — searching filings, news, analyst reports…
-              <div style={{ fontSize: 11, marginTop: 8, color: "var(--color-ink-4)" }}>
-                This takes 15–30 seconds on first load
+            </div>
+            <div className="ios-footnote" style={{ marginTop: 6, color: "var(--ios-label-3)" }}>
+              This takes 15–30 seconds on first load
+            </div>
+          </div>
+        )}
+
+        {error && !loading && (
+          <div className="ios-subhead" style={{ padding: "24px 16px", color: "var(--ios-red)" }}>
+            {error}
+          </div>
+        )}
+
+        {report && !loading && (
+          <>
+            {generatedAt && (
+              <div className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "8px 4px 0" }}>
+                Generated {generatedAt} · Not investment advice
               </div>
-            </div>
-          )}
+            )}
 
-          {error && !loading && (
-            <div
-              style={{
-                padding: "20px",
-                background: "rgba(154,59,42,0.06)",
-                borderRadius: 8,
-                color: "var(--color-red)",
-                fontSize: 13,
-              }}
-            >
-              {error}
-            </div>
-          )}
+            {/* Thesis */}
+            <Section title="Investment thesis">
+              <TextBlock>{report.thesis}</TextBlock>
+            </Section>
 
-          {report && !loading && (
-            <>
-              {/* Generated timestamp */}
-              {generatedAt && (
-                <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginBottom: 20 }}>
-                  Generated {generatedAt} · Not investment advice
-                </div>
-              )}
+            {/* Business overview */}
+            <Section title="Business overview">
+              <TextBlock>{report.businessOverview}</TextBlock>
+            </Section>
 
-              {/* Thesis */}
-              <Section title="Investment Thesis">
-                <div
-                  style={{
-                    fontSize: 13,
-                    lineHeight: 1.75,
-                    color: "var(--color-ink-2)",
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
-                  {report.thesis}
-                </div>
-              </Section>
-
-              {/* Business overview */}
-              <Section title="Business Overview">
-                <div
-                  style={{
-                    fontSize: 13,
-                    lineHeight: 1.75,
-                    color: "var(--color-ink-2)",
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
-                  {report.businessOverview}
-                </div>
-              </Section>
-
-              {/* Valuation */}
-              {report.valuation && (
+            {/* Valuation */}
+            {report.valuation && (
               <Section title="Valuation">
-                <div style={{ marginBottom: 14 }}>
-                  {(report.valuation.currentMultiple || report.valuation.historicalRange) && (
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 10,
-                      marginBottom: 12,
-                    }}
-                  >
-                    {[
-                      { label: "Current", value: report.valuation.currentMultiple },
-                      { label: "5-yr range", value: report.valuation.historicalRange },
-                    ].filter(i => i.value).map((item) => (
-                      <div
-                        key={item.label}
-                        style={{
-                          flex: 1,
-                          background: "var(--color-bg-deep)",
-                          borderRadius: 8,
-                          padding: "10px 14px",
-                        }}
-                      >
-                        <div style={{ fontSize: 9, color: "var(--color-ink-4)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>
-                          {item.label}
-                        </div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>
-                          {item.value}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  )}
-                  {report.valuation.narrative && (
-                  <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--color-ink-2)", marginBottom: 14, whiteSpace: "pre-wrap" }}>
-                    {report.valuation.narrative}
-                  </div>
-                  )}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {[
-                      { label: "Bull", value: report.valuation.scenarioBull, color: "var(--color-green)", bg: "rgba(74,107,58,0.06)" },
-                      { label: "Base", value: report.valuation.scenarioBase, color: "var(--color-accent)", bg: "rgba(59,92,127,0.06)" },
-                      { label: "Bear", value: report.valuation.scenarioBear, color: "var(--color-red)", bg: "rgba(154,59,42,0.06)" },
-                    ].filter(s => s.value).map((s) => (
-                      <div
-                        key={s.label}
-                        style={{
-                          display: "flex",
-                          gap: 10,
-                          alignItems: "flex-start",
-                          padding: "8px 12px",
-                          borderRadius: 8,
-                          background: s.bg,
-                          fontSize: 12,
-                        }}
-                      >
-                        <span style={{ fontWeight: 700, color: s.color, flexShrink: 0, minWidth: 28 }}>
-                          {s.label}
-                        </span>
-                        <span style={{ color: "var(--color-ink-2)", lineHeight: 1.5 }}>{s.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                {report.valuation.currentMultiple && (
+                  <Cell chevron={false} title="Current multiple" trailing={<span className="ios-num">{report.valuation.currentMultiple}</span>} />
+                )}
+                {report.valuation.historicalRange && (
+                  <Cell chevron={false} title="5-yr range" trailing={<span className="ios-num">{report.valuation.historicalRange}</span>} />
+                )}
+                {report.valuation.narrative && <TextBlock>{report.valuation.narrative}</TextBlock>}
+                {[
+                  { label: "Bull", value: report.valuation.scenarioBull, color: "var(--ios-green)" },
+                  { label: "Base", value: report.valuation.scenarioBase, color: "var(--ios-tint)" },
+                  { label: "Bear", value: report.valuation.scenarioBear, color: "var(--ios-red)" },
+                ]
+                  .filter((s) => s.value)
+                  .map((s) => (
+                    <Cell
+                      key={s.label}
+                      chevron={false}
+                      lead={<span className="ios-footnote" style={{ fontWeight: 700, color: s.color, minWidth: 34 }}>{s.label}</span>}
+                      title={<span className="ios-subhead">{s.value}</span>}
+                    />
+                  ))}
               </Section>
-              )}
+            )}
 
-              {/* Comp table */}
-              {report.compTable?.length > 0 && (
-                <Section title="Comparable Companies">
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {/* Header */}
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "100px 60px 80px 1fr",
-                        gap: 8,
-                        padding: "4px 8px",
-                        fontSize: 9,
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        color: "var(--color-ink-4)",
-                      }}
-                    >
-                      <span>Company</span>
-                      <span>Ticker</span>
-                      <span>Multiple</span>
-                      <span>vs {stock.ticker}</span>
-                    </div>
-                    {report.compTable.map((comp, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "100px 60px 80px 1fr",
-                          gap: 8,
-                          padding: "8px",
-                          borderRadius: 6,
-                          background: i % 2 === 0 ? "var(--color-bg-deep)" : "transparent",
-                          fontSize: 12,
-                          color: "var(--color-ink-2)",
-                          alignItems: "start",
-                        }}
-                      >
-                        <span style={{ fontWeight: 500, color: "var(--color-ink)" }}>{comp.name}</span>
-                        <span style={{ fontWeight: 600, color: "var(--color-accent)", fontFamily: "monospace" }}>{comp.ticker}</span>
-                        <span>{comp.metric}</span>
-                        <span style={{ color: "var(--color-ink-3)" }}>{comp.note}</span>
-                      </div>
-                    ))}
-                  </div>
-                </Section>
-              )}
+            {/* Comp table */}
+            {report.compTable?.length > 0 && (
+              <Section title="Comparable companies">
+                {report.compTable.map((comp, i) => (
+                  <Cell
+                    key={i}
+                    chevron={false}
+                    title={comp.name}
+                    subtitle={
+                      <>
+                        <span className="ios-num" style={{ color: "var(--ios-tint)", fontWeight: 600 }}>{comp.ticker}</span>
+                        {comp.note ? ` · ${comp.note}` : ""}
+                      </>
+                    }
+                    trailing={<span className="ios-num" style={{ color: "var(--ios-label)" }}>{comp.metric}</span>}
+                  />
+                ))}
+              </Section>
+            )}
 
-              {/* Catalysts */}
-              {report.catalysts?.length > 0 && (
-                <Section title="Catalysts">
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {report.catalysts.map((c, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          padding: "10px 12px",
-                          borderRadius: 8,
-                          background: "var(--color-bg-deep)",
-                          borderLeft: "2px solid var(--color-accent)",
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink)" }}>{c.catalyst}</span>
-                          <span style={{ fontSize: 10, color: "var(--color-ink-4)", background: "var(--color-bg-card)", padding: "2px 7px", borderRadius: 10, border: "1px solid var(--color-rule)" }}>
-                            {c.timeline}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.5 }}>{c.impact}</div>
-                      </div>
-                    ))}
-                  </div>
-                </Section>
-              )}
+            {/* Catalysts */}
+            {report.catalysts?.length > 0 && (
+              <Section title="Catalysts">
+                {report.catalysts.map((c, i) => (
+                  <Cell
+                    key={i}
+                    chevron={false}
+                    lead={<span style={{ display: "block", width: 8, height: 8, borderRadius: "50%", background: "var(--ios-tint)" }} />}
+                    title={c.catalyst}
+                    subtitle={<span className="ios-footnote">{c.impact}</span>}
+                    trailing={<Chip small>{c.timeline}</Chip>}
+                  />
+                ))}
+              </Section>
+            )}
 
-              {/* Risks */}
-              {report.risks?.length > 0 && (
-                <Section title="Key Risks">
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {report.risks.map((r, i) => {
-                      const style = SEVERITY_STYLES[r.severity] ?? SEVERITY_STYLES.medium;
-                      return (
-                        <div
-                          key={i}
-                          style={{
-                            padding: "10px 12px",
-                            borderRadius: 8,
-                            background: "var(--color-bg-deep)",
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                            <span
-                              style={{
-                                fontSize: 9,
-                                fontWeight: 700,
-                                padding: "2px 7px",
-                                borderRadius: 10,
-                                background: style.bg,
-                                color: style.color,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.06em",
-                              }}
-                            >
-                              {style.label}
-                            </span>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink)" }}>{r.risk}</span>
-                          </div>
-                          <div style={{ fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.5 }}>{r.detail}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Section>
-              )}
-
-              {/* Sources */}
-              {report.sources?.length > 0 && (
-                <Section title={`Sources (${report.sources.length})`}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                    {report.sources.map((s, i) => (
-                      <a
-                        key={i}
-                        href={s.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          display: "flex",
-                          alignItems: "baseline",
-                          gap: 8,
-                          padding: "7px 10px",
-                          borderRadius: 6,
-                          textDecoration: "none",
-                          transition: "background 0.1s",
-                          fontSize: 12,
-                        }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--color-bg-deep)"; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                      >
-                        <span style={{ flexShrink: 0, fontSize: 11 }}>
-                          {SOURCE_TYPE_ICONS[s.type] ?? "🔗"}
-                        </span>
+            {/* Risks */}
+            {report.risks?.length > 0 && (
+              <Section title="Key risks">
+                {report.risks.map((r, i) => {
+                  const style = SEVERITY_STYLES[r.severity] ?? SEVERITY_STYLES.medium;
+                  return (
+                    <Cell
+                      key={i}
+                      chevron={false}
+                      lead={<span style={{ display: "block", width: 8, height: 8, borderRadius: "50%", background: style.color }} />}
+                      title={r.risk}
+                      subtitle={<span className="ios-footnote">{r.detail}</span>}
+                      trailing={
                         <span
-                          style={{
-                            color: "var(--color-accent)",
-                            flex: 1,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
+                          className="ios-chip ios-chip--sm"
+                          style={{ background: `color-mix(in srgb, ${style.color} 16%, transparent)`, color: style.color, fontWeight: 600 }}
                         >
+                          {style.label}
+                        </span>
+                      }
+                    />
+                  );
+                })}
+              </Section>
+            )}
+
+            {/* Sources */}
+            {report.sources?.length > 0 && (
+              <Section title={`Sources (${report.sources.length})`}>
+                {report.sources.map((s, i) => {
+                  const Icon = SOURCE_TYPE_ICONS[s.type] ?? LinkGlyph;
+                  return (
+                    <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="ios-cell">
+                      <span className="ios-cell-lead">
+                        <Icon style={{ width: 20, height: 20, color: "var(--ios-label-2)" }} />
+                      </span>
+                      <span className="ios-cell-body">
+                        <span className="ios-cell-title ios-truncate" style={{ color: "var(--ios-tint)", fontSize: 15 }}>
                           {s.title || s.url}
                         </span>
-                        <span style={{ fontSize: 10, color: "var(--color-ink-4)", flexShrink: 0 }}>
-                          ↗
-                        </span>
-                      </a>
-                    ))}
-                  </div>
-                </Section>
-              )}
-            </>
-          )}
-        </div>
+                      </span>
+                      <span className="ios-cell-trail">
+                        <LinkGlyph style={{ width: 16, height: 16, color: "var(--ios-label-3)" }} />
+                      </span>
+                    </a>
+                  );
+                })}
+              </Section>
+            )}
+
+            <div style={{ height: 8 }} />
+          </>
+        )}
       </div>
-    </div>
+    </>
   );
 }

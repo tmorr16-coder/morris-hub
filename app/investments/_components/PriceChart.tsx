@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { Segmented } from "@/components/ios";
 
 interface CandlePoint {
   time: number;
@@ -84,8 +85,10 @@ export default function PriceChart({ ticker, currentPrice, changeDirection }: Pr
 
   const range = RANGES[rangeIdx];
   const isUp = changeDirection !== "down";
-  const lineColor = isUp ? "var(--color-green)" : "var(--color-red)";
-  const areaColor = isUp ? "rgba(74,107,58,0.07)" : "rgba(154,59,42,0.07)";
+  const lineColor = isUp ? "var(--ios-green)" : "var(--ios-red)";
+  const areaColor = isUp
+    ? "color-mix(in srgb, var(--ios-green) 12%, transparent)"
+    : "color-mix(in srgb, var(--ios-red) 12%, transparent)";
 
   useEffect(() => {
     // Measure immediately on mount, then watch for resizes
@@ -146,29 +149,17 @@ export default function PriceChart({ ticker, currentPrice, changeDirection }: Pr
 
   return (
     <div>
-      {/* Range buttons */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 12, justifyContent: "flex-end" }}>
-        {RANGES.map((r, i) => (
-          <button
-            key={r.label}
-            onClick={() => setRangeIdx(i)}
-            style={{
-              padding: "4px 10px",
-              borderRadius: 6,
-              border: "1px solid var(--color-rule)",
-              background: i === rangeIdx ? "var(--color-accent)" : "transparent",
-              color: i === rangeIdx ? "#FFFDF8" : "var(--color-ink-3)",
-              fontSize: 12,
-              fontWeight: 500,
-              fontFamily: "inherit",
-              cursor: "pointer",
-              transition: "all 0.15s",
-            }}
-          >
-            {r.label}
-          </button>
-        ))}
-      </div>
+      {/* Range selector */}
+      <Segmented
+        options={RANGES.map((r) => ({ value: r.label, label: r.label }))}
+        value={RANGES[rangeIdx].label}
+        onChange={(v) => {
+          const i = RANGES.findIndex((r) => r.label === v);
+          if (i >= 0) setRangeIdx(i);
+        }}
+        ariaLabel="Chart range"
+        style={{ marginBottom: 12 }}
+      />
 
       {/* Chart */}
       <div ref={containerRef} style={{ width: "100%", position: "relative" }}>
@@ -180,7 +171,7 @@ export default function PriceChart({ ticker, currentPrice, changeDirection }: Pr
               alignItems: "center",
               justifyContent: "center",
               fontSize: 12,
-              color: "var(--color-ink-3)",
+              color: "var(--ios-label-2)",
             }}
           >
             Loading chart…
@@ -193,7 +184,7 @@ export default function PriceChart({ ticker, currentPrice, changeDirection }: Pr
               alignItems: "center",
               justifyContent: "center",
               fontSize: 12,
-              color: "var(--color-ink-3)",
+              color: "var(--ios-label-2)",
             }}
           >
             No chart data available
@@ -213,7 +204,7 @@ export default function PriceChart({ ticker, currentPrice, changeDirection }: Pr
                   y1={l.y}
                   x2={size.width}
                   y2={l.y}
-                  stroke="var(--color-rule)"
+                  stroke="var(--ios-separator)"
                   strokeWidth={0.5}
                   strokeDasharray="4 4"
                 />
@@ -221,7 +212,7 @@ export default function PriceChart({ ticker, currentPrice, changeDirection }: Pr
                   x={2}
                   y={l.y - 3}
                   fontSize={10}
-                  fill="var(--color-ink-4)"
+                  fill="var(--ios-label-3)"
                   textAnchor="start"
                 >
                   ${l.value.toFixed(0)}
@@ -249,7 +240,7 @@ export default function PriceChart({ ticker, currentPrice, changeDirection }: Pr
                 x={l.x}
                 y={size.height - 2}
                 fontSize={10}
-                fill="var(--color-ink-4)"
+                fill="var(--ios-label-3)"
                 textAnchor={i === 0 ? "start" : i === xLabels.length - 1 ? "end" : "middle"}
               >
                 {l.label}

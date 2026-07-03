@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { Stock } from "@/lib/stock-research";
-import SparklineChart from "./SparklineChart";
+import { Group, Sparkline } from "@/components/ios";
 import { toggleWatchStock } from "../actions";
 
 interface SuggestedStock {
@@ -23,15 +23,19 @@ interface WatchlistSidebarProps {
   onWatchlistChange: (tickers: string[]) => void;
 }
 
-const BADGE_COLORS: Record<string, { bg: string; color: string }> = {
-  "Earnings soon": { bg: "rgba(184,138,46,0.12)", color: "var(--color-amber)" },
-  "New idea": { bg: "rgba(59,92,127,0.1)", color: "var(--color-accent)" },
-  "Watchlist gap": { bg: "rgba(74,107,58,0.1)", color: "var(--color-green)" },
-};
-
-function getBadgeStyle(badge: string) {
-  if (badge.startsWith("Up ")) return { bg: "rgba(74,107,58,0.1)", color: "var(--color-green)" };
-  return BADGE_COLORS[badge] ?? { bg: "var(--color-bg-deep)", color: "var(--color-ink-3)" };
+function TickerBadge({ sym }: { sym: string }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: 40, height: 40, borderRadius: 10, background: "var(--ios-fill)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 12, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--ios-label)", flexShrink: 0,
+      }}
+    >
+      {sym.slice(0, 4)}
+    </span>
+  );
 }
 
 export default function WatchlistSidebar({
@@ -95,130 +99,90 @@ export default function WatchlistSidebar({
     await toggleWatchStock(ticker);
   };
 
+  if (!initialTickers.length) {
+    return (
+      <Group header="Watchlist" footer="Search for a stock above and add it to start tracking.">
+        <div className="ios-cell" style={{ color: "var(--ios-label-2)" }}>No stocks watched yet</div>
+      </Group>
+    );
+  }
+
   return (
-    <aside
-      style={{
-        width: 220,
-        flexShrink: 0,
-        borderRight: "1px solid var(--color-rule)",
-        background: "var(--color-bg-deep)",
-        display: "flex",
-        flexDirection: "column",
-        overflowY: "auto",
-      }}
-    >
-      <div style={{ padding: "16px 16px 8px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)" }}>
-            Your Watchlist
-          </span>
-          {initialTickers.length > 0 && (
-            <span style={{ fontSize: 10, color: "var(--color-ink-4)" }}>
-              {initialTickers.length} tracked
-            </span>
-          )}
-        </div>
-
+    <>
+      <Group header={`Watchlist · ${initialTickers.length} tracked`}>
         {loading && (
-          <div style={{ fontSize: 11, color: "var(--color-ink-3)", padding: "8px 0" }}>Loading…</div>
+          <div className="ios-cell" style={{ color: "var(--ios-label-2)" }}>Loading…</div>
         )}
-
         {!loading && items.length === 0 && (
-          <div style={{ fontSize: 11, color: "var(--color-ink-3)", padding: "8px 0" }}>
-            No stocks watched yet. Search and add some.
-          </div>
+          <div className="ios-cell" style={{ color: "var(--ios-label-2)" }}>No quotes available</div>
         )}
-
         {items.map(({ stock, sparkline }) => {
           const isSelected = stock.ticker === selectedTicker;
           const isUp = stock.changeDirection !== "down";
+          const chg = isUp ? "var(--ios-green)" : "var(--ios-red)";
           return (
             <div
               key={stock.ticker}
-              onClick={() => onSelectStock(stock)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "8px 10px",
-                borderRadius: 8,
-                cursor: "pointer",
-                background: isSelected ? "var(--color-accent-soft)" : "transparent",
-                borderLeft: isSelected ? "2px solid var(--color-accent)" : "2px solid transparent",
-                marginBottom: 2,
-                transition: "all 0.15s",
-              }}
+              className="ios-cell"
+              style={{ background: isSelected ? "var(--ios-fill-2)" : undefined, cursor: "pointer" }}
             >
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 1 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink)", letterSpacing: "-0.01em" }}>
-                    {stock.ticker}
+              <button
+                onClick={() => onSelectStock(stock)}
+                aria-label={`Open ${stock.ticker}`}
+                style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, textAlign: "left" }}
+              >
+                <TickerBadge sym={stock.ticker} />
+                <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+                  <span className="ios-cell-title" style={{ fontWeight: 600 }}>{stock.ticker}</span>
+                  <span className="ios-cell-sub" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stock.name}</span>
+                </span>
+                {sparkline.length >= 2 && (
+                  <Sparkline points={sparkline} color={chg} width={54} height={26} />
+                )}
+                <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1, flexShrink: 0 }}>
+                  <span className="ios-num" style={{ color: "var(--ios-label)", fontSize: 15 }}>${stock.price.toFixed(2)}</span>
+                  <span className="ios-num" style={{ color: chg, fontSize: 13, fontWeight: 600 }}>
+                    {isUp ? "▲" : "▼"} {Math.abs(stock.change).toFixed(2)}%
                   </span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-ink)" }}>
-                    ${stock.price.toFixed(2)}
-                  </span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 10, color: "var(--color-ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 80 }}>
-                    {stock.name}
-                  </span>
-                  <span style={{ fontSize: 10, color: isUp ? "var(--color-green)" : "var(--color-red)" }}>
-                    {isUp ? "+" : ""}{stock.change.toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-
-              {sparkline.length >= 2 && (
-                <div style={{ flexShrink: 0 }}>
-                  <SparklineChart prices={sparkline} width={48} height={20} />
-                </div>
-              )}
-
+                </span>
+              </button>
               <button
                 onClick={(e) => { e.stopPropagation(); handleRemove(stock.ticker); }}
-                style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: "var(--color-ink-4)", fontSize: 12, padding: 0, lineHeight: 1, opacity: 0.6 }}
-                title="Remove"
+                aria-label={`Remove ${stock.ticker}`}
+                style={{ flexShrink: 0, marginLeft: 8, color: "var(--ios-label-3)", padding: 4, display: "flex" }}
               >
-                ×
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="var(--ios-cell)" strokeWidth="2" strokeLinecap="round" />
+                </svg>
               </button>
             </div>
           );
         })}
-      </div>
+      </Group>
 
       {suggested.length > 0 && (
-        <>
-          <div style={{ height: 1, background: "var(--color-rule)", margin: "4px 0" }} />
-          <div style={{ padding: "12px 16px" }}>
-            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 4 }}>
-              Suggested Research
-            </div>
-            <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginBottom: 10 }}>
-              Ideas surfaced from your watchlist
-            </div>
-            {suggested.map((s) => {
-              const { bg, color } = getBadgeStyle(s.badge);
-              return (
-                <div
-                  key={s.ticker}
-                  style={{ padding: "8px 10px", borderRadius: 8, background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", marginBottom: 6, cursor: "pointer" }}
-                  onClick={async () => {
-                    const res = await fetch(`/api/investments/stock-summary?ticker=${s.ticker}`).then((r) => r.json());
-                    if (res.price) onSelectStock({ ticker: res.ticker, name: res.name, price: res.price, change: res.change, changeDirection: res.changeDirection, sector: res.sector });
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--color-ink)", letterSpacing: "-0.01em" }}>{s.ticker}</span>
-                    <span style={{ fontSize: 9, fontWeight: 500, padding: "2px 6px", borderRadius: 10, background: bg, color, whiteSpace: "nowrap" }}>{s.badge}</span>
-                  </div>
-                  <p style={{ fontSize: 10, color: "var(--color-ink-3)", margin: 0, lineHeight: 1.4 }}>{s.rationale}</p>
-                </div>
-              );
-            })}
-          </div>
-        </>
+        <Group header="Suggested research" footer="Ideas surfaced from your watchlist">
+          {suggested.map((s) => (
+            <button
+              key={s.ticker}
+              className="ios-cell"
+              onClick={async () => {
+                const res = await fetch(`/api/investments/stock-summary?ticker=${s.ticker}`).then((r) => r.json());
+                if (res.price) onSelectStock({ ticker: res.ticker, name: res.name, price: res.price, change: res.change, changeDirection: res.changeDirection, sector: res.sector });
+              }}
+            >
+              <span className="ios-cell-body">
+                <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                  <span className="ios-cell-title" style={{ fontWeight: 700 }}>{s.ticker}</span>
+                  <span className="ios-chip ios-chip--sm">{s.badge}</span>
+                </span>
+                <span className="ios-cell-sub">{s.rationale}</span>
+              </span>
+            </button>
+          ))}
+        </Group>
       )}
-
-    </aside>
+    </>
   );
 }
