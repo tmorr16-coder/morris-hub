@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Cell, IconBadge } from "@/components/ios";
 
 interface Props {
@@ -38,12 +38,33 @@ function StatusPill({ on }: { on: boolean }) {
 
 export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, workoutsCount, webhookUrl }: Props) {
   const [copied, setCopied] = useState(false);
+  const urlRef = useRef<HTMLElement>(null);
 
-  function handleCopy() {
-    navigator.clipboard.writeText(webhookUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+  // Select the whole URL so the user can copy manually if the clipboard API
+  // is unavailable (older iOS Safari, insecure context, or permission denied).
+  function selectUrl() {
+    const el = urlRef.current;
+    if (!el || typeof window === "undefined") return;
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  }
+
+  async function handleCopy() {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(webhookUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        return;
+      }
+      throw new Error("clipboard unavailable");
+    } catch {
+      // Fallback — select the text so a long-press → Copy works.
+      selectUrl();
+    }
   }
 
   void configured; // available for future gating; connection state derives from hasData
@@ -69,17 +90,34 @@ export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, 
           </>
         )}
 
-        {/* Webhook URL */}
-        <div className="ios-cell">
-          <span className="ios-cell-body">
+        {/* Webhook URL — full, wrapping, and selectable */}
+        <div style={{ padding: "10px 16px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
             <span className="ios-cell-sub" style={{ marginTop: 0 }}>Personal webhook URL</span>
-            <span className="ios-num ios-truncate" style={{ fontSize: 13, color: "var(--ios-label)" }}>{webhookUrl}</span>
-          </span>
-          <span className="ios-cell-trail">
-            <button onClick={handleCopy} style={{ color: "var(--ios-tint)", fontSize: 15, fontWeight: copied ? 600 : 400 }}>
-              {copied ? "Copied" : "Copy"}
+            <button onClick={handleCopy} style={{ color: "var(--ios-tint)", fontSize: 15, fontWeight: copied ? 600 : 400, flexShrink: 0 }}>
+              {copied ? "Copied ✓" : "Copy"}
             </button>
-          </span>
+          </div>
+          <code
+            ref={urlRef}
+            onClick={selectUrl}
+            className="ios-num"
+            style={{
+              display: "block",
+              fontSize: 12,
+              lineHeight: 1.5,
+              color: "var(--ios-label)",
+              background: "var(--ios-fill)",
+              borderRadius: 8,
+              padding: "10px 12px",
+              wordBreak: "break-all",
+              WebkitUserSelect: "all",
+              userSelect: "all",
+              cursor: "text",
+            }}
+          >
+            {webhookUrl}
+          </code>
         </div>
       </div>
 
