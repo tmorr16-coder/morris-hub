@@ -13,9 +13,9 @@ export default async function FamilyGoalsPage() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
-  const { circleIds, nameMap } = await circleContext(service, user.id);
+  const { circleIds, nameMap, members } = await circleContext(service, user.id);
   const { data: goals } = await service.schema("hub").from("household_goals")
-    .select("id, title, description, target_date, status, created_by, created_at")
+    .select("*")
     .in("circle_owner_id", circleIds)
     .order("created_at", { ascending: false });
 
@@ -23,7 +23,7 @@ export default async function FamilyGoalsPage() {
     <IOSScreen>
       <LargeTitle title="Household goals" subtitle="Shared goals for your family" />
       <div style={{ padding: "0 16px" }}>
-        <HouseholdGoals initialGoals={goals ?? []} userId={user.id} nameMap={nameMap} />
+        <HouseholdGoals initialGoals={goals ?? []} userId={user.id} nameMap={nameMap} members={members} />
       </div>
       <div style={{ height: 12 }} />
       <TabBar current="family" currentUserId={user.id} sourceApp="hub" />

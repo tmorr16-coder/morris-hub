@@ -11,17 +11,25 @@ interface Goal {
   status: "active" | "completed";
   created_by: string;
   created_at: string;
+  assigned_to?: string | null;
 }
 
+const memberSelectStyle: React.CSSProperties = {
+  padding: "10px 12px", border: "var(--ios-hair) solid var(--ios-separator)",
+  borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 15,
+};
+
 export default function HouseholdGoals({
-  initialGoals, userId, nameMap,
+  initialGoals, userId, nameMap, members,
 }: {
   initialGoals: Goal[];
   userId: string;
   nameMap: Record<string, string>;
+  members: { id: string; name: string }[];
 }) {
   const [goals, setGoals] = useState(initialGoals);
   const [title, setTitle] = useState("");
+  const [assignTo, setAssignTo] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,14 +39,18 @@ export default function HouseholdGoals({
     e.preventDefault();
     if (!title.trim()) return;
     setSaving(true);
-    const { data, error } = await db.schema("hub").from("household_goals")
-      .insert({ title: title.trim(), circle_owner_id: userId, created_by: userId })
-      .select("id, title, description, target_date, status, created_by, created_at")
-      .single();
+    const fields = { title: title.trim(), circle_owner_id: userId, created_by: userId };
+    let res = await db.schema("hub").from("household_goals")
+      .insert({ ...fields, assigned_to: assignTo || null }).select("*").single();
+    if (res.error && /assigned_to/.test(res.error.message)) {
+      res = await db.schema("hub").from("household_goals")
+        .insert({ ...fields }).select("*").single();
+    }
     setSaving(false);
-    if (!error && data) {
-      setGoals((prev) => [data, ...prev]);
+    if (!res.error && res.data) {
+      setGoals((prev) => [res.data, ...prev]);
       setTitle("");
+      setAssignTo("");
       setFormOpen(false);
     }
   }
@@ -68,13 +80,17 @@ export default function HouseholdGoals({
         </button>
       </div>
       {formOpen && (
-        <form onSubmit={addGoal} style={{ display: "flex", gap: 8, margin: "0 var(--ios-gutter) 10px" }}>
+        <form onSubmit={addGoal} style={{ display: "flex", gap: 8, margin: "0 var(--ios-gutter) 10px", flexWrap: "wrap" }}>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Save $5,000 for the trip"
-            style={{ flex: 1, padding: "10px 14px", border: "var(--ios-hair) solid var(--ios-separator)", borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 16 }}
+            style={{ flex: 1, minWidth: 140, padding: "10px 14px", border: "var(--ios-hair) solid var(--ios-separator)", borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 16 }}
           />
+          <select value={assignTo} onChange={(e) => setAssignTo(e.target.value)} aria-label="Assign to" style={memberSelectStyle}>
+            <option value="">Everyone</option>
+            {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
           <button type="submit" disabled={saving || !title.trim()} className="ios-btn ios-btn--primary" style={{ width: "auto", minHeight: 0, padding: "10px 18px", fontSize: 15, opacity: saving || !title.trim() ? 0.5 : 1 }}>
             Save
           </button>
@@ -106,6 +122,11 @@ export default function HouseholdGoals({
                   <span className="ios-cell-sub">
                     Started by {nameMap[g.created_by] ?? "Family"}{g.target_date ? ` · target ${new Date(`${g.target_date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
                   </span>
+                  {g.assigned_to && (
+                    <span className="ios-chip ios-chip--sm ios-caption" style={{ marginTop: 4, alignSelf: "flex-start", color: "var(--ios-tint)" }}>
+                      for {nameMap[g.assigned_to] ?? "Member"}
+                    </span>
+                  )}
                 </span>
                 <button onClick={() => remove(g.id)} aria-label="Remove" className="ios-cell-trail" style={{ color: "var(--ios-label-3)" }}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>

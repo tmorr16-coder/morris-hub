@@ -10,17 +10,25 @@ interface ShoppingItem {
   checked: boolean;
   added_by: string;
   created_at: string;
+  assigned_to?: string | null;
 }
 
+const memberSelectStyle: React.CSSProperties = {
+  padding: "10px 12px", border: "var(--ios-hair) solid var(--ios-separator)",
+  borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 15,
+};
+
 export default function ShoppingList({
-  initialItems, userId, nameMap,
+  initialItems, userId, nameMap, members,
 }: {
   initialItems: ShoppingItem[];
   userId: string;
   nameMap: Record<string, string>;
+  members: { id: string; name: string }[];
 }) {
   const [items, setItems] = useState(initialItems);
   const [text, setText] = useState("");
+  const [assignTo, setAssignTo] = useState("");
   const [adding, setAdding] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createClient() as any;
@@ -29,14 +37,18 @@ export default function ShoppingList({
     e.preventDefault();
     if (!text.trim()) return;
     setAdding(true);
-    const { data, error } = await db.schema("hub").from("shopping_items")
-      .insert({ item: text.trim(), circle_owner_id: userId, added_by: userId })
-      .select("id, item, quantity, checked, added_by, created_at")
-      .single();
+    const fields = { item: text.trim(), circle_owner_id: userId, added_by: userId };
+    let res = await db.schema("hub").from("shopping_items")
+      .insert({ ...fields, assigned_to: assignTo || null }).select("*").single();
+    if (res.error && /assigned_to/.test(res.error.message)) {
+      res = await db.schema("hub").from("shopping_items")
+        .insert({ ...fields }).select("*").single();
+    }
     setAdding(false);
-    if (!error && data) {
-      setItems((prev) => [...prev, data]);
+    if (!res.error && res.data) {
+      setItems((prev) => [...prev, res.data]);
       setText("");
+      setAssignTo("");
     }
   }
 
@@ -56,13 +68,17 @@ export default function ShoppingList({
   return (
     <section className="ios-group">
       <h2 className="ios-group-header">Shopping list</h2>
-      <form onSubmit={addItem} style={{ display: "flex", gap: 8, margin: "0 var(--ios-gutter) 10px" }}>
+      <form onSubmit={addItem} style={{ display: "flex", gap: 8, margin: "0 var(--ios-gutter) 10px", flexWrap: "wrap" }}>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Add an item…"
-          style={{ flex: 1, padding: "10px 14px", border: "var(--ios-hair) solid var(--ios-separator)", borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 16 }}
+          style={{ flex: 1, minWidth: 140, padding: "10px 14px", border: "var(--ios-hair) solid var(--ios-separator)", borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 16 }}
         />
+        <select value={assignTo} onChange={(e) => setAssignTo(e.target.value)} aria-label="Assign to" style={memberSelectStyle}>
+          <option value="">Everyone</option>
+          {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
         <button type="submit" disabled={adding || !text.trim()} className="ios-btn ios-btn--primary" style={{ width: "auto", minHeight: 0, padding: "10px 18px", fontSize: 15, opacity: adding || !text.trim() ? 0.5 : 1 }}>
           Add
         </button>
@@ -91,6 +107,11 @@ export default function ShoppingList({
                 }}>
                   {i.item}{i.quantity ? ` · ${i.quantity}` : ""}
                 </span>
+                {i.assigned_to && (
+                  <span className="ios-chip ios-chip--sm ios-caption" style={{ marginTop: 4, alignSelf: "flex-start", color: "var(--ios-tint)" }}>
+                    for {nameMap[i.assigned_to] ?? "Member"}
+                  </span>
+                )}
               </span>
               <span className="ios-caption" style={{ color: "var(--ios-label-3)", flexShrink: 0 }}>{nameMap[i.added_by] ?? "Family"}</span>
               <button onClick={() => remove(i.id)} aria-label="Remove" className="ios-cell-trail" style={{ color: "var(--ios-label-3)" }}>

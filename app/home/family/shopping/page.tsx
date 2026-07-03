@@ -13,9 +13,9 @@ export default async function FamilyShoppingPage() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
-  const { circleIds, nameMap } = await circleContext(service, user.id);
+  const { circleIds, nameMap, members } = await circleContext(service, user.id);
   const { data: items } = await service.schema("hub").from("shopping_items")
-    .select("id, item, quantity, checked, added_by, created_at")
+    .select("*")
     .in("circle_owner_id", circleIds)
     .order("created_at", { ascending: true });
 
@@ -23,7 +23,7 @@ export default async function FamilyShoppingPage() {
     <IOSScreen>
       <LargeTitle title="Shopping list" subtitle="Shared with your family circle" />
       <div style={{ padding: "0 16px" }}>
-        <ShoppingList initialItems={items ?? []} userId={user.id} nameMap={nameMap} />
+        <ShoppingList initialItems={items ?? []} userId={user.id} nameMap={nameMap} members={members} />
       </div>
       <div style={{ height: 12 }} />
       <TabBar current="family" currentUserId={user.id} sourceApp="hub" />

@@ -11,22 +11,31 @@ interface Meal {
   notes: string | null;
   created_by: string;
   created_at: string;
+  assigned_to?: string | null;
 }
 
 const MEAL_TYPE_LABEL: Record<Meal["meal_type"], string> = {
   breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner", snack: "Snack",
 };
 
+const memberSelectStyle: React.CSSProperties = {
+  padding: "10px 12px", border: "var(--ios-hair) solid var(--ios-separator)",
+  borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 15,
+};
+
 export default function MealPlan({
-  initialMeals, userId,
+  initialMeals, userId, nameMap, members,
 }: {
   initialMeals: Meal[];
   userId: string;
+  nameMap: Record<string, string>;
+  members: { id: string; name: string }[];
 }) {
   const [meals, setMeals] = useState(initialMeals);
   const [name, setName] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [mealType, setMealType] = useState<Meal["meal_type"]>("dinner");
+  const [assignTo, setAssignTo] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,14 +45,18 @@ export default function MealPlan({
     e.preventDefault();
     if (!name.trim()) return;
     setSaving(true);
-    const { data, error } = await db.schema("hub").from("meal_plan")
-      .insert({ date, meal_type: mealType, name: name.trim(), circle_owner_id: userId, created_by: userId })
-      .select("id, date, meal_type, name, notes, created_by, created_at")
-      .single();
+    const fields = { date, meal_type: mealType, name: name.trim(), circle_owner_id: userId, created_by: userId };
+    let res = await db.schema("hub").from("meal_plan")
+      .insert({ ...fields, assigned_to: assignTo || null }).select("*").single();
+    if (res.error && /assigned_to/.test(res.error.message)) {
+      res = await db.schema("hub").from("meal_plan")
+        .insert({ ...fields }).select("*").single();
+    }
     setSaving(false);
-    if (!error && data) {
-      setMeals((prev) => [...prev, data].sort((a, b) => a.date.localeCompare(b.date)));
+    if (!res.error && res.data) {
+      setMeals((prev) => [...prev, res.data].sort((a, b) => a.date.localeCompare(b.date)));
       setName("");
+      setAssignTo("");
       setFormOpen(false);
     }
   }
@@ -77,6 +90,10 @@ export default function MealPlan({
           </select>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Tacos"
             style={{ flex: 1, minWidth: 140, padding: "10px 14px", border: "var(--ios-hair) solid var(--ios-separator)", borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 16 }} />
+          <select value={assignTo} onChange={(e) => setAssignTo(e.target.value)} aria-label="Assign to" style={memberSelectStyle}>
+            <option value="">Everyone</option>
+            {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
           <button type="submit" disabled={saving || !name.trim()} className="ios-btn ios-btn--primary" style={{ width: "auto", minHeight: 0, padding: "10px 18px", fontSize: 15, opacity: saving || !name.trim() ? 0.5 : 1 }}>
             Save
           </button>
@@ -99,6 +116,11 @@ export default function MealPlan({
                     </span>
                     <span className="ios-cell-body">
                       <span className="ios-cell-title ios-subhead">{m.name}</span>
+                      {m.assigned_to && (
+                        <span className="ios-chip ios-chip--sm ios-caption" style={{ marginTop: 4, alignSelf: "flex-start", color: "var(--ios-tint)" }}>
+                          for {nameMap[m.assigned_to] ?? "Member"}
+                        </span>
+                      )}
                     </span>
                     <button onClick={() => remove(m.id)} aria-label="Remove" className="ios-cell-trail" style={{ color: "var(--ios-label-3)" }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
