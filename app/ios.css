@@ -104,6 +104,16 @@
   --ios-bar-border:   rgba(84,84,88,0.6);
 }
 
+/* ══ Color schemes ═══════════════════════════════════════════════════════════
+   Named brand-tint palettes, orthogonal to light/dark. Selected in Settings →
+   Appearance; applied by ThemeApplier stamping data-scheme on the iOS scope.
+   Only the interactive tint changes (links, selected states, primary buttons),
+   so surfaces/labels keep their HIG light/dark values. */
+[data-ui="ios"][data-scheme="famu"]                    { --ios-tint: #F58025; --ios-tint-press: #D96D17; }
+[data-ui="ios"][data-scheme="famu"][data-theme="dark"] { --ios-tint: #FF9A4D; --ios-tint-press: #FFB273; }
+[data-ui="ios"][data-scheme="braves"]                    { --ios-tint: #CE1141; --ios-tint-press: #A50D34; }
+[data-ui="ios"][data-scheme="braves"][data-theme="dark"] { --ios-tint: #E8264F; --ios-tint-press: #F0506F; }
+
 /* ── Reset within the scope ───────────────────────────────────────────────── */
 [data-ui="ios"] * { box-sizing: border-box; }
 [data-ui="ios"] :where(h1,h2,h3,h4,p,ul,ol,figure) { margin: 0; }
