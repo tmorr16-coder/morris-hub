@@ -87,6 +87,33 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
     }
   }
 
+  // Toggle every reading in a day at once. If the whole day is already done,
+  // tapping again clears it; otherwise all remaining readings are marked read.
+  async function toggleDay(dayNumber: number, refs: string[]) {
+    const allDone = refs.every((r) => completions[`${dayNumber}:${r}`]);
+    const nextVal = !allDone;
+
+    setCompletions((prev) => {
+      const next = { ...prev };
+      refs.forEach((r) => { next[`${dayNumber}:${r}`] = nextVal; });
+      return next;
+    });
+
+    if (nextVal) {
+      await db.schema("bible").from("reading_completions").upsert(
+        refs.map((r) => ({
+          user_id: userId, plan_id: planId,
+          day_number: dayNumber, reading_ref: r,
+        })),
+        { onConflict: "user_id,plan_id,day_number,reading_ref" }
+      );
+    } else {
+      await db.schema("bible").from("reading_completions").delete()
+        .eq("user_id", userId).eq("plan_id", planId)
+        .eq("day_number", dayNumber);
+    }
+  }
+
   if (isBuiltIn) {
     return (
       <div style={{ paddingTop: 8, paddingBottom: 40 }}>
@@ -185,6 +212,39 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
             }
             style={{ opacity: allDone ? 0.6 : 1 }}
           >
+            {/* One-tap bulk toggle for the whole day */}
+            {enrolled && (
+              <Cell
+                insetSeparator
+                chevron={false}
+                onClick={() => toggleDay(day.day, dayReadings)}
+                ariaLabel={allDone ? `Mark day ${day.day} not read` : `Mark all readings of day ${day.day} read`}
+                lead={
+                  <span style={{
+                    width: 26, height: 26, borderRadius: "50%", flexShrink: 0,
+                    border: allDone ? "none" : "1.7px solid var(--ios-tint)",
+                    background: allDone ? "var(--ios-green)" : "transparent",
+                    color: "var(--ios-on-tint)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {allDone && <CheckMark />}
+                  </span>
+                }
+                title={
+                  <span style={{
+                    fontSize: isToday ? 17 : 16,
+                    fontWeight: isToday ? 700 : 600,
+                    color: allDone ? "var(--ios-label-2)" : "var(--ios-tint)",
+                  }}>
+                    {allDone
+                      ? "Mark day not read"
+                      : isToday
+                      ? "Mark today complete"
+                      : "Mark all read"}
+                  </span>
+                }
+              />
+            )}
             {dayReadings.map((ref) => {
               const key = `${day.day}:${ref}`;
               const done = completions[key];

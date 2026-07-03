@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { BibleChapter, BibleVerse, BibleVersion } from "@/lib/bible-api";
+import { rankVoices, pickBestVoice, isEnhancedVoice } from "@/lib/tts-voices";
 import { Icons } from "@/components/ios";
 import FocusReader from "./FocusReader";
 
@@ -95,21 +96,13 @@ export default function ChapterReader({
   useEffect(() => {
     function loadVoices() {
       const all = window.speechSynthesis.getVoices();
-      const english = all.filter(
-        (v) => v.lang.startsWith("en") && !v.name.includes("(compact)")
-      );
-      if (english.length > 0) {
-        setVoices(english);
-        // Default: prefer a natural-sounding US voice
-        const preferred = english.find(
-          (v) =>
-            v.name.includes("Google US English") ||
-            v.name.includes("Samantha") ||
-            v.name.includes("Alex") ||
-            v.name === "Karen" ||
-            v.name === "Daniel"
-        );
-        setSelectedVoice(preferred ?? english[0]);
+      if (all.length === 0) return;
+      // Rank best-first (modern Apple neural / premium / enhanced en-US
+      // voices win) so the picker surfaces the good ones at the top.
+      const ranked = rankVoices(all);
+      if (ranked.length > 0) {
+        setVoices(ranked);
+        setSelectedVoice((prev) => prev ?? pickBestVoice(ranked));
       }
     }
     loadVoices();
@@ -366,7 +359,9 @@ export default function ChapterReader({
             }}
           >
             {voices.map((v) => (
-              <option key={v.name} value={v.name}>{shortVoiceName(v)} ({v.lang})</option>
+              <option key={v.name} value={v.name}>
+                {shortVoiceName(v)}{isEnhancedVoice(v) ? " · Enhanced" : ""} ({v.lang})
+              </option>
             ))}
           </select>
         </div>

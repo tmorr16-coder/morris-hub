@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import type { SVGProps } from "react";
 import { useRouter } from "next/navigation";
 import type { BibleChapter } from "@/lib/bible-api";
+import { rankVoices, pickBestVoice, isEnhancedVoice } from "@/lib/tts-voices";
 
 const VOICE_STORAGE_KEY = "bible-focus-voice";
 
@@ -88,17 +89,17 @@ export default function FocusReader({ book, chapterNum, chapterData, onClose, in
 
     function loadVoices() {
       const all = window.speechSynthesis.getVoices();
-      const eng = all.filter(v => v.lang.startsWith("en") && !v.name.includes("compact"));
-      if (eng.length === 0) return;
-      setVoices(eng);
+      if (all.length === 0) return;
+      // Rank best-first: modern Apple neural / premium / enhanced en-US
+      // voices win; non-English and legacy "compact" voices sink or drop.
+      const ranked = rankVoices(all);
+      if (ranked.length === 0) return;
+      setVoices(ranked);
 
-      // Priority: 1) platform preference, 2) localStorage legacy, 3) quality defaults
-      const fromPlatform = platformVoiceName ? eng.find(v => v.name === platformVoiceName) : null;
-      const fromLocal = !fromPlatform ? eng.find(v => v.name === localStorage.getItem(VOICE_STORAGE_KEY)) : null;
-      const fromDefault = eng.find(v =>
-        v.name.includes("Samantha") || v.name.includes("Alex") ||
-        v.name.includes("Microsoft Aria") || v.name.includes("Google US English")
-      ) ?? eng[0];
+      // Priority: 1) platform preference, 2) localStorage legacy, 3) best-ranked voice
+      const fromPlatform = platformVoiceName ? ranked.find(v => v.name === platformVoiceName) : null;
+      const fromLocal = !fromPlatform ? ranked.find(v => v.name === localStorage.getItem(VOICE_STORAGE_KEY)) : null;
+      const fromDefault = pickBestVoice(ranked);
 
       const pref = fromPlatform ?? fromLocal ?? fromDefault;
       setSelectedVoice(pref);
@@ -294,7 +295,7 @@ export default function FocusReader({ book, chapterNum, chapterData, onClose, in
           <select value={selectedVoice?.name ?? ""} onChange={e => handleVoiceChange(e.target.value)}
             aria-label="Voice"
             style={{ padding: "6px 8px", borderRadius: 8, border: "none", background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 13, fontFamily: "inherit", cursor: "pointer", maxWidth: 170 }}>
-            {voices.map(v => <option key={v.name} value={v.name}>{shortVoiceName(v)}</option>)}
+            {voices.map(v => <option key={v.name} value={v.name}>{shortVoiceName(v)}{isEnhancedVoice(v) ? " · Enhanced" : ""}</option>)}
           </select>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
