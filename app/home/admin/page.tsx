@@ -10,6 +10,7 @@ import AdminClient, {
   type IntegrationRequest,
   type PendingUser,
   type SupportTicket,
+  type AccessRequest,
 } from "./_components/AdminClient";
 
 export default async function AdminPage() {
@@ -150,6 +151,33 @@ export default async function AdminPage() {
     }));
   } catch { /* ignore */ }
 
+  // Access requests (public landing-page waitlist → hub.waitlist).
+  // Degrade gracefully: if the table is missing we surface an empty state note
+  // rather than crashing the whole admin page.
+  type WaitlistRow = { id: string; name: string | null; email: string; note: string | null; created_at: string };
+  let accessRequests: AccessRequest[] = [];
+  let waitlistAvailable = true;
+  try {
+    const { data: waitlistRows, error: waitlistError } = await db
+      .schema("hub")
+      .from("waitlist")
+      .select("id, name, email, note, created_at")
+      .order("created_at", { ascending: true });
+    if (waitlistError) {
+      waitlistAvailable = false;
+    } else {
+      accessRequests = ((waitlistRows as WaitlistRow[]) ?? []).map((r) => ({
+        id: r.id,
+        name: r.name ?? "",
+        email: r.email,
+        note: r.note ?? "",
+        createdAt: r.created_at,
+      }));
+    }
+  } catch {
+    waitlistAvailable = false;
+  }
+
   return (
     <IOSScreen>
       <Link href="/home" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-tint)", padding: "6px 16px 0", fontWeight: 500 }} className="ios-subhead">
@@ -177,6 +205,8 @@ export default async function AdminPage() {
           integrationRequests={integrationRequests}
           pendingUsers={pendingUsers}
           supportTickets={supportTickets}
+          accessRequests={accessRequests}
+          waitlistAvailable={waitlistAvailable}
         />
       </div>
 

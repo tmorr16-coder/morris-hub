@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isCurrentUserAdmin } from "@/lib/supabase/auth-utils";
 import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 import AppearanceAccount from "./_components/AppearanceAccount";
 
@@ -48,6 +49,7 @@ export default async function SettingsHubPage() {
   const initial = (name[0] ?? "U").toUpperCase();
 
   const fit = await fitnessStatus(user.id);
+  const isAdmin = await isCurrentUserAdmin();
 
   return (
     <div className="ios-scroll">
@@ -90,6 +92,13 @@ export default async function SettingsHubPage() {
         <Cell lead={<IconBadge color="var(--ios-orange)"><Icons.PeopleIcon /></IconBadge>} title="Family circle" subtitle="Members & sharing" href="/home/settings/family" />
         <Cell lead={<IconBadge color="#8E8E93"><Icons.GearIcon /></IconBadge>} title="Privacy & data" href="/home/settings/privacy" />
       </Group>
+
+      {/* Admin — only visible to admins */}
+      {isAdmin && (
+        <Group header="Administration" footer="Manage who can access the platform and which modules each person sees.">
+          <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.PersonIcon /></IconBadge>} title="Access management" subtitle="Modules · approvals · invites" href="/home/admin" />
+        </Group>
+      )}
 
       <AppearanceAccount />
 

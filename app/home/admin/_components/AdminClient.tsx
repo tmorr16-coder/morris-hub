@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { inviteUser, cancelInvitation, updateUserRole, removeUser, updateIntegrationRequestStatus, approveUser, rejectUser, updateTicketStatus, updateAppAccess, type AppKey } from "../actions";
+import { inviteUser, cancelInvitation, updateUserRole, removeUser, updateIntegrationRequestStatus, approveUser, rejectUser, updateTicketStatus, updateAppAccess, approveAccessRequest, dismissAccessRequest, type AppKey } from "../actions";
 
 const ALL_APPS: AppKey[] = ["hub", "health", "finance", "investments", "career", "student-success", "children", "bible"];
 const APP_LABEL: Record<AppKey, string> = {
@@ -63,6 +63,14 @@ export interface IntegrationRequest {
   createdAt: string;
 }
 
+export interface AccessRequest {
+  id: string;
+  name: string;
+  email: string;
+  note: string;
+  createdAt: string;
+}
+
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
@@ -92,6 +100,110 @@ function RolePill({ role }: { role: "admin" | "standard" }) {
     }}>
       {isAdmin ? "Admin" : "Standard"}
     </span>
+  );
+}
+
+// ── Shared iOS switch + module list ────────────────────────────────────────
+
+function IOSSwitch({ on, onToggle, disabled }: { on: boolean; onToggle: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onToggle}
+      disabled={disabled}
+      role="switch"
+      aria-checked={on}
+      style={{ width: 51, height: 31, borderRadius: 999, background: on ? "var(--ios-green)" : "var(--ios-fill)", cursor: disabled ? "not-allowed" : "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }}
+    >
+      <div style={{ position: "absolute", top: 2, left: on ? 22 : 2, width: 27, height: 27, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+    </button>
+  );
+}
+
+function ModuleSwitchList({ value, onChange, disabled }: { value: AppKey[]; onChange: (next: AppKey[]) => void; disabled?: boolean }) {
+  function toggle(app: AppKey) {
+    const next = value.includes(app) ? value.filter((a) => a !== app) : [...value, app];
+    onChange(next);
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {ALL_APPS.map((app) => {
+        const active = value.includes(app);
+        const isHub = app === "hub";
+        return (
+          <div key={app} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, background: "var(--ios-cell)" }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: APP_COLOR[app], flexShrink: 0 }} />
+            <span className="ios-subhead" style={{ flex: 1, fontWeight: 600 }}>{APP_LABEL[app]}</span>
+            {isHub ? (
+              <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>Always on</span>
+            ) : (
+              <IOSSwitch on={active} onToggle={() => toggle(app)} disabled={disabled} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Access Request (waitlist) approval sheet ───────────────────────────────
+
+function AccessRequestModal({ request, isPending, onApprove, onClose }: {
+  request: AccessRequest;
+  isPending: boolean;
+  onApprove: (role: "standard" | "admin", appAccess: AppKey[]) => void;
+  onClose: () => void;
+}) {
+  const [role, setRole] = useState<"standard" | "admin">("standard");
+  const [access, setAccess] = useState<AppKey[]>(["hub", "health", "finance"]);
+
+  return (
+    <>
+      <div className="ios-sheet-backdrop" onClick={onClose} />
+      <div className="ios-sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="ios-grabber" />
+
+        <div style={{ display: "flex", alignItems: "center", gap: 14, paddingBottom: 16, borderBottom: "var(--ios-hair) solid var(--ios-separator)" }}>
+          <Avatar name={request.name || request.email} avatarUrl={null} size={44} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="ios-headline">{request.name || "—"}</div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>{request.email}</div>
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 2 }}>Requested {fmtDate(request.createdAt)}</div>
+          </div>
+          <button onClick={onClose} className="ios-subhead" style={{ color: "var(--ios-tint)" }}>Done</button>
+        </div>
+
+        {request.note && (
+          <div className="ios-footnote" style={{ color: "var(--ios-label)", background: "var(--ios-bg)", borderRadius: 8, padding: "8px 10px", marginTop: 14, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+            {request.note}
+          </div>
+        )}
+
+        <div style={{ padding: "16px 0", borderBottom: "var(--ios-hair) solid var(--ios-separator)" }}>
+          <div className="ios-group-header" style={{ padding: "0 0 8px" }}>Role</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {(["standard", "admin"] as const).map((r) => (
+              <button key={r} onClick={() => setRole(r)} className={`ios-chip${role === r ? " is-selected" : ""}`} aria-pressed={role === r}>
+                {r === "admin" ? "Admin" : "Standard"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ padding: "16px 0" }}>
+          <div className="ios-group-header" style={{ padding: "0 0 12px" }}>Grant module access</div>
+          <ModuleSwitchList value={access} onChange={setAccess} disabled={isPending} />
+        </div>
+
+        <button
+          onClick={() => onApprove(role, access)}
+          disabled={isPending}
+          className="ios-btn ios-btn--primary"
+          style={{ background: "var(--ios-tint)", width: "100%" }}
+        >
+          {isPending ? "Sending…" : "Approve & send invite"}
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -259,9 +371,11 @@ interface Props {
   integrationRequests: IntegrationRequest[];
   pendingUsers: PendingUser[];
   supportTickets: SupportTicket[];
+  accessRequests: AccessRequest[];
+  waitlistAvailable: boolean;
 }
 
-export default function AdminClient({ users: initialUsers, invitations: initialInvites, integrationRequests: initialRequests, pendingUsers: initialPending, supportTickets: initialTickets }: Props) {
+export default function AdminClient({ users: initialUsers, invitations: initialInvites, integrationRequests: initialRequests, pendingUsers: initialPending, supportTickets: initialTickets, accessRequests: initialAccess, waitlistAvailable }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [users, setUsers] = useState(initialUsers);
@@ -269,6 +383,8 @@ export default function AdminClient({ users: initialUsers, invitations: initialI
   const [requests, setRequests] = useState(initialRequests);
   const [pending, setPending] = useState(initialPending);
   const [tickets, setTickets] = useState(initialTickets);
+  const [accessRequests, setAccessRequests] = useState(initialAccess);
+  const [activeRequest, setActiveRequest] = useState<AccessRequest | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"standard" | "admin">("standard");
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -361,6 +477,26 @@ export default function AdminClient({ users: initialUsers, invitations: initialI
     });
   }
 
+  function handleApproveAccess(req: AccessRequest, role: "standard" | "admin", appAccess: AppKey[]) {
+    setActionError(null);
+    startTransition(async () => {
+      const result = await approveAccessRequest(req.id, req.email, role, appAccess);
+      if (result.error) { setActionError(result.error); return; }
+      setAccessRequests((prev) => prev.filter((r) => r.id !== req.id));
+      setActiveRequest(null);
+      router.refresh();
+    });
+  }
+
+  function handleDismissAccess(id: string) {
+    setActionError(null);
+    startTransition(async () => {
+      const result = await dismissAccessRequest(id);
+      if (result.error) { setActionError(result.error); return; }
+      setAccessRequests((prev) => prev.filter((r) => r.id !== id));
+    });
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
 
@@ -369,6 +505,55 @@ export default function AdminClient({ users: initialUsers, invitations: initialI
         <div className="ios-footnote" style={{ background: "var(--ios-fill)", borderRadius: 10, padding: "10px 14px", color: "var(--ios-red)" }}>
           {actionError}
         </div>
+      )}
+
+      {/* Access requests (public waitlist) */}
+      <div>
+        <div className="ios-group-header" style={{ padding: "0 0 10px", color: accessRequests.length ? "var(--ios-tint)" : undefined }}>
+          Access requests{accessRequests.length ? ` · ${accessRequests.length}` : ""}
+        </div>
+        {!waitlistAvailable ? (
+          <div className="ios-footnote" style={{ background: "var(--ios-cell)", borderRadius: "var(--ios-radius-card)", padding: "14px", color: "var(--ios-label-2)", lineHeight: 1.5 }}>
+            Waitlist storage isn&rsquo;t set up yet. New requests from the landing page will appear here once the <code>hub.waitlist</code> table exists.
+          </div>
+        ) : accessRequests.length === 0 ? (
+          <div className="ios-footnote" style={{ background: "var(--ios-cell)", borderRadius: "var(--ios-radius-card)", padding: "14px", color: "var(--ios-label-2)" }}>
+            No pending access requests. Sign-ups from the landing page “Request access” form show up here.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {accessRequests.map((r) => (
+              <div key={r.id} style={{ background: "var(--ios-cell)", boxShadow: "inset 0 0 0 1px var(--ios-tint)", borderRadius: "var(--ios-radius-card)", padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                <Avatar name={r.name || r.email} avatarUrl={null} size={40} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="ios-subhead ios-truncate" style={{ fontWeight: 600, marginBottom: 2 }}>{r.name || "—"}</div>
+                  <div className="ios-footnote ios-truncate" style={{ color: "var(--ios-label-2)" }}>{r.email}</div>
+                  {r.note && <div className="ios-caption ios-truncate" style={{ color: "var(--ios-label-3)", marginTop: 2 }}>{r.note}</div>}
+                  <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 2 }}>Requested {fmtDate(r.createdAt)}</div>
+                </div>
+                <div style={{ display: "flex", gap: 14, flexShrink: 0 }}>
+                  <button disabled={isPending} onClick={() => setActiveRequest(r)}
+                    className="ios-subhead" style={{ color: "var(--ios-green)", fontWeight: 600 }}>
+                    Approve
+                  </button>
+                  <button disabled={isPending} onClick={() => handleDismissAccess(r.id)}
+                    className="ios-subhead" style={{ color: "var(--ios-label-2)", fontWeight: 500 }}>
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {activeRequest && (
+        <AccessRequestModal
+          request={activeRequest}
+          isPending={isPending}
+          onApprove={(role, appAccess) => handleApproveAccess(activeRequest, role, appAccess)}
+          onClose={() => setActiveRequest(null)}
+        />
       )}
 
       {/* Pending approvals */}

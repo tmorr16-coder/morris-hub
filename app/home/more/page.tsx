@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
+import { isCurrentUserAdmin } from "@/lib/supabase/auth-utils";
 import { IOSScreen, LargeTitle, Group, Cell, IconBadge, TabBar, Icons } from "@/components/ios";
 
 export default async function MorePage() {
@@ -13,6 +14,7 @@ export default async function MorePage() {
   const prefs = await getPreferences(user.id);
   const access = prefs.app_access;
   const can = (key: string) => !access?.length || access.includes(key);
+  const isAdmin = await isCurrentUserAdmin();
 
   return (
     <IOSScreen>
@@ -44,6 +46,7 @@ export default async function MorePage() {
       <Group header="Account">
         <Cell lead={<IconBadge color="#8E8E93"><Icons.GearIcon /></IconBadge>} title="Settings" subtitle="Integrations · modules · appearance" href="/settings" />
         <Cell lead={<IconBadge color="#8E8E93"><Icons.PeopleIcon /></IconBadge>} title="Family & sharing" href="/home/settings/family" />
+        {isAdmin && <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.PersonIcon /></IconBadge>} title="Admin" subtitle="Access, approvals & invites" href="/home/admin" />}
       </Group>
 
       <div style={{ height: 12 }} />
