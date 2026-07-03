@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { RateLimitErrorBoundary } from "@/components/RateLimitErrorBoundary";
+import ThemeApplier from "@/components/ThemeApplier";
 import "./globals.css";
 import "./ios.css";
 
@@ -50,6 +51,7 @@ export default function RootLayout({
       className={`${geist.variable} ${jetBrainsMono.variable} ${instrumentSerif.variable}`}
     >
       <body>
+        <ThemeApplier />
         <RateLimitErrorBoundary>{children}</RateLimitErrorBoundary>
       </body>
     </html>

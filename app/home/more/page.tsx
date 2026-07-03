@@ -42,8 +42,8 @@ export default async function MorePage() {
       </Group>
 
       <Group header="Account">
+        <Cell lead={<IconBadge color="#8E8E93"><Icons.GearIcon /></IconBadge>} title="Settings" subtitle="Integrations · modules · appearance" href="/settings" />
         <Cell lead={<IconBadge color="#8E8E93"><Icons.PeopleIcon /></IconBadge>} title="Family & sharing" href="/home/settings/family" />
-        <Cell lead={<IconBadge color="#8E8E93"><Icons.GearIcon /></IconBadge>} title="Settings" href="/home/settings" />
       </Group>
 
       <div style={{ height: 12 }} />
