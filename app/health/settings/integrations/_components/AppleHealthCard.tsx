@@ -172,13 +172,13 @@ export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, 
           <li>Set <b style={{ fontWeight: 600 }}>Export Format: JSON</b>, <b style={{ fontWeight: 600 }}>Export Type: Apple Health</b>.</li>
           <li>Add the webhook URL above as the endpoint.</li>
           <li>Add a request <b style={{ fontWeight: 600 }}>Header</b>: name <code>api-key</code>, value = your export secret{apiKey ? " (shown above)" : ""}. Without it the server returns <b style={{ fontWeight: 600 }}>401</b>.</li>
-          <li>For the first backfill, export a <b style={{ fontWeight: 600 }}>short range (1 day at a time)</b> — a full week of all metrics can exceed the server limit (<b style={{ fontWeight: 600 }}>413</b>). Then set the automation to run hourly; ongoing syncs are small.</li>
+          <li>Turn <b style={{ fontWeight: 600 }}>Batch Requests ON</b> and set <b style={{ fontWeight: 600 }}>Time Grouping</b> to <b style={{ fontWeight: 600 }}>1 hour</b> — otherwise a single day of Apple Watch data can exceed the server limit (<b style={{ fontWeight: 600 }}>413</b>).</li>
           <li>Tap <b style={{ fontWeight: 600 }}>Export Now</b> to sync immediately.</li>
         </ol>
       )}
 
       <p className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "8px 16px 0" }}>
-        Seeing a <b style={{ fontWeight: 600 }}>413 (payload too large)</b>? The export batch is too big — narrow the date range (a day or two) or reduce the number of metrics, then export again. Hourly automations stay well under the limit.
+        Seeing a <b style={{ fontWeight: 600 }}>413 (payload too large)</b>? In Health Auto Export turn <b style={{ fontWeight: 600 }}>Batch Requests ON</b> (splits the export into smaller requests) and set <b style={{ fontWeight: 600 }}>Time Grouping</b> to <b style={{ fontWeight: 600 }}>1 hour</b> or coarser (raw heart-rate samples are what blow past the limit). Keep <b style={{ fontWeight: 600 }}>Summarize Data</b> on and Date Range at Today.
       </p>
     </div>
   );
