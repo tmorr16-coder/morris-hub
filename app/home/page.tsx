@@ -10,7 +10,7 @@ import type { Todo } from "./actions";
 import { Suspense } from "react";
 import { getPreferences } from "@/lib/prefs";
 import { fetchWeather } from "@/lib/weather";
-import { getUserTimezone, startOfTodayInTz } from "@/lib/timezone";
+import { getUserTimezone } from "@/lib/timezone";
 import HomeClient from "./HomeClient";
 import QuickActions from "./_components/QuickActions";
 import TodayMarkets from "./_components/TodayMarkets";
@@ -462,24 +462,39 @@ export default async function HomePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const iosUpcoming = (reminders as any[]).filter((r) => !r.completed_at);
   // Health + Money glance — light lookups (steps today, latest net-worth snapshot)
+  const homeTz = getUserTimezone(user.user_metadata);
+  const homeTodayKey = new Intl.DateTimeFormat("en-CA", { timeZone: homeTz }).format(new Date());
   const [stepsRes, netRes] = await Promise.all([
     service.from("apple_health_metrics")
-      .select("value, source")
+      .select("value, source, timestamp")
       .eq("user_id", user.id)
       .in("metric_name", ["step_count", "steps", "Step Count", "Steps"])
-      .gte("timestamp", startOfTodayInTz(getUserTimezone(user.user_metadata)).toISOString()),
+      .gte("timestamp", new Date(new Date().getTime() - 7 * 86_400_000).toISOString()),
     service.schema("finance").from("net_position_snapshots")
       .select("net_position, captured_at").eq("user_id", user.id)
       .order("captured_at", { ascending: false }).limit(30),
   ]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  // Prefer Apple (Watch) steps today; fall back to Oura's daily total. Never sum
-  // both sources together (double-counting).
+  // Most recent day with step data — Apple (Watch) preferred per day, Oura the
+  // fallback; today if present, else the latest available day (labeled).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stepRows = (stepsRes.data ?? []) as any[];
-  const appleSteps = stepRows.filter((r) => r.source === "apple_health");
-  const stepSrc = appleSteps.length ? appleSteps : stepRows.filter((r) => r.source === "oura");
-  const stepsToday = stepSrc.reduce((s, r) => s + (Number(r.value) || 0), 0);
+  const stepByDay = new Map<string, { apple: number; oura: number; hasApple: boolean; hasOura: boolean }>();
+  for (const r of stepRows) {
+    const day = String(r.timestamp ?? "").slice(0, 10);
+    if (!day) continue;
+    const d = stepByDay.get(day) ?? { apple: 0, oura: 0, hasApple: false, hasOura: false };
+    if (r.source === "oura") { d.oura += Number(r.value) || 0; d.hasOura = true; }
+    else { d.apple += Number(r.value) || 0; d.hasApple = true; }
+    stepByDay.set(day, d);
+  }
+  let stepsToday = 0; let stepsDayKey: string | null = null;
+  for (const day of [...stepByDay.keys()].sort().reverse()) {
+    const d = stepByDay.get(day)!;
+    if (d.hasApple) { stepsToday = d.apple; stepsDayKey = day; break; }
+    if (d.hasOura) { stepsToday = d.oura; stepsDayKey = day; break; }
+  }
+  const stepsIsToday = stepsDayKey === homeTodayKey;
+  const stepsDayShort = stepsDayKey ? new Date(`${stepsDayKey}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "";
   const netSnaps = (netRes.data ?? []) as { net_position?: number }[];
   const netWorth: number | null = netSnaps[0]?.net_position ?? null;
   // % change vs the oldest snapshot in the window. The Today glance shows only
@@ -517,7 +532,7 @@ export default async function HomePage() {
     reminders: iosUpcoming.length > 0
       ? { value: `${iosUpcoming.length} due`, sub: iosUpcoming[0].title as string, badge: iosUpcoming.length, href: "/home/tasks" }
       : { value: "None", sub: "All caught up", href: "/home/tasks" },
-    health: { value: stepsToday > 0 ? Math.round(stepsToday).toLocaleString() : "—", sub: stepsToday > 0 ? "steps today" : "no data today", href: "/health" },
+    health: { value: stepsToday > 0 ? Math.round(stepsToday).toLocaleString() : "—", sub: stepsToday > 0 ? (stepsIsToday ? "steps today" : `steps · ${stepsDayShort}`) : "no data yet", href: "/health" },
     ...(netWorth != null ? { money: { value: moneyValue, sub: "net worth trend", href: "/finance/dashboard" } } : {}),
   };
 

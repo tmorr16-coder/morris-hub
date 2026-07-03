@@ -130,23 +130,24 @@ export default async function DashboardPage() {
       .select("created_at")
       .eq("user_id", userId).eq("source", "withings")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    // Activity — TODAY's totals only. These metrics are summed, so a multi-day
-    // window (e.g. after a backfill) would overcount vs. what the watch shows.
+    // Activity — last 7 days. We show the most RECENT day that has data (today
+    // if present, else the latest available), grouped per day so multi-day data
+    // never overcounts. Apple (Watch) is preferred per day, Oura is the fallback.
     db.from("apple_health_metrics")
-      .select("value, source")
+      .select("value, source, timestamp")
       .eq("user_id", userId)
       .in("metric_name", ["step_count", "steps", "Step Count", "Steps"])
-      .gte("timestamp", todayStart.toISOString()),
+      .gte("timestamp", sevenDaysAgo.toISOString()),
     db.from("apple_health_metrics")
-      .select("value, source")
+      .select("value, source, timestamp")
       .eq("user_id", userId)
       .in("metric_name", ["active_energy", "active_energy_burned", "calories", "Active Energy", "Active Energy Burned"])
-      .gte("timestamp", todayStart.toISOString()),
+      .gte("timestamp", sevenDaysAgo.toISOString()),
     db.from("apple_health_metrics")
-      .select("value, unit")
-      .eq("user_id", userId).eq("source", "apple_health")
+      .select("value, unit, source, timestamp")
+      .eq("user_id", userId)
       .in("metric_name", ["walking_running_distance", "Walking + Running Distance", "Walking Running Distance"])
-      .gte("timestamp", todayStart.toISOString()),
+      .gte("timestamp", sevenDaysAgo.toISOString()),
     // Heart rate — try instantaneous first, fall back to resting
     db.from("apple_health_metrics")
       .select("value, metric_name")
@@ -247,22 +248,40 @@ export default async function DashboardPage() {
     { key: "withings", icon: "⚖️", label: "Withings", ts: (withingsLastRow as SyncRow)?.created_at ?? null },
   ].filter((s) => s.ts !== null) as { key: string; icon: string; label: string; ts: string }[];
 
-  type MetricRow = { value: number; source?: string };
-  // Prefer Apple Health (Watch) when it has today's data; otherwise fall back to
-  // Oura (which delivers a clean daily total). Never sum both — that'd double count.
-  const pickDailyTotal = (rows: MetricRow[] | null): number | null => {
-    const all = rows ?? [];
-    const apple = all.filter((r) => r.source === "apple_health");
-    const src = apple.length ? apple : all.filter((r) => r.source === "oura");
-    return src.length ? Math.round(src.reduce((s, r) => s + r.value, 0)) : null;
+  type ActRow = { value: number; source?: string; timestamp?: string; unit?: string };
+  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(now); // YYYY-MM-DD
+  // Most recent day (UTC-date key) that has data. Within a day, Apple (Watch) is
+  // preferred, then Oura — never summed together. Returns the day's total + which
+  // day it is, so the card can label "Today" vs an earlier date.
+  const latestDay = (rows: ActRow[] | null, toVal: (r: ActRow) => number): { total: number; day: string } | null => {
+    const byDay = new Map<string, { apple: number; oura: number; hasApple: boolean; hasOura: boolean }>();
+    for (const r of rows ?? []) {
+      const day = (r.timestamp ?? "").slice(0, 10);
+      if (!day) continue;
+      const d = byDay.get(day) ?? { apple: 0, oura: 0, hasApple: false, hasOura: false };
+      const v = toVal(r);
+      if (r.source === "oura") { d.oura += v; d.hasOura = true; }
+      else { d.apple += v; d.hasApple = true; }
+      byDay.set(day, d);
+    }
+    for (const day of [...byDay.keys()].sort().reverse()) {
+      const d = byDay.get(day)!;
+      if (d.hasApple) return { total: d.apple, day };
+      if (d.hasOura) return { total: d.oura, day };
+    }
+    return null;
   };
-  const steps: number | null = pickDailyTotal(stepsRows as MetricRow[] | null);
-  const activeEnergyCal: number | null = pickDailyTotal(energyRows as MetricRow[] | null);
-
-  type DistRow = { value: number; unit: string };
-  const distanceMiles: number | null = (distanceRows as DistRow[] | null)?.length
-    ? parseFloat((distanceRows as DistRow[]).reduce((s, r) => s + toMiles(r.value, r.unit), 0).toFixed(2))
-    : null;
+  const dayLabel = (day: string): string => {
+    if (day === todayKey) return "today";
+    const [y, m, d] = day.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  };
+  const stepsDay = latestDay(stepsRows as ActRow[] | null, (r) => r.value);
+  const energyDay = latestDay(energyRows as ActRow[] | null, (r) => r.value);
+  const distanceDay = latestDay(distanceRows as ActRow[] | null, (r) => toMiles(r.value, r.unit ?? "km"));
+  const steps: number | null = stepsDay ? Math.round(stepsDay.total) : null;
+  const activeEnergyCal: number | null = energyDay ? Math.round(energyDay.total) : null;
+  const distanceMiles: number | null = distanceDay ? parseFloat(distanceDay.total.toFixed(2)) : null;
 
   const hrRow = (hrRows as { value: number; metric_name: string }[] | null)?.[0] ?? null;
   const heartRateBpm: number | null = hrRow?.value ?? null;
@@ -382,15 +401,15 @@ export default async function DashboardPage() {
       </div>
 
       <Group header="Today">
-        <Cell chevron={false} lead={<IconBadge color="var(--ios-green)"><Icons.HeartIcon /></IconBadge>} title="Steps" trailing={<span className="ios-num">{steps != null ? steps.toLocaleString() : "—"}</span>} />
+        <Cell chevron={false} lead={<IconBadge color="var(--ios-green)"><Icons.HeartIcon /></IconBadge>} title="Steps" subtitle={stepsDay && stepsDay.day !== todayKey ? `as of ${dayLabel(stepsDay.day)}` : undefined} trailing={<span className="ios-num">{steps != null ? steps.toLocaleString() : "—"}</span>} />
         <Cell
           chevron={false}
           lead={<IconBadge color="#FA114F"><Icons.DumbbellIcon /></IconBadge>}
           title="Move"
-          subtitle={activeEnergyCal != null ? `${Math.round((activeEnergyCal / moveGoal) * 100)}% of ${moveGoal.toLocaleString()} cal goal` : `Goal ${moveGoal.toLocaleString()} cal`}
+          subtitle={activeEnergyCal != null ? `${Math.round((activeEnergyCal / moveGoal) * 100)}% of ${moveGoal.toLocaleString()} cal goal${energyDay && energyDay.day !== todayKey ? ` · as of ${dayLabel(energyDay.day)}` : ""}` : `Goal ${moveGoal.toLocaleString()} cal`}
           trailing={<span className="ios-num" style={{ color: activeEnergyCal != null && activeEnergyCal >= moveGoal ? "var(--ios-green)" : undefined }}>{activeEnergyCal != null ? `${activeEnergyCal.toLocaleString()} cal` : "—"}</span>}
         />
-        <Cell chevron={false} lead={<IconBadge color="var(--ios-tint)"><Icons.TrendUpIcon /></IconBadge>} title="Distance" trailing={<span className="ios-num">{distanceMiles != null ? `${distanceMiles} mi` : "—"}</span>} />
+        <Cell chevron={false} lead={<IconBadge color="var(--ios-tint)"><Icons.TrendUpIcon /></IconBadge>} title="Distance" subtitle={distanceDay && distanceDay.day !== todayKey ? `as of ${dayLabel(distanceDay.day)}` : undefined} trailing={<span className="ios-num">{distanceMiles != null ? `${distanceMiles} mi` : "—"}</span>} />
         <Cell chevron={false} lead={<IconBadge color="#FA114F"><Icons.HeartIcon /></IconBadge>} title={heartRateLabel} trailing={<span className="ios-num">{heartRateBpm != null ? `${heartRateBpm} bpm` : "—"}</span>} />
         <Cell href="/health/nutrition" lead={<IconBadge color="#E8734A"><Icons.ForkKnifeIcon /></IconBadge>} title="Nutrition" subtitle={`${mealCount} ${mealCount === 1 ? "meal" : "meals"} logged`} trailing={<span className="ios-num">{todayCalories} cal</span>} />
       </Group>
