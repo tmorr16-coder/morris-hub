@@ -59,8 +59,11 @@ export default async function FamilyPage() {
       .eq("status", "pending"),
   ]);
 
-  // Enrich with auth user data for display
-  const memberIds = ((circleResult.data ?? []) as { member_user_id: string }[]).map((m) => m.member_user_id);
+  // Enrich with auth user data for display. Filter out null member_user_ids
+  // (managed children have none) — a null in a later .in(circleIds) list breaks
+  // the shared-lists queries, which made them read as empty.
+  const memberIds = ((circleResult.data ?? []) as { member_user_id: string | null }[])
+    .map((m) => m.member_user_id).filter((id): id is string => !!id);
   const inviterIds = ((pendingResult.data ?? []) as { inviter_id: string }[]).map((i) => i.inviter_id);
   const allIds = [...new Set([...memberIds, ...inviterIds])];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
