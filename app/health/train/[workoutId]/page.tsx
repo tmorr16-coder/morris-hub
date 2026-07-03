@@ -1,21 +1,9 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
-import { LargeTitle, Group, Cell, Icons } from "@/components/ios";
-
-function BackToTrain() {
-  return (
-    <Link href="/health/train" className="ios-navbar" style={{ textDecoration: "none" }}>
-      <span className="ios-back">
-        <Icons.ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
-        Train
-      </span>
-    </Link>
-  );
-}
+import { LargeTitle, Group, Cell } from "@/components/ios";
 
 function fmtWorkoutType(raw: string): string {
   return raw.replace(/([a-z])([A-Z])/g, "$1 $2");
@@ -51,7 +39,6 @@ export default async function WorkoutDetailPage({
 
     return (
       <div className="ios-scroll">
-        <BackToTrain />
         <LargeTitle
           title={fmtWorkoutType(workout.workout_type)}
           subtitle={`${fmtDate(dateStr)} · from Apple Health`}
@@ -98,7 +85,6 @@ export default async function WorkoutDetailPage({
 
   return (
     <div className="ios-scroll">
-      <BackToTrain />
       <LargeTitle title={session.type} subtitle={`${fmtDate(session.date)} · logged in-app`} />
 
       <Group header="Summary">

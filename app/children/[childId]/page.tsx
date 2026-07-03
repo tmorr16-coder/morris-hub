@@ -1,9 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { redirect, notFound } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { TabBar, Icons } from "@/components/ios";
+import { TabBar } from "@/components/ios";
 import { getChildWorkspace } from "../_lib/children";
 import ParentVisibilityNotice from "../_components/ParentVisibilityNotice";
 import ElementaryWorkspace from "../_components/ElementaryWorkspace";
@@ -28,13 +27,6 @@ export default async function ChildWorkspacePage({
   return (
     <div data-ui="ios">
       <div className="ios-scroll">
-        <div className="ios-navbar">
-          <Link href="/children" className="ios-back">
-            <Icons.ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
-            {isSelf ? "Children" : "All children"}
-          </Link>
-        </div>
-
         {isSelf && (
           <div style={{ maxWidth: 720, margin: "0 auto", padding: "12px 16px 0" }}>
             <ParentVisibilityNotice childId={childId} />

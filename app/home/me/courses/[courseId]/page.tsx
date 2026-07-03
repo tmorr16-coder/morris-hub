@@ -2,9 +2,8 @@ export const dynamic = "force-dynamic";
 
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { Suspense } from "react";
-import { IOSScreen, LargeTitle, TabBar, Icons } from "@/components/ios";
+import { IOSScreen, LargeTitle, TabBar } from "@/components/ios";
 import CourseDetailClient from "./_components/CourseDetailClient";
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ courseId: string }> }) {
@@ -60,13 +59,6 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
 
   return (
     <IOSScreen>
-      <div className="ios-navbar">
-        <Link href="/home/me/courses" className="ios-back">
-          <Icons.ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
-          Courses
-        </Link>
-      </div>
-
       <LargeTitle title={course.name} subtitle={course.instructor ?? undefined} />
 
       <div style={{ padding: "0 16px" }}>

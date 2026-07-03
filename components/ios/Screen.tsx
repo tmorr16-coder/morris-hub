@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { ComposeIcon, ChevronLeft } from "./icons";
 
 /**
@@ -85,15 +86,18 @@ export function LargeTitle({
         )}
         {trailing}
         {avatarInitial && (
-          <span
-            aria-hidden
+          <Link
+            href="/settings"
+            aria-label="Settings"
+            title="Settings"
             style={{
               width: 32, height: 32, borderRadius: "50%", background: "var(--ios-tint)", color: "#fff",
               display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 600,
+              textDecoration: "none", flexShrink: 0,
             }}
           >
             {avatarInitial}
-          </span>
+          </Link>
         )}
       </div>
     </div>

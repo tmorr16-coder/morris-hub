@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { IOSScreen, LargeTitle, Group, Cell, IconBadge, TabBar, Icons } from "@/components/ios";
 import AdminClient, {
@@ -179,11 +178,7 @@ export default async function AdminPage() {
   }
 
   return (
-    <IOSScreen>
-      <Link href="/home" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-tint)", padding: "6px 16px 0", fontWeight: 500 }} className="ios-subhead">
-        <Icons.ChevronLeft style={{ width: 16, height: 16 }} /> Home
-      </Link>
-      <LargeTitle
+    <IOSScreen>      <LargeTitle
         title="Admin"
         subtitle="Users, per-app access, support tickets & integration requests"
         trailing={<Icons.GearIcon style={{ width: 26, height: 26, color: "var(--ios-label-2)" }} />}

@@ -1,10 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
-import { LargeTitle, Icons } from "@/components/ios";
+import { LargeTitle } from "@/components/ios";
 import PracticeSessionClient from "./_components/PracticeSessionClient";
 
 export default async function CertPracticeSessionPage({
@@ -121,13 +120,6 @@ export default async function CertPracticeSessionPage({
 
   return (
     <div className="ios-scroll">
-      <Link
-        href={`/career/certifications/${certId}`}
-        style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-tint)", padding: "6px 16px 0", fontWeight: 500 }}
-        className="ios-subhead"
-      >
-        <Icons.ChevronLeft style={{ width: 16, height: 16 }} /> {exam.name}
-      </Link>
       <LargeTitle title="Practice Session" />
       <div style={{ padding: "4px 16px 40px" }}>
         <PracticeSessionClient

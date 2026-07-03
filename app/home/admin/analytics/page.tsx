@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { IOSScreen, LargeTitle, Group, Cell, IconBadge, Sparkline, BarRows, TabBar, Icons } from "@/components/ios";
 import {
@@ -189,11 +188,7 @@ export default async function AnalyticsPage() {
   }));
 
   return (
-    <IOSScreen>
-      <Link href="/home/admin" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-tint)", padding: "6px 16px 0", fontWeight: 500 }} className="ios-subhead">
-        <Icons.ChevronLeft style={{ width: 16, height: 16 }} /> Admin
-      </Link>
-      <LargeTitle
+    <IOSScreen>      <LargeTitle
         title="Usage & costs"
         subtitle="Daily activity trends & platform cost breakdown"
         trailing={<Icons.ChartIcon style={{ width: 26, height: 26, color: "var(--ios-label-2)" }} />}

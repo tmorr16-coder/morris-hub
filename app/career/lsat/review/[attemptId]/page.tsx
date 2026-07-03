@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
@@ -44,10 +43,6 @@ export default async function ReviewAttemptPage({
 
   return (
     <div className="ios-scroll">
-      <Link href="/career/lsat/review" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-tint)", padding: "6px 16px 0", fontWeight: 500 }} className="ios-subhead">
-        <Icons.ChevronLeft style={{ width: 16, height: 16 }} /> Review
-      </Link>
-
       <LargeTitle
         title={qt?.category ?? "Review"}
         subtitle={[qt?.section, qt?.subcategory].filter(Boolean).join(" · ") || undefined}

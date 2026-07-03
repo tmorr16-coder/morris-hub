@@ -2,8 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { IOSScreen, LargeTitle, TabBar, Icons } from "@/components/ios";
+import { IOSScreen, LargeTitle, TabBar } from "@/components/ios";
 import { Suspense } from "react";
 import { getPreferences } from "@/lib/prefs";
 import CourseReminderSettingsForm from "./_components/CourseReminderSettingsForm";
@@ -29,13 +28,6 @@ export default async function CourseReminderSettingsPage() {
 
   return (
     <IOSScreen>
-      <div className="ios-navbar">
-        <Link href="/home/me/courses" className="ios-back">
-          <Icons.ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
-          Courses
-        </Link>
-      </div>
-
       <LargeTitle title="Reminder settings" subtitle="SMS reminders for course due dates" />
 
       <div style={{ padding: "0 16px" }}>

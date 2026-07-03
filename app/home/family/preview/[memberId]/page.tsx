@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { IOSScreen, LargeTitle, Group, Cell, IconBadge, TabBar, Icons } from "@/components/ios";
@@ -90,11 +89,7 @@ export default async function PreviewAsMemberPage({
   const totalVisibleItems = reminders.length + todos.length;
 
   return (
-    <IOSScreen>
-      <Link href="/home/family/preview" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-tint)", padding: "6px 16px 0", fontWeight: 500 }} className="ios-subhead">
-        <Icons.ChevronLeft style={{ width: 16, height: 16 }} /> Choose someone else
-      </Link>
-      <LargeTitle title={`What ${memberLabel} sees`} subtitle={`Computed from your data & sharing settings only — nothing from ${memberLabel}'s account was read.`} />
+    <IOSScreen>      <LargeTitle title={`What ${memberLabel} sees`} subtitle={`Computed from your data & sharing settings only — nothing from ${memberLabel}'s account was read.`} />
 
       {totalVisibleItems === 0 ? (
         <Group header="Calendar & responsibilities">

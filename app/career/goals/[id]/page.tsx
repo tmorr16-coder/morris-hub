@@ -1,9 +1,8 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { LargeTitle, Icons } from "@/components/ios";
+import { LargeTitle } from "@/components/ios";
 import GoalDetailClient from "./_components/GoalDetailClient";
 
 interface GoalPageProps {
@@ -92,21 +91,6 @@ export default async function GoalDetailPage({ params }: GoalPageProps) {
 
   return (
     <div className="ios-scroll">
-      <Link
-        href="/career/goals"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          color: "var(--ios-tint)",
-          padding: "6px 16px 0",
-          fontWeight: 500,
-        }}
-        className="ios-subhead"
-      >
-        <Icons.ChevronLeft style={{ width: 16, height: 16 }} /> Goals
-      </Link>
-
       <LargeTitle title={goal.title} subtitle={subtitle} />
 
       {/* Tabs / detail client component */}

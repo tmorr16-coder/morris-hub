@@ -2,8 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { LargeTitle, Icons } from "@/components/ios";
+import { LargeTitle } from "@/components/ios";
 import { quickLogWorkout } from "./actions";
 
 const WORKOUT_TYPES = [
@@ -81,14 +80,6 @@ export default function QuickLogPage() {
 
   return (
     <div className="ios-scroll" style={{ paddingBottom: 100 }}>
-
-      {/* Back link */}
-      <Link href="/health/train" className="ios-navbar" style={{ textDecoration: "none" }}>
-        <span className="ios-back">
-          <Icons.ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
-          Train
-        </span>
-      </Link>
 
       <LargeTitle
         title={isBackdated ? "Log a past workout" : "Log today's workout"}

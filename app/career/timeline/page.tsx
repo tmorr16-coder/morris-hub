@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { LargeTitle, Icons } from "@/components/ios";
+import { LargeTitle } from "@/components/ios";
 import TimelineClient from "./_components/TimelineClient";
 
 export default async function CareerTimelinePage() {
@@ -42,11 +41,7 @@ export default async function CareerTimelinePage() {
   }));
 
   return (
-    <div className="ios-scroll">
-      <Link href="/career" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-tint)", padding: "6px 16px 0", fontWeight: 500 }} className="ios-subhead">
-        <Icons.ChevronLeft style={{ width: 16, height: 16 }} /> Career
-      </Link>
-      <LargeTitle title="Timeline" subtitle="Goals & milestones over time" />
+    <div className="ios-scroll">      <LargeTitle title="Timeline" subtitle="Goals & milestones over time" />
       <TimelineClient goals={goalsWithMilestones} />
     </div>
   );

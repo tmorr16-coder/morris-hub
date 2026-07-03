@@ -1,9 +1,8 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { LargeTitle, Group, Cell, TabBar, Icons } from "@/components/ios";
+import { LargeTitle, Group, Cell, TabBar } from "@/components/ios";
 
 interface Row {
   category: string;
@@ -155,13 +154,6 @@ export default async function PrivacySettingsPage() {
   return (
     <div data-ui="ios">
       <div className="ios-scroll">
-        <div className="ios-navbar">
-          <Link href="/home/settings" className="ios-back">
-            <Icons.ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
-            Settings
-          </Link>
-        </div>
-
         <LargeTitle
           title="Sharing & Privacy"
           subtitle={circleSize > 0

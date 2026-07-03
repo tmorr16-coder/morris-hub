@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { LargeTitle, Icons } from "@/components/ios";
@@ -29,11 +28,7 @@ export default async function CareerSettingsPage({ searchParams }: { searchParam
   const linkedinStatus = params.linkedin;
 
   return (
-    <div className="ios-scroll">
-      <Link href="/career" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-tint)", padding: "6px 16px 0", fontWeight: 500 }} className="ios-subhead">
-        <Icons.ChevronLeft style={{ width: 16, height: 16 }} /> Career
-      </Link>
-      <LargeTitle title="Settings" subtitle="LinkedIn, notifications & privacy" trailing={<Icons.GearIcon style={{ width: 26, height: 26, color: "var(--ios-label-2)" }} />} />
+    <div className="ios-scroll">      <LargeTitle title="Settings" subtitle="LinkedIn, notifications & privacy" trailing={<Icons.GearIcon style={{ width: 26, height: 26, color: "var(--ios-label-2)" }} />} />
       <CareerSettingsClient
         linkedinConnected={!!profile?.linkedin_connected}
         linkedinName={profile?.linkedin_name ?? null}

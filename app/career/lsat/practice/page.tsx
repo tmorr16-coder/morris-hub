@@ -1,9 +1,8 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
-import { LargeTitle, Icons } from "@/components/ios";
+import { LargeTitle } from "@/components/ios";
 import PracticeSetupClient from "./PracticeSetupClient";
 
 export default async function PracticeSetupPage({
@@ -40,11 +39,7 @@ export default async function PracticeSetupPage({
   const rcTypes = (questionTypes ?? []).filter((t: { section: string }) => t.section === "RC");
 
   return (
-    <div className="ios-scroll">
-      <Link href="/career/lsat" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-tint)", padding: "6px 16px 0", fontWeight: 500 }} className="ios-subhead">
-        <Icons.ChevronLeft style={{ width: 16, height: 16 }} /> LSAT
-      </Link>
-      <LargeTitle title="New Session" subtitle="Choose a mode and configure your session." />
+    <div className="ios-scroll">      <LargeTitle title="New Session" subtitle="Choose a mode and configure your session." />
 
       <div style={{ padding: "0 16px" }}>
         <PracticeSetupClient

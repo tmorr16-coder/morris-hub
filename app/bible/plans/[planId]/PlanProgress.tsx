@@ -28,19 +28,6 @@ function CheckMark({ size = 14 }: { size?: number }) {
   );
 }
 
-function BackLink() {
-  return (
-    <Link
-      href="/bible/plans"
-      className="ios-btn ios-btn--plain"
-      style={{ display: "inline-flex", alignItems: "center", gap: 2, padding: "6px var(--ios-gutter)", width: "auto" }}
-    >
-      <Icons.ChevronLeft style={{ width: 20, height: 20 }} aria-hidden />
-      Plans
-    </Link>
-  );
-}
-
 interface Props {
   planId: string;
   plan: any;
@@ -117,7 +104,6 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
   if (isBuiltIn) {
     return (
       <div style={{ paddingTop: 8, paddingBottom: 40 }}>
-        <BackLink />
         <h1 className="ios-large-title" style={{ padding: "8px var(--ios-gutter) 4px" }}>
           {planId.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
         </h1>
@@ -148,8 +134,6 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
 
   return (
     <div style={{ paddingTop: 8, paddingBottom: 40 }}>
-      <BackLink />
-
       <h1 className="ios-large-title" style={{ padding: "8px var(--ios-gutter) 2px" }}>
         {plan.title}
       </h1>

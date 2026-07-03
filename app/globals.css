@@ -137,3 +137,29 @@ html, body {
   .subnav-desktop { display: block; }
   .subnav-mobile  { display: none; }
 }
+
+/* ── Global back button (mounted in root layout, outside the iOS scope) ─────── */
+.global-back-btn {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top, 0px));
+  left: 10px;
+  z-index: 60;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  color: #356fb0;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.18);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+@media (prefers-color-scheme: dark) {
+  .global-back-btn { color: #5e9bd6; background: rgba(44, 44, 46, 0.82); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4); }
+}
+/* Reserve room at the top of the title area so the fixed button never overlaps it. */
+body[data-back="true"] .ios-title-block { padding-top: 42px; }

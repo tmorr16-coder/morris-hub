@@ -2,8 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { IOSScreen, LargeTitle, Chip, TabBar, Icons } from "@/components/ios";
+import { IOSScreen, LargeTitle, Chip, TabBar } from "@/components/ios";
 import SharedCourseClient from "./_components/SharedCourseClient";
 
 export default async function SharedCoursePage({
@@ -88,13 +87,6 @@ export default async function SharedCoursePage({
 
   return (
     <IOSScreen>
-      <div className="ios-navbar">
-        <Link href="/home/me/courses" className="ios-back">
-          <Icons.ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
-          Courses
-        </Link>
-      </div>
-
       <LargeTitle
         title={course.name}
         subtitle={

@@ -1,11 +1,10 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
 import { isCurrentUserAdmin } from "@/lib/supabase/auth-utils";
 import { publicOrigin } from "@/lib/site-url";
-import { LargeTitle, Icons } from "@/components/ios";
+import { LargeTitle } from "@/components/ios";
 import WithingsCard from "./_components/WithingsCard";
 import OuraCard from "./_components/OuraCard";
 import AppleHealthCard from "./_components/AppleHealthCard";
@@ -78,14 +77,6 @@ export default async function IntegrationsPage({
 
   return (
     <div className="ios-scroll">
-
-      {/* Back */}
-      <Link href="/health" className="ios-navbar" style={{ textDecoration: "none" }}>
-        <span className="ios-back">
-          <Icons.ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
-          Health
-        </span>
-      </Link>
 
       <LargeTitle
         title="Data integrations"

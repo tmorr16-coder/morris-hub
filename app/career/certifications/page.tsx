@@ -2,7 +2,6 @@ export const dynamic = "force-dynamic";
 
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -33,15 +32,6 @@ const PRESETS = [
     color_tag: "#C97A3A",
   },
 ];
-
-const backLink: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 4,
-  color: "var(--ios-tint)",
-  padding: "6px 16px 0",
-  fontWeight: 500,
-};
 
 function formatDate(dateStr: string | null): string | null {
   if (!dateStr) return null;
@@ -86,11 +76,7 @@ export default async function CertificationsPage() {
   }
 
   return (
-    <div className="ios-scroll">
-      <Link href="/career" style={backLink} className="ios-subhead">
-        <Icons.ChevronLeft style={{ width: 16, height: 16 }} /> Career
-      </Link>
-      <LargeTitle title="Certifications" subtitle="Study for cloud, AI & professional exams" />
+    <div className="ios-scroll">      <LargeTitle title="Certifications" subtitle="Study for cloud, AI & professional exams" />
 
       {certList.length === 0 ? (
         <>

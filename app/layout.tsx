@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { RateLimitErrorBoundary } from "@/components/RateLimitErrorBoundary";
 import ThemeApplier from "@/components/ThemeApplier";
+import GlobalBackButton from "@/components/GlobalBackButton";
 import "./globals.css";
 import "./ios.css";
 
@@ -52,6 +53,7 @@ export default function RootLayout({
     >
       <body>
         <ThemeApplier />
+        <GlobalBackButton />
         <RateLimitErrorBoundary>{children}</RateLimitErrorBoundary>
       </body>
     </html>

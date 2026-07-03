@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { IOSScreen, LargeTitle, Group, Cell, IconBadge, TabBar, Icons } from "@/components/ios";
@@ -44,11 +43,7 @@ export default async function PreviewPickerPage() {
   }));
 
   return (
-    <IOSScreen>
-      <Link href="/home/family" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-tint)", padding: "6px 16px 0", fontWeight: 500 }} className="ios-subhead">
-        <Icons.ChevronLeft style={{ width: 16, height: 16 }} /> Family
-      </Link>
-      <LargeTitle title="Preview as" subtitle="See exactly what someone in your circle can see about you" />
+    <IOSScreen>      <LargeTitle title="Preview as" subtitle="See exactly what someone in your circle can see about you" />
 
       {members.length === 0 ? (
         <Group header="Your circle" footer="No one in your family circle yet. Add family members to preview what they can see.">

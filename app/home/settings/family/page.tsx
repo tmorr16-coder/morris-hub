@@ -1,9 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { LargeTitle, TabBar, Icons } from "@/components/ios";
+import { LargeTitle, TabBar } from "@/components/ios";
 import FamilyManagementClient from "./_components/FamilyManagementClient";
 
 export default async function FamilySettingsPage() {
@@ -89,13 +88,6 @@ export default async function FamilySettingsPage() {
   return (
     <div data-ui="ios">
       <div className="ios-scroll">
-        <div className="ios-navbar">
-          <Link href="/home/settings" className="ios-back">
-            <Icons.ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
-            Settings
-          </Link>
-        </div>
-
         <LargeTitle title="Family circle" subtitle="Invite members, assign roles, and control shared access" />
 
         <div style={{ padding: "8px 16px 0" }}>

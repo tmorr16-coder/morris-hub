@@ -1,10 +1,9 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/health/auth";
 import type { Database } from "@/lib/health/types/database";
-import { LargeTitle, Group, Cell, Sparkline, Icons } from "@/components/ios";
+import { LargeTitle, Group, Cell, Sparkline } from "@/components/ios";
 import LogDoseButton from "./_components/LogDoseButton";
 
 type DoseRow = Database["public"]["Tables"]["doses"]["Row"];
@@ -65,14 +64,6 @@ export default async function ZepboundPage() {
 
   return (
     <div className="ios-scroll">
-
-      {/* ── Header ──────────────────────────────────────────────────────── */}
-      <Link href="/health/medications" className="ios-navbar" style={{ textDecoration: "none" }}>
-        <span className="ios-back">
-          <Icons.ChevronLeft aria-hidden style={{ width: 20, height: 20 }} />
-          Health
-        </span>
-      </Link>
 
       <LargeTitle
         title={`Week ${doses.length} · ${currentDoseMg} mg`}

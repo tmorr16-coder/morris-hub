@@ -2,7 +2,6 @@ export const dynamic = "force-dynamic";
 
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 import LearningPageClient from "./_components/LearningPageClient";
 
@@ -76,11 +75,7 @@ export default async function TenPercentPage() {
   );
 
   return (
-    <div className="ios-scroll">
-      <Link href="/career" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-tint)", padding: "6px 16px 0", fontWeight: 500 }} className="ios-subhead">
-        <Icons.ChevronLeft style={{ width: 16, height: 16 }} /> Career
-      </Link>
-      <LargeTitle title="10% · Learning" subtitle="Structured learning — courses, certs & books" />
+    <div className="ios-scroll">      <LargeTitle title="10% · Learning" subtitle="Structured learning — courses, certs & books" />
 
       {/* Active certifications */}
       {certExams.length === 0 ? (
