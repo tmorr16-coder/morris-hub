@@ -84,6 +84,9 @@ export default async function TrainPage() {
   }));
 
   // Normalise Apple Health workouts
+  // Dedupe duplicate Apple workout rows (same start + type) — re-exports can
+  // create duplicates since apple_health_workouts has no unique index.
+  const seenAppleWorkout = new Set<string>();
   const appleWorkouts: UnifiedWorkout[] = (
     (appleRows as {
       id: string;
@@ -93,7 +96,12 @@ export default async function TrainPage() {
       distance_m: number | null;
       calories: number | null;
     }[] | null) ?? []
-  ).map((w) => {
+  ).filter((w) => {
+    const k = `${w.timestamp}|${w.workout_type}`;
+    if (seenAppleWorkout.has(k)) return false;
+    seenAppleWorkout.add(k);
+    return true;
+  }).map((w) => {
     const distMi = w.distance_m ? `${(w.distance_m / 1609.344).toFixed(2)} mi` : null;
     const cal = w.calories ? `${Math.round(w.calories)} kcal` : null;
     const meta = [distMi, cal].filter(Boolean).join(" · ") || null;

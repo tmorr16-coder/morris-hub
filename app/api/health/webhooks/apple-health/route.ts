@@ -214,7 +214,31 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Insert workouts ───────────────────────────────────────────────────────
+  // There is no unique index on apple_health_workouts, so we dedupe in code:
+  // fetch the (start, type) keys already stored for the incoming timestamps and
+  // skip anything already present, plus guard against duplicates within a single
+  // payload (Health Auto Export can repeat a workout in the same batch).
+  const seenWorkoutKeys = new Set<string>();
+  if (workouts.length > 0) {
+    const incomingTs = Array.from(new Set(workouts.map((w) => w.start)));
+    const { data: existing } = await db
+      .from("apple_health_workouts")
+      .select("timestamp, workout_type")
+      .eq("user_id", userId)
+      .in("timestamp", incomingTs);
+    for (const r of (existing ?? []) as { timestamp: string; workout_type: string }[]) {
+      seenWorkoutKeys.add(`${r.timestamp}|${r.workout_type}`);
+    }
+  }
+
   for (const workout of workouts) {
+    const key = `${workout.start}|${workout.name}`;
+    if (seenWorkoutKeys.has(key)) {
+      console.log(`[apple-health] Workout duplicate skipped: ${workout.name} @ ${workout.start}`);
+      continue;
+    }
+    seenWorkoutKeys.add(key);
+
     const calories =
       workout.activeEnergyBurned?.qty ??
       workout.activeEnergy?.qty ??
