@@ -15,6 +15,12 @@ const TYPE_LABEL: Record<string, string> = {
   investment: "Investment", brokerage: "Investment", other: "Other",
 };
 
+const Check = ({ color = "currentColor" }: { color?: string }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+);
+
 interface Props {
   accounts: AccountRow[];
   members: PlatformMember[];
@@ -75,66 +81,57 @@ export default function SharingSection({ accounts, members, existingShares, item
 
   if (visibleAccounts.length === 0) {
     return (
-      <div style={{ padding: "24px", textAlign: "center", color: "var(--color-ink-3)", fontSize: 13 }}>
-        No visible accounts to share. Unhide accounts first.
+      <div style={{ padding: "24px 16px", textAlign: "center" }}>
+        <p className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>No visible accounts to share. Unhide accounts first.</p>
       </div>
     );
   }
 
   if (members.length === 0) {
     return (
-      <div style={{ padding: "20px", background: "var(--color-paper-card)", border: "1px solid var(--color-rule)", borderRadius: 10, fontSize: 13, color: "var(--color-ink-3)" }}>
-        No other platform members found. Invite family members via the Hub admin panel.
+      <div style={{ margin: "0 var(--ios-gutter)", padding: "16px 18px", background: "var(--ios-cell)", borderRadius: 12 }}>
+        <p className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>No other platform members found. Invite family members via the Hub admin panel.</p>
       </div>
     );
   }
 
   return (
-    <>
+    <section style={{ margin: "0 var(--ios-gutter)" }}>
       {error && (
-        <div style={{ marginBottom: 14, padding: "10px 14px", background: "rgba(154,59,42,0.08)", border: "1px solid var(--color-red)", borderRadius: 8, fontSize: 13, color: "var(--color-red)" }}>
+        <div className="ios-footnote" style={{ marginBottom: 14, padding: "10px 14px", background: "var(--ios-fill)", borderRadius: 10, color: "var(--ios-red)" }}>
           {error}
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {visibleAccounts.map((account) => {
           const acctShares = sharesByAccount.get(account.id) ?? [];
           const isPicker = pickerAccountId === account.id;
 
           return (
-            <div key={account.id} style={{
-              background: "var(--color-paper-card)",
-              border: "1px solid var(--color-rule)",
-              borderRadius: 12,
-              overflow: "hidden",
-              boxShadow: "var(--shadow-card)",
-            }}>
+            <div key={account.id} style={{ background: "var(--ios-cell)", borderRadius: 12, overflow: "hidden" }}>
               {/* Account row */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 18px", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px", gap: 12 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                    <span style={{ fontSize: 14, fontWeight: 500, color: "var(--color-ink)" }}>{account.name}</span>
+                    <span className="ios-callout" style={{ fontWeight: 500, color: "var(--ios-label)" }}>{account.name}</span>
                     {account.mask && (
-                      <span className="mono" style={{ fontSize: 11, color: "var(--color-ink-4)" }}>····{account.mask}</span>
+                      <span className="ios-num ios-caption" style={{ color: "var(--ios-label-3)" }}>····{account.mask}</span>
                     )}
                   </div>
-                  <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 2, textTransform: "capitalize" }}>
+                  <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 2, textTransform: "capitalize" }}>
                     {itemNameById[account.item_id] ?? ""} · {TYPE_LABEL[account.type] ?? account.type}
-                    <span className="mono" style={{ marginLeft: 8 }}>{fmtMoney(account.current_balance)}</span>
+                    <span className="ios-num" style={{ marginLeft: 8 }}>{fmtMoney(account.current_balance)}</span>
                   </div>
                 </div>
 
                 <button
+                  type="button"
+                  className={`ios-chip ios-chip--sm${isPicker ? " is-selected" : ""}`}
+                  aria-pressed={isPicker}
                   onClick={() => isPicker ? setPickerAccountId(null) : openPicker(account.id)}
                   disabled={isPending}
-                  style={{
-                    padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 500,
-                    border: `1px solid ${isPicker ? "var(--color-bronze)" : "var(--color-rule)"}`,
-                    background: isPicker ? "var(--color-bronze-soft, rgba(139,106,71,0.08))" : "transparent",
-                    color: isPicker ? "var(--color-bronze)" : "var(--color-ink-2)",
-                    cursor: "pointer", flexShrink: 0,
-                  }}
+                  style={{ flexShrink: 0 }}
                 >
                   {isPicker ? "Cancel" : acctShares.length > 0 ? `Shared (${acctShares.length})` : "+ Share"}
                 </button>
@@ -145,17 +142,13 @@ export default function SharingSection({ accounts, members, existingShares, item
                 const available = members.filter((m) => !acctShares.some((s) => s.grantee_user_id === m.id));
                 const selectedMember = members.find((m) => m.id === pickerMemberId);
                 return (
-                  <div style={{
-                    borderTop: "2px solid var(--color-bronze)",
-                    padding: "16px 18px",
-                    background: "var(--color-paper-deep)",
-                  }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink-2)", marginBottom: 12 }}>
-                      Share <strong>{account.name}</strong> with:
+                  <div style={{ borderTop: "2px solid var(--ios-tint)", padding: "14px 16px", background: "var(--ios-fill-2)" }}>
+                    <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginBottom: 12 }}>
+                      Share <strong style={{ color: "var(--ios-label)" }}>{account.name}</strong> with
                     </div>
 
                     {available.length === 0 ? (
-                      <div style={{ fontSize: 12, color: "var(--color-ink-4)", fontStyle: "italic" }}>
+                      <div className="ios-footnote" style={{ color: "var(--ios-label-3)", fontStyle: "italic" }}>
                         All platform members already have access to this account.
                       </div>
                     ) : (
@@ -167,43 +160,41 @@ export default function SharingSection({ accounts, members, existingShares, item
                           return (
                             <button
                               key={m.id}
+                              type="button"
                               onClick={() => setPickerMemberId(isSelected ? "" : m.id)}
                               style={{
                                 display: "flex", alignItems: "center", gap: 12,
-                                padding: "12px 14px", borderRadius: 8, cursor: "pointer",
-                                border: `2px solid ${isSelected ? "var(--color-bronze)" : "var(--color-rule)"}`,
-                                background: isSelected ? "rgba(139,106,71,0.1)" : "var(--color-paper-card)",
-                                textAlign: "left", width: "100%", fontFamily: "inherit",
-                                transition: "border-color 120ms",
+                                padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                                border: "none", width: "100%", textAlign: "left", fontFamily: "inherit",
+                                background: isSelected ? "var(--ios-fill)" : "var(--ios-bg-elevated)",
                               }}
                             >
-                              <div style={{
+                              <span style={{
                                 width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-                                background: isSelected ? "var(--color-bronze)" : "var(--color-paper-deep)",
-                                border: `1px solid ${isSelected ? "var(--color-bronze)" : "var(--color-rule)"}`,
+                                background: isSelected ? "var(--ios-tint)" : "var(--ios-fill)",
                                 display: "flex", alignItems: "center", justifyContent: "center",
-                                fontSize: 14, fontWeight: 700,
-                                color: isSelected ? "#fff" : "var(--color-ink-2)",
+                                fontSize: 15, fontWeight: 600,
+                                color: isSelected ? "var(--ios-on-tint)" : "var(--ios-label)",
                               }}>
                                 {initial}
-                              </div>
+                              </span>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>
+                                <div className="ios-callout" style={{ fontWeight: 500, color: "var(--ios-label)" }}>
                                   {displayName}
                                 </div>
                                 {m.full_name && m.email && (
-                                  <div style={{ fontSize: 11, color: "var(--color-ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  <div className="ios-footnote" style={{ color: "var(--ios-label-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                     {m.email}
                                   </div>
                                 )}
                               </div>
                               {isSelected && (
-                                <div style={{
-                                  width: 22, height: 22, borderRadius: "50%",
-                                  background: "var(--color-bronze)", flexShrink: 0,
-                                  display: "flex", alignItems: "center", justifyContent: "center",
-                                  color: "#fff", fontSize: 13, fontWeight: 700,
-                                }}>✓</div>
+                                <span style={{
+                                  width: 22, height: 22, borderRadius: "50%", background: "var(--ios-tint)",
+                                  flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                                }}>
+                                  <Check color="var(--ios-on-tint)" />
+                                </span>
                               )}
                             </button>
                           );
@@ -213,14 +204,11 @@ export default function SharingSection({ accounts, members, existingShares, item
 
                     {pickerMemberId && (
                       <button
+                        type="button"
+                        className="ios-btn ios-btn--primary"
+                        style={{ marginTop: 14 }}
                         onClick={share}
                         disabled={isPending}
-                        style={{
-                          marginTop: 14, width: "100%", padding: "12px", borderRadius: 8,
-                          border: "none", background: "var(--color-bronze)",
-                          color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
-                          fontFamily: "inherit",
-                        }}
                       >
                         {isPending ? "Sharing…" : `Share with ${selectedMember?.full_name ?? selectedMember?.email ?? "member"}`}
                       </button>
@@ -231,39 +219,36 @@ export default function SharingSection({ accounts, members, existingShares, item
 
               {/* Existing shares for this account */}
               {acctShares.length > 0 && (
-                <div style={{ borderTop: "1px solid var(--color-rule-soft)" }}>
+                <div>
                   {acctShares.map((share) => (
                     <div key={share.id} style={{
                       display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: "9px 18px", gap: 12,
-                      borderTop: "1px solid var(--color-rule-soft)",
+                      padding: "9px 16px", gap: 12,
+                      borderTop: "0.5px solid var(--ios-separator)",
                     }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                         {/* Avatar initial */}
-                        <div style={{
-                          width: 22, height: 22, borderRadius: "50%",
-                          background: "var(--color-bronze-soft, rgba(139,106,71,0.15))",
+                        <span style={{
+                          width: 24, height: 24, borderRadius: "50%", flexShrink: 0,
+                          background: "var(--ios-fill)",
                           display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 10, fontWeight: 700, color: "var(--color-bronze)",
+                          fontSize: 11, fontWeight: 600, color: "var(--ios-tint)",
                         }}>
                           {(share.grantee?.full_name ?? share.grantee?.email ?? "?").slice(0, 1).toUpperCase()}
-                        </div>
-                        <span style={{ fontSize: 12, color: "var(--color-ink-2)" }}>
+                        </span>
+                        <span className="ios-footnote" style={{ color: "var(--ios-label)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {share.grantee?.full_name ?? share.grantee?.email ?? "Family member"}
                         </span>
-                        <span style={{ fontSize: 10, color: "var(--color-ink-4)" }}>
+                        <span className="ios-caption" style={{ color: "var(--ios-label-3)", flexShrink: 0 }}>
                           {share.include_in_portfolio ? "· in their portfolio" : "· not in portfolio"}
                         </span>
                       </div>
                       <button
+                        type="button"
+                        className="ios-btn ios-btn--plain"
+                        style={{ color: "var(--ios-red)", padding: "4px 8px", width: "auto", flexShrink: 0 }}
                         onClick={() => revoke(share.id)}
                         disabled={isPending}
-                        style={{
-                          padding: "4px 10px", borderRadius: 6, fontSize: 11,
-                          border: "1px solid var(--color-rule)",
-                          background: "transparent", color: "var(--color-red)",
-                          cursor: "pointer",
-                        }}
                       >
                         Remove
                       </button>
@@ -275,6 +260,6 @@ export default function SharingSection({ accounts, members, existingShares, item
           );
         })}
       </div>
-    </>
+    </section>
   );
 }

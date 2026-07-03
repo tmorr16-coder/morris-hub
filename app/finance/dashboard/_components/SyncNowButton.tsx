@@ -19,24 +19,36 @@ export default function SyncNowButton() {
 
   return (
     <button
+      type="button"
       onClick={handleClick}
       disabled={pending}
+      className="ios-btn ios-btn--plain"
       style={{
-        padding: "6px 12px",
-        borderRadius: 8,
-        border: "1px solid var(--color-rule)",
-        background: "var(--color-paper-card)",
-        color: "var(--color-ink-2)",
-        fontSize: 12,
-        fontWeight: 500,
-        fontFamily: "inherit",
-        cursor: pending ? "wait" : "pointer",
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
+        cursor: pending ? "wait" : "pointer",
       }}
     >
-      <span style={{ display: "inline-block", transform: pending ? "rotate(360deg)" : "none", transition: "transform 0.6s" }}>↻</span>
+      <svg
+        width={15}
+        height={15}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+        style={{
+          transformOrigin: "center",
+          transform: pending ? "rotate(360deg)" : "none",
+          transition: "transform 0.6s ease",
+        }}
+      >
+        <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+        <path d="M21 3v6h-6" />
+      </svg>
       {pending ? "Syncing…" : msg ?? "Sync now"}
     </button>
   );

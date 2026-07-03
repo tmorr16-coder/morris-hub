@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { Chip, Icons } from "@/components/ios";
 
 interface Message {
   role: "user" | "assistant";
@@ -57,49 +58,29 @@ export default function FinanceChat() {
     send(trimmed);
   }
 
+  const canSend = !!input.trim() && !sending;
+
   return (
     <div
-      style={{
-        background: "var(--color-paper-card)",
-        border: "1px solid var(--color-rule)",
-        borderRadius: 12,
-        padding: "20px 24px",
-        boxShadow: "var(--shadow-card)",
-      }}
+      className="ios-list"
+      style={{ margin: 0, padding: "16px" }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-        <h2 className="serif" style={{ fontSize: 22 }}>
-          Ask <span style={{ fontStyle: "italic", color: "var(--color-bronze-dark)" }}>Claude</span>
-        </h2>
-        <span style={{ fontSize: 11, color: "var(--color-ink-3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-          AI insights
-        </span>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+        <Icons.SparkleIcon style={{ width: 20, height: 20, color: "var(--ios-tint)" }} />
+        <h2 className="ios-headline" style={{ margin: 0 }}>Ask Morris</h2>
       </div>
 
       {messages.length === 0 && (
         <div style={{ marginBottom: 14 }}>
-          <p style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 10 }}>
+          <p className="ios-subhead" style={{ color: "var(--ios-label-2)", marginBottom: 10 }}>
             Ask anything about your spending, accounts, or financial trends. Try one of these:
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {SUGGESTED_PROMPTS.map((p) => (
-              <button
-                key={p}
-                onClick={() => send(p)}
-                disabled={sending}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 18,
-                  border: "1px solid var(--color-rule)",
-                  background: "var(--color-paper)",
-                  color: "var(--color-ink-2)",
-                  fontSize: 12,
-                  fontFamily: "inherit",
-                  cursor: sending ? "wait" : "pointer",
-                }}
-              >
+              <Chip key={p} small onClick={() => !sending && send(p)}>
                 {p}
-              </button>
+              </Chip>
             ))}
           </div>
         </div>
@@ -114,39 +95,21 @@ export default function FinanceChat() {
             marginBottom: 14,
             display: "flex",
             flexDirection: "column",
-            gap: 12,
-            paddingRight: 4,
+            gap: 8,
+            paddingRight: 2,
           }}
         >
           {messages.map((m, i) => (
             <div
               key={i}
-              style={{
-                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-                maxWidth: "85%",
-                padding: "10px 14px",
-                borderRadius: 12,
-                background: m.role === "user" ? "var(--color-bronze)" : "var(--color-paper)",
-                color: m.role === "user" ? "#FBF8F1" : "var(--color-ink)",
-                border: m.role === "assistant" ? "1px solid var(--color-rule)" : "none",
-                fontSize: 13,
-                lineHeight: 1.55,
-                whiteSpace: "pre-wrap",
-              }}
+              className={`ios-bubble ${m.role === "user" ? "ios-bubble--me" : "ios-bubble--ai"}`}
+              style={{ whiteSpace: "pre-wrap" }}
             >
               {m.content}
             </div>
           ))}
           {sending && (
-            <div
-              style={{
-                alignSelf: "flex-start",
-                padding: "10px 14px",
-                fontSize: 13,
-                color: "var(--color-ink-3)",
-                fontStyle: "italic",
-              }}
-            >
+            <div className="ios-bubble ios-bubble--ai" style={{ color: "var(--ios-label-3)" }}>
               Thinking…
             </div>
           )}
@@ -155,21 +118,18 @@ export default function FinanceChat() {
 
       {error && (
         <div
+          className="ios-footnote"
           style={{
-            background: "rgba(154, 59, 42, 0.08)",
-            border: "1px solid rgba(154, 59, 42, 0.3)",
-            borderRadius: 8,
-            padding: "8px 12px",
-            fontSize: 12,
-            color: "var(--color-red)",
-            marginBottom: 10,
+            color: "var(--ios-red)",
+            padding: "8px 0",
+            marginBottom: 8,
           }}
         >
           {error}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", gap: 8 }}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -177,33 +137,27 @@ export default function FinanceChat() {
           placeholder="Ask about your finances…"
           style={{
             flex: 1,
-            padding: "10px 14px",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 10,
-            background: "var(--color-paper)",
-            color: "var(--color-ink)",
-            fontSize: 13,
+            minWidth: 0,
+            padding: "9px 14px",
+            borderRadius: 999,
+            border: "var(--ios-hair) solid var(--ios-separator)",
+            background: "var(--ios-cell)",
+            color: "var(--ios-label)",
+            fontSize: 16,
             fontFamily: "inherit",
             outline: "none",
           }}
         />
         <button
           type="submit"
-          disabled={sending || !input.trim()}
-          style={{
-            padding: "10px 20px",
-            borderRadius: 10,
-            border: "1px solid var(--color-bronze-dark)",
-            background: "var(--color-bronze)",
-            color: "#FBF8F1",
-            fontSize: 13,
-            fontWeight: 500,
-            fontFamily: "inherit",
-            cursor: sending || !input.trim() ? "not-allowed" : "pointer",
-            opacity: sending || !input.trim() ? 0.5 : 1,
-          }}
+          disabled={!canSend}
+          aria-label="Send"
+          className="ios-send"
+          style={{ opacity: canSend ? 1 : 0.4, cursor: canSend ? "pointer" : "not-allowed" }}
         >
-          Ask
+          <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M12 19V5M6 11l6-6 6 6" />
+          </svg>
         </button>
       </form>
     </div>

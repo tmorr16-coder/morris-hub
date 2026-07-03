@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Chip } from "@/components/ios";
 import { saveManualBalance } from "../actions";
 
 export default function QuickEntryForm() {
@@ -76,33 +77,41 @@ export default function QuickEntryForm() {
 
   if (success) {
     return (
-      <div style={{ padding: "16px", background: "rgba(77,107,58,0.08)", border: "1px solid var(--color-green)", borderRadius: 10, fontSize: 13, color: "var(--color-green)" }}>
-        ✓ Account saved. Scroll down to see it.
-      </div>
+      <p className="ios-subhead" style={{ color: "var(--ios-green)", display: "flex", alignItems: "center", gap: 6 }}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ width: 16, height: 16 }}>
+          <path d="M5 12.5 10 17.5 19 6.5" />
+        </svg>
+        Account saved. Scroll down to see it.
+      </p>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div>
-          <label style={labelStyle}>Account name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="e.g. My 401(k) Plan" />
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <div>
+        <label style={labelStyle}>Account name</label>
+        <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} placeholder="e.g. My 401(k) Plan" />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Institution</label>
+        <input value={institution} onChange={(e) => setInstitution(e.target.value)} style={inputStyle} placeholder="e.g. Fidelity, Vanguard, Alight" />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Account type</label>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {TYPES.map((t) => (
+            <Chip key={t.value} small selected={accountType === t.value} onClick={() => setAccountType(t.value)}>
+              {t.label}
+            </Chip>
+          ))}
         </div>
-        <div>
-          <label style={labelStyle}>Institution</label>
-          <input value={institution} onChange={(e) => setInstitution(e.target.value)} style={inputStyle} placeholder="e.g. Fidelity, Vanguard, Alight" />
-        </div>
-        <div>
-          <label style={labelStyle}>Account type</label>
-          <select value={accountType} onChange={(e) => setAccountType(e.target.value)} style={inputStyle}>
-            {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={labelStyle}>As-of date</label>
-          <input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} style={inputStyle} />
-        </div>
+      </div>
+
+      <div>
+        <label style={labelStyle}>As-of date</label>
+        <input type="date" value={asOfDate} onChange={(e) => setAsOfDate(e.target.value)} style={{ ...inputStyle, colorScheme: "light dark" }} />
       </div>
 
       <div>
@@ -111,42 +120,36 @@ export default function QuickEntryForm() {
           value={balance}
           onChange={(e) => setBalance(e.target.value)}
           placeholder="e.g. 54,320.00"
-          style={{ ...inputStyle, fontSize: 20, fontFamily: "var(--font-mono)" }}
+          inputMode="decimal"
+          className="ios-num"
+          style={{ ...inputStyle, fontSize: 22, fontWeight: 600 }}
         />
       </div>
 
       <div>
-        <label style={labelStyle}>
-          Balance history (optional)
-        </label>
-        <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginBottom: 6 }}>
-          Paste monthly balance rows — one per line in <span style={{ fontFamily: "monospace" }}>date  $balance  return%</span> format. Each line is parsed automatically.
+        <label style={labelStyle}>Balance history (optional)</label>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginBottom: 8 }}>
+          Paste monthly balance rows — one per line in <span className="ios-num">date  $balance  return%</span> format. Each line is parsed automatically.
         </div>
         <textarea
           value={historyText}
           onChange={(e) => setHistoryText(e.target.value)}
           placeholder={"05-22-2026  $54,320.00  2.14%\n04-30-2026  $53,200.50  1.89%\n03-31-2026  $52,100.00  -1.22%"}
           rows={6}
-          style={{ ...inputStyle, fontFamily: "var(--font-mono)", fontSize: 12, resize: "vertical" }}
+          className="ios-num"
+          style={{ ...inputStyle, fontSize: 13, lineHeight: 1.6, resize: "vertical" }}
         />
       </div>
 
       {error && (
-        <div style={{ padding: "10px 14px", background: "rgba(154,59,42,0.08)", border: "1px solid var(--color-red)", borderRadius: 8, fontSize: 13, color: "var(--color-red)" }}>
-          {error}
-        </div>
+        <p className="ios-subhead" style={{ color: "var(--ios-red)" }}>{error}</p>
       )}
 
       <button
         onClick={handleSubmit}
         disabled={isPending}
-        style={{
-          padding: "12px", borderRadius: 10, border: "none",
-          background: isPending ? "var(--color-paper-deep)" : "var(--color-bronze)",
-          color: isPending ? "var(--color-ink-3)" : "#fff",
-          fontSize: 14, fontWeight: 600, cursor: isPending ? "default" : "pointer",
-          fontFamily: "inherit",
-        }}
+        className="ios-btn ios-btn--primary"
+        style={{ opacity: isPending ? 0.5 : 1 }}
       >
         {isPending ? "Saving…" : "Save account"}
       </button>
@@ -155,11 +158,11 @@ export default function QuickEntryForm() {
 }
 
 const labelStyle: React.CSSProperties = {
-  display: "block", fontSize: 10, fontWeight: 600, letterSpacing: "0.1em",
-  textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 4,
+  display: "block", fontSize: 13, fontWeight: 600, letterSpacing: "0.04em",
+  textTransform: "uppercase", color: "var(--ios-label-2)", marginBottom: 8,
 };
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", border: "1px solid var(--color-rule)",
-  borderRadius: 8, background: "var(--color-paper)", color: "var(--color-ink)",
-  fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+  width: "100%", padding: "11px 14px", border: "none",
+  borderRadius: 10, background: "var(--ios-fill)", color: "var(--ios-label)",
+  fontSize: 17, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
 };

@@ -10,17 +10,10 @@ export default function SignOutButton() {
 
   return (
     <button
+      type="button"
       onClick={handleSignOut}
-      style={{
-        padding: "6px 14px",
-        borderRadius: 8,
-        border: "1px solid var(--color-rule)",
-        background: "transparent",
-        color: "var(--color-ink-2)",
-        fontSize: 12,
-        fontFamily: "inherit",
-        cursor: "pointer",
-      }}
+      className="ios-btn ios-btn--plain"
+      style={{ color: "var(--ios-red)" }}
     >
       Sign out
     </button>
