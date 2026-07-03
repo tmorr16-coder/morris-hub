@@ -9,6 +9,7 @@ export { Segmented } from "./Segmented";
 export { SeverityBadge, Chip, AskMorrisPill } from "./misc";
 export type { Severity } from "./misc";
 export { TabBar } from "./TabBar";
+export { RadialGauge, Sparkline, BarRows, HeatStrip } from "./charts";
 export { CaptureSheet } from "./CaptureSheet";
 export type { CaptureType, FamilyMember } from "./CaptureSheet";
 export * as Icons from "./icons";

@@ -5,7 +5,7 @@ import { getCurrentUserId, getCurrentUserName } from "@/lib/health/auth";
 import { type CombinedWorkoutRow } from "./_components/ActivityHistoryCard";
 import { type TrendMetric, type TrendPoint } from "./_components/MetricTrendsCard";
 import Link from "next/link";
-import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
+import { LargeTitle, Group, Cell, IconBadge, Icons, RadialGauge, Sparkline } from "@/components/ios";
 
 // latest value + windowed delta for a trend metric
 function trendSummary(m: TrendMetric): { value: string; delta: string; color: string } | null {
@@ -350,13 +350,16 @@ export default async function DashboardPage() {
     <div className="ios-scroll">
       <LargeTitle title="Health" subtitle={`${today} · ${getGreeting()}${firstName ? `, ${firstName}` : ""}`} avatarInitial={(userName || "T")[0]?.toUpperCase()} />
 
-      {/* Scores hero */}
-      <div className="ios-list" style={{ margin: "8px 16px 0", padding: 18, display: "flex", justifyContent: "space-around", textAlign: "center" }}>
-        {SCORES.map((s) => (
-          <div key={s.label}>
-            <div className="ios-num" style={{ fontSize: 30, fontWeight: 700, color: s.color }}>{s.value}</div>
-            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>{s.label}</div>
-          </div>
+      {/* Scores hero — radial gauges */}
+      <div className="ios-list" style={{ margin: "8px 16px 0", padding: "18px 8px", display: "flex", justifyContent: "space-around" }}>
+        {SCORES.map((s, i) => (
+          <RadialGauge
+            key={s.label}
+            value={s.value / 100}
+            color={["#34C759", "#356FB0", "#5E5CE6"][i]}
+            label={s.label}
+            center={<span className="ios-num" style={{ fontSize: 22, fontWeight: 700 }}>{s.value}</span>}
+          />
         ))}
       </div>
 
@@ -371,15 +374,16 @@ export default async function DashboardPage() {
       <Group header="Trends" footer="Last 14 days.">
         {trendMetrics.map((m) => {
           const t = trendSummary(m);
+          const vals = m.points.map((p) => p.value);
           return (
-            <Cell
-              key={m.key}
-              chevron={false}
-              lead={<IconBadge color="var(--ios-tint)"><Icons.ChartIcon /></IconBadge>}
-              title={m.label}
-              subtitle={t ? <span style={{ color: t.color }}>{t.delta}</span> : "No data yet"}
-              trailing={t ? <span className="ios-num">{t.value}</span> : undefined}
-            />
+            <div key={m.key} className="ios-cell">
+              <span className="ios-cell-body">
+                <span className="ios-cell-title">{m.label}</span>
+                <span className="ios-cell-sub" style={{ color: t ? t.color : "var(--ios-label-2)" }}>{t ? t.delta : "No data yet"}</span>
+              </span>
+              {vals.length >= 2 && <Sparkline points={vals} color="var(--ios-tint)" width={92} height={32} />}
+              <span className="ios-num" style={{ width: 66, textAlign: "right", fontWeight: 600 }}>{t ? t.value : "—"}</span>
+            </div>
           );
         })}
       </Group>
