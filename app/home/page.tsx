@@ -7,7 +7,12 @@ import { getAllUpcomingReminders, getAssignedReminders } from "@/lib/reminders";
 import { findConflicts, type TimelineItem } from "./_components/timelineConflicts";
 import { getFamilyCalendarEvents } from "@/lib/familyCalendar";
 import type { Todo } from "./actions";
+import { Suspense } from "react";
+import { getPreferences } from "@/lib/prefs";
 import HomeClient from "./HomeClient";
+import QuickActions from "./_components/QuickActions";
+import TodayMarkets from "./_components/TodayMarkets";
+import TodayNews from "./_components/TodayNews";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -465,6 +470,8 @@ export default async function HomePage() {
     ...(netWorth != null ? { money: { value: fmtNetShort(netWorth), sub: "net worth", href: "/finance/dashboard" } } : {}),
   };
 
+  const homePrefs = await getPreferences(user.id).catch(() => null);
+
   return (
     <HomeClient
       firstName={firstName}
@@ -477,6 +484,13 @@ export default async function HomePage() {
       family={iosFamily}
       members={circleMembers.map((m) => ({ id: m.id, label: m.label }))}
       currentUserId={user.id}
+      quickActions={<QuickActions />}
+      slot={
+        <>
+          <Suspense fallback={null}><TodayMarkets ticker={homePrefs?.employer_ticker ?? "LLY"} /></Suspense>
+          <Suspense fallback={null}><TodayNews sources={homePrefs?.news_sources ?? []} /></Suspense>
+        </>
+      }
     />
   );
 

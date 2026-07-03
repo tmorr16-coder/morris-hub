@@ -33,6 +33,10 @@ export interface TodayHubProps {
   onOpenAsk?: () => void;
   /** Called with the todo id and its NEW completed state. */
   onToggleTodo?: (id: string, completed: boolean) => void;
+  /** Quick-actions row rendered under the glance grid. */
+  quickActions?: React.ReactNode;
+  /** Streamed server sections (markets, news) rendered under Ask Morris. */
+  slot?: React.ReactNode;
 }
 
 // category → SF-symbol-style icon + accent color
@@ -62,7 +66,7 @@ const GLANCE_ORDER: GlanceKey[] = ["calendar", "reminders", "health", "money"];
 
 export default function TodayHubIOS({
   firstName, dateLabel, greeting, glance, attention, timeline, priorities, family,
-  onOpenMoney, onOpenAsk, onToggleTodo,
+  onOpenMoney, onOpenAsk, onToggleTodo, quickActions, slot,
 }: TodayHubProps) {
   const [mode, setMode] = useState<"family" | "personal">("family");
   const glanceKeys = GLANCE_ORDER.filter((k) => glance[k]);
@@ -100,7 +104,11 @@ export default function TodayHubIOS({
         </GlanceGrid>
       )}
 
+      {quickActions}
+
       <AskMorrisPill onClick={onOpenAsk} />
+
+      {slot}
 
       {attention.length > 0 && (
         <Group header="Needs attention" id="needs-attention">
