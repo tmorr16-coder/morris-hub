@@ -335,7 +335,7 @@ export default async function HomePage() {
       title: t.title,
       context: `Overdue task · was due ${fmtDueDate(t.due_date!)}`,
       who: "You",
-      primaryAction: { label: "Open task", href: "/home" },
+      primaryAction: { label: "Open task", href: "/home/tasks" },
     })),
     // Bills due today → Today
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -355,7 +355,7 @@ export default async function HomePage() {
       title: r.title,
       context: `${CATEGORY_CONTEXT[r.category] ?? "Reminder"} · was due ${fmtDueDate(new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz }))}`,
       who: "You",
-      primaryAction: { label: "View", href: MODULE_ACTION_HREF[r.source_app as string] ?? "/home" },
+      primaryAction: { label: "View", href: MODULE_ACTION_HREF[r.source_app as string] ?? "/home/tasks" },
     })),
     // High-priority todos → Today or This week
     ...urgentTodos.slice(0, 1).map((t) => ({
@@ -364,7 +364,7 @@ export default async function HomePage() {
       title: t.title,
       context: `High priority${t.due_date ? ` · due ${fmtDueDate(t.due_date)}` : ""}`,
       who: "You",
-      primaryAction: { label: "Open task", href: "/home" },
+      primaryAction: { label: "Open task", href: "/home/tasks" },
     })),
   ].sort((a, b) => {
     const ord: Record<string, number> = { Urgent: 0, Today: 1, "This week": 2, Informational: 3 };
@@ -476,8 +476,8 @@ export default async function HomePage() {
   const iosGlance = {
     calendar: { value: iosCalLabel, sub: iosNext ? iosNext.timeLabel : "No events today", href: "/home/family/calendar" },
     reminders: iosUpcoming.length > 0
-      ? { value: `${iosUpcoming.length} due`, sub: iosUpcoming[0].title as string, badge: iosUpcoming.length, href: "/home" }
-      : { value: "None", sub: "All caught up", href: "/home" },
+      ? { value: `${iosUpcoming.length} due`, sub: iosUpcoming[0].title as string, badge: iosUpcoming.length, href: "/home/tasks" }
+      : { value: "None", sub: "All caught up", href: "/home/tasks" },
     health: { value: stepsToday > 0 ? Math.round(stepsToday).toLocaleString() : "—", sub: stepsToday > 0 ? "steps today" : "no data today", href: "/health" },
     ...(netWorth != null ? { money: { value: fmtMoney(netWorth), sub: moneySub, href: "/finance/dashboard" } } : {}),
   };

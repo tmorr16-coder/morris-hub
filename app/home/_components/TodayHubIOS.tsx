@@ -153,14 +153,14 @@ export default function TodayHubIOS({
       )}
 
       {mode === "personal" && priorities.length > 0 && (
-        <Group header="My priorities" id="priorities">
+        <Group header="My priorities" footer="Tap a task to edit or delete it.">
           {priorities.map((p) => (
             <Cell
               key={p.id}
+              href="/home/tasks"
               lead={<TodoCircle checked={p.done} onClick={onToggleTodo ? () => onToggleTodo(p.id, !p.done) : undefined} />}
               title={p.done ? <s style={{ color: "var(--ios-label-2)" }}>{p.title}</s> : p.title}
               subtitle={p.flag ? <span style={{ color: "var(--ios-red)" }}>{p.flag}</span> : undefined}
-              chevron={false}
             />
           ))}
         </Group>
@@ -199,6 +199,15 @@ function TodoCircle({ checked, onClick }: { checked?: boolean; onClick?: () => v
       {checked && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5L19 7" /></svg>}
     </span>
   );
-  if (onClick) return <button type="button" onClick={onClick} aria-label={checked ? "Mark incomplete" : "Mark complete"} style={{ display: "flex" }}>{dot}</button>;
+  if (onClick) return (
+    <button
+      type="button"
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick(); }}
+      aria-label={checked ? "Mark incomplete" : "Mark complete"}
+      style={{ display: "flex" }}
+    >
+      {dot}
+    </button>
+  );
   return dot;
 }

@@ -38,6 +38,7 @@ export default async function MorePage() {
       </Group>
 
       <Group header="You">
+        <Cell lead={<IconBadge color="var(--ios-orange)"><Icons.ChecklistIcon /></IconBadge>} title="Tasks & reminders" subtitle="To-dos, bills, appointments" href="/home/tasks" />
         <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.PersonIcon /></IconBadge>} title="Me" subtitle="Your profile & progress" href="/home/me" />
         <Cell lead={<IconBadge color="#5E5CE6"><Icons.ComposeIcon /></IconBadge>} title="Journal" href="/home/journal" />
         <Cell lead={<IconBadge color="#E8607A"><Icons.PeopleIcon /></IconBadge>} title="Children" href="/children" />
