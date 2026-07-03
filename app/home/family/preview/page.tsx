@@ -14,14 +14,15 @@ export default async function PreviewPickerPage() {
   const service = createServiceClient() as any;
 
   const { data: circleData } = await service.schema("hub").from("family_members")
-    .select("member_user_id, display_name, nickname")
+    .select("id, member_user_id, display_name, nickname")
     .eq("user_id", user.id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const circleRows = (circleData ?? []) as any[];
 
-  const memberIds = circleRows.map((m) => m.member_user_id as string);
+  // Resolve names for account-holding members (managed children have no auth id).
+  const authIds = circleRows.map((m) => m.member_user_id).filter(Boolean) as string[];
   const userMap = new Map<string, { full_name: string | null; email: string | null }>();
-  if (memberIds.length > 0) {
+  if (authIds.length > 0) {
     const { data: users } = await service.auth.admin.listUsers({ perPage: 200 });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const u of (users?.users ?? []) as any[]) {
@@ -32,8 +33,9 @@ export default async function PreviewPickerPage() {
     }
   }
 
+  // Key on the family_members primary key — always present, unlike member_user_id.
   const members = circleRows.map((m) => ({
-    id: m.member_user_id as string,
+    id: m.id as string,
     label: (m.display_name
       ?? m.nickname
       ?? userMap.get(m.member_user_id)?.full_name

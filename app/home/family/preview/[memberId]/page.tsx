@@ -18,14 +18,20 @@ export default async function PreviewAsMemberPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
 
+  // Look up by the family_members primary key — works for both account-holding
+  // members and managed (no-login) children, whose member_user_id is null.
   const { data: memberRow } = await service.schema("hub").from("family_members")
-    .select("member_user_id, display_name, nickname")
-    .eq("user_id", user.id).eq("member_user_id", memberId).maybeSingle();
+    .select("id, member_user_id, display_name, nickname")
+    .eq("user_id", user.id).eq("id", memberId).maybeSingle();
   if (!memberRow) notFound();
 
+  // Assignment/sharing targets reference auth.users, so they only apply to
+  // account-holding members. For a managed child (no auth id) these are empty.
+  const authTarget: string | null = memberRow.member_user_id ?? null;
+
   let memberLabel: string = memberRow.display_name ?? memberRow.nickname ?? "This person";
-  if (!memberRow.display_name && !memberRow.nickname) {
-    const { data: authUser } = await service.auth.admin.getUserById(memberId);
+  if (!memberRow.display_name && !memberRow.nickname && authTarget) {
+    const { data: authUser } = await service.auth.admin.getUserById(authTarget);
     memberLabel = authUser?.user?.user_metadata?.full_name
       ?? authUser?.user?.user_metadata?.name
       ?? authUser?.user?.email
@@ -41,23 +47,29 @@ export default async function PreviewAsMemberPage({
     service.schema("hub").from("reminders")
       .select("id, title, due_at, category")
       .eq("user_id", user.id).eq("is_household", true).is("completed_at", null),
-    // Reminders I've specifically assigned to this member
-    service.schema("hub").from("reminders")
-      .select("id, title, due_at, category")
-      .eq("user_id", user.id).eq("assigned_to", memberId).is("completed_at", null),
+    // Reminders I've specifically assigned to this member (account-holders only)
+    authTarget
+      ? service.schema("hub").from("reminders")
+          .select("id, title, due_at, category")
+          .eq("user_id", user.id).eq("assigned_to", authTarget).is("completed_at", null)
+      : Promise.resolve({ data: [] }),
     service.schema("hub").from("todos")
       .select("id, title, due_date")
       .eq("user_id", user.id).eq("is_household", true).eq("completed", false),
-    service.schema("hub").from("todos")
-      .select("id, title, due_date")
-      .eq("user_id", user.id).eq("assigned_to", memberId).eq("completed", false),
-    service.schema("finance").from("manual_account_shares")
-      .select("id, account:manual_accounts(name)")
-      .eq("owner_user_id", user.id).eq("recipient_user_id", memberId).eq("accepted", true),
-    myFamilyPlanIdList.length > 0
+    authTarget
+      ? service.schema("hub").from("todos")
+          .select("id, title, due_date")
+          .eq("user_id", user.id).eq("assigned_to", authTarget).eq("completed", false)
+      : Promise.resolve({ data: [] }),
+    authTarget
+      ? service.schema("finance").from("manual_account_shares")
+          .select("id, account:manual_accounts(name)")
+          .eq("owner_user_id", user.id).eq("recipient_user_id", authTarget).eq("accepted", true)
+      : Promise.resolve({ data: [] }),
+    authTarget && myFamilyPlanIdList.length > 0
       ? service.schema("bible").from("family_plan_members")
           .select("family_plan:family_plans(name, plan:reading_plans(title))")
-          .eq("user_id", memberId)
+          .eq("user_id", authTarget)
           .in("family_plan_id", myFamilyPlanIdList)
       : Promise.resolve({ data: [] }),
   ]);
