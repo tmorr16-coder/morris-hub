@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getFamilyCalendarEvents, getWeekRange } from "@/lib/familyCalendar";
-import { LargeTitle, Group, Cell, IconBadge, TabBar, Icons } from "@/components/ios";
+import { LargeTitle, Group, Cell, IconBadge, TabBar, WeekStrip, Icons } from "@/components/ios";
 
 const userTz = "America/Indiana/Indianapolis";
 
@@ -161,6 +161,17 @@ export default async function FamilyPage() {
   }
   const weekDays = [...eventsByDate.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(0, 7);
 
+  // 7-day week strip with per-day event dots
+  const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const weekStripDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(`${weekStart}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + i);
+    const dateKey = d.toISOString().slice(0, 10);
+    const evs = eventsByDate.get(dateKey) ?? [];
+    const dots = [...new Set(evs.map((e) => evStyle(e.category ?? e.module ?? "general").color))].slice(0, 3);
+    return { label: WD[d.getUTCDay()], date: d.getUTCDate(), selected: dateKey === todayStr, dots };
+  });
+
   const memberName = (m: (typeof familyMembers)[number]): string =>
     m.display_name ?? m.full_name ?? m.email ?? "Member";
   const uncheckedShopping = shoppingItems.filter((s: { checked?: boolean }) => !s.checked).length;
@@ -172,6 +183,10 @@ export default async function FamilyPage() {
     <div data-ui="ios">
       <div className="ios-scroll">
         <LargeTitle title="Family" subtitle="Your circle · this week" avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()} />
+
+        <div className="ios-list" style={{ margin: "8px 16px 0" }}>
+          <WeekStrip days={weekStripDays} />
+        </div>
 
         {pendingInvites.length > 0 && (
           <Group header="Invitations">

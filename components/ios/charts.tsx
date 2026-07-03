@@ -103,6 +103,39 @@ export function BarRows({
   );
 }
 
+/** Week calendar strip: 7 days with a selected marker and per-day event dots. */
+export function WeekStrip({
+  days,
+}: {
+  days: { label: string; date: number; selected?: boolean; dots?: string[] }[];
+}) {
+  return (
+    <div style={{ display: "flex", gap: 4, padding: "14px 8px", overflowX: "auto", scrollbarWidth: "none" }}>
+      {days.map((d, i) => (
+        <div key={i} style={{ flex: "1 0 40px", display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+          <span className="ios-caption" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.03em" }}>{d.label}</span>
+          <span
+            className="ios-num"
+            style={{
+              width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 15, fontWeight: 600,
+              background: d.selected ? "var(--ios-tint)" : "transparent",
+              color: d.selected ? "#fff" : "var(--ios-label)",
+            }}
+          >
+            {d.date}
+          </span>
+          <span style={{ display: "flex", gap: 2, height: 5 }}>
+            {(d.dots ?? []).slice(0, 3).map((c, j) => (
+              <span key={j} style={{ width: 5, height: 5, borderRadius: "50%", background: c }} />
+            ))}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** GitHub-style day heatmap (single hue by intensity). `days` newest-last. */
 export function HeatStrip({
   days,
