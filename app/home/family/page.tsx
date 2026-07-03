@@ -245,10 +245,10 @@ export default async function FamilyPage() {
         </Group>
 
         <Group header="Shared">
-          <Cell lead={<IconBadge color="#34A56F"><Icons.CartIcon /></IconBadge>} title="Shopping list" subtitle={shoppingItems.length ? `${uncheckedShopping} of ${shoppingItems.length} to buy` : "Empty"} trailing={shoppingItems.length ? String(uncheckedShopping) : undefined} href="/home/family" />
-          <Cell lead={<IconBadge color="#E8734A"><Icons.ForkKnifeIcon /></IconBadge>} title="Meal plan" subtitle={nextMeal ? `Next · ${nextMeal.name}` : "Nothing planned"} href="/home/family" />
-          <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.ChecklistIcon /></IconBadge>} title="Household tasks" subtitle={householdReminders.length ? "due soon" : "All clear"} trailing={householdReminders.length ? String(householdReminders.length) : undefined} href="/home/family" />
-          <Cell lead={<IconBadge color="#8E8E93"><Icons.HomeIcon /></IconBadge>} title="Household goals" subtitle={householdGoals.length ? "active" : "None yet"} trailing={activeGoalsCount ? String(activeGoalsCount) : undefined} href="/home/family" />
+          <Cell lead={<IconBadge color="#34A56F"><Icons.CartIcon /></IconBadge>} title="Shopping list" subtitle={shoppingItems.length ? `${uncheckedShopping} of ${shoppingItems.length} to buy` : "Empty"} trailing={shoppingItems.length ? String(uncheckedShopping) : undefined} href="/home/family/shopping" />
+          <Cell lead={<IconBadge color="#E8734A"><Icons.ForkKnifeIcon /></IconBadge>} title="Meal plan" subtitle={nextMeal ? `Next · ${nextMeal.name}` : "Nothing planned"} href="/home/family/meals" />
+          <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.ChecklistIcon /></IconBadge>} title="Household tasks" subtitle={householdReminders.length ? "due soon" : "All clear"} trailing={householdReminders.length ? String(householdReminders.length) : undefined} href="/home/tasks" />
+          <Cell lead={<IconBadge color="#8E8E93"><Icons.HomeIcon /></IconBadge>} title="Household goals" subtitle={householdGoals.length ? "active" : "None yet"} trailing={activeGoalsCount ? String(activeGoalsCount) : undefined} href="/home/family/goals" />
         </Group>
 
         {childMembers.length > 0 && (
