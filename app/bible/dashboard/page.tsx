@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { BIBLE_BOOKS } from "@/lib/bible-api";
-import { LargeTitle, Group, Cell, IconBadge, AskMorrisPill, Icons } from "@/components/ios";
+import { LargeTitle, Group, Cell, IconBadge, AskMorrisPill, HeatStrip, Icons } from "@/components/ios";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -22,6 +22,12 @@ export default async function DashboardPage() {
   const userPlans = (plansRes.data ?? []) as any[];
   const streak = computeStreak(completionsRes.data ?? []);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const completedDays = new Set(((completionsRes.data ?? []) as any[]).map((c) => c.completed_at.slice(0, 10)));
+  const heatBase = new Date().getTime();
+  const heatDays = Array.from({ length: 70 }, (_, i) => ({
+    level: completedDays.has(new Date(heatBase - (69 - i) * 86_400_000).toISOString().slice(0, 10)) ? 1 : 0,
+  }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recentNotes = (notesRes.data ?? []) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const challenges = (challengesRes.data ?? []) as any[];
@@ -34,13 +40,16 @@ export default async function DashboardPage() {
     <div className="ios-scroll">
       <LargeTitle title="Bible" subtitle={`Good ${getTimeOfDay()}, ${firstName} · ${dateLabel}`} avatarInitial={firstName[0]?.toUpperCase()} />
 
-      {/* Streak hero */}
-      <div className="ios-list" style={{ margin: "8px 16px 0", padding: 18, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Reading streak</div>
-          <div className="ios-num" style={{ fontSize: 34, fontWeight: 700, lineHeight: 1.05, marginTop: 2, color: "var(--ios-orange)" }}>{streak} {streak === 1 ? "day" : "days"}</div>
+      {/* Streak hero — number + 10-week heatmap */}
+      <div className="ios-list" style={{ margin: "8px 16px 0", padding: "16px 0 8px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px" }}>
+          <div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Reading streak</div>
+            <div className="ios-num" style={{ fontSize: 34, fontWeight: 700, lineHeight: 1.05, marginTop: 2, color: "var(--ios-orange)" }}>{streak} {streak === 1 ? "day" : "days"}</div>
+          </div>
+          <Icons.SparkleIcon aria-hidden style={{ width: 30, height: 30, color: "var(--ios-orange)" }} />
         </div>
-        <Icons.SparkleIcon aria-hidden style={{ width: 30, height: 30, color: "var(--ios-orange)" }} />
+        <HeatStrip days={heatDays} color="var(--ios-orange)" weeks={10} />
       </div>
 
       <Group header="Start reading">

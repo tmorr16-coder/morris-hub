@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { LargeTitle, Group, Cell, IconBadge, GlanceGrid, GlanceTile, AskMorrisPill, Icons } from "@/components/ios";
+import { LargeTitle, Group, Cell, IconBadge, GlanceGrid, GlanceTile, AskMorrisPill, BarRows, Icons } from "@/components/ios";
 
 interface Goal {
   id: string; title: string; category: string | null; horizon: string;
@@ -59,6 +59,19 @@ export default async function CareerPage() {
         <GlanceTile label="Learning" value={learningInProgress} sub="in progress" href="/career/10" accent="var(--ios-orange)" />
       </GlanceGrid>
 
+      {/* 70 · 20 · 10 balance — dashboard hero */}
+      <div className="ios-list" style={{ margin: "14px 16px 0", padding: "4px 0 6px" }}>
+        <div className="ios-group-header" style={{ padding: "12px 16px 0" }}>70 · 20 · 10 balance</div>
+        <BarRows
+          items={[
+            { label: "On-the-job", value: expCount90, display: `${expCount90} exp`, color: "#2E7D46" },
+            { label: "Relationships", value: relationships.length, display: `${relationships.length}`, color: "#B5539C" },
+            { label: "Learning", value: learning.length, display: `${learning.length}`, color: "#E08600" },
+          ]}
+        />
+        <div className="ios-footnote" style={{ padding: "0 16px", color: "var(--ios-label-2)" }}>Experience, relationships &amp; learning · last 90 days</div>
+      </div>
+
       <AskMorrisPill placeholder="Ask your career advisor…" href="/career/advisor" />
 
       {HORIZONS.map((h) => {
@@ -86,11 +99,6 @@ export default async function CareerPage() {
         </Group>
       )}
 
-      <Group header="70 · 20 · 10 balance" footer="On-the-job experience, relationships, and learning over 90 days.">
-        <Cell lead={<IconBadge color="var(--ios-green)"><Icons.BriefcaseIcon /></IconBadge>} title="On-the-job" subtitle="70% — experiences" trailing={<span className="ios-num">{expCount90}</span>} chevron={false} />
-        <Cell lead={<IconBadge color="#B565A7"><Icons.PeopleIcon /></IconBadge>} title="Relationships" subtitle="20% — mentors & network" trailing={<span className="ios-num">{relationships.length}</span>} chevron={false} />
-        <Cell lead={<IconBadge color="var(--ios-orange)"><Icons.BookIcon /></IconBadge>} title="Learning" subtitle="10% — courses & study" trailing={<span className="ios-num">{learning.length}</span>} chevron={false} />
-      </Group>
 
       <Group header="Grow">
         <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.SparkleIcon /></IconBadge>} title="Advisor" subtitle="AI coaching on your resume & goals" href="/career/advisor" />

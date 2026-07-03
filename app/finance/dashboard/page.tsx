@@ -3,7 +3,7 @@ export const revalidate = 1800; // cache for 30 minutes
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireFinanceAccess } from "@/lib/finance/access";
 import type { SharedWithMe } from "./settings/share-actions";
-import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
+import { LargeTitle, Group, Cell, IconBadge, Sparkline, Icons } from "@/components/ios";
 
 /* This dashboard reads many finance-schema tables through the service-role
    client, which is untyped — `as any` casts are used throughout the data layer. */
@@ -296,16 +296,22 @@ export default async function DashboardPage() {
   // ── Net position delta via snapshots ──────────────────────────────────────
   // Read previous snapshot, then store today's so next load shows the delta.
   let netDelta: number | null = null;
+  let netSeries: number[] = [];
   try {
-    const { data: prevSnap } = await (service as any)
+    // Last 30 daily snapshots (oldest→newest) for the trend line + the delta.
+    const { data: snaps } = await (service as any)
       .schema("finance").from("net_position_snapshots")
       .select("net_position, captured_at")
       .eq("user_id", user.id)
       .order("captured_at", { ascending: false })
-      .limit(1).maybeSingle();
+      .limit(30);
 
-    if (prevSnap?.net_position != null) {
-      netDelta = netPosition - Number(prevSnap.net_position);
+    const ordered = ((snaps ?? []) as { net_position: number | string }[]).slice().reverse();
+    if (ordered.length > 0) {
+      const prev = ordered[ordered.length - 1];
+      if (prev?.net_position != null) netDelta = netPosition - Number(prev.net_position);
+      // Series ends with today's live net position
+      netSeries = [...ordered.map((s) => Number(s.net_position)), netPosition];
     }
 
     // Store today's snapshot (upsert on user_id + date to avoid spam)
@@ -313,7 +319,7 @@ export default async function DashboardPage() {
     await (service as any).schema("finance").from("net_position_snapshots")
       .upsert({ user_id: user.id, net_position: netPosition, date: today_date, captured_at: new Date().toISOString() },
         { onConflict: "user_id,date" });
-  } catch { /* table not yet created — skip delta */ }
+  } catch { /* table not yet created — skip trend */ }
 
   const lastSyncAcrossItems = items.reduce<string | null>((latest, it) => {
     if (!it.last_synced_at) return latest;
@@ -355,6 +361,11 @@ export default async function DashboardPage() {
         {netDelta != null && netDelta !== 0 && (
           <div className="ios-subhead" style={{ marginTop: 2, color: netDelta >= 0 ? "var(--ios-green)" : "var(--ios-red)" }}>
             {netDelta >= 0 ? "▲" : "▼"} {fmtMoney(Math.abs(netDelta))} since last visit
+          </div>
+        )}
+        {netSeries.length >= 2 && (
+          <div style={{ marginTop: 12 }}>
+            <Sparkline points={netSeries} color={netDelta != null && netDelta < 0 ? "var(--ios-red)" : "var(--ios-green)"} width={320} height={44} />
           </div>
         )}
         <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 6 }}>
