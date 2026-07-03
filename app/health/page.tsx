@@ -134,12 +134,12 @@ export default async function DashboardPage() {
     // window (e.g. after a backfill) would overcount vs. what the watch shows.
     db.from("apple_health_metrics")
       .select("value, source")
-      .eq("user_id", userId).eq("source", "apple_health")
+      .eq("user_id", userId)
       .in("metric_name", ["step_count", "steps", "Step Count", "Steps"])
       .gte("timestamp", todayStart.toISOString()),
     db.from("apple_health_metrics")
-      .select("value")
-      .eq("user_id", userId).eq("source", "apple_health")
+      .select("value, source")
+      .eq("user_id", userId)
       .in("metric_name", ["active_energy", "active_energy_burned", "calories", "Active Energy", "Active Energy Burned"])
       .gte("timestamp", todayStart.toISOString()),
     db.from("apple_health_metrics")
@@ -248,14 +248,16 @@ export default async function DashboardPage() {
   ].filter((s) => s.ts !== null) as { key: string; icon: string; label: string; ts: string }[];
 
   type MetricRow = { value: number; source?: string };
-  const stepsData = (stepsRows as MetricRow[] | null) ?? [];
-  const steps: number | null = stepsData.length
-    ? Math.round(stepsData.reduce((s, r) => s + r.value, 0))
-    : null;
-
-  const activeEnergyCal: number | null = (energyRows as MetricRow[] | null)?.length
-    ? Math.round((energyRows as MetricRow[]).reduce((s, r) => s + r.value, 0))
-    : null;
+  // Prefer Apple Health (Watch) when it has today's data; otherwise fall back to
+  // Oura (which delivers a clean daily total). Never sum both — that'd double count.
+  const pickDailyTotal = (rows: MetricRow[] | null): number | null => {
+    const all = rows ?? [];
+    const apple = all.filter((r) => r.source === "apple_health");
+    const src = apple.length ? apple : all.filter((r) => r.source === "oura");
+    return src.length ? Math.round(src.reduce((s, r) => s + r.value, 0)) : null;
+  };
+  const steps: number | null = pickDailyTotal(stepsRows as MetricRow[] | null);
+  const activeEnergyCal: number | null = pickDailyTotal(energyRows as MetricRow[] | null);
 
   type DistRow = { value: number; unit: string };
   const distanceMiles: number | null = (distanceRows as DistRow[] | null)?.length

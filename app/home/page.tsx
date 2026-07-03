@@ -464,7 +464,7 @@ export default async function HomePage() {
   // Health + Money glance — light lookups (steps today, latest net-worth snapshot)
   const [stepsRes, netRes] = await Promise.all([
     service.from("apple_health_metrics")
-      .select("value")
+      .select("value, source")
       .eq("user_id", user.id)
       .in("metric_name", ["step_count", "steps", "Step Count", "Steps"])
       .gte("timestamp", startOfTodayInTz(getUserTimezone(user.user_metadata)).toISOString()),
@@ -473,7 +473,13 @@ export default async function HomePage() {
       .order("captured_at", { ascending: false }).limit(30),
   ]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const stepsToday = ((stepsRes.data ?? []) as any[]).reduce((s, r) => s + (Number(r.value) || 0), 0);
+  // Prefer Apple (Watch) steps today; fall back to Oura's daily total. Never sum
+  // both sources together (double-counting).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const stepRows = (stepsRes.data ?? []) as any[];
+  const appleSteps = stepRows.filter((r) => r.source === "apple_health");
+  const stepSrc = appleSteps.length ? appleSteps : stepRows.filter((r) => r.source === "oura");
+  const stepsToday = stepSrc.reduce((s, r) => s + (Number(r.value) || 0), 0);
   const netSnaps = (netRes.data ?? []) as { net_position?: number }[];
   const netWorth: number | null = netSnaps[0]?.net_position ?? null;
   // % change vs the oldest snapshot in the window. The Today glance shows only

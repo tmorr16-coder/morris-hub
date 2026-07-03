@@ -91,8 +91,15 @@ async function syncOneUser(db: any, userId: string, token: string): Promise<numb
 
   if (activityResult.status === "fulfilled") {
     for (const item of activityResult.value.data) {
-      if (item.score == null) continue;
-      rows.push({ user_id: userId, timestamp: `${item.day}T00:00:00Z`, metric_name: "activity_score", value: item.score as number, unit: "score", source: "oura" });
+      const ts = `${item.day}T00:00:00Z`;
+      if (item.score != null)
+        rows.push({ user_id: userId, timestamp: ts, metric_name: "activity_score", value: item.score as number, unit: "score", source: "oura" });
+      // Steps + active calories (Apple Move equivalent) — used as a fallback
+      // source for the activity cards when Apple Health isn't delivering them.
+      if (item.steps != null)
+        rows.push({ user_id: userId, timestamp: ts, metric_name: "step_count", value: item.steps as number, unit: "count", source: "oura" });
+      if (item.active_calories != null)
+        rows.push({ user_id: userId, timestamp: ts, metric_name: "active_energy", value: item.active_calories as number, unit: "kcal", source: "oura" });
     }
   }
 
