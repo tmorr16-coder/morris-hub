@@ -12,7 +12,7 @@ import {
   type Severity,
 } from "@/components/ios";
 
-export type GlanceKey = "calendar" | "reminders" | "health" | "money";
+export type GlanceKey = "weather" | "reminders" | "health" | "money";
 export interface GlanceItem { value: React.ReactNode; sub?: React.ReactNode; badge?: React.ReactNode; href: string; }
 
 export interface AttentionItem { id: string; severity: Severity; title: string; context: React.ReactNode; category: string; href: string; }
@@ -56,13 +56,20 @@ const CAT: Record<string, { icon: React.ReactNode; color: string }> = {
 };
 const cat = (k: string) => CAT[k] ?? CAT.general;
 
+const SunIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+  </svg>
+);
+
 const GLANCE_META: Record<GlanceKey, { label: string; accent: string; icon: React.ReactNode }> = {
-  calendar: { label: "Calendar", accent: "var(--ios-tint)", icon: <Icons.CalendarIcon /> },
+  weather: { label: "Weather", accent: "#E8843C", icon: <SunIcon /> },
   reminders: { label: "Reminders", accent: "var(--ios-orange)", icon: <Icons.BellIcon /> },
   health: { label: "Health", accent: "var(--ios-green)", icon: <Icons.HeartIcon /> },
   money: { label: "Money", accent: "var(--ios-finance)", icon: <Icons.WalletIcon /> },
 };
-const GLANCE_ORDER: GlanceKey[] = ["calendar", "reminders", "health", "money"];
+const GLANCE_ORDER: GlanceKey[] = ["weather", "reminders", "health", "money"];
 
 export default function TodayHubIOS({
   firstName, dateLabel, greeting, glance, attention, timeline, priorities, family,

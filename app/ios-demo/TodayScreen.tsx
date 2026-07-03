@@ -14,7 +14,7 @@ export default function TodayScreen({ onOpenMoney, onOpenAsk }: { onOpenMoney?: 
       onOpenMoney={onOpenMoney}
       onOpenAsk={onOpenAsk}
       glance={{
-        calendar: { value: "Soccer", sub: "Next · 4:30 PM", href: "/home/family/calendar" },
+        weather: { value: "72°", sub: "Sunny · H 78°", href: "/news" },
         reminders: { value: "3 due", sub: "Duke Energy · 5 PM first", badge: 3, href: "/home" },
         health: { value: "8,240", sub: "steps · Workout 6 PM", href: "/health" },
         money: { value: "$482,300", sub: "+$1,240 today", href: "/finance/dashboard" },

@@ -9,6 +9,7 @@ import { getFamilyCalendarEvents } from "@/lib/familyCalendar";
 import type { Todo } from "./actions";
 import { Suspense } from "react";
 import { getPreferences } from "@/lib/prefs";
+import { fetchWeather } from "@/lib/weather";
 import HomeClient from "./HomeClient";
 import QuickActions from "./_components/QuickActions";
 import TodayMarkets from "./_components/TodayMarkets";
@@ -443,8 +444,6 @@ export default async function HomePage() {
   }));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const iosUpcoming = (reminders as any[]).filter((r) => !r.completed_at);
-  const iosNext = timelineItems[0];
-  const iosCalLabel = iosNext ? (iosNext.label.length > 16 ? iosNext.label.slice(0, 15) + "…" : iosNext.label) : "Clear";
   // Health + Money glance — light lookups (steps today, latest net-worth snapshot)
   const [stepsRes, netRes] = await Promise.all([
     service.from("apple_health_metrics")
@@ -458,7 +457,6 @@ export default async function HomePage() {
   ]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stepsToday = ((stepsRes.data ?? []) as any[]).reduce((s, r) => s + (Number(r.value) || 0), 0);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const netSnaps = (netRes.data ?? []) as { net_position?: number }[];
   const netWorth: number | null = netSnaps[0]?.net_position ?? null;
   // % change vs the oldest snapshot in the window. The Today glance shows only
@@ -472,16 +470,33 @@ export default async function HomePage() {
     </span>
   ) : "Tracking";
 
+  const homePrefs = await getPreferences(user.id).catch(() => null);
+
+  // Weather now leads the glance (replacing the calendar tile). Today's high
+  // and current condition, from the user's saved location.
+  let weatherGlance: { value: React.ReactNode; sub: React.ReactNode; href: string } | null = null;
+  if (homePrefs?.latitude && homePrefs?.longitude) {
+    const wx = await fetchWeather(homePrefs.latitude, homePrefs.longitude).catch(() => null);
+    if (wx) {
+      const today = wx.periods.find((p) => p.isDaytime) ?? wx.periods[0];
+      const temp = wx.current.temperature ?? today?.temperature ?? null;
+      const cond = wx.current.description || today?.shortForecast || "—";
+      weatherGlance = {
+        value: temp != null ? `${Math.round(temp)}°` : "—",
+        sub: [cond, today ? `H ${today.temperature}°` : null].filter(Boolean).join(" · "),
+        href: "/news",
+      };
+    }
+  }
+
   const iosGlance = {
-    calendar: { value: iosCalLabel, sub: iosNext ? iosNext.timeLabel : "No events today", href: "/home/family/calendar" },
+    ...(weatherGlance ? { weather: weatherGlance } : {}),
     reminders: iosUpcoming.length > 0
       ? { value: `${iosUpcoming.length} due`, sub: iosUpcoming[0].title as string, badge: iosUpcoming.length, href: "/home/tasks" }
       : { value: "None", sub: "All caught up", href: "/home/tasks" },
     health: { value: stepsToday > 0 ? Math.round(stepsToday).toLocaleString() : "—", sub: stepsToday > 0 ? "steps today" : "no data today", href: "/health" },
     ...(netWorth != null ? { money: { value: moneyValue, sub: "net worth trend", href: "/finance/dashboard" } } : {}),
   };
-
-  const homePrefs = await getPreferences(user.id).catch(() => null);
 
   return (
     <HomeClient
