@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { BibleChapter, BibleVerse, BibleVersion } from "@/lib/bible-api";
-import { rankVoices, pickBestVoice, isEnhancedVoice } from "@/lib/tts-voices";
+import { rankVoices, pickBestVoice } from "@/lib/tts-voices";
 import { Icons } from "@/components/ios";
 import FocusReader from "./FocusReader";
 
@@ -54,9 +54,6 @@ const StopIcon = (p: SVGProps<SVGSVGElement>) => (
     <rect x="6" y="6" width="12" height="12" rx="2.5" />
   </svg>
 );
-const SpeakerIcon = (p: SVGProps<SVGSVGElement>) => (
-  <svg {...strokeSvg(p)}><path d="M4 9v6h3.5L13 19V5L7.5 9H4Z" /><path d="M16.5 8.8a4.5 4.5 0 0 1 0 6.4M18.8 6.5a8 8 0 0 1 0 11" /></svg>
-);
 const BookmarkIcon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...strokeSvg(p)}><path d="M6.5 4h11a1 1 0 0 1 1 1v15l-6.5-4-6.5 4V5a1 1 0 0 1 1-1Z" /></svg>
 );
@@ -86,23 +83,26 @@ export default function ChapterReader({
   const [focusMode, setFocusMode] = useState(autoFocus && !!chapterData);
   const [paused, setPaused] = useState(false);
   const [readingVerseIdx, setReadingVerseIdx] = useState<number | null>(null);
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [speechRate, setSpeechRate] = useState(0.88);
-  const [showVoicePicker, setShowVoicePicker] = useState(false);
   const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  // Load available English voices
+  // Load available English voices and honor the voice/speed saved in
+  // Bible → Settings (the single source of truth), falling back to the
+  // best-ranked voice when none is saved.
   useEffect(() => {
+    let savedVoiceName: string | null = null;
+    fetch("/api/tts-prefs").then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (d?.tts_voice) savedVoiceName = d.tts_voice;
+      if (typeof d?.tts_speed === "number") setSpeechRate(d.tts_speed);
+    }).catch(() => {});
     function loadVoices() {
       const all = window.speechSynthesis.getVoices();
       if (all.length === 0) return;
-      // Rank best-first (modern Apple neural / premium / enhanced en-US
-      // voices win) so the picker surfaces the good ones at the top.
       const ranked = rankVoices(all);
       if (ranked.length > 0) {
-        setVoices(ranked);
-        setSelectedVoice((prev) => prev ?? pickBestVoice(ranked));
+        const fromSaved = savedVoiceName ? ranked.find((v) => v.name === savedVoiceName) : null;
+        setSelectedVoice((prev) => prev ?? fromSaved ?? pickBestVoice(ranked));
       }
     }
     loadVoices();
@@ -235,10 +235,6 @@ export default function ChapterReader({
     setSelectedVerse(null);
   };
 
-  // ── Voice name shortener ──────────────────────────────────
-  const shortVoiceName = (v: SpeechSynthesisVoice) =>
-    v.name.replace(/\(.*?\)/g, "").replace("Google", "").trim();
-
   // ── Shared chrome styles ──────────────────────────────────
   const iconBtn: React.CSSProperties = {
     display: "flex", alignItems: "center", justifyContent: "center",
@@ -344,28 +340,6 @@ export default function ChapterReader({
         background: "var(--ios-fill)",
         marginBottom: 22,
       }}>
-        {/* Voice picker */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <SpeakerIcon style={{ fontSize: 16, color: "var(--ios-label-2)" }} />
-          <span className="ios-footnote" style={{ color: "var(--ios-label-2)", fontWeight: 600 }}>Voice</span>
-          <select
-            value={selectedVoice?.name ?? ""}
-            onChange={(e) => setSelectedVoice(voices.find((v) => v.name === e.target.value) ?? null)}
-            aria-label="Voice"
-            style={{
-              padding: "5px 8px", borderRadius: 8, border: "none",
-              background: "var(--ios-bg-elevated)", fontSize: 13, fontFamily: "inherit",
-              color: "var(--ios-label)", cursor: "pointer", maxWidth: 180,
-            }}
-          >
-            {voices.map((v) => (
-              <option key={v.name} value={v.name}>
-                {shortVoiceName(v)}{isEnhancedVoice(v) ? " · Enhanced" : ""} ({v.lang})
-              </option>
-            ))}
-          </select>
-        </div>
-
         {/* Speed */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span className="ios-footnote" style={{ color: "var(--ios-label-2)", fontWeight: 600 }}>Speed</span>

@@ -1,9 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { List, Segmented } from "@/components/ios";
+import { rankVoices, pickBestVoice, isEnhancedVoice } from "@/lib/tts-voices";
 import type { BibleVersion } from "@/lib/bible-api";
+
+const SPEED_OPTIONS = [
+  { value: "0.8", label: "Slow" },
+  { value: "1", label: "Normal" },
+  { value: "1.25", label: "Fast" },
+  { value: "1.5", label: "Faster" },
+];
 
 const FONT_SIZES = [
   { key: "sm", label: "Small",   size: 14 },
@@ -21,8 +29,41 @@ export default function SettingsClient({ versions, initialPrefs }: Props) {
   const [bibleId, setBibleId] = useState(initialPrefs.preferredBibleId);
   const [reminderTime, setReminderTime] = useState(initialPrefs.reminderTime);
   const [fontSize, setFontSize] = useState(initialPrefs.fontSize);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [voiceName, setVoiceName] = useState("");
+  const [speed, setSpeed] = useState(1.0);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Load the saved platform voice/speed + the device's available voices (ranked
+  // best-first). This is the single place voice is chosen; the readers just use it.
+  useEffect(() => {
+    fetch("/api/tts-prefs").then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (d?.tts_voice) setVoiceName(d.tts_voice);
+      if (typeof d?.tts_speed === "number") setSpeed(d.tts_speed);
+    }).catch(() => {});
+    function load() {
+      if (typeof window === "undefined" || !window.speechSynthesis) return;
+      const all = window.speechSynthesis.getVoices();
+      if (!all.length) return;
+      const ranked = rankVoices(all);
+      setVoices(ranked);
+      setVoiceName((prev) => prev || pickBestVoice(ranked)?.name || "");
+    }
+    load();
+    if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.onvoiceschanged = load;
+    return () => { if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.onvoiceschanged = null; };
+  }, []);
+
+  function previewVoice() {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance("The Lord is my shepherd; I shall not want.");
+    const v = voices.find((x) => x.name === voiceName);
+    if (v) u.voice = v;
+    u.rate = speed;
+    window.speechSynthesis.speak(u);
+  }
 
   async function save() {
     setSaving(true);
@@ -34,6 +75,12 @@ export default function SettingsClient({ versions, initialPrefs }: Props) {
       { user_id: user.id, preferred_bible_id: bibleId, reminder_time: reminderTime || null, font_size: fontSize, updated_at: new Date().toISOString() },
       { onConflict: "user_id" }
     );
+    // Read-aloud voice lives in hub.preferences (what the readers read).
+    await fetch("/api/tts-prefs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tts_voice: voiceName || null, tts_speed: speed }),
+    }).catch(() => {});
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
@@ -81,6 +128,34 @@ export default function SettingsClient({ versions, initialPrefs }: Props) {
         </List>
         <p className="ios-footnote" style={footnote}>
           Applied to chapter reading text. Headings and UI elements are unaffected.
+        </p>
+      </section>
+
+      {/* Read-aloud voice — the one place voice is set */}
+      <section style={{ marginTop: 22 }}>
+        <h2 className="ios-group-header" style={header}>Read-aloud voice</h2>
+        <List style={{ margin: 0 }}>
+          <select value={voiceName} onChange={(e) => setVoiceName(e.target.value)} style={{ ...control, appearance: "none", WebkitAppearance: "none" }}>
+            {voices.length === 0 && <option value="">Loading voices…</option>}
+            {voices.map((v) => (
+              <option key={v.name} value={v.name}>{v.name}{isEnhancedVoice(v) ? " · Enhanced" : ""}</option>
+            ))}
+          </select>
+        </List>
+        <div style={{ marginTop: 12 }}>
+          <Segmented
+            ariaLabel="Read-aloud speed"
+            value={SPEED_OPTIONS.some((o) => o.value === String(speed)) ? String(speed) : "1"}
+            onChange={(v) => setSpeed(parseFloat(v))}
+            options={SPEED_OPTIONS}
+            style={{ margin: 0 }}
+          />
+        </div>
+        <button onClick={previewVoice} className="ios-btn" style={{ marginTop: 12, background: "var(--ios-fill)", color: "var(--ios-tint)" }}>
+          Preview voice
+        </button>
+        <p className="ios-footnote" style={footnote}>
+          Used for scripture read-aloud everywhere. Voices marked “Enhanced” are modern Apple neural voices and sound most natural.
         </p>
       </section>
 
