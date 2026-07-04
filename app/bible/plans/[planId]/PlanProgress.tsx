@@ -7,23 +7,32 @@ import { Group, Cell, Icons } from "@/components/ios";
 import { createClient } from "@/lib/supabase/client";
 import { BIBLE_BOOKS } from "@/lib/bible-api";
 
-/** Parse "Genesis 1" or "John 3-5" or "Genesis 1-3" → { bookId, chapter } */
+/**
+ * Parse a plan reading → { bookId, chapter }. Handles "Genesis 1", chapter
+ * ranges ("Genesis 1-3", "John 3–5"), and verse refs ("John 3:16",
+ * "Psalm 119:1-88"). Links to the first chapter regardless of verse/range.
+ */
 function parseRef(ref: string): { bookId: string; chapter: number } | null {
   const trimmed = ref.trim();
 
-  // Try format: "BookName ChapterNum" or "BookName ChapterNum-ChapterNum"
-  const m = trimmed.match(/^(.+?)\s+(\d+)(?:-\d+)?$/);
+  // BookName Chapter, optionally :verse and/or a - range (chapter or verse).
+  const m = trimmed.match(/^(.+?)\s+(\d+)(?::\d+)?(?:\s*[-–]\s*\d+(?::\d+)?)?$/);
   if (!m) return null;
 
   const name = m[1].trim().toLowerCase();
-  const book = BIBLE_BOOKS.find(b =>
-    b.name.toLowerCase() === name ||
-    b.name.toLowerCase().replace(/\s/g, "") === name.replace(/\s/g, "")
-  );
+  const norm = (s: string) => s.replace(/\s/g, "");
+  const book = BIBLE_BOOKS.find(b => {
+    const bn = b.name.toLowerCase();
+    return (
+      bn === name ||
+      norm(bn) === norm(name) ||
+      bn === `${name}s` ||        // "Psalm" → "Psalms"
+      `${bn}s` === name           // "Psalmss" guard (harmless)
+    );
+  });
 
   if (!book) return null;
 
-  // For ranges like "Genesis 1-3", link to the first chapter
   return { bookId: book.id, chapter: parseInt(m[2]) };
 }
 
