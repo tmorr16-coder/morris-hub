@@ -168,8 +168,22 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
         body: JSON.stringify({ messages: next }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setMessages([...next, { role: "assistant", content: data.reply ?? data.content ?? "" }]);
+      // The endpoint streams plain text (not JSON) — read it incrementally.
+      const reader = res.body?.getReader();
+      if (reader) {
+        const decoder = new TextDecoder();
+        let acc = "";
+        setMessages([...next, { role: "assistant", content: "" }]);
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          acc += decoder.decode(value, { stream: true });
+          setMessages([...next, { role: "assistant", content: acc }]);
+        }
+      } else {
+        const text = await res.text();
+        setMessages([...next, { role: "assistant", content: text }]);
+      }
     } catch (err) {
       setChatError((err as Error).message);
       setMessages(next);
