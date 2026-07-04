@@ -5,7 +5,6 @@
 // <IOSScreen>. The /ios-demo TodayScreen feeds it mock props — so this exact
 // component is what ships. No data fetching here; presentation only.
 
-import { useState } from "react";
 import {
   LargeTitle, Group, Cell, IconBadge,
   GlanceGrid, GlanceTile, Segmented, SeverityBadge, AskMorrisPill, Icons,
@@ -76,8 +75,9 @@ export default function TodayHubIOS({
   firstName, dateLabel, greeting, glance, attention, timeline, priorities, family,
   onOpenMoney, onOpenAsk, onToggleTodo, quickActions, slot,
 }: TodayHubProps) {
-  const { personal } = useNavMode();
-  const [mode, setMode] = useState<"family" | "personal">(personal ? "personal" : "family");
+  // Scope lives in the shared nav context so toggling here also updates the
+  // footer's Family/Me tab (and vice-versa), and persists across screens.
+  const { personal, mode, setMode } = useNavMode();
   const glanceKeys = GLANCE_ORDER.filter((k) => glance[k]);
 
   return (

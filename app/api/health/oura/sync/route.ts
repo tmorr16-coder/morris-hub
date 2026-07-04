@@ -150,13 +150,22 @@ export async function GET(request: NextRequest) {
   let usersToSync: OuraTokenRow[] = (tokenRows as OuraTokenRow[] | null) ?? [];
 
   // Fall back to the shared env var token — but this is the OWNER's personal Oura
-  // token, so it may ONLY ever write under the DEV/owner account. Applying it for an
-  // arbitrary caller would store the owner's biometrics under a stranger's user_id.
-  // A standard new user requesting sync must get zero rows from the env token.
+  // token, so it may only ever write under the owner's own account, never a
+  // stranger's. Allow it for: the cron/global path (no specificUserId), the dev
+  // account, or an ADMIN syncing their own data (the owner relies on the env token
+  // and has no per-user oura_tokens row). A standard user gets zero rows from it.
   const envToken = process.env.OURA_ACCESS_TOKEN;
-  const envTokenAllowed = !specificUserId || specificUserId === DEV_USER_ID;
+  let envTokenAllowed = !specificUserId || specificUserId === DEV_USER_ID;
+  let envUserId = DEV_USER_ID;
+  if (!envTokenAllowed && specificUserId) {
+    const { data: prof } = await db.from("profiles").select("role").eq("id", specificUserId).maybeSingle();
+    if ((prof as { role?: string } | null)?.role === "admin") {
+      envTokenAllowed = true;
+      envUserId = specificUserId; // write the owner's Oura data under the owner's id
+    }
+  }
   if (envToken && envTokenAllowed && usersToSync.length === 0) {
-    usersToSync = [{ user_id: DEV_USER_ID, access_token: envToken }];
+    usersToSync = [{ user_id: envUserId, access_token: envToken }];
   }
 
   if (usersToSync.length === 0) {

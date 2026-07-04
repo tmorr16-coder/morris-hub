@@ -43,9 +43,10 @@ export function TabBar({
   onSelect?: (key: TabKey) => void;
 }) {
   const [captureOpen, setCaptureOpen] = useState(false);
-  const { personal } = useNavMode();
-  // Solo users get a "Me" tab (→ their personal dashboard) instead of "Family".
-  const resolvedTabs = personal
+  const { mode } = useNavMode();
+  // The Family/Me slot follows the current scope: solo users (and anyone who
+  // toggled "Me" on Today) get a "Me" tab → their personal dashboard.
+  const resolvedTabs = mode === "personal"
     ? tabs.map((t) => (t.key === "family" ? { ...t, label: "Me", href: "/home/me" } : t))
     : tabs;
   const half = Math.ceil(resolvedTabs.length / 2);
