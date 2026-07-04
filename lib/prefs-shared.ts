@@ -27,43 +27,15 @@ export interface NewsSource {
   custom?: boolean;
 }
 
+// Default subscription: Associated Press — free, no login required. Users can
+// add their own publications (incl. paywalled ones) in Settings → News subscriptions.
 export const DEFAULT_NEWS_SOURCES: NewsSource[] = [
   {
-    id: "atlantic",
-    name: "The Atlantic",
-    rss: "https://www.theatlantic.com/feed/all/",
-    url: "https://www.theatlantic.com",
-    authUrl: "https://accounts.theatlantic.com/accounts/login/?next=%2F&method=google-oauth2",
-    auth: "google",
+    id: "ap",
+    name: "Associated Press",
+    rss: "https://feedx.net/rss/ap.xml",
+    url: "https://apnews.com",
+    auth: "direct",
     enabled: true,
-  },
-  {
-    id: "nytimes",
-    name: "New York Times",
-    rss: "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
-    url: "https://nytimes.com",
-    authUrl: "https://myaccount.nytimes.com/auth/login",
-    auth: "google",
-    enabled: true,
-  },
-  {
-    // Topic or publication feed — set in Settings.
-    // medium.com/feed/tag/[topic]  or  medium.com/feed/[publication-slug]
-    id: "medium",
-    name: "Medium",
-    rss: "https://medium.com/feed/tag/technology",
-    url: "https://medium.com",
-    authUrl: "https://medium.com/m/account/authenticate-google",
-    auth: "google",
-    enabled: true,
-  },
-  {
-    id: "wapo",
-    name: "Washington Post",
-    rss: "https://feeds.washingtonpost.com/rss/world",
-    url: "https://washingtonpost.com",
-    authUrl: "https://account.washingtonpost.com/login-form?dest=%2F",
-    auth: "google",
-    enabled: false,
   },
 ];
