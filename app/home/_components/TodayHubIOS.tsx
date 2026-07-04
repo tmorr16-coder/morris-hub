@@ -11,6 +11,7 @@ import {
   GlanceGrid, GlanceTile, Segmented, SeverityBadge, AskMorrisPill, Icons,
   type Severity,
 } from "@/components/ios";
+import { useNavMode } from "@/components/NavModeProvider";
 
 export type GlanceKey = "weather" | "reminders" | "health" | "money";
 export interface GlanceItem { value: React.ReactNode; sub?: React.ReactNode; badge?: React.ReactNode; href: string; }
@@ -75,7 +76,8 @@ export default function TodayHubIOS({
   firstName, dateLabel, greeting, glance, attention, timeline, priorities, family,
   onOpenMoney, onOpenAsk, onToggleTodo, quickActions, slot,
 }: TodayHubProps) {
-  const [mode, setMode] = useState<"family" | "personal">("family");
+  const { personal } = useNavMode();
+  const [mode, setMode] = useState<"family" | "personal">(personal ? "personal" : "family");
   const glanceKeys = GLANCE_ORDER.filter((k) => glance[k]);
 
   return (
@@ -90,12 +92,15 @@ export default function TodayHubIOS({
         composeIcon={<Icons.SparkleIcon aria-hidden style={{ width: 24, height: 24 }} />}
       />
 
-      <Segmented
-        ariaLabel="Scope"
-        value={mode}
-        onChange={setMode}
-        options={[{ value: "family", label: "Family" }, { value: "personal", label: "Personal" }]}
-      />
+      {/* Solo users have no "family" scope — hide the toggle and show only their own view. */}
+      {!personal && (
+        <Segmented
+          ariaLabel="Scope"
+          value={mode}
+          onChange={setMode}
+          options={[{ value: "family", label: "Family" }, { value: "personal", label: "Me" }]}
+        />
+      )}
 
       {glanceKeys.length > 0 && (
         <GlanceGrid>

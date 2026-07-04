@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { completeOnboarding } from "../actions";
+import { lookupZip } from "@/app/home/actions";
 import { Icons, Chip } from "@/components/ios";
 import { AVAILABLE_SPORTS_TEAMS } from "@/lib/sports-teams";
 
@@ -25,6 +26,8 @@ type Persona = "parent" | "student" | "individual";
 interface Profile {
   displayName: string;
   locationName: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 type ModuleKey = "health" | "finance" | "investments" | "career" | "student-success" | "children" | "bible";
@@ -156,8 +159,29 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
   const [saving, setSaving] = useState(false);
 
   // Interests — all optional; new users capture their own so they don't inherit defaults.
+  const [zip, setZip] = useState("");
+  const [resolvingZip, setResolvingZip] = useState(false);
+  const [zipError, setZipError] = useState<string | null>(null);
   const [stocksInput, setStocksInput] = useState("");
   const [employerInput, setEmployerInput] = useState("");
+
+  async function handleResolveZip() {
+    if (!zip.trim()) return;
+    setResolvingZip(true);
+    setZipError(null);
+    const res = await lookupZip(zip);
+    setResolvingZip(false);
+    if (res.error) { setZipError(res.error); return; }
+    if (res.location) {
+      setProfile((p) => ({
+        ...p,
+        locationName: res.location!.name,
+        latitude: res.location!.latitude,
+        longitude: res.location!.longitude,
+      }));
+      setZip("");
+    }
+  }
   const [newsTopics, setNewsTopics] = useState<Set<string>>(new Set());
   const [sportsTeams, setSportsTeams] = useState<Set<string>>(new Set());
 
@@ -205,6 +229,8 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
       persona: persona!,
       displayName: profile.displayName,
       locationName: profile.locationName,
+      latitude: profile.latitude ?? null,
+      longitude: profile.longitude ?? null,
       appAccess,
       stockTickers,
       employerTicker,
@@ -307,14 +333,34 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
                 />
               </div>
               <div>
-                <label style={labelStyle}>Your city or town</label>
-                <input
-                  value={profile.locationName}
-                  onChange={(e) => setProfile((p) => ({ ...p, locationName: e.target.value }))}
-                  placeholder="e.g. Fishers, IN"
-                  style={inputStyle}
-                />
-                <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>Used for weather and local news on your home screen.</div>
+                <label style={labelStyle}>Your ZIP code</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    value={zip}
+                    onChange={(e) => { setZip(e.target.value); setZipError(null); }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleResolveZip(); } }}
+                    placeholder="e.g. 46037"
+                    inputMode="numeric"
+                    maxLength={5}
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleResolveZip}
+                    disabled={resolvingZip || !zip.trim()}
+                    className="ios-btn"
+                    style={{ flexShrink: 0, background: "var(--ios-fill)", color: "var(--ios-tint)", opacity: resolvingZip || !zip.trim() ? 0.5 : 1 }}
+                  >
+                    {resolvingZip ? "Looking up…" : "Look up"}
+                  </button>
+                </div>
+                <div className="ios-caption" style={{ color: zipError ? "var(--ios-red)" : "var(--ios-label-3)", marginTop: 6 }}>
+                  {zipError
+                    ? zipError
+                    : profile.locationName
+                      ? `📍 ${profile.locationName} — used for weather & local news on your home screen.`
+                      : "Used for weather and local news on your home screen. Optional."}
+                </div>
               </div>
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 28 }}>

@@ -7,6 +7,7 @@ import { LargeTitle, Group } from "@/components/ios";
 import ImportClient from "./_components/ImportClient";
 import QuickEntryForm from "./_components/QuickEntryForm";
 import ManualAccountsList from "./_components/ManualAccountsList";
+import ConnectSection from "../_components/ConnectSection";
 
 interface ManualAccount {
   id: string;
@@ -52,9 +53,19 @@ export default async function ImportPage() {
 
   return (
     <div className="ios-scroll">
-      <LargeTitle title="Add accounts" subtitle="Manual entry & imports" />
+      <LargeTitle title="Add accounts" subtitle="Connect a bank, or add accounts manually" />
 
-      {/* Quick entry — primary path */}
+      {/* Plaid — automatic bank/brokerage sync */}
+      <Group
+        header="Connect a bank"
+        footer="Securely link a bank, card, or brokerage via Plaid to sync balances and transactions automatically."
+      >
+        <div style={{ padding: 16 }}>
+          <ConnectSection label="Connect with Plaid" variant="primary" />
+        </div>
+      </Group>
+
+      {/* Quick entry — manual path */}
       <Group
         header="Manual account entry"
         footer="Enter your 401k or other account balance directly. Paste the balance history rows from Alight to track monthly trends."

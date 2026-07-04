@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Chip } from "@/components/ios";
 import { savePreferences, lookupZip } from "../../actions";
-import { ALL_WIDGETS, DEFAULT_REMINDER_CATEGORIES, DEFAULT_NEWS_SOURCES } from "@/lib/prefs-shared";
+import { DEFAULT_REMINDER_CATEGORIES, DEFAULT_NEWS_SOURCES } from "@/lib/prefs-shared";
 import { AVAILABLE_SPORTS_TEAMS } from "@/lib/sports-teams";
 import { CATEGORY_LABELS } from "@/lib/investment-ideas-constants";
 import type { WidgetId, NewsSource } from "@/lib/prefs-shared";
@@ -63,9 +63,6 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
   });
   const [investmentCategories, setInvestmentCategories] = useState<string[]>(
     initialPrefs.investment_categories ?? ["stocks", "real_estate", "transportation", "tech", "other"]
-  );
-  const [visibleWidgets, setVisibleWidgets] = useState<WidgetId[]>(
-    initialPrefs.visible_widgets ?? [...ALL_WIDGETS]
   );
   const [appAccess, setAppAccess] = useState<string[]>(
     initialPrefs.app_access ?? ["hub", "health", "finance", "student-success", "children", "investments"]
@@ -126,17 +123,6 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
     );
   }
 
-  function moveWidget(id: WidgetId, dir: -1 | 1) {
-    setVisibleWidgets((prev) => {
-      const idx = prev.indexOf(id);
-      if (idx === -1) return prev;
-      const next = [...prev];
-      const swap = idx + dir;
-      if (swap < 0 || swap >= next.length) return prev;
-      [next[idx], next[swap]] = [next[swap], next[idx]];
-      return next;
-    });
-  }
   const [reminderCats, setReminderCats] = useState<string[]>(
     initialPrefs.reminder_categories ?? [...DEFAULT_REMINDER_CATEGORIES]
   );
@@ -159,12 +145,6 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
 
   function toggleTopic(id: string) {
     setTopics((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
-  }
-
-  function toggleWidget(id: WidgetId) {
-    setVisibleWidgets((prev) =>
-      prev.includes(id) ? prev.filter((w) => w !== id) : [...prev, id]
-    );
   }
 
   function toggleSportsTeam(teamId: string) {
@@ -263,7 +243,6 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         city_names: cities,
         sports_enabled_teams: sportsTeams,
         investment_categories: investmentCategories,
-        visible_widgets: visibleWidgets,
         reminder_categories: reminderCats,
         app_access: appAccess,
         news_sources: newsSources.map((s) =>
@@ -283,45 +262,6 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-
-      {/* Widgets — toggle + reorder */}
-      <section style={card}>
-        <SectionHeader title="Widgets" subtitle="Toggle which boxes appear and drag them into order" />
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {visibleWidgets.map((w, i) => (
-            <div key={w} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "var(--color-bg)", border: "1px solid var(--color-rule)", borderRadius: 10 }}>
-              <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "var(--color-ink)" }}>{WIDGET_LABELS[w]}</span>
-              <button
-                onClick={() => moveWidget(w, -1)}
-                disabled={i === 0}
-                style={{ ...reorderBtn, opacity: i === 0 ? 0.3 : 1 }}
-                title="Move up"
-              >↑</button>
-              <button
-                onClick={() => moveWidget(w, 1)}
-                disabled={i === visibleWidgets.length - 1}
-                style={{ ...reorderBtn, opacity: i === visibleWidgets.length - 1 ? 0.3 : 1 }}
-                title="Move down"
-              >↓</button>
-              <button
-                onClick={() => toggleWidget(w)}
-                style={{ fontSize: 11, padding: "3px 9px", borderRadius: 12, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-red)", cursor: "pointer", fontFamily: "inherit" }}
-                title="Hide this widget"
-              >Hide</button>
-            </div>
-          ))}
-          {/* Hidden widgets — add back */}
-          {ALL_WIDGETS.filter((w) => !visibleWidgets.includes(w)).map((w) => (
-            <div key={w} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "transparent", border: "1px dashed var(--color-rule)", borderRadius: 10, opacity: 0.6 }}>
-              <span style={{ flex: 1, fontSize: 13, color: "var(--color-ink-3)" }}>{WIDGET_LABELS[w]}</span>
-              <button
-                onClick={() => toggleWidget(w)}
-                style={{ fontSize: 11, padding: "3px 9px", borderRadius: 12, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-accent)", cursor: "pointer", fontFamily: "inherit" }}
-              >Show</button>
-            </div>
-          ))}
-        </div>
-      </section>
 
       {/* Module access */}
       <section style={card}>

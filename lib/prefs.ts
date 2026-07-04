@@ -27,6 +27,7 @@ export interface Preferences {
   reminder_lead_days?: number;
   me_domain_order: string[];
   me_domains_disabled: string[];
+  persona?: string | null;  // "parent" | "student" | "individual" — drives personal vs family UI
 }
 
 export async function getPreferences(userId: string): Promise<Preferences> {
@@ -98,5 +99,11 @@ export async function getPreferences(userId: string): Promise<Preferences> {
     reminder_lead_days: 3,
     me_domain_order: [...ME_DOMAINS],
     me_domains_disabled: [],
+    persona: null,
   };
+}
+
+/** Personal (solo) users get a "Me"-centric UI; parents/undeclared get the family UI. */
+export function isPersonalPersona(persona: string | null | undefined): boolean {
+  return persona === "individual" || persona === "student";
 }

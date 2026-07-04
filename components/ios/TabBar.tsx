@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { TodayIcon, PeopleIcon, HeartIcon, EllipsisIcon, PlusIcon } from "./icons";
 import { CaptureSheet, type FamilyMember } from "./CaptureSheet";
+import { useNavMode } from "@/components/NavModeProvider";
 
 type TabKey = "today" | "family" | "health" | "more";
 const ICON: Record<TabKey, (p: { "aria-hidden": true }) => React.ReactNode> = {
@@ -42,9 +43,14 @@ export function TabBar({
   onSelect?: (key: TabKey) => void;
 }) {
   const [captureOpen, setCaptureOpen] = useState(false);
-  const half = Math.ceil(tabs.length / 2);
-  const left = tabs.slice(0, half);
-  const right = tabs.slice(half);
+  const { personal } = useNavMode();
+  // Solo users get a "Me" tab (→ their personal dashboard) instead of "Family".
+  const resolvedTabs = personal
+    ? tabs.map((t) => (t.key === "family" ? { ...t, label: "Me", href: "/home/me" } : t))
+    : tabs;
+  const half = Math.ceil(resolvedTabs.length / 2);
+  const left = resolvedTabs.slice(0, half);
+  const right = resolvedTabs.slice(half);
 
   const tab = (t: { key: TabKey; label: string; href: string }) => {
     const Icon = ICON[t.key];
