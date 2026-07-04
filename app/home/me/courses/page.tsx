@@ -89,7 +89,7 @@ export default async function CoursesPage() {
       <LargeTitle
         title="Courses"
         subtitle="Assignments, grades & study"
-        avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()}
+        avatarInitial={(user.user_metadata?.full_name || user.email || "?")[0]?.toUpperCase()}
       />
 
       <Group>

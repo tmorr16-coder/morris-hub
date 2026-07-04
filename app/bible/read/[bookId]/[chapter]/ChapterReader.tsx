@@ -361,28 +361,32 @@ export default function ChapterReader({
               <BookmarkIcon />
             </button>
 
-            {/* Read aloud from start */}
-            {!speaking ? (
-              <button onClick={() => speakFrom(0)} style={pillBtn}>
-                <PlayIcon style={{ fontSize: 14 }} /> Read aloud
-              </button>
-            ) : (
-              <div style={{ display: "flex", gap: 6 }}>
-                <button onClick={pauseResume} style={pillBtn}>
-                  {paused ? <><PlayIcon style={{ fontSize: 14 }} /> Resume</> : <><PauseIcon style={{ fontSize: 16 }} /> Pause</>}
+            {/* Read aloud from start — only when the chapter actually loaded,
+                so there's no dead control under the "Unable to load" panel. */}
+            {chapterData && chapterData.verses.length > 0 && (
+              !speaking ? (
+                <button onClick={() => speakFrom(0)} style={pillBtn}>
+                  <PlayIcon style={{ fontSize: 14 }} /> Read aloud
                 </button>
-                <button onClick={stopSpeaking} title="Stop"
-                  aria-label="Stop reading"
-                  style={{ ...iconBtn, color: "var(--ios-red)" }}>
-                  <StopIcon />
-                </button>
-              </div>
+              ) : (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={pauseResume} style={pillBtn}>
+                    {paused ? <><PlayIcon style={{ fontSize: 14 }} /> Resume</> : <><PauseIcon style={{ fontSize: 16 }} /> Pause</>}
+                  </button>
+                  <button onClick={stopSpeaking} title="Stop"
+                    aria-label="Stop reading"
+                    style={{ ...iconBtn, color: "var(--ios-red)" }}>
+                    <StopIcon />
+                  </button>
+                </div>
+              )
             )}
           </div>
         </div>
       </div>
 
-      {/* ── TTS Settings Bar ── */}
+      {/* ── TTS Settings Bar ── (only when the chapter loaded) */}
+      {chapterData && chapterData.verses.length > 0 && (
       <div style={{
         display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
         padding: "10px 14px", borderRadius: 12,
@@ -410,6 +414,7 @@ export default function ChapterReader({
           </div>
         )}
       </div>
+      )}
 
       {/* ── Chapter navigation ── */}
       <div className="ios-footnote" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>

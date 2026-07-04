@@ -42,7 +42,12 @@ export async function POST(request: NextRequest) {
         .eq("user_id", user.id)
         .order("created_at", { ascending: true }),
       sessionId
-        ? Promise.resolve({ data: { id: sessionId } })
+        ? service
+            .schema("student_support")
+            .from("research_chat_sessions")
+            .select("id, user_id")
+            .eq("id", sessionId)
+            .maybeSingle()
         : service
             .schema("student_support")
             .from("research_chat_sessions")
@@ -54,7 +59,15 @@ export async function POST(request: NextRequest) {
     const allCourses: Array<{ id: string; name: string; description: string | null; instructor: string | null; semester: string | null }> =
       allCoursesResult.data ?? [];
 
-    if (!sessionId && sessionResult.error) {
+    if (sessionId) {
+      // Verify the client-supplied session belongs to the caller (service client bypasses RLS)
+      if (!sessionResult.data) {
+        return NextResponse.json({ error: "Session not found" }, { status: 404 });
+      }
+      if (sessionResult.data.user_id !== user.id) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    } else if (sessionResult.error) {
       console.error("Session creation error:", sessionResult.error);
       return NextResponse.json({ error: "Failed to create session" }, { status: 500 });
     }
@@ -235,6 +248,21 @@ export async function GET(request: NextRequest) {
 
     if (!currentSessionId) {
       return NextResponse.json({ error: "sessionId or courseId is required" }, { status: 400 });
+    }
+
+    // Verify the session belongs to the caller (service client bypasses RLS)
+    const { data: ownerCheck } = await service
+      .schema("student_support")
+      .from("research_chat_sessions")
+      .select("user_id")
+      .eq("id", currentSessionId)
+      .maybeSingle();
+
+    if (!ownerCheck) {
+      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    }
+    if (ownerCheck.user_id !== user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Fetch messages for session

@@ -35,14 +35,6 @@ function workoutMeta(w: CombinedWorkoutRow): string {
   return parts.join(" · ");
 }
 
-// ── constants ─────────────────────────────────────────────────────────────────
-
-const SCORE_FALLBACKS = [
-  { label: "Readiness", value: 82, color: "var(--color-moss)" },
-  { label: "Activity",  value: 74, color: "var(--color-accent)" },
-  { label: "Recovery",  value: 88, color: "var(--color-slate)" },
-];
-
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function relativeTime(isoTs: string): string {
@@ -234,11 +226,18 @@ export default async function DashboardPage() {
   // ── Derived values ────────────────────────────────────────────────────────
 
   type ScoreRow = { value: number } | null;
+  // Only ever show REAL Oura scores. A missing row renders an empty gauge ("—"),
+  // never a fabricated number — fake vitals must not masquerade as the user's own.
   const SCORES = [
-    { label: "Readiness", value: Math.round((readinessRow  as ScoreRow)?.value ?? SCORE_FALLBACKS[0].value), color: SCORE_FALLBACKS[0].color },
-    { label: "Activity",  value: Math.round((activityRow   as ScoreRow)?.value ?? SCORE_FALLBACKS[1].value), color: SCORE_FALLBACKS[1].color },
-    { label: "Recovery",  value: Math.round((sleepScoreRow as ScoreRow)?.value ?? SCORE_FALLBACKS[2].value), color: SCORE_FALLBACKS[2].color },
-  ];
+    { label: "Readiness", row: readinessRow  as ScoreRow, color: "#34C759" },
+    { label: "Activity",  row: activityRow   as ScoreRow, color: "#356FB0" },
+    { label: "Recovery",  row: sleepScoreRow as ScoreRow, color: "#5E5CE6" },
+  ].map((s) => ({
+    label: s.label,
+    color: s.color,
+    value: s.row?.value != null ? Math.round(s.row.value) : null,
+  }));
+  const hasAnyScore = SCORES.some((s) => s.value != null);
 
   // Per-source sync timestamps
   type SyncRow = { created_at: string } | null;
@@ -392,18 +391,21 @@ export default async function DashboardPage() {
     <div className="ios-scroll">
       <LargeTitle brand title="Health" subtitle={`${today} · ${getGreeting()}${firstName ? `, ${firstName}` : ""}`} avatarInitial={(userName || "T")[0]?.toUpperCase()} />
 
-      {/* Scores hero — radial gauges */}
-      <div className="ios-list" style={{ margin: "8px 16px 0", padding: "18px 8px", display: "flex", justifyContent: "space-around" }}>
-        {SCORES.map((s, i) => (
-          <RadialGauge
-            key={s.label}
-            value={s.value / 100}
-            color={["#34C759", "#356FB0", "#5E5CE6"][i]}
-            label={s.label}
-            center={<span className="ios-num" style={{ fontSize: 22, fontWeight: 700 }}>{s.value}</span>}
-          />
-        ))}
-      </div>
+      {/* Scores hero — radial gauges. Hidden entirely when no real scores exist;
+          any individual missing score renders an empty gauge, never a fake value. */}
+      {hasAnyScore && (
+        <div className="ios-list" style={{ margin: "8px 16px 0", padding: "18px 8px", display: "flex", justifyContent: "space-around" }}>
+          {SCORES.map((s) => (
+            <RadialGauge
+              key={s.label}
+              value={s.value != null ? s.value / 100 : 0}
+              color={s.color}
+              label={s.label}
+              center={<span className="ios-num" style={{ fontSize: 22, fontWeight: 700, color: s.value != null ? undefined : "var(--ios-label-2)" }}>{s.value != null ? s.value : "—"}</span>}
+            />
+          ))}
+        </div>
+      )}
 
       <Group header="Today">
         <Cell chevron={false} lead={<IconBadge color="var(--ios-green)"><Icons.HeartIcon /></IconBadge>} title="Steps" subtitle={stepsDay && stepsDay.day !== todayKey ? `as of ${dayLabel(stepsDay.day)}` : undefined} trailing={<span className="ios-num">{steps != null ? steps.toLocaleString() : "—"}</span>} />
@@ -444,11 +446,15 @@ export default async function DashboardPage() {
         </Group>
       )}
 
-      {syncSources.length > 0 && (
+      {syncSources.length > 0 ? (
         <Group header="Connected">
           {syncSources.map((s) => (
             <Cell key={s.key} href="/health/settings/integrations" lead={<IconBadge color="#8E8E93"><Icons.HeartIcon /></IconBadge>} title={s.label} trailing={<span style={{ color: "var(--ios-label-2)" }}>{relativeTime(s.ts)}</span>} />
           ))}
+        </Group>
+      ) : (
+        <Group header="Connected">
+          <Cell href="/health/settings/integrations" lead={<IconBadge color="#8E8E93"><Icons.HeartIcon /></IconBadge>} title="Connect a device" subtitle="Connect a device to see your health data" />
         </Group>
       )}
 

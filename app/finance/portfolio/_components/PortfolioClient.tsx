@@ -272,7 +272,7 @@ export default function PortfolioClient({
       </SectionCard>
 
       {/* ── Alpaca + Plaid investments ──────────────────────────────────── */}
-      {(hasAlpaca || plaidInvestmentAccounts.length > 0) && (
+      {(hasAlpaca || plaidInvestmentAccounts.length > 0) ? (
         <SectionCard label="Investment Accounts" subtotal={plaidInvestTotal + alpacaTotal}>
           {plaidInvestmentAccounts.map(a => (
             <AccountRow
@@ -291,16 +291,22 @@ export default function PortfolioClient({
               accent="var(--ios-orange)"
             />
           )}
-          {plaidInvestmentAccounts.length === 0 && !hasAlpaca && (
-            <div className="ios-cell" style={{ flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
-              <p className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
-                Connect a brokerage account for live investment data.
-              </p>
-              <a href="/finance/dashboard/import" className="ios-footnote" style={{ color: "var(--ios-tint)" }}>
-                Connect via Plaid (E*TRADE, Fidelity, Schwab, etc.) →
-              </a>
-            </div>
-          )}
+        </SectionCard>
+      ) : (
+        // Not connected → show the connect CTA (previously buried inside the
+        // populated card's guard, so it never rendered for new users).
+        <SectionCard label="Investment Accounts" subtotal={0}>
+          <div className="ios-cell" style={{ flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
+            <p className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
+              Connect a brokerage account for live investment data.
+            </p>
+            <a href="/investments" className="ios-footnote" style={{ color: "var(--ios-tint)" }}>
+              Connect a brokerage (research &amp; paper trading) →
+            </a>
+            <a href="/finance/dashboard/import" className="ios-footnote" style={{ color: "var(--ios-tint)" }}>
+              Or connect via Plaid (E*TRADE, Fidelity, Schwab, etc.) →
+            </a>
+          </div>
         </SectionCard>
       )}
 

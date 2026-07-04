@@ -40,7 +40,7 @@ export default async function HomePage() {
   }
 
   // Compute early so workouts query can filter by today's date
-  const userTz = "America/Indiana/Indianapolis";
+  const userTz = getUserTimezone(user.user_metadata);
   const today = new Date();
   const todayStr = today.toLocaleDateString("sv", { timeZone: userTz }); // YYYY-MM-DD
 

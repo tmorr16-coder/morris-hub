@@ -22,6 +22,8 @@ interface StockMainViewProps {
   isWatched: boolean;
   onToggleWatch: () => void;
   onClose: () => void;
+  /** Whether the user has a connected Alpaca brokerage. Gates the Trade tab. */
+  brokerageConnected: boolean;
 }
 
 type Tab = "overview" | "research" | "news" | "trade";
@@ -31,6 +33,7 @@ export default function StockMainView({
   isWatched,
   onToggleWatch,
   onClose,
+  brokerageConnected,
 }: StockMainViewProps) {
   const [metrics, setMetrics] = useState<StockMetrics | null>(null);
   const [showTrade, setShowTrade] = useState(false);
@@ -133,22 +136,36 @@ export default function StockMainView({
       {tab === "news" && <NewsPanel ticker={stock.ticker} tickerName={stock.name} />}
 
       {tab === "trade" && (
-        <Group header="Paper trade" footer="Orders route to your Alpaca paper account — no real money.">
-          <button className="ios-cell" onClick={() => setShowTrade(true)}>
-            <span className="ios-cell-body">
-              <span className="ios-cell-title" style={{ color: "var(--ios-tint)", fontWeight: 600 }}>
-                Trade {stock.ticker}
+        brokerageConnected ? (
+          <Group header="Paper trade" footer="Orders route to your Alpaca paper account — no real money.">
+            <button className="ios-cell" onClick={() => setShowTrade(true)}>
+              <span className="ios-cell-body">
+                <span className="ios-cell-title" style={{ color: "var(--ios-tint)", fontWeight: 600 }}>
+                  Trade {stock.ticker}
+                </span>
+                <span className="ios-cell-sub">Buy or sell at ${(stock.price ?? 0).toFixed(2)}</span>
               </span>
-              <span className="ios-cell-sub">Buy or sell at ${(stock.price ?? 0).toFixed(2)}</span>
-            </span>
-            <Icons.ChevronRight className="ios-chevron" />
-          </button>
-        </Group>
+              <Icons.ChevronRight className="ios-chevron" />
+            </button>
+          </Group>
+        ) : (
+          <Group header="Paper trade" footer="Connect a brokerage to place paper trades.">
+            <a className="ios-cell" href="/investments">
+              <span className="ios-cell-body">
+                <span className="ios-cell-title" style={{ color: "var(--ios-tint)", fontWeight: 600 }}>
+                  Connect a brokerage
+                </span>
+                <span className="ios-cell-sub">Set up your Alpaca paper account to trade {stock.ticker}</span>
+              </span>
+              <Icons.ChevronRight className="ios-chevron" />
+            </a>
+          </Group>
+        )
       )}
 
       <div style={{ height: 20 }} />
 
-      {showTrade && <QuickTradePanel stock={stock} onClose={() => setShowTrade(false)} />}
+      {showTrade && brokerageConnected && <QuickTradePanel stock={stock} onClose={() => setShowTrade(false)} />}
     </div>
   );
 }

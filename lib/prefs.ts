@@ -75,21 +75,22 @@ export async function getPreferences(userId: string): Promise<Preferences> {
     return p;
   }
 
-  // Fallback to env defaults if no row yet
+  // No row yet — return neutral defaults. Location must stay empty so a new
+  // user never inherits another user's saved location / weather.
   return {
     user_id: userId,
-    location_name: process.env.DEFAULT_LOCATION_NAME ?? null,
-    latitude: process.env.DEFAULT_LAT ? parseFloat(process.env.DEFAULT_LAT) : null,
-    longitude: process.env.DEFAULT_LON ? parseFloat(process.env.DEFAULT_LON) : null,
+    location_name: null,
+    latitude: null,
+    longitude: null,
     stock_tickers: [],
     news_topics: [],
-    city_names: process.env.DEFAULT_CITY_NAMES?.split(",") ?? [],
+    city_names: [],
     sports_enabled_teams: [],
     employer_ticker: null,
     investment_categories: ["stocks", "real_estate", "transportation", "tech", "other"],
     visible_widgets: [...ALL_WIDGETS],
     reminder_categories: [...DEFAULT_REMINDER_CATEGORIES],
-    app_access: ["hub", "health", "finance", "student-success", "children", "investments", "bible"],
+    app_access: ["hub", "health", "finance", "student-success", "children", "investments", "career", "bible"],
     news_sources: DEFAULT_NEWS_SOURCES,
     watched_stocks: [],
     phone_number: null,

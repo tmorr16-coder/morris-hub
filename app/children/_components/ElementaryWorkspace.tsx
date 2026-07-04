@@ -89,19 +89,23 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       )}
 
       <Group header="Health notes for next visit">
-        {openNotes.map((h) => (
-          <Cell
-            key={h.id}
-            chevron={false}
-            title={h.note}
-            subtitle={h.targetVisitDate ? new Date(`${h.targetVisitDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : undefined}
-            trailing={
-              <button type="button" className="ios-btn--plain" onClick={() => resolveNote(h.id)} style={{ fontSize: 15 }}>
-                Resolve
-              </button>
-            }
-          />
-        ))}
+        {openNotes.length === 0 ? (
+          <Cell chevron={false} title={<span style={{ color: "var(--ios-label-2)" }}>No notes for your next visit.</span>} />
+        ) : (
+          openNotes.map((h) => (
+            <Cell
+              key={h.id}
+              chevron={false}
+              title={h.note}
+              subtitle={h.targetVisitDate ? new Date(`${h.targetVisitDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : undefined}
+              trailing={
+                <button type="button" className="ios-btn--plain" onClick={() => resolveNote(h.id)} style={{ fontSize: 15 }}>
+                  Resolve
+                </button>
+              }
+            />
+          ))
+        )}
       </Group>
 
       <div style={{ margin: "12px var(--ios-gutter) 0" }}>

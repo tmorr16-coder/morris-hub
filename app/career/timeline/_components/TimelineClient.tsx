@@ -191,13 +191,22 @@ export default function TimelineClient({ goals }: TimelineClientProps) {
       )}
 
       {/* Empty state */}
-      {filteredGoals.length === 0 && (
-        <Group>
-          <div className="ios-cell" style={{ justifyContent: "center", color: "var(--ios-label-2)" }}>
-            No goals match these filters
-          </div>
-        </Group>
-      )}
+      {filteredGoals.length === 0 &&
+        (goals.length === 0 ? (
+          <Group footer="Set a career goal to start building your timeline.">
+            <Cell
+              lead={<IconBadge color="var(--ios-tint)"><Icons.PlusIcon /></IconBadge>}
+              title="Add your first goal"
+              href="/career/goals/new"
+            />
+          </Group>
+        ) : (
+          <Group>
+            <div className="ios-cell" style={{ justifyContent: "center", color: "var(--ios-label-2)" }}>
+              No goals match these filters
+            </div>
+          </Group>
+        ))}
     </div>
   );
 }

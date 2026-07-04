@@ -3,11 +3,10 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getFamilyCalendarEvents, getWeekRange } from "@/lib/familyCalendar";
+import { getUserTimezone } from "@/lib/timezone";
 import { LargeTitle, Group, Cell, IconBadge, TabBar, WeekStrip, Icons } from "@/components/ios";
 
-const userTz = "America/Indiana/Indianapolis";
-
-function weekDayLabel(dateStr: string, today: Date): string {
+function weekDayLabel(dateStr: string, today: Date, userTz: string): string {
   const d = new Date(`${dateStr}T12:00:00`);
   const tomorrowStr = new Date(today.getTime() + 86_400_000).toLocaleDateString("sv", { timeZone: userTz });
   const todayStr = today.toLocaleDateString("sv", { timeZone: userTz });
@@ -43,6 +42,8 @@ export default async function FamilyPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const userTz = getUserTimezone(user.user_metadata);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
@@ -185,7 +186,7 @@ export default async function FamilyPage() {
   return (
     <div data-ui="ios">
       <div className="ios-scroll">
-        <LargeTitle title="Family" subtitle="Your circle · this week" avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()} />
+        <LargeTitle title="Family" subtitle="Your circle · this week" avatarInitial={(user.user_metadata?.full_name || user.email || "?")[0]?.toUpperCase()} />
 
         <div className="ios-list" style={{ margin: "8px 16px 0" }}>
           <WeekStrip days={weekStripDays} />
@@ -206,7 +207,7 @@ export default async function FamilyPage() {
         )}
 
         {weekDays.map(([date, evs]) => (
-          <Group key={date} header={weekDayLabel(date, today)}>
+          <Group key={date} header={weekDayLabel(date, today, userTz)}>
             {evs.slice(0, 6).map((e, i) => {
               const st = evStyle(e.category ?? e.module ?? "general");
               return (
@@ -235,7 +236,7 @@ export default async function FamilyPage() {
         )}
 
         <Group header={`Members · ${familyMembers.length + 1}`} footer="Tap a member to see their schedule and tasks.">
-          <Cell lead={<Avatar color={MEMBER_COLORS[0]} initial="T" />} title="You" href="/home/me" />
+          <Cell lead={<Avatar color={MEMBER_COLORS[0]} initial={(user.user_metadata?.full_name || user.email || "?")[0]?.toUpperCase() ?? "?"} />} title="You" href="/home/me" />
           {familyMembers.map((m, i) => (
             <Cell
               key={m.id}

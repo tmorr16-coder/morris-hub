@@ -263,7 +263,7 @@ export async function getFamilyCalendarEvents(
       timeLabel: courseTimeLabel(c.due_date, c.due_time),
       title: c.courses?.name ? `${c.title} (${c.courses.name})` : c.title,
       module: "student-success", category: c.type ?? "general",
-      href: "/student-success", person: "me",
+      href: "/home/me/courses", person: "me",
     });
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -273,7 +273,7 @@ export async function getFamilyCalendarEvents(
       timeLabel: courseTimeLabel(c.due_date, c.due_time),
       title: c.courses?.name ? `${c.title} (${c.courses.name})` : c.title,
       module: "student-success", category: c.type ?? "general",
-      href: "/student-success", person: c.user_id, personLabel: memberLabel(c.user_id),
+      href: "/home/me/courses", person: c.user_id, personLabel: memberLabel(c.user_id),
     });
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

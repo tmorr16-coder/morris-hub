@@ -3,10 +3,9 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getFamilyCalendarEvents, getMonthGridRange, getWeekRange } from "@/lib/familyCalendar";
+import { getUserTimezone } from "@/lib/timezone";
 import { IOSScreen, LargeTitle, TabBar, Icons } from "@/components/ios";
 import CalendarClient from "./_components/CalendarClient";
-
-const userTz = "America/Indiana/Indianapolis";
 
 export default async function FamilyCalendarPage({
   searchParams,
@@ -16,6 +15,8 @@ export default async function FamilyCalendarPage({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const userTz = getUserTimezone(user.user_metadata);
 
   const params = await searchParams;
   const view = params.view === "week" ? "week" : "month";

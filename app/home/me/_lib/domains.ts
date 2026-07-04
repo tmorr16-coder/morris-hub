@@ -112,7 +112,7 @@ async function getCareerDomain(db: Svc, userId: string, freeWindow: FreeTimeWind
     return {
       key: "career", label: DOMAIN_LABELS.career, href: DOMAIN_HREFS.career,
       goal: null, progressPct: null, progressLabel: "No active goal set",
-      recommendedAction: applyCalendarFit({ text: "Set a career goal", estimatedMinutes: 5 }, freeWindow),
+      recommendedAction: applyCalendarFit({ text: "Set a career goal", estimatedMinutes: 5, href: DOMAIN_HREFS.career }, freeWindow),
     };
   }
 
@@ -171,7 +171,7 @@ async function getHealthDomain(db: Svc, userId: string, now: Date, freeWindow: F
         estimatedMinutes: 30,
         shortText: "Log today's meals",
       }
-    : { text: "Schedule your next workout", estimatedMinutes: 10, shortText: "Log today's meals" };
+    : { text: "Schedule your next workout", estimatedMinutes: 10, shortText: "Log today's meals", href: DOMAIN_HREFS.health };
 
   return {
     key: "health", label: DOMAIN_LABELS.health, href: DOMAIN_HREFS.health,
@@ -211,8 +211,8 @@ async function getMindDomain(db: Svc, userId: string, now: Date, freeWindow: Fre
       : "No check-ins yet";
 
   const action: RawAction = loggedMoodToday
-    ? { text: "Write a quick journal entry", estimatedMinutes: 10, shortText: "Rate your mood (10 seconds)" }
-    : { text: "Log how you're feeling today", estimatedMinutes: 2, shortText: "Rate your mood (10 seconds)" };
+    ? { text: "Write a quick journal entry", estimatedMinutes: 10, shortText: "Rate your mood (10 seconds)", href: DOMAIN_HREFS.mind }
+    : { text: "Log how you're feeling today", estimatedMinutes: 2, shortText: "Rate your mood (10 seconds)", href: DOMAIN_HREFS.mind };
 
   return {
     key: "mind", label: DOMAIN_LABELS.mind, href: DOMAIN_HREFS.mind,
@@ -240,7 +240,7 @@ async function getSpiritDomain(db: Svc, userId: string, freeWindow: FreeTimeWind
     return {
       key: "spirit", label: DOMAIN_LABELS.spirit, href: DOMAIN_HREFS.spirit,
       goal: null, progressPct: null, progressLabel: "No active reading plan",
-      recommendedAction: applyCalendarFit({ text: "Browse reading plans", estimatedMinutes: 5 }, freeWindow),
+      recommendedAction: applyCalendarFit({ text: "Browse reading plans", estimatedMinutes: 5, href: DOMAIN_HREFS.spirit }, freeWindow),
     };
   }
 

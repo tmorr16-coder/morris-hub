@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
+import { getUserTimezone } from "@/lib/timezone";
 import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 import { renderWidget } from "@/app/home/_lib/renderWidget";
 import { WIDGET_LABELS } from "@/app/home/settings/_components/SettingsForm";
@@ -21,7 +22,7 @@ export default async function NewsPage() {
     prefs,
     todos: [],
     reminders: null,
-    userTz: "America/Indiana/Indianapolis",
+    userTz: getUserTimezone(user.user_metadata),
     activeCareerGoals: 0,
     user,
   };
@@ -40,12 +41,16 @@ export default async function NewsPage() {
           />
         </Group>
       ) : (
-        newsWids.map((widgetId) => (
-          <section key={widgetId} aria-label={WIDGET_LABELS[widgetId]} style={{ marginTop: 18 }}>
-            <h2 className="ios-group-header">{WIDGET_LABELS[widgetId]}</h2>
-            <div style={{ padding: "0 16px" }}>{renderWidget(widgetId, ctx)}</div>
-          </section>
-        ))
+        newsWids.map((widgetId) => {
+          const widget = renderWidget(widgetId, ctx);
+          if (!widget) return null;
+          return (
+            <section key={widgetId} aria-label={WIDGET_LABELS[widgetId]} style={{ marginTop: 18 }}>
+              <h2 className="ios-group-header">{WIDGET_LABELS[widgetId]}</h2>
+              <div style={{ padding: "0 16px" }}>{widget}</div>
+            </section>
+          );
+        })
       )}
 
       <Group header="Following">

@@ -7,6 +7,7 @@ interface Props {
   params: Promise<{ bookId: string; chapter: string }>;
   searchParams: Promise<{
     v?: string;
+    bibleId?: string; // some inbound links pass ?bibleId= instead of ?v=
     plan?: string;   // planId
     day?: string;    // day number in plan
     ridx?: string;   // reading index within that day
@@ -25,7 +26,7 @@ function parseRef(ref: string): { bookId: string; chapter: number } | null {
 
 export default async function ChapterPage({ params, searchParams }: Props) {
   const { bookId, chapter } = await params;
-  const { v, plan: planId, day, ridx } = await searchParams;
+  const { v, bibleId: bibleIdParam, plan: planId, day, ridx } = await searchParams;
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -37,7 +38,7 @@ export default async function ChapterPage({ params, searchParams }: Props) {
   const chapterNum = parseInt(chapter);
   if (isNaN(chapterNum) || chapterNum < 1 || chapterNum > book.chapters) notFound();
 
-  const bibleId = v ?? DEFAULT_VERSION_ID;
+  const bibleId = v ?? bibleIdParam ?? DEFAULT_VERSION_ID;
 
   let chapterData;
   try {

@@ -11,11 +11,20 @@ export default async function DashboardPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
 
-  const [plansRes, completionsRes, notesRes, challengesRes] = await Promise.all([
+  // Circles I belong to (whose family-scoped challenges I should see), plus my own.
+  // Mirrors the scoping in app/bible/challenges/page.tsx so this strip can't leak
+  // another circle's challenges via the RLS-bypassing service client.
+  const { data: circleRows } = await db.schema("hub").from("family_members")
+    .select("user_id").eq("member_user_id", user.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const circleOwnerIds = [user.id, ...((circleRows ?? []) as any[]).map((r) => r.user_id as string)];
+
+  const [plansRes, completionsRes, notesRes, platformChallengesRes, familyChallengesRes] = await Promise.all([
     db.schema("bible").from("user_plans").select("*, plan:reading_plans(*)").eq("user_id", user.id).order("started_at", { ascending: false }).limit(3),
     db.schema("bible").from("reading_completions").select("completed_at").eq("user_id", user.id).order("completed_at", { ascending: false }).limit(60),
     db.schema("bible").from("notes").select("id, reference, content, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(5),
-    db.schema("bible").from("challenges").select("*, plan:reading_plans(title)").eq("is_active", true).limit(3),
+    db.schema("bible").from("challenges").select("*, plan:reading_plans(title)").eq("is_active", true).eq("visibility", "platform").order("created_at", { ascending: false }).limit(3),
+    db.schema("bible").from("challenges").select("*, plan:reading_plans(title)").eq("is_active", true).eq("visibility", "family").in("circle_owner_id", circleOwnerIds).order("created_at", { ascending: false }).limit(3),
   ]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,7 +39,7 @@ export default async function DashboardPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recentNotes = (notesRes.data ?? []) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const challenges = (challengesRes.data ?? []) as any[];
+  const challenges = [...(platformChallengesRes.data ?? []), ...(familyChallengesRes.data ?? [])].slice(0, 3) as any[];
 
   const firstName = (user.user_metadata?.full_name ?? user.email ?? "friend").split(" ")[0];
   const dateLabel = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });

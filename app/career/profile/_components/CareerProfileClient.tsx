@@ -109,7 +109,7 @@ export default function CareerProfileClient({ profile }: { profile: Profile }) {
   const [industry, setIndustry] = useState(profile?.industry ?? "");
   const [resumeText, setResumeText] = useState(profile?.resume_text ?? "");
   const [linkedinUrl, setLinkedinUrl] = useState(profile?.linkedin_url ?? "");
-  const [linkedinAbout, setLinkedinAbout] = useState(profile?.linkedin_about ?? "");
+  const [linkedinAbout, setLinkedinAbout] = useState(profile?.linkedin_bio ?? "");
   const [interestInput, setInterestInput] = useState("");
   const [interests, setInterests] = useState<string[]>(profile?.career_interests ?? []);
   const [targetInput, setTargetInput] = useState("");
@@ -122,7 +122,7 @@ export default function CareerProfileClient({ profile }: { profile: Profile }) {
 
   // --- Assessment state ---
   const [answers, setAnswers] = useState<Record<string, string | string[]>>(
-    profile?.assessment_answers ?? {}
+    profile?.assessment_responses ?? {}
   );
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState("");
@@ -193,7 +193,7 @@ export default function CareerProfileClient({ profile }: { profile: Profile }) {
           industry,
           resume_text: resumeText,
           linkedin_url: linkedinUrl,
-          linkedin_about: linkedinAbout,
+          linkedin_bio: linkedinAbout,
           career_interests: interests,
           target_roles: targetRoles,
         }),
@@ -236,7 +236,7 @@ export default function CareerProfileClient({ profile }: { profile: Profile }) {
       await fetch("/api/career/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assessment_answers: answers }),
+        body: JSON.stringify({ assessment_responses: answers }),
       });
       // Then analyze
       const res = await fetch("/api/career/profile/analyze", {
@@ -246,7 +246,7 @@ export default function CareerProfileClient({ profile }: { profile: Profile }) {
       });
       if (!res.ok) throw new Error("Analysis failed");
       const data = await res.json();
-      setSummary(data.summary);
+      setSummary(data);
       setAssessmentCompleted(true);
       setRetaking(false);
     } catch {

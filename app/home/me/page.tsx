@@ -36,7 +36,7 @@ export default async function MePage() {
         brand
         title="Me"
         subtitle="Career, Health, Mind & Spirit — one step at a time"
-        avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()}
+        avatarInitial={(user.user_metadata?.full_name || user.email || "?")[0]?.toUpperCase()}
       />
 
       <div style={{ padding: "0 16px" }}>

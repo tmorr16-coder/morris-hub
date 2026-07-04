@@ -13,7 +13,7 @@ export default async function SettingsPage() {
 
   const prefs = await getPreferences(user.id);
   const name = user.user_metadata?.full_name ?? user.user_metadata?.name ?? "You";
-  const initial = name[0]?.toUpperCase() ?? "T";
+  const initial = (user.user_metadata?.full_name || user.email || "?")[0]?.toUpperCase();
 
   return (
     <IOSScreen>

@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import PlanProgress from "./PlanProgress";
 
@@ -22,6 +22,8 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ pla
     const { data } = await db.schema("bible").from("reading_plans").select("*").eq("id", planId).single();
     plan = data;
     if (!plan) redirect("/bible/plans");
+    // Don't let the RLS-bypassing service client leak another user's private plan.
+    if (plan && plan.user_id && !plan.is_public && plan.user_id !== user.id) notFound();
   }
 
   // Load enrollment

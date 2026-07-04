@@ -24,29 +24,6 @@ interface ShareTabProps {
   colorTag: string;
 }
 
-const MIGRATION_SQL = `-- Run this in your Supabase SQL Editor:
--- https://supabase.com/dashboard/project/mrqutkseujckfhkjuzfr/sql/new
-
--- Step 1: create the table (safe to re-run)
-create table if not exists student_support.course_shares (
-  id                   uuid primary key default gen_random_uuid(),
-  course_id            uuid not null references student_support.courses(id) on delete cascade,
-  owner_user_id        uuid not null references auth.users(id) on delete cascade,
-  shared_with_user_id  uuid not null references auth.users(id) on delete cascade,
-  share_grades         boolean not null default true,
-  share_assignments    boolean not null default true,
-  created_at           timestamptz not null default now(),
-  unique (course_id, shared_with_user_id)
-);
-create index if not exists course_shares_owner_idx
-  on student_support.course_shares(owner_user_id);
-create index if not exists course_shares_recipient_idx
-  on student_support.course_shares(shared_with_user_id);
-
--- Step 2: grant access (fixes "permission denied" errors)
-grant all on student_support.course_shares to service_role;
-grant select, insert, update, delete on student_support.course_shares to authenticated;`;
-
 export default function ShareTab({ courseId, courseName, colorTag }: ShareTabProps) {
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [shares, setShares] = useState<CourseShare[]>([]);
@@ -55,7 +32,6 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null); // per-toggle error
   const [setupRequired, setSetupRequired] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   // Load platform users + current shares in parallel
   useEffect(() => {
@@ -97,16 +73,6 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
     };
     load();
   }, [courseId]);
-
-  const handleCopySQL = async () => {
-    try {
-      await navigator.clipboard.writeText(MIGRATION_SQL);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // fallback: select the text
-    }
-  };
 
   const getShare = (userId: string): CourseShare | undefined =>
     shares.find((s) => s.shared_with_user_id === userId);
@@ -206,7 +172,7 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
     );
   }
 
-  // ── Database setup required ─────────────────────────────────────
+  // ── Sharing backend unavailable ─────────────────────────────────
   if (setupRequired) {
     return (
       <div>
@@ -215,75 +181,14 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
         </div>
         <div style={{
           background: "var(--ios-cell)",
-          border: "1px solid var(--ios-orange)",
           borderRadius: "var(--ios-radius-card)",
-          padding: "18px 20px",
-          marginBottom: 16,
+          padding: "24px 20px",
+          textAlign: "center",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, color: "var(--ios-orange)" }}>
-            <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
-            </svg>
-            <strong className="ios-subhead">One-time database setup needed</strong>
-          </div>
-          <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: "0 0 16px 0", lineHeight: 1.6 }}>
-            The sharing table hasn&apos;t been created yet. Copy the SQL below and run it in your{" "}
-            <a
-              href="https://supabase.com/dashboard/project/mrqutkseujckfhkjuzfr/sql/new"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: "var(--ios-tint)", fontWeight: 600 }}
-            >
-              Supabase SQL Editor ↗
-            </a>
-            , then refresh this page.
+          <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: 0, lineHeight: 1.6 }}>
+            Sharing is temporarily unavailable. Please try again later.
           </p>
-          <div style={{ position: "relative" }}>
-            <pre style={{
-              background: "#1e1e2e",
-              color: "#cdd6f4",
-              borderRadius: 10,
-              padding: "14px 16px",
-              fontSize: 11,
-              lineHeight: 1.6,
-              overflowX: "auto",
-              margin: 0,
-              fontFamily: "monospace",
-            }}>
-              {MIGRATION_SQL}
-            </pre>
-            <button
-              onClick={handleCopySQL}
-              className="ios-caption"
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                padding: "5px 12px",
-                borderRadius: 8,
-                background: copied ? "var(--ios-green)" : "var(--ios-tint)",
-                color: "#fff",
-                fontWeight: 600,
-              }}
-            >
-              {copied ? "Copied" : "Copy SQL"}
-            </button>
-          </div>
         </div>
-        <button
-          onClick={() => { setLoading(true); setSetupRequired(false); setTimeout(() => window.location.reload(), 100); }}
-          className="ios-footnote"
-          style={{
-            padding: "9px 18px",
-            borderRadius: 10,
-            border: `1px solid ${colorTag}`,
-            background: "transparent",
-            color: colorTag,
-            fontWeight: 600,
-          }}
-        >
-          Retry after running SQL
-        </button>
       </div>
     );
   }

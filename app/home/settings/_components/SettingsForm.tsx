@@ -43,8 +43,8 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
 
   const [zip, setZip] = useState("");
   const [locationName, setLocationName] = useState(initialPrefs.location_name ?? "");
-  const [latitude, setLatitude] = useState(initialPrefs.latitude ?? 0);
-  const [longitude, setLongitude] = useState(initialPrefs.longitude ?? 0);
+  const [latitude, setLatitude] = useState<number | null>(initialPrefs.latitude ?? null);
+  const [longitude, setLongitude] = useState<number | null>(initialPrefs.longitude ?? null);
   const [resolvingZip, setResolvingZip] = useState(false);
 
   const [tickersInput, setTickersInput] = useState(initialPrefs.stock_tickers.join(", "));
@@ -252,8 +252,9 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
     startTransition(async () => {
       const res = await savePreferences({
         location_name: locationName,
-        latitude,
-        longitude,
+        // Only persist coordinates when a real location was resolved — never
+        // write 0,0, which would render as fake (Gulf of Guinea) weather.
+        ...(latitude !== null && longitude !== null ? { latitude, longitude } : { latitude: null, longitude: null }),
         stock_tickers: tickers,
         employer_ticker: employerTicker.trim().toUpperCase() || null,
         tts_voice: ttsVoice || null,
@@ -454,7 +455,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         </div>
         <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
           Current: <strong style={{ color: "var(--color-ink)" }}>{locationName || "Not set"}</strong>
-          {latitude !== 0 && (
+          {latitude !== null && longitude !== null && (
             <span className="mono" style={{ color: "var(--color-ink-4)", marginLeft: 6, fontSize: 11 }}>
               ({latitude.toFixed(4)}, {longitude.toFixed(4)})
             </span>

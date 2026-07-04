@@ -14,13 +14,6 @@ const INJECTION_SITES = [
   "Left arm",     "Right arm",
 ];
 
-const MOCK_DOSES: DoseRow[] = [
-  { id: "m1", user_id: "dev", date: "2026-04-01", dose_mg: 5, injection_site: "Left abdomen",  notes: null, created_at: "2026-04-01T07:30:00Z" },
-  { id: "m2", user_id: "dev", date: "2026-04-08", dose_mg: 5, injection_site: "Right abdomen", notes: null, created_at: "2026-04-08T07:45:00Z" },
-  { id: "m3", user_id: "dev", date: "2026-04-15", dose_mg: 5, injection_site: "Left thigh",    notes: null, created_at: "2026-04-15T08:00:00Z" },
-  { id: "m4", user_id: "dev", date: "2026-04-22", dose_mg: 5, injection_site: "Right thigh",   notes: null, created_at: "2026-04-22T07:15:00Z" },
-];
-
 function parseLocalDate(dateStr: string): Date {
   const [y, m, d] = dateStr.split("-").map(Number);
   return new Date(y, m - 1, d);
@@ -48,7 +41,26 @@ export default async function ZepboundPage() {
     .eq("user_id", userId)
     .order("date", { ascending: true })) as { data: DoseRow[] | null; error: unknown };
 
-  const doses  = rawDoses && rawDoses.length > 0 ? rawDoses : MOCK_DOSES;
+  const doses = rawDoses ?? [];
+
+  // No doses logged yet — show a real empty state instead of a fabricated
+  // mid-treatment history, and avoid dereferencing a non-existent latest dose.
+  if (doses.length === 0) {
+    return (
+      <div className="ios-scroll">
+        <LargeTitle
+          title="Zepbound"
+          subtitle="Zepbound · Tirzepatide"
+          trailing={<LogDoseButton recommendedSite={INJECTION_SITES[0]} defaultDoseMg={2.5} weekNumber={1} />}
+        />
+        <Group header="Get started" footer="Log your first injection to start tracking dose, site rotation, and timing.">
+          <Cell chevron={false} title="No doses logged yet" subtitle="Tap Log dose to record your first injection." />
+        </Group>
+        <div style={{ height: 12 }} />
+      </div>
+    );
+  }
+
   const latest = doses[doses.length - 1];
 
   const lastSite        = latest.injection_site ?? "Unknown";

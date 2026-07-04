@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { LargeTitle } from "@/components/ios";
 import ExperiencesPageClient from "./_components/ExperiencesPageClient";
 
 function formatDate(dateStr: string | null): string {
@@ -26,7 +27,7 @@ export default async function SeventyPercentPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/login");
+  if (!user) redirect("/login");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
@@ -80,25 +81,11 @@ export default async function SeventyPercentPage() {
   goals.forEach((g) => { goalsMap[g.id] = g.title; });
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{ marginBottom: 28 }}>
-        <h1
-          style={{
-            fontFamily: "var(--font-display, serif)",
-            fontSize: 28,
-            fontWeight: 400,
-            color: "var(--color-ink)",
-            margin: "0 0 6px",
-          }}
-        >
-          70% · On-the-Job Learning
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--color-ink-3)", margin: 0, maxWidth: 640 }}>
-          70% of effective career development happens through challenging on-the-job experiences —
-          stretch assignments, new projects, leading teams, solving hard problems, and learning from setbacks.
-        </p>
-      </div>
+    <div className="ios-scroll">
+      <LargeTitle
+        title="70% · Experiences"
+        subtitle="Growth through challenging on-the-job experiences"
+      />
 
       {/* Stats row */}
       <div
@@ -106,7 +93,7 @@ export default async function SeventyPercentPage() {
           display: "flex",
           gap: 16,
           flexWrap: "wrap",
-          marginBottom: 28,
+          padding: "8px 16px 20px",
         }}
       >
         {[
@@ -116,17 +103,17 @@ export default async function SeventyPercentPage() {
           <div
             key={label}
             style={{
-              background: "var(--color-bg-card)",
-              border: "1px solid var(--color-rule)",
+              background: "var(--ios-cell)",
+              border: "var(--ios-hair) solid var(--ios-separator)",
               borderRadius: 10,
               padding: "14px 20px",
               minWidth: 130,
             }}
           >
-            <div style={{ fontSize: 24, fontWeight: 600, color: "var(--color-accent)" }}>
+            <div style={{ fontSize: 24, fontWeight: 600, color: "var(--ios-tint)" }}>
               {value}
             </div>
-            <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: "var(--ios-label-2)", marginTop: 2 }}>
               {label}
             </div>
           </div>
@@ -135,15 +122,15 @@ export default async function SeventyPercentPage() {
         {topSkills.length > 0 && (
           <div
             style={{
-              background: "var(--color-bg-card)",
-              border: "1px solid var(--color-rule)",
+              background: "var(--ios-cell)",
+              border: "var(--ios-hair) solid var(--ios-separator)",
               borderRadius: 10,
               padding: "14px 20px",
               flex: 1,
               minWidth: 200,
             }}
           >
-            <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: "var(--ios-label-2)", marginBottom: 8 }}>
               Top Skills Developed
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -151,8 +138,8 @@ export default async function SeventyPercentPage() {
                 <span
                   key={skill}
                   style={{
-                    background: "var(--color-accent-soft)",
-                    color: "var(--color-accent-dark)",
+                    background: "var(--ios-fill)",
+                    color: "var(--ios-tint)",
                     borderRadius: 4,
                     padding: "2px 8px",
                     fontSize: 12,

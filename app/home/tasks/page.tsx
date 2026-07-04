@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
+import { getUserTimezone } from "@/lib/timezone";
 import { getAllUpcomingReminders, type Reminder } from "@/lib/reminders";
 import { IOSScreen, LargeTitle, TabBar } from "@/components/ios";
 import RemindersWidget from "../_components/RemindersWidget";
@@ -36,13 +37,13 @@ export default async function TasksPage() {
       <LargeTitle brand title="Tasks & reminders" subtitle="Add, complete, edit, or delete — all in one place" />
 
       <div style={{ padding: "0 16px" }}>
-        <RemindersWidget initialReminders={reminders} tz="America/Indiana/Indianapolis" categories={prefs.reminder_categories} />
+        <RemindersWidget initialReminders={reminders} tz={getUserTimezone(user.user_metadata)} categories={prefs.reminder_categories} />
         <div style={{ height: 16 }} />
         <TodosWidget initialTodos={todos} />
       </div>
 
       <div style={{ height: 12 }} />
-      <TabBar current="today" currentUserId={user.id} sourceApp="hub" />
+      <TabBar current="more" currentUserId={user.id} sourceApp="hub" />
     </IOSScreen>
   );
 }

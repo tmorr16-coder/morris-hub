@@ -149,10 +149,14 @@ export async function GET(request: NextRequest) {
 
   let usersToSync: OuraTokenRow[] = (tokenRows as OuraTokenRow[] | null) ?? [];
 
-  // Fall back to env var token — write data to the requesting user's account
+  // Fall back to the shared env var token — but this is the OWNER's personal Oura
+  // token, so it may ONLY ever write under the DEV/owner account. Applying it for an
+  // arbitrary caller would store the owner's biometrics under a stranger's user_id.
+  // A standard new user requesting sync must get zero rows from the env token.
   const envToken = process.env.OURA_ACCESS_TOKEN;
-  if (envToken && usersToSync.length === 0) {
-    usersToSync = [{ user_id: specificUserId ?? DEV_USER_ID, access_token: envToken }];
+  const envTokenAllowed = !specificUserId || specificUserId === DEV_USER_ID;
+  if (envToken && envTokenAllowed && usersToSync.length === 0) {
+    usersToSync = [{ user_id: DEV_USER_ID, access_token: envToken }];
   }
 
   if (usersToSync.length === 0) {

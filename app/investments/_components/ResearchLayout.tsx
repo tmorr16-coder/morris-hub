@@ -13,9 +13,10 @@ import { toggleWatchStock } from "../actions";
 
 interface ResearchLayoutProps {
   watchedTickers: string[];
+  brokerageConnected: boolean;
 }
 
-export default function ResearchLayout({ watchedTickers }: ResearchLayoutProps) {
+export default function ResearchLayout({ watchedTickers, brokerageConnected }: ResearchLayoutProps) {
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const [localWatched, setLocalWatched] = useState<string[]>(watchedTickers);
   const [watchError, setWatchError] = useState<string | null>(null);
@@ -57,6 +58,7 @@ export default function ResearchLayout({ watchedTickers }: ResearchLayoutProps) 
           isWatched={isWatched}
           onToggleWatch={handleToggleWatch}
           onClose={() => setSelectedStock(null)}
+          brokerageConnected={brokerageConnected}
         />
       </div>
     );

@@ -53,6 +53,17 @@ export default async function PortfolioPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
 
+  // The accounts table has no user_id column — it's scoped by item_id. Resolve
+  // this user's plaid_items first so the investment-accounts query can filter by
+  // item_id (matching the dashboard). Filtering accounts on user_id returned none.
+  const { data: itemRows } = await service
+    .schema("finance")
+    .from("plaid_items")
+    .select("id")
+    .eq("user_id", user.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userItemIds = ((itemRows ?? []) as { id: string }[]).map((r) => r.id);
+
   const [plan, myManualResult, plaidResult, sharedManualResult, sharedPlaidResult] = await Promise.all([
     loadPlan(),
     // My own manually-entered and imported accounts — EXCLUDE retirement types
@@ -65,14 +76,16 @@ export default async function PortfolioPage() {
       .eq("user_id", user.id)
       .not("account_type", "in", '("401k","roth_ira","traditional_ira","hsa","pension")')
       .order("created_at", { ascending: true }),
-    // My Plaid investment accounts
-    service
-      .schema("finance")
-      .from("accounts")
-      .select("id, name, subtype, current_balance, mask")
-      .eq("user_id", user.id)
-      .eq("type", "investment")
-      .eq("is_hidden", false),
+    // My Plaid investment accounts (scoped by item_id — accounts has no user_id).
+    userItemIds.length > 0
+      ? service
+          .schema("finance")
+          .from("accounts")
+          .select("id, name, subtype, current_balance, mask")
+          .in("item_id", userItemIds)
+          .eq("type", "investment")
+          .eq("is_hidden", false)
+      : Promise.resolve({ data: [] }),
     // Manual accounts shared WITH this user by others (excluding retirement types)
     service
       .schema("finance")

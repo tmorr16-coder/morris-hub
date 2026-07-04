@@ -27,11 +27,22 @@ export default async function PlansPage() {
     db.schema("bible").from("reading_plans").select("*").eq("is_public", true).order("created_at", { ascending: false }).limit(20),
   ]);
 
-  // Graceful fallback if family_plans table not yet migrated
+  // Graceful fallback if family_plans table not yet migrated.
+  // Scope to plans the user created OR belongs to — the service client bypasses
+  // RLS, so an unscoped query would surface other families' plans.
   let familyPlans: any[] = [];
   try {
-    const { data: fp } = await db.schema("bible").from("family_plans")
-      .select("*, plan:reading_plans(*), members:family_plan_members(user_id)").limit(10);
+    const { data: memberRows } = await db.schema("bible").from("family_plan_members")
+      .select("family_plan_id").eq("user_id", user.id);
+    const memberPlanIds = ((memberRows ?? []) as any[]).map((r) => r.family_plan_id as string);
+
+    let fpQuery = db.schema("bible").from("family_plans")
+      .select("*, plan:reading_plans(*), members:family_plan_members(user_id)");
+    fpQuery = memberPlanIds.length > 0
+      ? fpQuery.or(`created_by.eq.${user.id},id.in.(${memberPlanIds.join(",")})`)
+      : fpQuery.eq("created_by", user.id);
+
+    const { data: fp } = await fpQuery.limit(10);
     familyPlans = fp ?? [];
   } catch { /* table not yet created */ }
 

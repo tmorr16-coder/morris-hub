@@ -6,6 +6,7 @@ import type { SharedWithMe } from "./settings/share-actions";
 import { LargeTitle, Group, Cell, IconBadge, Sparkline, Icons } from "@/components/ios";
 import SyncNowButton from "./_components/SyncNowButton";
 import ImportedAccounts from "./_components/ImportedAccounts";
+import ConnectSection from "./_components/ConnectSection";
 
 /* This dashboard reads many finance-schema tables through the service-role
    client, which is untyped — `as any` casts are used throughout the data layer. */
@@ -366,6 +367,14 @@ export default async function DashboardPage() {
           {accounts.length + manualAccounts.length} accounts{lastSyncAcrossItems ? ` · synced ${relativeTime(lastSyncAcrossItems)}` : ""}
         </div>
       </div>
+
+      {accounts.length + manualAccounts.length === 0 && (
+        <Group header="Get started" footer="Securely link a bank or brokerage with Plaid to pull in balances and transactions automatically.">
+          <div className="ios-cell" style={{ padding: "14px 16px" }}>
+            <ConnectSection label="Connect a bank" />
+          </div>
+        </Group>
+      )}
 
       {BUCKETS.map((b) => {
         const list = accountsByBucket[b.key];

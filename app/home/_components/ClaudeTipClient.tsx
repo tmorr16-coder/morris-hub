@@ -21,19 +21,21 @@ export default function ClaudeTipClient({ tips }: { tips: ClaudeTip[] }) {
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "12px 16px 6px" }}>
         <span className="ios-headline">Morris tips</span>
-        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span className="ios-caption ios-num" style={{ color: "var(--ios-label-3)" }}>{idx + 1} / {tips.length}</span>
-          <button
-            onClick={() => setIdx((i) => (i - 1 + tips.length) % tips.length)}
-            style={navBtn}
-            aria-label="Previous tip"
-          ><Icons.ChevronLeft width={15} height={15} /></button>
-          <button
-            onClick={() => setIdx((i) => (i + 1) % tips.length)}
-            style={navBtn}
-            aria-label="Next tip"
-          ><Icons.ChevronRight width={15} height={15} /></button>
-        </span>
+        {tips.length > 0 && (
+          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="ios-caption ios-num" style={{ color: "var(--ios-label-3)" }}>{idx + 1} / {tips.length}</span>
+            <button
+              onClick={() => setIdx((i) => (i - 1 + tips.length) % tips.length)}
+              style={navBtn}
+              aria-label="Previous tip"
+            ><Icons.ChevronLeft width={15} height={15} /></button>
+            <button
+              onClick={() => setIdx((i) => (i + 1) % tips.length)}
+              style={navBtn}
+              aria-label="Next tip"
+            ><Icons.ChevronRight width={15} height={15} /></button>
+          </span>
+        )}
       </div>
 
       {tip ? (
