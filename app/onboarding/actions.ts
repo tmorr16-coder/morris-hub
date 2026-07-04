@@ -8,6 +8,12 @@ interface OnboardingData {
   displayName: string;
   locationName: string;
   appAccess: string[];
+  // Interests — all optional; captured on the "Your interests" step.
+  stockTickers?: string[];
+  employerTicker?: string | null;
+  newsTopics?: string[];
+  sportsTeams?: string[];
+  cityNames?: string[];
 }
 
 export async function completeOnboarding(data: OnboardingData): Promise<{ error?: string }> {
@@ -28,6 +34,12 @@ export async function completeOnboarding(data: OnboardingData): Promise<{ error?
         location_name: data.locationName,
         app_access: data.appAccess,
         onboarding_completed: true,
+        // Interests — persist whatever the user provided; empty arrays / null are fine.
+        stock_tickers: data.stockTickers ?? [],
+        employer_ticker: data.employerTicker ?? null,
+        news_topics: data.newsTopics ?? [],
+        sports_enabled_teams: data.sportsTeams ?? [],
+        city_names: data.cityNames ?? [],
       },
       { onConflict: "user_id" }
     );

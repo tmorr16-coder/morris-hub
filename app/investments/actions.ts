@@ -2,7 +2,55 @@
 
 import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
+
+// ── Alpaca brokerage connection (per-user, mirrors the Oura token flow) ───────
+
+export async function saveAlpacaCredentials(input: {
+  apiKey: string;
+  apiSecret: string;
+  isPaper: boolean;
+}): Promise<{ error?: string }> {
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: "Not authenticated" };
+
+  const apiKey = input.apiKey?.trim();
+  const apiSecret = input.apiSecret?.trim();
+  if (!apiKey || !apiSecret) return { error: "API key and secret are required" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { error } = await db.from("alpaca_credentials").upsert(
+    {
+      user_id: userId,
+      api_key: apiKey,
+      api_secret: apiSecret,
+      is_paper: input.isPaper,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id" }
+  );
+  if (error) return { error: error.message };
+
+  revalidatePath("/investments");
+  revalidatePath("/finance/portfolio");
+  return {};
+}
+
+export async function disconnectAlpaca(): Promise<{ error?: string }> {
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: "Not authenticated" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { error } = await db.from("alpaca_credentials").delete().eq("user_id", userId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/investments");
+  revalidatePath("/finance/portfolio");
+  return {};
+}
 
 export async function toggleWatchStock(ticker: string): Promise<{ error?: string }> {
   const userId = await getCurrentUserId();

@@ -186,7 +186,12 @@ export default function PortfolioClient({
     if (!hasAlpaca) return;
     fetch("/api/investments/alpaca/account")
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.portfolio_value) setAlpacaValue(parseFloat(d.portfolio_value)); })
+      .then(d => {
+        // Route returns { connected:false } when the user has no brokerage,
+        // or { connected:true, account:{ portfolio_value } } when connected.
+        const pv = d?.account?.portfolio_value;
+        if (d?.connected && pv) setAlpacaValue(parseFloat(pv));
+      })
       .catch(() => {})
       .finally(() => setAlpacaLoading(false));
   }, [hasAlpaca]);

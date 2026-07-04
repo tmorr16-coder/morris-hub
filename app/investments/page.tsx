@@ -3,10 +3,11 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
-import { getAccount, getPositions, type AlpacaPosition } from "@/lib/alpaca";
+import { getAccount, getPositions, getAlpacaStatus, type AlpacaPosition } from "@/lib/alpaca";
 import { fetchQuotes, type Quote } from "@/lib/stocks";
 import { getUserInvestmentIdeas } from "@/lib/investment-ideas";
 import { LargeTitle, Group, Cell, IconBadge, GlanceGrid, GlanceTile, Sparkline, Icons } from "@/components/ios";
+import AlpacaCard from "./_components/AlpacaCard";
 
 function usd(n: number, maxFrac = 0): string {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: maxFrac });
@@ -47,12 +48,14 @@ export default async function InvestmentsPage() {
   if (!prefs.app_access?.includes("investments")) redirect("/home");
 
   const watched = prefs.watched_stocks ?? [];
-  const [account, positions, quotes, ideas] = await Promise.all([
-    getAccount().catch(() => null),
-    getPositions().catch(() => [] as AlpacaPosition[]),
+  const [alpaca, account, positions, quotes, ideas] = await Promise.all([
+    getAlpacaStatus(user.id).catch(() => ({ connected: false, isPaper: true })),
+    getAccount(user.id).catch(() => null),
+    getPositions(user.id).catch(() => [] as AlpacaPosition[]),
     fetchQuotes(watched).catch(() => [] as Quote[]),
     getUserInvestmentIdeas(user.id).catch(() => []),
   ]);
+  const brokerageConnected = alpaca.connected;
 
   const equity = account ? Number(account.equity) : null;
   const lastEquity = account ? Number(account.last_equity) : null;
@@ -73,48 +76,62 @@ export default async function InvestmentsPage() {
         avatarInitial={(user.user_metadata?.full_name ?? user.email ?? "T")[0]?.toUpperCase()}
       />
 
-      {account && equity != null && (
-        <div className="ios-list" style={{ margin: "8px 16px 0", padding: 16 }}>
-          <div className="ios-num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.01em" }}>{usd(equity)}</div>
-          {dayChange != null && (
-            <div className="ios-subhead" style={{ color: trendColor, marginTop: 2 }}>
-              {up ? "▲" : "▼"} {usd(Math.abs(dayChange), 2)}{dayPct != null && ` (${dayPct.toFixed(2)}%)`} today
-            </div>
-          )}
-          {lastEquity != null && (
-            <div style={{ margin: "14px 0 2px" }}>
-              <Sparkline points={[lastEquity, equity]} color={trendColor} width={320} />
-            </div>
-          )}
+      {/* No brokerage connected → show the connect/setup card instead of the
+          empty portfolio & cash tiles. Watchlist and ideas still work below. */}
+      {!brokerageConnected ? (
+        <div style={{ padding: "12px 16px 0" }}>
+          <AlpacaCard configured={false} />
         </div>
+      ) : (
+        <>
+          {account && equity != null && (
+            <div className="ios-list" style={{ margin: "8px 16px 0", padding: 16 }}>
+              <div className="ios-num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.01em" }}>{usd(equity)}</div>
+              {dayChange != null && (
+                <div className="ios-subhead" style={{ color: trendColor, marginTop: 2 }}>
+                  {up ? "▲" : "▼"} {usd(Math.abs(dayChange), 2)}{dayPct != null && ` (${dayPct.toFixed(2)}%)`} today
+                </div>
+              )}
+              {lastEquity != null && (
+                <div style={{ margin: "14px 0 2px" }}>
+                  <Sparkline points={[lastEquity, equity]} color={trendColor} width={320} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {topHoldings.length > 0 ? (
+            <Group header="Holdings">
+              {topHoldings.map((p) => (
+                <Cell
+                  key={p.asset_id}
+                  lead={<TickerBadge sym={p.symbol} />}
+                  title={p.symbol}
+                  subtitle={`${Number(p.qty).toLocaleString("en-US")} sh · ${usd(Number(p.market_value))}`}
+                  trailing={<PriceTrail price={Number(p.current_price).toFixed(2)} pct={Number(p.change_today) * 100} />}
+                  chevron={false}
+                  href="/investments/stocks"
+                />
+              ))}
+            </Group>
+          ) : (
+            <Group header="Holdings" footer="Your paper-trading positions will appear here.">
+              <Cell lead={<IconBadge color="var(--ios-finance)"><Icons.ChartIcon /></IconBadge>} title="Browse stocks" href="/investments/stocks" />
+            </Group>
+          )}
+        </>
       )}
 
       <GlanceGrid>
-        <GlanceTile label="Holdings" value={positions.length} sub="positions" href="/investments/stocks" />
+        {brokerageConnected && (
+          <GlanceTile label="Holdings" value={positions.length} sub="positions" href="/investments/stocks" />
+        )}
         <GlanceTile label="Watchlist" value={watched.length} sub="tickers" href="/investments/stocks" accent="var(--ios-green)" />
         <GlanceTile label="Ideas" value={ideas.length} sub="saved" href="/investments/ideas" accent="var(--ios-orange)" />
-        <GlanceTile label="Cash" value={account ? usd(Number(account.cash)) : "—"} sub="buying power" href="/investments/stocks" accent="var(--ios-finance)" />
+        {brokerageConnected && (
+          <GlanceTile label="Cash" value={account ? usd(Number(account.cash)) : "—"} sub="buying power" href="/investments/stocks" accent="var(--ios-finance)" />
+        )}
       </GlanceGrid>
-
-      {topHoldings.length > 0 ? (
-        <Group header="Holdings">
-          {topHoldings.map((p) => (
-            <Cell
-              key={p.asset_id}
-              lead={<TickerBadge sym={p.symbol} />}
-              title={p.symbol}
-              subtitle={`${Number(p.qty).toLocaleString("en-US")} sh · ${usd(Number(p.market_value))}`}
-              trailing={<PriceTrail price={Number(p.current_price).toFixed(2)} pct={Number(p.change_today) * 100} />}
-              chevron={false}
-              href="/investments/stocks"
-            />
-          ))}
-        </Group>
-      ) : (
-        <Group header="Holdings" footer="Your paper-trading positions will appear here.">
-          <Cell lead={<IconBadge color="var(--ios-finance)"><Icons.ChartIcon /></IconBadge>} title="Browse stocks" href="/investments/stocks" />
-        </Group>
-      )}
 
       {quotes.length > 0 && (
         <Group header="Watchlist">
@@ -136,6 +153,16 @@ export default async function InvestmentsPage() {
         <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.SparkleIcon /></IconBadge>} title="Stocks" subtitle="Live quotes, research & paper trading" href="/investments/stocks" />
         <Cell lead={<IconBadge color="#C97A3A"><Icons.ChartIcon /></IconBadge>} title="Ideas" subtitle="Screens & watchlist candidates" href="/investments/ideas" />
       </Group>
+
+      {/* Connected users manage / disconnect their brokerage here. */}
+      {brokerageConnected && (
+        <div style={{ padding: "20px 16px 0" }}>
+          <div className="ios-caption" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em", padding: "0 16px 6px" }}>
+            Brokerage
+          </div>
+          <AlpacaCard configured isPaper={alpaca.isPaper} />
+        </div>
+      )}
 
       <div style={{ height: 12 }} />
     </div>

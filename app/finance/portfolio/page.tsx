@@ -5,6 +5,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { loadPlan } from "../retirement/actions";
 import type { RetirementAccount, RetirementDebt } from "../retirement/types";
 import { LargeTitle, Group, BarRows } from "@/components/ios";
+import { hasAlpacaConnection } from "@/lib/alpaca";
 import PortfolioClient from "./_components/PortfolioClient";
 
 // Roll individual account types up into a handful of asset classes for the
@@ -129,9 +130,8 @@ export default async function PortfolioPage() {
       })),
   ];
 
-  const hasAlpaca = !!(
-    process.env.ALPACA_API_KEY && process.env.ALPACA_API_SECRET
-  );
+  // Per-user brokerage connection (own Alpaca keys, or owner/admin env fallback).
+  const hasAlpaca = await hasAlpacaConnection(user.id);
 
   // ── Allocation by asset class (server-computed for the summary chart) ──────
   const allocation = new Map<string, number>();

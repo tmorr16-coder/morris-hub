@@ -3,8 +3,10 @@ import { fetchTickerNews } from "@/lib/news";
 import { Group, Cell, IconBadge, Icons } from "@/components/ios";
 
 // Company watch — the employer ticker's price + latest headlines, streamed.
-export default async function TodayMarkets({ ticker }: { ticker: string }) {
-  const t = (ticker || "LLY").toUpperCase();
+// Renders nothing when the user hasn't set an employer ticker.
+export default async function TodayMarkets({ ticker }: { ticker: string | null | undefined }) {
+  const t = (ticker ?? "").trim().toUpperCase();
+  if (!t) return null;
   const [quote, news] = await Promise.all([
     fetchQuotes([t]).then((q) => q[0] ?? null).catch(() => null),
     fetchTickerNews(t, t).then((n) => n.slice(0, 2)).catch(() => []),

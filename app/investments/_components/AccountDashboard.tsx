@@ -61,6 +61,7 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
   const [data, setData] = useState<AccountData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notConnected, setNotConnected] = useState(false);
   const [collapsed, setCollapsed] = useState(true);
 
   const load = async () => {
@@ -68,7 +69,13 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
       const res = await fetch("/api/investments/alpaca/account");
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed to load account");
-      setData(json);
+      if (json.connected === false) {
+        setNotConnected(true);
+        setData(null);
+      } else {
+        setData(json);
+        setNotConnected(false);
+      }
       setError(null);
     } catch (e) {
       setError((e as Error).message);
@@ -83,6 +90,16 @@ export default function AccountDashboard({ onSelectStock }: AccountDashboardProp
     return (
       <Group header="Paper account">
         <div className="ios-cell" style={{ color: "var(--ios-label-2)" }}>Loading account…</div>
+      </Group>
+    );
+  }
+
+  if (notConnected) {
+    return (
+      <Group header="Brokerage" footer="Connect your own Alpaca keys to enable paper or live trading.">
+        <a className="ios-cell" href="/investments" style={{ color: "var(--ios-tint)" }}>
+          Connect a brokerage
+        </a>
       </Group>
     );
   }

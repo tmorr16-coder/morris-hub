@@ -44,21 +44,13 @@ export async function getPreferences(userId: string): Promise<Preferences> {
     // New columns default to NULL for existing rows — fall back to defaults.
     if (!p.visible_widgets?.length) p.visible_widgets = [...ALL_WIDGETS];
     if (!p.reminder_categories?.length) p.reminder_categories = [...DEFAULT_REMINDER_CATEGORIES];
-    if (!p.city_names?.length) p.city_names = [
-      "Indianapolis, IN",
-      "Fishers, IN",
-      "Tallahassee, FL",
-      "Perry, FL",
-    ];
-    if (!p.sports_enabled_teams?.length) p.sports_enabled_teams = [
-      "MLB:ATL",
-      "NFL:IND",
-      "NBA:IND",
-      "WNBA:IND",
-      "COLLEGE:FAMU-FB",
-      "COLLEGE:FAMU-BB",
-      "COLLEGE:FAMU-BK",
-    ];
+    // Interest fields are neutral by default — new users capture their own in
+    // onboarding / Settings. Existing populated rows are preserved by the guards.
+    if (!p.stock_tickers?.length) p.stock_tickers = [];
+    if (!p.news_topics?.length) p.news_topics = [];
+    if (!p.city_names?.length) p.city_names = [];
+    if (!p.sports_enabled_teams?.length) p.sports_enabled_teams = [];
+    if (!p.employer_ticker) p.employer_ticker = null;
     if (!p.investment_categories?.length) p.investment_categories = [
       "stocks",
       "real_estate",
@@ -86,26 +78,14 @@ export async function getPreferences(userId: string): Promise<Preferences> {
   // Fallback to env defaults if no row yet
   return {
     user_id: userId,
-    location_name: process.env.DEFAULT_LOCATION_NAME ?? "Fishers, IN",
-    latitude: parseFloat(process.env.DEFAULT_LAT ?? "39.9559"),
-    longitude: parseFloat(process.env.DEFAULT_LON ?? "-85.9601"),
-    stock_tickers: ["LLY", "GOOGL", "AMZN", "NVDA", "MSFT"],
-    news_topics: ["politics", "ai", "claude"],
-    city_names: process.env.DEFAULT_CITY_NAMES?.split(",") ?? [
-      "Indianapolis, IN",
-      "Fishers, IN",
-      "Tallahassee, FL",
-      "Perry, FL",
-    ],
-    sports_enabled_teams: [
-      "MLB:ATL",
-      "NFL:IND",
-      "NBA:IND",
-      "WNBA:IND",
-      "COLLEGE:FAMU-FB",
-      "COLLEGE:FAMU-BB",
-      "COLLEGE:FAMU-BK",
-    ],
+    location_name: process.env.DEFAULT_LOCATION_NAME ?? null,
+    latitude: process.env.DEFAULT_LAT ? parseFloat(process.env.DEFAULT_LAT) : null,
+    longitude: process.env.DEFAULT_LON ? parseFloat(process.env.DEFAULT_LON) : null,
+    stock_tickers: [],
+    news_topics: [],
+    city_names: process.env.DEFAULT_CITY_NAMES?.split(",") ?? [],
+    sports_enabled_teams: [],
+    employer_ticker: null,
     investment_categories: ["stocks", "real_estate", "transportation", "tech", "other"],
     visible_widgets: [...ALL_WIDGETS],
     reminder_categories: [...DEFAULT_REMINDER_CATEGORIES],

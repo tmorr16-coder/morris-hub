@@ -554,7 +554,7 @@ export default async function HomePage() {
       quickActions={<QuickActions />}
       slot={
         <>
-          <Suspense fallback={null}><TodayMarkets ticker={homePrefs?.employer_ticker ?? "LLY"} /></Suspense>
+          <Suspense fallback={null}><TodayMarkets ticker={homePrefs?.employer_ticker ?? null} /></Suspense>
           <Suspense fallback={null}><TodayNews sources={homePrefs?.news_sources ?? []} topics={homePrefs?.news_topics ?? []} /></Suspense>
         </>
       }

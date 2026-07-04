@@ -3,7 +3,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { completeOnboarding } from "../actions";
-import { Icons } from "@/components/ios";
+import { Icons, Chip } from "@/components/ios";
+import { AVAILABLE_SPORTS_TEAMS } from "@/lib/sports-teams";
+
+// News topics — mirrors AVAILABLE_TOPICS in app/home/settings/_components/SettingsForm.tsx.
+// Keep in sync; do not add topics the news pipeline doesn't support.
+const NEWS_TOPICS: { id: string; label: string }[] = [
+  { id: "politics", label: "Politics" },
+  { id: "ai", label: "AI" },
+  { id: "claude", label: "Claude" },
+  { id: "technology", label: "Technology" },
+  { id: "business", label: "Business" },
+  { id: "world", label: "World" },
+  { id: "sports", label: "Sports" },
+];
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -142,6 +155,28 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
   const [connectedIntegrations, setConnectedIntegrations] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
+  // Interests — all optional; new users capture their own so they don't inherit defaults.
+  const [stocksInput, setStocksInput] = useState("");
+  const [employerInput, setEmployerInput] = useState("");
+  const [newsTopics, setNewsTopics] = useState<Set<string>>(new Set());
+  const [sportsTeams, setSportsTeams] = useState<Set<string>>(new Set());
+
+  function toggleTopic(id: string) {
+    setNewsTopics((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleTeam(id: string) {
+    setSportsTeams((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   // When persona is selected, pre-populate modules
   function selectPersona(p: Persona) {
     setPersona(p);
@@ -160,11 +195,23 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
   async function finish() {
     setSaving(true);
     const appAccess = ["hub", ...Array.from(modules)];
+    const stockTickers = stocksInput
+      .split(/[,\s]+/)
+      .map((t) => t.trim().toUpperCase())
+      .filter(Boolean);
+    const employerTicker = employerInput.trim().toUpperCase() || null;
+    const city = profile.locationName.trim();
     await completeOnboarding({
       persona: persona!,
       displayName: profile.displayName,
       locationName: profile.locationName,
       appAccess,
+      stockTickers,
+      employerTicker,
+      newsTopics: Array.from(newsTopics),
+      sportsTeams: Array.from(sportsTeams),
+      // The city captured on the profile step doubles as the local-news city.
+      cityNames: city ? [city] : [],
     });
     router.replace("/home");
   }
@@ -206,7 +253,7 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
         <span className="ios-headline" style={{ color: "var(--ios-tint)", fontWeight: 400 }}>.family</span>
       </div>
 
-      <ProgressBar step={step} total={4} />
+      <ProgressBar step={step} total={5} />
 
       <div style={{ width: "100%", maxWidth: 560 }}>
 
@@ -329,8 +376,87 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
           </div>
         )}
 
-        {/* ── Screen 4: Integrations ── */}
-        {step === 4 && persona && (
+        {/* ── Screen 4: Your interests ── */}
+        {step === 4 && (
+          <div>
+            <h1 className="ios-title-1" style={{ color: "var(--ios-label)", marginBottom: 6, textAlign: "center" }}>Your interests</h1>
+            <p className="ios-subhead" style={{ color: "var(--ios-label-2)", textAlign: "center", marginBottom: 8, lineHeight: 1.5 }}>
+              These fill your home screen widgets. Everything here is optional — skip anything and add it later in Settings.
+            </p>
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", textAlign: "center", marginBottom: 24 }}>Nothing is pre-filled — this is all yours.</div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {/* Stocks to watch */}
+              <div>
+                <label style={labelStyle}>Stocks to watch</label>
+                <input
+                  value={stocksInput}
+                  onChange={(e) => setStocksInput(e.target.value)}
+                  placeholder="e.g. AAPL, MSFT, NVDA"
+                  style={inputStyle}
+                />
+                <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>Comma or space separated ticker symbols.</div>
+              </div>
+
+              {/* Employer ticker */}
+              <div>
+                <label style={labelStyle}>Your employer&rsquo;s stock ticker</label>
+                <input
+                  value={employerInput}
+                  onChange={(e) => setEmployerInput(e.target.value.toUpperCase())}
+                  placeholder="e.g. NVDA"
+                  maxLength={10}
+                  style={{ ...inputStyle, textTransform: "uppercase" }}
+                />
+                <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>Drives the Company News widget. Leave blank to hide it.</div>
+              </div>
+
+              {/* News topics */}
+              <div>
+                <label style={labelStyle}>News topics</label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {NEWS_TOPICS.map((t) => (
+                    <Chip key={t.id} small selected={newsTopics.has(t.id)} onClick={() => toggleTopic(t.id)}>
+                      {t.label}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sports teams */}
+              <div>
+                <label style={labelStyle}>Sports teams</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {Object.entries(AVAILABLE_SPORTS_TEAMS).map(([league, teams]) => (
+                    <div key={league}>
+                      <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>{league}</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {teams.map((team) => {
+                          const teamId = `${league}:${team.code}`;
+                          return (
+                            <Chip key={teamId} small selected={sportsTeams.has(teamId)} onClick={() => toggleTeam(teamId)}>
+                              {team.name}
+                            </Chip>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
+              <button onClick={() => setStep(3)} className="ios-btn" style={{ flex: 1, background: "var(--ios-fill)", color: "var(--ios-tint)" }}>Back</button>
+              <button onClick={() => setStep(5)} className="ios-btn ios-btn--primary" style={{ flex: 2 }}>
+                Continue
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Screen 5: Integrations ── */}
+        {step === 5 && persona && (
           <div>
             <h1 className="ios-title-1" style={{ color: "var(--ios-label)", marginBottom: 6, textAlign: "center" }}>Connect your first integrations</h1>
             <p className="ios-subhead" style={{ color: "var(--ios-label-2)", textAlign: "center", marginBottom: 8, lineHeight: 1.5 }}>
@@ -369,7 +495,7 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
             </div>
 
             <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
-              <button onClick={() => setStep(3)} className="ios-btn" style={{ flex: 1, background: "var(--ios-fill)", color: "var(--ios-tint)" }}>Back</button>
+              <button onClick={() => setStep(4)} className="ios-btn" style={{ flex: 1, background: "var(--ios-fill)", color: "var(--ios-tint)" }}>Back</button>
               <button onClick={finish} disabled={saving}
                 className="ios-btn ios-btn--primary" style={{ flex: 2, ...primaryBtn(!saving, saving) }}>
                 {saving ? "Setting up…" : "Enter the platform"}
