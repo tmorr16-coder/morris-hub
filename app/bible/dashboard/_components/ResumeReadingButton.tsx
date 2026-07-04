@@ -34,9 +34,9 @@ export default function ResumeReadingButton() {
       }}
       title="Resume your active Bible reading"
     >
-      <Icons.PlayIcon style={{ width: 18, height: 18 }} />
+      <Icons.BookIcon style={{ width: 18, height: 18 }} />
       <div style={{ flex: 1 }}>Resume reading {session.label}</div>
-      <Icons.ChevronRightIcon style={{ width: 16, height: 16, marginLeft: "auto" }} />
+      <Icons.ChevronRight style={{ width: 16, height: 16, marginLeft: "auto" }} />
     </Link>
   );
 }
