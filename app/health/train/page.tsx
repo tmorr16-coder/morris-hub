@@ -6,6 +6,7 @@ import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 import ChatWidget from "../_components/ChatWidget";
 import WorkoutHistoryClient, { type UnifiedWorkout } from "./_components/WorkoutHistoryClient";
 import ScheduledWorkoutCard, { type ScheduledWorkout } from "./_components/ScheduledWorkoutCard";
+import ResumeWorkoutBanner from "./_components/ResumeWorkoutBanner";
 
 function toDateStr(d: Date): string {
   return d.toLocaleDateString("sv");
@@ -156,6 +157,11 @@ export default async function TrainPage() {
   return (
     <div className="ios-scroll">
       <LargeTitle title="Train" subtitle="Today's session" />
+
+      {/* Resume an in-progress workout (localStorage snapshot; client widget) */}
+      <div style={{ padding: "8px 16px 0" }}>
+        <ResumeWorkoutBanner />
+      </div>
 
       {/* Scheduled workouts (client widget) */}
       <div style={{ padding: "8px 16px 0" }}>

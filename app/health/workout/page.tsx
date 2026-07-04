@@ -6,13 +6,21 @@ import type { CardioBlock } from "./actions";
 export default async function WorkoutPage({
   searchParams,
 }: {
-  searchParams: Promise<{ plan?: string }>;
+  searchParams: Promise<{ plan?: string; resume?: string }>;
 }) {
-  const { plan: encoded } = await searchParams;
+  const { plan: encoded, resume } = await searchParams;
 
-  // No plan means nothing was built yet — send the user to the builder
-  // instead of silently starting a canned default workout.
+  // No plan means nothing was built yet. If we're resuming an in-progress
+  // workout, load it entirely from the localStorage snapshot instead of the
+  // builder; otherwise send the user to the builder.
   if (!encoded) {
+    if (resume === "1") {
+      return (
+        <div className="ios-scroll">
+          <WorkoutTracker resume />
+        </div>
+      );
+    }
     redirect("/health/workout/builder");
   }
 

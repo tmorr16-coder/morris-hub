@@ -6,6 +6,7 @@ import { EXERCISE_LIBRARY, suggestNext, CARDIO_ACTIVITIES, getCardioActivity, ty
 import { updateSet } from "../actions";
 import { createWorkoutSession, saveSet, finishSession, saveCardioBlocks, deleteSession, type CardioBlock } from "../actions";
 import PostWorkoutSummary from "./PostWorkoutSummary";
+import { RESUME_KEY, readSnapshot, clearSnapshot, type WorkoutSnapshot } from "../_lib/resume";
 
 // ── style tokens ──────────────────────────────────────────────────────────────
 
@@ -16,6 +17,16 @@ const eyebrow: React.CSSProperties = {
 
 function formatTime(sec: number) {
   return `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, "0")}`;
+}
+
+function relativeTime(ms: number) {
+  const mins = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hr${hrs === 1 ? "" : "s"} ago`;
+  const days = Math.round(hrs / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
 // ── inline glyphs (stroke, currentColor) ───────────────────────────────────────
@@ -77,6 +88,13 @@ function TrashGlyph() {
     </svg>
   );
 }
+function LeaveGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+    </svg>
+  );
+}
 function BulbGlyph() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -95,9 +113,10 @@ interface WorkoutTrackerProps {
   initialCooldown?: boolean;
   initialCardio?:   CardioBlock;
   initialBlocks?:   CardioBlock[];
+  resume?:          boolean;   // load entirely from the localStorage snapshot
 }
 
-export default function WorkoutTracker({ initialExercises, initialWarmup, initialCooldown, initialCardio, initialBlocks }: WorkoutTrackerProps = {}) {
+export default function WorkoutTracker({ initialExercises, initialWarmup, initialCooldown, initialCardio, initialBlocks, resume }: WorkoutTrackerProps = {}) {
   const [exercises, setExercises] = useState(initialExercises ?? EXERCISE_LIBRARY);
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -121,10 +140,18 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   const [restTotal,     setRestTotal]     = useState(0);
   const restRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [sessionStart]   = useState(() => Date.now());
+  // Real wall-clock start. Resettable so a resumed session keeps counting from
+  // the ORIGINAL start (survives an app close) rather than resetting to 0.
+  const [startedAtMs, setStartedAtMs] = useState(() => Date.now());
   const [sessionElapsed, setSessionElapsed] = useState(0);
   const [showSummary,    setShowSummary]    = useState(false);
   const [finalElapsed,   setFinalElapsed]   = useState(0);
+
+  // Resume gate: decide (in an effect, post-mount — hydration-safe) whether to
+  // prompt to resume, hydrate from a snapshot, or create a fresh session.
+  const [phase,       setPhase]       = useState<"deciding" | "prompt" | "ready">("deciding");
+  const [pendingSnap, setPendingSnap] = useState<WorkoutSnapshot | null>(null);
+  const hydratedRef = useRef(false);
 
   // Collapsible sections
   const [showCues,     setShowCues]     = useState(false);
@@ -157,7 +184,43 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
 
   // ── effects ───────────────────────────────────────────────────────────────
 
+  // Hydrate all tracker state from a saved snapshot (resume flow).
+  const hydrateFrom = (snap: WorkoutSnapshot) => {
+    createdRef.current  = true;   // never create a new session when resuming
+    hydratedRef.current = true;
+    setSession({ id: snap.sessionId, exerciseIds: snap.exerciseIds });
+    setExercises(snap.exercises);
+    setSetLogs(snap.setLogs);
+    setCardioBlocks(snap.cardioBlocks ?? []);
+    setWarmup(!!snap.warmup);
+    setCooldown(!!snap.cooldown);
+    setCurrentExIdx(snap.currentExIdx ?? 0);
+    setActiveSetIdx(snap.activeSetIdx ?? 0);
+    setStartedAtMs(snap.startedAtMs);   // elapsed base — real original start
+    setCreating(false);
+  };
+
+  // Decide the mount behaviour once (post-mount so localStorage is safe and the
+  // server render — always the non-resume UI — matches the first client render).
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
+    const snap = readSnapshot();
+    if (resume) {
+      // Dedicated resume entry (?resume=1, no plan): must load from snapshot.
+      if (snap) { hydrateFrom(snap); setPhase("ready"); }
+      else router.replace("/health/workout/builder");
+      return;
+    }
+    if (snap) { setPendingSnap(snap); setPhase("prompt"); }
+    else setPhase("ready");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Create a fresh DB session once we've decided not to resume.
+  useEffect(() => {
+    if (phase !== "ready") return;
+    if (hydratedRef.current) return;   // resumed — session already set
     if (createdRef.current) return;
     createdRef.current = true;
     createWorkoutSession(
@@ -167,13 +230,38 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
       else setSession({ id: result.sessionId, exerciseIds: result.exerciseIds });
       setCreating(false);
     });
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  // Persist a resume snapshot whenever session/progress changes. localStorage is
+  // the source of truth for restoring targets, elapsed base, and position.
+  useEffect(() => {
+    if (!session || showSummary) return;   // nothing to save / session ending
+    try {
+      const snap: WorkoutSnapshot = {
+        sessionId: session.id,
+        exerciseIds: session.exerciseIds,
+        exercises,
+        setLogs,
+        cardioBlocks,
+        warmup,
+        cooldown,
+        startedAtMs,
+        currentExIdx,
+        activeSetIdx,
+        savedAtMs: Date.now(),
+      };
+      localStorage.setItem(RESUME_KEY, JSON.stringify(snap));
+    } catch {
+      // storage full / unavailable — resume just won't be possible
+    }
+  }, [session, exercises, setLogs, cardioBlocks, warmup, cooldown, startedAtMs, currentExIdx, activeSetIdx, showSummary]);
 
   useEffect(() => {
     if (paused) return;
-    const id = setInterval(() => setSessionElapsed(Math.floor((Date.now() - sessionStart) / 1000)), 1000);
+    const id = setInterval(() => setSessionElapsed(Math.floor((Date.now() - startedAtMs) / 1000)), 1000);
     return () => clearInterval(id);
-  }, [sessionStart, paused]);
+  }, [startedAtMs, paused]);
 
   useEffect(() => {
     if (restRemaining <= 0) return;
@@ -251,8 +339,16 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
         ...(cooldown ? [{ type: "Stretching (cool-down)", durationMin: 5 }] : []),
       ];
       if (extras.length) await saveCardioBlocks(extras);
+      clearSnapshot();   // session finished — no longer resumable
       router.push("/health");
     });
+  };
+
+  // Leave the workout in progress: snapshot stays in localStorage and the DB
+  // session stays open (duration_min null). Resume later from the hub.
+  const handlePauseAndLeave = () => {
+    setShowMenu(false);
+    router.push("/health/train");
   };
 
   const handleEditSet = (exIdx: number, setIdx: number) => {
@@ -307,6 +403,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   const handleDelete = () => {
     startTransition(async () => {
       if (session) await deleteSession(session.id);
+      clearSnapshot();   // session gone — clear the resume snapshot
       router.push("/health");
     });
   };
@@ -346,6 +443,54 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
         sessionElapsed={finalElapsed}
         onDone={handleSaveAndReturn}
       />
+    );
+  }
+
+  // Still deciding whether to resume (localStorage read happens post-mount)
+  if (phase === "deciding") {
+    return (
+      <div className="ios-body" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "80vh", color: "var(--ios-label-2)", gap: 12 }}>
+        Loading…
+      </div>
+    );
+  }
+
+  // Resume prompt — an unfinished workout is saved on this device
+  if (phase === "prompt" && pendingSnap) {
+    const exCount   = pendingSnap.exercises.length;
+    const doneSets  = pendingSnap.setLogs.flat().filter(Boolean).length;
+    const startFresh = () => { clearSnapshot(); setPendingSnap(null); setPhase("ready"); };
+    const resumeNow  = () => { hydrateFrom(pendingSnap); setPendingSnap(null); setPhase("ready"); };
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "80vh", padding: "0 24px" }}>
+        <div style={{ width: "100%", maxWidth: 380, background: "var(--ios-cell)", borderRadius: "var(--ios-radius-card)", padding: "22px 20px", textAlign: "center" }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 12, color: "var(--ios-tint)" }}>
+            <PlayGlyph />
+          </div>
+          <div className="ios-headline" style={{ color: "var(--ios-label)", marginBottom: 6 }}>
+            Resume your in-progress workout?
+          </div>
+          <div className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)", marginBottom: 18 }}>
+            {exCount} exercise{exCount === 1 ? "" : "s"}
+            {doneSets > 0 ? ` · ${doneSets} set${doneSets === 1 ? "" : "s"} logged` : ""}
+            {` · started ${relativeTime(pendingSnap.startedAtMs)}`}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button
+              onClick={resumeNow}
+              style={{ width: "100%", padding: "13px 16px", borderRadius: 12, border: "none", background: "var(--ios-tint)", color: "#fff", fontFamily: "inherit", fontSize: 16, fontWeight: 600, cursor: "pointer" }}
+            >
+              Resume
+            </button>
+            <button
+              onClick={startFresh}
+              style={{ width: "100%", padding: "13px 16px", borderRadius: 12, border: "1px solid var(--ios-separator)", background: "var(--ios-bg)", color: "var(--ios-label-2)", fontFamily: "inherit", fontSize: 16, fontWeight: 500, cursor: "pointer" }}
+            >
+              Start fresh
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -475,6 +620,15 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
                 Stop &amp; save session
               </button>
             )}
+
+            {/* Pause & leave — stop tracking now, keep the session open, resume later */}
+            <button
+              onClick={handlePauseAndLeave}
+              style={menuItem("var(--ios-label)")}
+            >
+              <span style={{ display: "flex" }}><LeaveGlyph /></span>
+              Pause &amp; leave
+            </button>
 
             {/* Delete — always available so you can bail before logging anything */}
             {!confirmDelete ? (
