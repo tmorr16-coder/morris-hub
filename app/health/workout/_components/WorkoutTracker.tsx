@@ -785,7 +785,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
             </div>
 
             {/* Reps + Weight steppers */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 10, marginBottom: 12 }}>
               {[
                 {
                   label: "Reps",
@@ -804,9 +804,9 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
                   onPlus:  () => setInputWeight((w) => String(parseFloat(w || "0") + 5)),
                 },
               ].map(({ label, value, onChange, onMinus, onPlus }) => (
-                <div key={label}>
+                <div key={label} style={{ minWidth: 0 }}>
                   <div style={{ ...eyebrow, marginBottom: 8 }}>{label}</div>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", minWidth: 0 }}>
                     <button
                       onClick={onMinus}
                       aria-label={`Decrease ${label}`}
@@ -821,7 +821,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
                       inputMode="decimal"
                       className="ios-num"
                       style={{
-                        flex: 1, height: 46,
+                        flex: 1, height: 46, minWidth: 0, width: "100%",
                         background: "var(--ios-bg)",
                         border: "1px solid var(--ios-separator)",
                         borderRadius: 10,
@@ -830,6 +830,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
                         fontWeight: 700,
                         textAlign: "center",
                         outline: "none",
+                        boxSizing: "border-box",
                       }}
                     />
                     <button
@@ -1039,7 +1040,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
             {cardioBlocks.map((b, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: "var(--ios-bg)", borderRadius: 8, marginBottom: 6 }}>
                 <div style={{ flex: 1 }}>
-                  <span className="ios-footnote" style={{ fontWeight: 600, color: "var(--ios-label)" }}>{b.type}</span>
+                  <span className="ios-footnote" style={{ fontWeight: 600, color: "var(--ios-label)" }}>{(b.type ?? "").replace(/\uFFFD/g, "·")}</span>
                   <span className="ios-caption ios-num" style={{ color: "var(--ios-label-3)", marginLeft: 8 }}>
                     {b.durationMin} min
                     {b.distanceMiles ? ` · ${b.distanceMiles} mi` : ""}
