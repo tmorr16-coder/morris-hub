@@ -416,10 +416,10 @@ export default function ChapterReader({
         </div>
 
         {/* Reading indicator */}
-        {speaking && readingVerseIdx !== null && chapterData && (
+        {speaking && (
           <div className="ios-footnote" style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ios-tint)", fontWeight: 600 }}>
             <Icons.SparkleIcon style={{ fontSize: 15, animation: "pulse 1s infinite" }} />
-            v.{chapterData.verses[readingVerseIdx]?.number}
+            Reading…
           </div>
         )}
       </div>
@@ -487,7 +487,7 @@ export default function ChapterReader({
                 }}
                 onClick={() => setSelectedVerse(isSelected ? null : verse)}
               >
-                {/* Left: verse number + play button */}
+                {/* Left: play button (verse number hidden) */}
                 <div style={{
                   display: "flex", flexDirection: "column", alignItems: "center",
                   gap: 4, flexShrink: 0, paddingTop: 2,
@@ -510,13 +510,6 @@ export default function ChapterReader({
                   >
                     <PlayIcon />
                   </button>
-                  <span className="ios-num" style={{
-                    fontSize: 11, fontWeight: 700,
-                    color: isReading ? "var(--ios-tint)" : "var(--ios-label-3)",
-                    minWidth: 20, textAlign: "center",
-                  }}>
-                    {verse.number}
-                  </span>
                 </div>
 
                 {/* Right: verse text */}
