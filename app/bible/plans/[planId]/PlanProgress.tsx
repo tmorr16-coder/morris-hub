@@ -337,7 +337,7 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
                   trailing={
                     <Link
                       href={parsed
-                        ? `/bible/read/${parsed.bookId}/${parsed.chapter}`
+                        ? `/bible/read/${parsed.bookId}/${parsed.chapter}?plan=${planId}&day=${day.day}&ridx=${dayReadings.indexOf(ref)}`
                         : `/bible/read`}
                       style={{
                         padding: "4px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600,
@@ -345,7 +345,7 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
                         display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0,
                         opacity: parsed ? 1 : 0.7,
                       }}
-                      title={parsed ? "Read this passage" : "Choose a passage to read"}
+                      title={parsed ? "Read this passage (continue plan)" : "Choose a passage to read"}
                     >
                       <Icons.BookIcon style={{ width: 15, height: 15 }} aria-hidden />
                       Read
