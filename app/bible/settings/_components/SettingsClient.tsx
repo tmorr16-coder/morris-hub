@@ -102,7 +102,7 @@ export default function SettingsClient({ versions, initialPrefs }: Props) {
         <List style={{ margin: 0 }}>
           <select value={bibleId} onChange={(e) => setBibleId(e.target.value)} style={{ ...control, appearance: "none", WebkitAppearance: "none" }}>
             {versions.map((v) => (
-              <option key={v.id} value={v.id}>{v.abbreviation} — {v.name}</option>
+              <option key={v.id} value={v.id}>{v.abbreviation} - {v.name}</option>
             ))}
           </select>
         </List>
@@ -123,7 +123,7 @@ export default function SettingsClient({ versions, initialPrefs }: Props) {
         />
         <List style={{ margin: "12px 0 0" }}>
           <div style={{ padding: "16px", color: "var(--ios-label)", fontSize: activeSize, lineHeight: 1.5 }}>
-            “The Lord is my shepherd; I shall not want.”
+            "The Lord is my shepherd; I shall not want."
           </div>
         </List>
         <p className="ios-footnote" style={footnote}>
@@ -131,14 +131,14 @@ export default function SettingsClient({ versions, initialPrefs }: Props) {
         </p>
       </section>
 
-      {/* Read-aloud voice — the one place voice is set */}
+      {/* Read-aloud voice - the one place voice is set */}
       <section style={{ marginTop: 22 }}>
         <h2 className="ios-group-header" style={header}>Read-aloud voice</h2>
         <List style={{ margin: 0 }}>
           <select value={voiceName} onChange={(e) => setVoiceName(e.target.value)} style={{ ...control, appearance: "none", WebkitAppearance: "none" }}>
-            {voices.length === 0 && <option value="">Loading voices…</option>}
+            {voices.length === 0 && <option value="">Loading voices...</option>}
             {voices.map((v) => (
-              <option key={v.name} value={v.name}>{v.name}{isEnhancedVoice(v) ? " · Enhanced" : ""}</option>
+              <option key={v.name} value={v.name}>{v.name}{isEnhancedVoice(v) ? " - Premium" : ""}</option>
             ))}
           </select>
         </List>
@@ -155,7 +155,7 @@ export default function SettingsClient({ versions, initialPrefs }: Props) {
           Preview voice
         </button>
         <p className="ios-footnote" style={footnote}>
-          Used for scripture read-aloud everywhere. Voices marked “Enhanced” are modern Apple neural voices and sound most natural.
+          Used for scripture read-aloud everywhere. Voices marked "Premium" are modern Apple neural voices and sound most natural.
         </p>
       </section>
 
@@ -185,7 +185,7 @@ export default function SettingsClient({ versions, initialPrefs }: Props) {
         className="ios-btn ios-btn--primary"
         style={{ marginTop: 26, background: saved ? "var(--ios-green)" : "var(--ios-tint)", opacity: saving ? 0.7 : 1 }}
       >
-        {saving ? "Saving…" : saved ? "Saved" : "Save settings"}
+        {saving ? "Saving..." : saved ? "Saved" : "Save settings"}
       </button>
     </>
   );

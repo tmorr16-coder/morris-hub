@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { BIBLE_BOOKS } from "@/lib/bible-api";
 import { LargeTitle, Group, Cell, IconBadge, AskMorrisPill, HeatStrip, Icons } from "@/components/ios";
+import ResumeReadingButton from "./_components/ResumeReadingButton";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -62,6 +63,7 @@ export default async function DashboardPage() {
       </div>
 
       <Group header="Start reading">
+        <ResumeReadingButton />
         <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.BookIcon /></IconBadge>} title="Continue where I left off" href="/bible/read" />
         <Cell lead={<IconBadge color="#3B5C7F"><Icons.BookIcon /></IconBadge>} title={`${todayBook.name} 1`} subtitle="Today's book" href={`/bible/read/${todayBook.id}/1`} />
         <Cell lead={<IconBadge color="#6B5B95"><Icons.BookIcon /></IconBadge>} title="John 3" href="/bible/read/JHN/3" />

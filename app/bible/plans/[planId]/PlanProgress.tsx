@@ -7,16 +7,23 @@ import { Group, Cell, Icons } from "@/components/ios";
 import { createClient } from "@/lib/supabase/client";
 import { BIBLE_BOOKS } from "@/lib/bible-api";
 
-/** Parse "Genesis 1" or "John 3-5" → { bookId, chapter } */
+/** Parse "Genesis 1" or "John 3-5" or "Genesis 1-3" → { bookId, chapter } */
 function parseRef(ref: string): { bookId: string; chapter: number } | null {
-  const m = ref.trim().match(/^(.+?)\s+(\d+)(?:-\d+)?$/);
+  const trimmed = ref.trim();
+
+  // Try format: "BookName ChapterNum" or "BookName ChapterNum-ChapterNum"
+  const m = trimmed.match(/^(.+?)\s+(\d+)(?:-\d+)?$/);
   if (!m) return null;
+
   const name = m[1].trim().toLowerCase();
   const book = BIBLE_BOOKS.find(b =>
     b.name.toLowerCase() === name ||
     b.name.toLowerCase().replace(/\s/g, "") === name.replace(/\s/g, "")
   );
+
   if (!book) return null;
+
+  // For ranges like "Genesis 1-3", link to the first chapter
   return { bookId: book.id, chapter: parseInt(m[2]) };
 }
 
@@ -327,19 +334,23 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
                       {ref}
                     </span>
                   }
-                  trailing={parsed ? (
+                  trailing={
                     <Link
-                      href={`/bible/read/${parsed.bookId}/${parsed.chapter}`}
+                      href={parsed
+                        ? `/bible/read/${parsed.bookId}/${parsed.chapter}?plan=${planId}&day=${day.day}&ridx=${dayReadings.indexOf(ref)}`
+                        : `/bible/read`}
                       style={{
                         padding: "4px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600,
                         background: "var(--ios-tint)", color: "var(--ios-on-tint)", textDecoration: "none",
                         display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0,
+                        opacity: parsed ? 1 : 0.7,
                       }}
+                      title={parsed ? "Read this passage (continue plan)" : "Choose a passage to read"}
                     >
                       <Icons.BookIcon style={{ width: 15, height: 15 }} aria-hidden />
                       Read
                     </Link>
-                  ) : undefined}
+                  }
                 />
               );
             })}
