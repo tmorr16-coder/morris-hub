@@ -21,8 +21,8 @@ function relativeTime(ms: number) {
 export default function ResumeWorkoutBanner() {
   const [snap, setSnap] = useState<WorkoutSnapshot | null>(null);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSnap(readSnapshot());
   }, []);
 
