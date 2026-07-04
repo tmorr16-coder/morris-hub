@@ -515,6 +515,18 @@ export default async function HomePage() {
 
   const homePrefs = await getPreferences(user.id).catch(() => null);
 
+  // When a finance PIN is set, the money glance must not reveal anything (even the
+  // trend %) in the clear — mirror the PIN that guards the finance section itself.
+  const financePinRes = await service
+    .schema("hub")
+    .from("preferences")
+    .select("finance_pin")
+    .eq("user_id", user.id)
+    .maybeSingle()
+    .catch(() => null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const financeLocked = !!((financePinRes?.data as any)?.finance_pin);
+
   // Weather now leads the glance (replacing the calendar tile). Today's high
   // and current condition, from the user's saved location.
   let weatherGlance: { value: React.ReactNode; sub: React.ReactNode; href: string } | null = null;
@@ -538,7 +550,13 @@ export default async function HomePage() {
       ? { value: `${iosUpcoming.length} due`, sub: iosUpcoming[0].title as string, badge: iosUpcoming.length, href: "/home/tasks" }
       : { value: "None", sub: "All caught up", href: "/home/tasks" },
     health: { value: stepsToday > 0 ? Math.round(stepsToday).toLocaleString() : "—", sub: stepsToday > 0 ? (stepsIsToday ? "steps today" : `steps · ${stepsDayShort}`) : "no data yet", href: "/health" },
-    ...(netWorth != null ? { money: { value: moneyValue, sub: "net worth trend", href: "/finance/dashboard" } } : {}),
+    ...(netWorth != null
+      ? {
+          money: financeLocked
+            ? { value: "🔒 Locked", sub: "Enter PIN to view", href: "/finance/dashboard" }
+            : { value: moneyValue, sub: "net worth trend", href: "/finance/dashboard" },
+        }
+      : {}),
   };
 
   return (
