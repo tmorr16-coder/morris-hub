@@ -101,6 +101,39 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
     }
   }
 
+  // Mark the next `count` days' readings done, starting from the first day that
+  // still has anything unread (catch-up for a whole week or month at once).
+  async function bulkMarkDays(count: number) {
+    const reads: any[] = plan?.readings ?? [];
+    const firstInc = reads.find((d: any) => {
+      const refs: string[] = d.readings ?? [d.reference ?? `Day ${d.day}`];
+      return !refs.every((r) => completions[`${d.day}:${r}`]);
+    });
+    if (!firstInc) return;
+    const start = firstInc.day;
+    const targetDays = reads.filter((d: any) => d.day >= start && d.day < start + count);
+    const rows: any[] = [];
+    setCompletions((prev) => {
+      const next = { ...prev };
+      for (const d of targetDays) {
+        const refs: string[] = d.readings ?? [d.reference ?? `Day ${d.day}`];
+        for (const r of refs) {
+          next[`${d.day}:${r}`] = true;
+          rows.push({ user_id: userId, plan_id: planId, day_number: d.day, reading_ref: r });
+        }
+      }
+      return next;
+    });
+    if (rows.length) {
+      await db.schema("bible").from("reading_completions").upsert(rows, { onConflict: "user_id,plan_id,day_number,reading_ref" });
+    }
+  }
+
+  function jumpToDay(dayNumber: string) {
+    if (typeof document === "undefined") return;
+    document.getElementById(`plan-day-${dayNumber}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   if (isBuiltIn) {
     return (
       <div style={{ paddingTop: 8, paddingBottom: 40 }}>
@@ -156,6 +189,23 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
         </div>
       )}
 
+      {/* Quick controls — jump to a day, or catch up a week/month at once */}
+      {enrolled && readings.length > 1 && (
+        <div style={{ display: "flex", gap: 8, padding: "10px var(--ios-gutter) 2px", flexWrap: "wrap", alignItems: "center" }}>
+          <select
+            defaultValue=""
+            onChange={(e) => { if (e.target.value) { jumpToDay(e.target.value); e.currentTarget.value = ""; } }}
+            aria-label="Jump to day"
+            style={{ flex: "1 1 130px", minWidth: 120, padding: "9px 10px", background: "var(--ios-fill)", border: "none", borderRadius: 10, color: "var(--ios-label)", fontSize: 15, appearance: "none", WebkitAppearance: "none" }}
+          >
+            <option value="">Jump to day…</option>
+            {readings.map((d: any) => <option key={d.day} value={d.day}>Day {d.day}</option>)}
+          </select>
+          <button className="ios-btn" onClick={() => bulkMarkDays(7)} style={{ background: "var(--ios-fill)", color: "var(--ios-tint)", padding: "9px 14px", fontWeight: 600, flexShrink: 0 }}>Mark week done</button>
+          <button className="ios-btn" onClick={() => bulkMarkDays(30)} style={{ background: "var(--ios-fill)", color: "var(--ios-tint)", padding: "9px 14px", fontWeight: 600, flexShrink: 0 }}>Mark month done</button>
+        </div>
+      )}
+
       {/* Enroll CTA */}
       {!enrolled && (
         <Group header="Start" footer="Track your progress day by day.">
@@ -181,6 +231,7 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
         return (
           <Group
             key={day.day}
+            id={`plan-day-${day.day}`}
             header={
               <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span>
@@ -233,8 +284,6 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
               const key = `${day.day}:${ref}`;
               const done = completions[key];
               const parsed = parseRef(ref);
-              const rIdx = dayReadings.indexOf(ref);
-              const focusParams = `focus=1&plan=${planId}&day=${day.day}&ridx=${rIdx}`;
 
               return (
                 <Cell
@@ -265,30 +314,17 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
                     </span>
                   }
                   trailing={parsed ? (
-                    <span style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                      <Link
-                        href={`/bible/read/${parsed.bookId}/${parsed.chapter}`}
-                        style={{
-                          padding: "4px 10px", borderRadius: 8, fontSize: 13, fontWeight: 500,
-                          background: "var(--ios-fill)", color: "var(--ios-label)", textDecoration: "none",
-                          display: "inline-flex", alignItems: "center", gap: 4,
-                        }}
-                      >
-                        <Icons.BookIcon style={{ width: 15, height: 15 }} aria-hidden />
-                        Read
-                      </Link>
-                      <Link
-                        href={`/bible/read/${parsed.bookId}/${parsed.chapter}?${focusParams}`}
-                        style={{
-                          padding: "4px 10px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-                          background: "var(--ios-tint)", color: "var(--ios-on-tint)", textDecoration: "none",
-                          display: "inline-flex", alignItems: "center", gap: 4,
-                        }}
-                      >
-                        <Icons.SparkleIcon style={{ width: 15, height: 15 }} aria-hidden />
-                        Focus
-                      </Link>
-                    </span>
+                    <Link
+                      href={`/bible/read/${parsed.bookId}/${parsed.chapter}`}
+                      style={{
+                        padding: "4px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                        background: "var(--ios-tint)", color: "var(--ios-on-tint)", textDecoration: "none",
+                        display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0,
+                      }}
+                    >
+                      <Icons.BookIcon style={{ width: 15, height: 15 }} aria-hidden />
+                      Read
+                    </Link>
                   ) : undefined}
                 />
               );

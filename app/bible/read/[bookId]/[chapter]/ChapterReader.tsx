@@ -8,7 +8,6 @@ import { createClient } from "@/lib/supabase/client";
 import type { BibleChapter, BibleVerse, BibleVersion } from "@/lib/bible-api";
 import { rankVoices, pickBestVoice } from "@/lib/tts-voices";
 import { Icons } from "@/components/ios";
-import FocusReader from "./FocusReader";
 
 interface Props {
   book: { id: string; name: string; chapters: number; testament: "OT" | "NT" };
@@ -23,7 +22,6 @@ interface Props {
   initialBookmarks: any[];
   initialNotes: any[];
   bibleId: string;
-  autoFocus?: boolean;
   nextReadingHref?: string | null;
   nextReadingLabel?: string | null;
 }
@@ -61,7 +59,6 @@ const BookmarkIcon = (p: SVGProps<SVGSVGElement>) => (
 export default function ChapterReader({
   book, chapterNum, chapterData, version, allVersions,
   prevChapter, nextChapter, userId, initialHighlights, initialBookmarks, initialNotes, bibleId,
-  autoFocus = false, nextReadingHref, nextReadingLabel,
 }: Props) {
   const router = useRouter();
   const db = createClient() as any;
@@ -80,7 +77,6 @@ export default function ChapterReader({
 
   // ── TTS state ─────────────────────────────────────────────
   const [speaking, setSpeaking] = useState(false);
-  const [focusMode, setFocusMode] = useState(autoFocus && !!chapterData);
   const [paused, setPaused] = useState(false);
   const [readingVerseIdx, setReadingVerseIdx] = useState<number | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
@@ -92,21 +88,25 @@ export default function ChapterReader({
   // best-ranked voice when none is saved.
   useEffect(() => {
     let savedVoiceName: string | null = null;
-    fetch("/api/tts-prefs").then((r) => (r.ok ? r.json() : null)).then((d) => {
-      if (d?.tts_voice) savedVoiceName = d.tts_voice;
-      if (typeof d?.tts_speed === "number") setSpeechRate(d.tts_speed);
-    }).catch(() => {});
-    function loadVoices() {
+    function apply() {
       const all = window.speechSynthesis.getVoices();
       if (all.length === 0) return;
       const ranked = rankVoices(all);
-      if (ranked.length > 0) {
-        const fromSaved = savedVoiceName ? ranked.find((v) => v.name === savedVoiceName) : null;
-        setSelectedVoice((prev) => prev ?? fromSaved ?? pickBestVoice(ranked));
-      }
+      if (ranked.length === 0) return;
+      const fromSaved = savedVoiceName ? ranked.find((v) => v.name === savedVoiceName) : null;
+      // The Settings voice is authoritative — switch to it as soon as it's
+      // known, even if a default was picked first (the /api/tts-prefs fetch
+      // resolves after voices load). Otherwise keep/pick the best default.
+      if (fromSaved) setSelectedVoice(fromSaved);
+      else setSelectedVoice((prev) => prev ?? pickBestVoice(ranked));
     }
-    loadVoices();
-    window.speechSynthesis.onvoiceschanged = loadVoices;
+    fetch("/api/tts-prefs").then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (d?.tts_voice) savedVoiceName = d.tts_voice;
+      if (typeof d?.tts_speed === "number") setSpeechRate(d.tts_speed);
+      apply();
+    }).catch(() => {});
+    apply();
+    window.speechSynthesis.onvoiceschanged = apply;
     return () => { window.speechSynthesis.onvoiceschanged = null; };
   }, []);
 
@@ -295,22 +295,6 @@ export default function ChapterReader({
               }}>
               <BookmarkIcon />
             </button>
-
-            {/* Focus Mode */}
-            {chapterData && (
-              <button
-                onClick={() => setFocusMode(true)}
-                title="Focus mode: word-by-word with audio"
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  height: 38, padding: "0 14px", borderRadius: 999,
-                  border: "none", background: "var(--ios-fill)",
-                  color: "var(--ios-label)", fontSize: 15, fontWeight: 600, cursor: "pointer",
-                }}
-              >
-                <Icons.SparkleIcon style={{ fontSize: 16, color: "var(--ios-tint)" }} /> Focus
-              </button>
-            )}
 
             {/* Read aloud from start */}
             {!speaking ? (
@@ -596,18 +580,6 @@ export default function ChapterReader({
         </>
       )}
 
-      {/* ── Focus Reader overlay ── */}
-      {focusMode && chapterData && (
-        <FocusReader
-          book={book}
-          chapterNum={chapterNum}
-          chapterData={chapterData}
-          onClose={() => setFocusMode(false)}
-          initialVerseIdx={readingVerseIdx ?? 0}
-          nextReadingHref={nextReadingHref ?? undefined}
-          nextReadingLabel={nextReadingLabel ?? undefined}
-        />
-      )}
     </div>
   );
 }

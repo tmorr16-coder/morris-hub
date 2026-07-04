@@ -7,7 +7,6 @@ interface Props {
   params: Promise<{ bookId: string; chapter: string }>;
   searchParams: Promise<{
     v?: string;
-    focus?: string;
     plan?: string;   // planId
     day?: string;    // day number in plan
     ridx?: string;   // reading index within that day
@@ -26,8 +25,7 @@ function parseRef(ref: string): { bookId: string; chapter: number } | null {
 
 export default async function ChapterPage({ params, searchParams }: Props) {
   const { bookId, chapter } = await params;
-  const { v, focus, plan: planId, day, ridx } = await searchParams;
-  const autoFocus = focus === "1";
+  const { v, plan: planId, day, ridx } = await searchParams;
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -84,7 +82,7 @@ export default async function ChapterPage({ params, searchParams }: Props) {
             const nextRef = dayReadings[nextRidx];
             const parsed = parseRef(nextRef);
             if (parsed) {
-              nextReadingHref = `/bible/read/${parsed.bookId}/${parsed.chapter}?focus=1&plan=${planId}&day=${day}&ridx=${nextRidx}`;
+              nextReadingHref = `/bible/read/${parsed.bookId}/${parsed.chapter}?plan=${planId}&day=${day}&ridx=${nextRidx}`;
               nextReadingLabel = nextRef;
             }
           } else {
@@ -118,7 +116,6 @@ export default async function ChapterPage({ params, searchParams }: Props) {
         initialBookmarks={bookmarks ?? []}
         initialNotes={notes ?? []}
         bibleId={bibleId}
-        autoFocus={autoFocus}
         nextReadingHref={nextReadingHref}
         nextReadingLabel={nextReadingLabel}
       />
