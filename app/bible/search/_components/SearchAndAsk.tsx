@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { BibleVersion } from "@/lib/bible-api";
 import { Segmented, Chip, Group, List, Cell, IconBadge, Icons } from "@/components/ios";
 import MarkdownMessage from "@/components/MarkdownMessage";
+import { useChatHistory } from "@/hooks/useChatHistory";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,8 +102,8 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
   const [goTo, setGoTo] = useState("");
   const [goToError, setGoToError] = useState("");
 
-  // Chat state
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Chat state — persisted so the conversation carries across screens.
+  const { messages, setMessages, clear: clearChat } = useChatHistory("morris:bible-ask");
   const [input, setInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
@@ -383,6 +384,16 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
           {/* Chat messages */}
           {messages.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "16px var(--ios-gutter) 0" }}>
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={clearChat}
+                  className="ios-footnote"
+                  style={{ color: "var(--ios-tint)", background: "none", border: "none", padding: "2px", cursor: "pointer" }}
+                >
+                  New chat
+                </button>
+              </div>
               {messages.map((m, i) => (
                 <div
                   key={i}

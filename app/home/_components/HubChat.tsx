@@ -3,11 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Chip } from "@/components/ios";
 import MarkdownMessage from "@/components/MarkdownMessage";
-
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-}
+import { useChatHistory, type ChatMessage as Message } from "@/hooks/useChatHistory";
 
 const SUGGESTED_PROMPTS = [
   "What's the weather looking like today?",
@@ -17,7 +13,9 @@ const SUGGESTED_PROMPTS = [
 ];
 
 export default function HubChat({ firstName }: { firstName: string }) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Persisted so the conversation carries across screens instead of resetting
+  // every time you reopen Ask Morris.
+  const { messages, setMessages, clear } = useChatHistory("morris:hub-chat");
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +69,19 @@ export default function HubChat({ firstName }: { firstName: string }) {
               <Chip key={p} small onClick={() => send(p)}>{p}</Chip>
             ))}
           </div>
+        </div>
+      )}
+
+      {messages.length > 0 && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
+          <button
+            type="button"
+            onClick={clear}
+            className="ios-footnote"
+            style={{ color: "var(--ios-tint)", background: "none", border: "none", padding: "4px 2px", cursor: "pointer" }}
+          >
+            New chat
+          </button>
         </div>
       )}
 
