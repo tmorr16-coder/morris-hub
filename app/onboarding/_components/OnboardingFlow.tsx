@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { completeOnboarding } from "../actions";
 import { lookupZip } from "@/app/home/actions";
 import { Icons, Chip } from "@/components/ios";
-import { AVAILABLE_SPORTS_TEAMS } from "@/lib/sports-teams";
+import { AVAILABLE_SPORTS_TEAMS, getTeamInfo } from "@/lib/sports-teams";
 
 // News topics — mirrors AVAILABLE_TOPICS in app/home/settings/_components/SettingsForm.tsx.
 // Keep in sync; do not add topics the news pipeline doesn't support.
@@ -96,18 +96,18 @@ const MODULE_ICON: Record<ModuleKey, Glyph> = {
 const INTEGRATIONS: Record<Persona, { key: string; label: string; description: string; icon: string; href: string; available: boolean }[]> = {
   parent: [
     { key: "plaid",     label: "Plaid",     icon: "🏦", description: "Connect bank accounts and credit cards for automatic finance sync", href: "/finance/dashboard?connect=true", available: true },
-    { key: "oura",      label: "Oura Ring", icon: "💍", description: "Sync sleep, HRV, and readiness scores from your Oura ring", href: "/health/settings", available: true },
-    { key: "withings",  label: "Withings",  icon: "⚖️", description: "Connect your smart scale for body composition tracking", href: "/health/settings", available: true },
+    { key: "oura",      label: "Oura Ring", icon: "💍", description: "Sync sleep, HRV, and readiness scores from your Oura ring", href: "/health/settings/integrations", available: true},
+    { key: "withings",  label: "Withings",  icon: "⚖️", description: "Connect your smart scale for body composition tracking", href: "/health/settings/integrations", available: true},
     { key: "alpaca",    label: "Alpaca",    icon: "📈", description: "Paper trade stocks while you learn — no real money needed", href: "/investments/stocks", available: true },
   ],
   student: [
-    { key: "oura",      label: "Oura Ring", icon: "💍", description: "Track sleep and recovery — critical for academic performance", href: "/health/settings", available: true },
+    { key: "oura",      label: "Oura Ring", icon: "💍", description: "Track sleep and recovery — critical for academic performance", href: "/health/settings/integrations", available: true},
     { key: "lsat",      label: "LSAT Prep", icon: "📝", description: "Set up your LSAT practice schedule and target score", href: "/career/lsat", available: true },
     { key: "career",    label: "Career Profile", icon: "◈", description: "Upload your resume and complete the career assessment", href: "/career/profile", available: true },
   ],
   individual: [
     { key: "plaid",     label: "Plaid",     icon: "🏦", description: "Connect bank accounts and credit cards for automatic finance sync", href: "/finance/dashboard?connect=true", available: true },
-    { key: "oura",      label: "Oura Ring", icon: "💍", description: "Sync sleep, HRV, and readiness scores from your Oura ring", href: "/health/settings", available: true },
+    { key: "oura",      label: "Oura Ring", icon: "💍", description: "Sync sleep, HRV, and readiness scores from your Oura ring", href: "/health/settings/integrations", available: true},
     { key: "alpaca",    label: "Alpaca",    icon: "📈", description: "Paper trade stocks while you learn — no real money needed", href: "/investments/stocks", available: true },
     { key: "career",    label: "Career Profile", icon: "◈", description: "Upload your resume and set your career goals to activate the AI advisor", href: "/career/profile", available: true },
   ],
@@ -155,7 +155,6 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
   const [persona, setPersona] = useState<Persona | null>(null);
   const [profile, setProfile] = useState<Profile>({ displayName: initialName, locationName: initialLocation });
   const [modules, setModules] = useState<Set<ModuleKey>>(new Set());
-  const [connectedIntegrations, setConnectedIntegrations] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
   // Interests — all optional; new users capture their own so they don't inherit defaults.
@@ -184,6 +183,7 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
   }
   const [newsTopics, setNewsTopics] = useState<Set<string>>(new Set());
   const [sportsTeams, setSportsTeams] = useState<Set<string>>(new Set());
+  const [teamSearch, setTeamSearch] = useState("");
 
   function toggleTopic(id: string) {
     setNewsTopics((prev) => {
@@ -469,26 +469,60 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
                 </div>
               </div>
 
-              {/* Sports teams */}
+              {/* Sports teams — searchable across every league */}
               <div>
                 <label style={labelStyle}>Sports teams</label>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {Object.entries(AVAILABLE_SPORTS_TEAMS).map(([league, teams]) => (
-                    <div key={league}>
-                      <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>{league}</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                        {teams.map((team) => {
-                          const teamId = `${league}:${team.code}`;
-                          return (
-                            <Chip key={teamId} small selected={sportsTeams.has(teamId)} onClick={() => toggleTeam(teamId)}>
-                              {team.name}
-                            </Chip>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <input
+                  value={teamSearch}
+                  onChange={(e) => setTeamSearch(e.target.value)}
+                  placeholder="Search any team — e.g. Colts, Lakers, Alabama"
+                  style={inputStyle}
+                />
+                {/* Your picks */}
+                {sportsTeams.size > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                    {Array.from(sportsTeams).map((teamId) => (
+                      <Chip key={teamId} small selected onClick={() => toggleTeam(teamId)}>
+                        {getTeamInfo(teamId)?.name ?? teamId} ✕
+                      </Chip>
+                    ))}
+                  </div>
+                )}
+                {/* Search results, grouped by league */}
+                {teamSearch.trim() ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 10 }}>
+                    {Object.entries(AVAILABLE_SPORTS_TEAMS).map(([league, teams]) => {
+                      const q = teamSearch.trim().toLowerCase();
+                      const matches = teams.filter(
+                        (t) =>
+                          t.name.toLowerCase().includes(q) ||
+                          t.fullName.toLowerCase().includes(q) ||
+                          t.code.toLowerCase().includes(q) ||
+                          league.toLowerCase().includes(q)
+                      );
+                      if (!matches.length) return null;
+                      return (
+                        <div key={league}>
+                          <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>{league}</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                            {matches.map((team) => {
+                              const teamId = `${league}:${team.code}`;
+                              return (
+                                <Chip key={teamId} small selected={sportsTeams.has(teamId)} onClick={() => toggleTeam(teamId)}>
+                                  {team.name}
+                                </Chip>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8 }}>
+                    Search across MLB, NFL, NBA, WNBA, NHL, and major college programs to follow your teams. Optional.
+                  </div>
+                )}
               </div>
             </div>
 
@@ -508,33 +542,29 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
             <p className="ios-subhead" style={{ color: "var(--ios-label-2)", textAlign: "center", marginBottom: 8, lineHeight: 1.5 }}>
               These are the most impactful connections for a <strong style={{ color: "var(--ios-label)" }}>{persona}</strong>. You can skip any and connect later.
             </p>
-            <div className="ios-caption" style={{ color: "var(--ios-label-3)", textAlign: "center", marginBottom: 24 }}>Connections open in the relevant app section.</div>
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", textAlign: "center", marginBottom: 24 }}>Each opens in a new tab — set up now or anytime later in Settings. Nothing is required to continue.</div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {INTEGRATIONS[persona].map((intg) => {
-                const connected = connectedIntegrations.has(intg.key);
                 const IIcon = INTEGRATION_ICON[intg.key] ?? Icons.SparkleIcon;
                 return (
-                  <div key={intg.key} style={{ padding: "14px 16px", borderRadius: "var(--ios-radius-tile)", border: `1.5px solid ${connected ? "var(--ios-green)" : "var(--ios-separator)"}`, background: "var(--ios-cell)", display: "flex", alignItems: "center", gap: 14 }}>
-                    <span className="ios-icon" style={{ background: connected ? "var(--ios-green)" : "var(--ios-fill)", color: connected ? "#fff" : "var(--ios-label-2)" }}><IIcon /></span>
+                  <div key={intg.key} style={{ padding: "14px 16px", borderRadius: "var(--ios-radius-tile)", border: "1.5px solid var(--ios-separator)", background: "var(--ios-cell)", display: "flex", alignItems: "center", gap: 14 }}>
+                    <span className="ios-icon" style={{ background: "var(--ios-fill)", color: "var(--ios-label-2)" }}><IIcon /></span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="ios-headline" style={{ color: "var(--ios-label)", marginBottom: 2 }}>{intg.label}</div>
                       <div className="ios-caption" style={{ color: "var(--ios-label-2)", lineHeight: 1.4 }}>{intg.description}</div>
                     </div>
-                    {connected ? (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, color: "var(--ios-green)", fontSize: 13, fontWeight: 600 }}>
-                        <CheckMark color="var(--ios-green)" /> Connected
-                      </span>
-                    ) : (
-                      <a
-                        href={intg.href}
-                        onClick={() => setConnectedIntegrations((s) => new Set(s).add(intg.key))}
-                        className="ios-chip ios-chip--sm"
-                        style={{ flexShrink: 0, whiteSpace: "nowrap" }}
-                      >
-                        Set up
-                      </a>
-                    )}
+                    {/* Opens the real setup in a new tab — the connection is only confirmed
+                        there, so we never mark it "connected" here. */}
+                    <a
+                      href={intg.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ios-chip ios-chip--sm"
+                      style={{ flexShrink: 0, whiteSpace: "nowrap" }}
+                    >
+                      Set up ↗
+                    </a>
                   </div>
                 );
               })}
