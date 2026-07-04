@@ -155,6 +155,14 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
   if (!plan) return null;
 
   const readings: any[] = plan.readings ?? [];
+  // Calendar date for each plan day = start date + (day - 1). "Day 1" is the
+  // day you started the plan.
+  const startDate = userPlan?.started_at ? new Date(userPlan.started_at) : null;
+  function dateForDay(dayNum: number): string | null {
+    if (!startDate || isNaN(startDate.getTime())) return null;
+    const d = new Date(startDate.getTime() + (dayNum - 1) * 86_400_000);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  }
   const totalReadings = readings.reduce((acc: number, day: any) => acc + (day.readings?.length ?? 1), 0);
   const completed = Object.values(completions).filter(Boolean).length;
   const pct = totalReadings > 0 ? Math.round((completed / totalReadings) * 100) : 0;
@@ -199,7 +207,10 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
             style={{ flex: "1 1 130px", minWidth: 120, padding: "9px 10px", background: "var(--ios-fill)", border: "none", borderRadius: 10, color: "var(--ios-label)", fontSize: 15, appearance: "none", WebkitAppearance: "none" }}
           >
             <option value="">Jump to day…</option>
-            {readings.map((d: any) => <option key={d.day} value={d.day}>Day {d.day}</option>)}
+            {readings.map((d: any) => {
+              const dt = dateForDay(d.day);
+              return <option key={d.day} value={d.day}>{dt ? `${dt} · Day ${d.day}` : `Day ${d.day}`}</option>;
+            })}
           </select>
           <button className="ios-btn" onClick={() => bulkMarkDays(7)} style={{ background: "var(--ios-fill)", color: "var(--ios-tint)", padding: "9px 14px", fontWeight: 600, flexShrink: 0 }}>Mark week done</button>
           <button className="ios-btn" onClick={() => bulkMarkDays(30)} style={{ background: "var(--ios-fill)", color: "var(--ios-tint)", padding: "9px 14px", fontWeight: 600, flexShrink: 0 }}>Mark month done</button>
@@ -235,6 +246,9 @@ export default function PlanProgress({ planId, plan, isBuiltIn, userPlan, comple
             header={
               <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span>
+                  {dateForDay(day.day) && (
+                    <span style={{ color: "var(--ios-label-2)", fontWeight: 400 }}>{dateForDay(day.day)} · </span>
+                  )}
                   Day {day.day}
                   {isToday && <span style={{ color: "var(--ios-orange)" }}> · Today</span>}
                 </span>
