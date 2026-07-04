@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { BibleChapter, BibleVerse, BibleVersion } from "@/lib/bible-api";
 import { bookById } from "@/lib/bible-api";
 import { rankVoices, pickBestVoice } from "@/lib/tts-voices";
+import { setActiveReadingSession, clearActiveReadingSession } from "@/lib/active-reading-session";
 import { Icons } from "@/components/ios";
 
 interface Props {
@@ -162,6 +163,12 @@ export default function ChapterReader({
     utter.onstart = () => {
       setSpeaking(true);
       setReadingVerseIdx(startIdx);
+      setActiveReadingSession({
+        bookId: bookRef.current.id,
+        chapter: chapterNumRef.current,
+        bibleId,
+        label: `${bookRef.current.name} ${chapterNumRef.current}`,
+      });
     };
 
     utter.onboundary = (e) => {
@@ -181,6 +188,7 @@ export default function ChapterReader({
       setSpeaking(false);
       setPaused(false);
       setReadingVerseIdx(null);
+      clearActiveReadingSession();
     };
 
     utter.onend = () => {
@@ -244,6 +252,7 @@ export default function ChapterReader({
     setSpeaking(false);
     setPaused(false);
     setReadingVerseIdx(null);
+    clearActiveReadingSession();
   }, [upcomingReadings.length]);
 
   // ── Highlight ─────────────────────────────────────────────
