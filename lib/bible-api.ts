@@ -6,9 +6,38 @@
 
 const ABS_BASE = "https://api.scripture.api.bible/v1";
 const FALLBACK_BASE = "https://bible-api.com";
+// wldeh/bible-api — a free, keyless CDN of Bible text (github.com/wldeh/bible-api).
+const WLDEH_BASE = "https://cdn.jsdelivr.net/gh/wldeh/bible-api/bibles";
 
 function absHeaders() {
   return { "api-key": process.env.BIBLE_API_KEY ?? "" };
+}
+
+// bible-api.com only serves public-domain translations. Map our version IDs to
+// its translation slugs; anything else falls back to KJV.
+const FALLBACK_TRANSLATIONS: Record<string, string> = {
+  "de4e12af7f28f599-02": "kjv",
+  "685d1470fe4d5c3b-01": "asv",
+  "9879dbb7cfe39e4d-01": "web",
+  "01b29f4b342acc35-01": "ylt",
+};
+
+// wldeh version slugs for the public-domain versions we expose. Others require
+// the api.bible key (no free API distributes NIV/ESV/NLT/etc.).
+const WLDEH_VERSIONS: Record<string, string> = {
+  "de4e12af7f28f599-02": "en-kjv",
+  "685d1470fe4d5c3b-01": "en-asv",
+  "9879dbb7cfe39e4d-01": "en-web",
+};
+
+/** Book id → wldeh path slug, e.g. "1SA" → "1samuel", "SNG" → "songofsolomon". */
+function wldehSlug(bookId: string): string | null {
+  const b = bookById(bookId);
+  return b ? b.name.toLowerCase().replace(/[^a-z0-9]/g, "") : null;
+}
+
+function cleanVerseText(t: string): string {
+  return (t ?? "").replace(/¶/g, "").replace(/\s+/g, " ").trim();
 }
 
 export interface BibleVersion {
@@ -171,8 +200,58 @@ export async function fetchChapter(
     }
   }
 
-  // Fallback: bible-api.com (only works for KJV/ASV/WEB/YLT)
+  // Keyless primary source: wldeh CDN (KJV/ASV/WEB).
+  const wldehVersion = WLDEH_VERSIONS[bibleId];
+  if (wldehVersion) {
+    const verses = await fetchChapterWldeh(wldehVersion, bookId, chapterNum);
+    if (verses && verses.length) {
+      const book = bookById(bookId);
+      return {
+        id: chapterId,
+        bookId,
+        number: String(chapterNum),
+        reference: `${book?.name ?? bookId} ${chapterNum}`,
+        verses,
+      };
+    }
+  }
+
+  // Last resort: bible-api.com (also covers YLT).
   return fetchChapterFallback(bookId, chapterNum, bibleId);
+}
+
+/** Fetch a chapter's verses from the keyless wldeh CDN. Returns null on miss. */
+async function fetchChapterWldeh(
+  version: string,
+  bookId: string,
+  chapterNum: number
+): Promise<BibleVerse[] | null> {
+  const slug = wldehSlug(bookId);
+  if (!slug) return null;
+  const url = `${WLDEH_BASE}/${version}/books/${slug}/chapters/${chapterNum}.json`;
+  try {
+    const res = await fetch(url, { next: { revalidate: 86400 } });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const rows: { verse: string; text: string }[] = Array.isArray(json?.data) ? json.data : [];
+    if (!rows.length) return null;
+    const book = bookById(bookId);
+    // wldeh chapter files can repeat the whole chapter — keep the first of each verse.
+    const byNumber = new Map<number, BibleVerse>();
+    for (const v of rows) {
+      const number = parseInt(v.verse);
+      if (!Number.isFinite(number) || byNumber.has(number)) continue;
+      byNumber.set(number, {
+        id: `${bookId}.${chapterNum}.${number}`,
+        reference: `${book?.name ?? bookId} ${chapterNum}:${number}`,
+        number,
+        text: cleanVerseText(v.text),
+      });
+    }
+    return [...byNumber.values()].sort((a, b) => a.number - b.number);
+  } catch {
+    return null;
+  }
 }
 
 /** Fallback fetcher using bible-api.com (public domain versions) */
@@ -183,14 +262,7 @@ async function fetchChapterFallback(
 ): Promise<BibleChapter> {
   const book = bookById(bookId);
   const bookName = book?.name ?? bookId;
-  // Map bibleId to bible-api.com translation param
-  const translationMap: Record<string, string> = {
-    "de4e12af7f28f599-02": "kjv",
-    "685d1470fe4d5c3b-01": "asv",
-    "9879dbb7cfe39e4d-01": "web",
-    "01b29f4b342acc35-01": "ylt",
-  };
-  const translation = translationMap[bibleId] ?? "kjv";
+  const translation = FALLBACK_TRANSLATIONS[bibleId] ?? "kjv";
   const ref = encodeURIComponent(`${bookName} ${chapterNum}`);
   const url = `${FALLBACK_BASE}/${ref}?translation=${translation}&verse_numbers=true`;
   const res = await fetch(url, { next: { revalidate: 86400 } });
@@ -219,14 +291,114 @@ function extractText(item: any): string {
   return "";
 }
 
-/** Search verses across a Bible version */
+export interface VerseResult {
+  reference: string;
+  text: string;
+  verseId: string;
+}
+
+// Common book abbreviations → book id (in addition to full names).
+const BOOK_ABBREV: Record<string, string> = {
+  gen: "GEN", ge: "GEN", exo: "EXO", ex: "EXO", lev: "LEV", lv: "LEV",
+  num: "NUM", nm: "NUM", deu: "DEU", dt: "DEU", jos: "JOS", jsh: "JOS",
+  jdg: "JDG", rut: "RUT", rth: "RUT", "1sa": "1SA", "1sam": "1SA",
+  "2sa": "2SA", "2sam": "2SA", "1ki": "1KI", "1kgs": "1KI", "2ki": "2KI",
+  "2kgs": "2KI", "1ch": "1CH", "1chr": "1CH", "2ch": "2CH", "2chr": "2CH",
+  ezr: "EZR", neh: "NEH", est: "EST", job: "JOB", ps: "PSA", psa: "PSA",
+  psalm: "PSA", pss: "PSA", pro: "PRO", prov: "PRO", prv: "PRO", ecc: "ECC",
+  eccl: "ECC", sng: "SNG", song: "SNG", isa: "ISA", jer: "JER", lam: "LAM",
+  ezk: "EZK", eze: "EZK", ezek: "EZK", dan: "DAN", hos: "HOS", joe: "JOL",
+  jol: "JOL", amo: "AMO", oba: "OBA", jon: "JON", mic: "MIC", nam: "NAM",
+  nah: "NAM", hab: "HAB", zep: "ZEP", zeph: "ZEP", hag: "HAG", zec: "ZEC",
+  zech: "ZEC", mal: "MAL", mat: "MAT", matt: "MAT", mt: "MAT", mrk: "MRK",
+  mk: "MRK", mar: "MRK", luk: "LUK", lk: "LUK", jhn: "JHN", jn: "JHN",
+  joh: "JHN", act: "ACT", rom: "ROM", "1co": "1CO", "1cor": "1CO",
+  "2co": "2CO", "2cor": "2CO", gal: "GAL", eph: "EPH", php: "PHP",
+  phil: "PHP", col: "COL", "1th": "1TH", "1thess": "1TH", "2th": "2TH",
+  "2thess": "2TH", "1ti": "1TI", "1tim": "1TI", "2ti": "2TI", "2tim": "2TI",
+  tit: "TIT", phm: "PHM", phlm: "PHM", heb: "HEB", jas: "JAS", jam: "JAS",
+  "1pe": "1PE", "1pet": "1PE", "2pe": "2PE", "2pet": "2PE", "1jn": "1JN",
+  "2jn": "2JN", "3jn": "3JN", jud: "JUD", jude: "JUD", rev: "REV",
+};
+
+// Full-name lookup (lowercased, punctuation-stripped) → book id, plus aliases.
+const BOOK_NAMES: Record<string, string> = (() => {
+  const m: Record<string, string> = {};
+  for (const b of BIBLE_BOOKS) m[b.name.toLowerCase().replace(/[^a-z0-9 ]/g, "")] = b.id;
+  m["psalm"] = "PSA";
+  m["song of songs"] = "SNG";
+  m["songs of solomon"] = "SNG";
+  m["revelations"] = "REV";
+  return m;
+})();
+
+function resolveBookId(raw: string): string | null {
+  const n = raw.toLowerCase().replace(/[.,]/g, "").replace(/\s+/g, " ").trim();
+  if (BOOK_NAMES[n]) return BOOK_NAMES[n];
+  const compact = n.replace(/\s+/g, "");
+  return BOOK_ABBREV[compact] ?? null;
+}
+
+/**
+ * Parse a scripture reference like "John 3:16", "Genesis 1:1-5", "1 Cor 13",
+ * "Psalm 23". Returns null for anything that isn't a reference (e.g. a topic).
+ */
+export function parseReference(
+  query: string
+): { bookId: string; chapter: number; vStart?: number; vEnd?: number } | null {
+  const m = query.trim().match(/^(.+?)\s+(\d+)(?::(\d+)(?:\s*-\s*(\d+))?)?$/);
+  if (!m) return null;
+  const bookId = resolveBookId(m[1]);
+  if (!bookId) return null;
+  return {
+    bookId,
+    chapter: parseInt(m[2]),
+    vStart: m[3] ? parseInt(m[3]) : undefined,
+    vEnd: m[4] ? parseInt(m[4]) : undefined,
+  };
+}
+
+/**
+ * Resolve a reference string to verse text via the active source chain
+ * (api.bible when keyed, otherwise the keyless wldeh CDN). Returns [] for a
+ * non-reference query or a fetch miss.
+ */
+export async function lookupReference(
+  bibleId: string,
+  refString: string,
+  limit = 50
+): Promise<VerseResult[]> {
+  const ref = parseReference(refString);
+  if (!ref) return [];
+  const chapter = await fetchChapter(bibleId, ref.bookId, ref.chapter).catch(() => null);
+  if (!chapter) return [];
+  let verses = chapter.verses;
+  if (ref.vStart != null) {
+    const end = ref.vEnd ?? ref.vStart;
+    verses = verses.filter((v) => v.number >= ref.vStart! && v.number <= end);
+  }
+  return verses.slice(0, limit).map((v) => ({
+    verseId: v.id,
+    reference: v.reference,
+    text: v.text,
+  }));
+}
+
+/**
+ * Search verses across a Bible version.
+ * With BIBLE_API_KEY set, uses api.bible's full-text search. Without a key,
+ * resolves the query as a scripture reference via the keyless wldeh CDN —
+ * topic/keyword searches (no reference) are handled by the search route's AI
+ * fallback, which turns a topic into references this function can resolve.
+ */
 export async function searchVerses(
   bibleId: string,
   query: string,
   limit = 20
-): Promise<{ reference: string; text: string; verseId: string }[]> {
+): Promise<VerseResult[]> {
   const apiKey = process.env.BIBLE_API_KEY;
-  if (!apiKey) return [];
+  if (!apiKey) return lookupReference(bibleId, query, limit);
+
   const url = `${ABS_BASE}/bibles/${bibleId}/search?query=${encodeURIComponent(query)}&limit=${limit}&sort=relevance`;
   const res = await fetch(url, { headers: absHeaders(), next: { revalidate: 3600 } });
   if (!res.ok) return [];
