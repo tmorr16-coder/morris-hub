@@ -135,27 +135,33 @@ export default function SettingsClient({ versions, initialPrefs }: Props) {
       <section style={{ marginTop: 22 }}>
         <h2 className="ios-group-header" style={header}>Read-aloud voice</h2>
         <List style={{ margin: 0 }}>
-          <select value={voiceName} onChange={(e) => setVoiceName(e.target.value)} style={{ ...control, appearance: "none", WebkitAppearance: "none" }}>
-            {voices.length === 0 && <option value="">Loading voices…</option>}
-            {voices.map((v) => (
-              <option key={v.name} value={v.name}>{v.name}{isEnhancedVoice(v) ? " · Enhanced" : ""}</option>
-            ))}
+          <select value={voiceName} onChange={(e) => setVoiceName(e.target.value)} style={{ ...control, appearance: “none”, WebkitAppearance: “none” }}>
+            {voices.length === 0 && <option value=””>Loading voices…</option>}
+            {voices.map((v) => {
+              const isEnhanced = isEnhancedVoice(v);
+              const isDiverse = /\b(Jackson|Joelle|Noelle|Aaron)\b/.test(v.name);
+              const badge = isEnhanced ? “ · Premium” : “”;
+              const diverseBadge = isDiverse ? “ · Diverse” : “”;
+              return (
+                <option key={v.name} value={v.name}>{v.name}{badge}{diverseBadge}</option>
+              );
+            })}
           </select>
         </List>
         <div style={{ marginTop: 12 }}>
           <Segmented
-            ariaLabel="Read-aloud speed"
-            value={SPEED_OPTIONS.some((o) => o.value === String(speed)) ? String(speed) : "1"}
+            ariaLabel=”Read-aloud speed”
+            value={SPEED_OPTIONS.some((o) => o.value === String(speed)) ? String(speed) : “1”}
             onChange={(v) => setSpeed(parseFloat(v))}
             options={SPEED_OPTIONS}
             style={{ margin: 0 }}
           />
         </div>
-        <button onClick={previewVoice} className="ios-btn" style={{ marginTop: 12, background: "var(--ios-fill)", color: "var(--ios-tint)" }}>
+        <button onClick={previewVoice} className=”ios-btn” style={{ marginTop: 12, background: “var(--ios-fill)”, color: “var(--ios-tint)” }}>
           Preview voice
         </button>
-        <p className="ios-footnote" style={footnote}>
-          Used for scripture read-aloud everywhere. Voices marked “Enhanced” are modern Apple neural voices and sound most natural.
+        <p className=”ios-footnote” style={footnote}>
+          Premium voices are modern Apple neural voices with natural sound quality. Diverse options include voices from various cultural backgrounds. Preview a voice before selecting it.
         </p>
       </section>
 
