@@ -24,7 +24,10 @@ export default async function HomePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
 
-  // Gate: redirect new users to onboarding
+  // Gate: redirect new users to onboarding.
+  // NOTE: redirect() throws NEXT_REDIRECT, so it must run OUTSIDE the try/catch —
+  // otherwise the catch swallows the redirect and it silently never happens.
+  let needsOnboarding = false;
   try {
     const { data: onboardingCheck } = await service
       .schema("hub")
@@ -32,12 +35,11 @@ export default async function HomePage() {
       .select("onboarding_completed")
       .eq("user_id", user.id)
       .maybeSingle();
-    if (onboardingCheck && onboardingCheck.onboarding_completed === false) {
-      redirect("/onboarding");
-    }
+    needsOnboarding = onboardingCheck?.onboarding_completed === false;
   } catch {
     // Column doesn't exist yet — skip
   }
+  if (needsOnboarding) redirect("/onboarding");
 
   // Compute early so workouts query can filter by today's date
   const userTz = getUserTimezone(user.user_metadata);
