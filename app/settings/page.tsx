@@ -11,7 +11,7 @@ import GeneralSettings from "./_components/GeneralSettings";
 
 // Live connection status for the three fitness integrations. Fully defensive —
 // any missing table just reports "Not connected" rather than throwing.
-async function fitnessStatus(userId: string) {
+async function fitnessStatus(userId: string, isAdmin: boolean) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   let oura = false, withings = false, apple = false;
@@ -19,7 +19,9 @@ async function fitnessStatus(userId: string) {
     const { data } = await db.from("oura_tokens").select("access_token").eq("user_id", userId).maybeSingle();
     oura = !!data?.access_token;
   } catch { /* table may not exist */ }
-  if (!oura && process.env.OURA_ACCESS_TOKEN) oura = true;
+  // The shared OURA_ACCESS_TOKEN env var is the owner's personal token — only
+  // count it as connected for an admin, never for a new/standard user.
+  if (!oura && isAdmin && process.env.OURA_ACCESS_TOKEN) oura = true;
   try {
     const { data } = await db.from("withings_tokens").select("updated_at").eq("user_id", userId).maybeSingle();
     withings = data != null;
@@ -50,8 +52,8 @@ export default async function SettingsHubPage() {
   const name = ((user.user_metadata as any)?.full_name as string | undefined) ?? email.split("@")[0] ?? "You";
   const initial = (name[0] ?? "U").toUpperCase();
 
-  const fit = await fitnessStatus(user.id);
   const isAdmin = await isCurrentUserAdmin();
+  const fit = await fitnessStatus(user.id, isAdmin);
 
   return (
     <div className="ios-scroll">

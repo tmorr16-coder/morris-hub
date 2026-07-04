@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { getPreferences } from "@/lib/prefs";
 
 export interface FinanceMenuUser {
   name: string | null;
@@ -24,18 +25,24 @@ export async function requireFinanceAccess(): Promise<{
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
-  const { data } = await service
-    .from("profiles")
-    .select("role, app_access")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data }, prefs] = await Promise.all([
+    service.from("profiles").select("role, app_access").eq("id", user.id).maybeSingle(),
+    getPreferences(user.id),
+  ]);
   const profile = data as { role?: string; app_access?: string[] } | null;
   const isAdmin = profile?.role === "admin";
-  const appAccess = profile?.app_access;
+  const profileAccess = profile?.app_access;
+  const prefsAccess = prefs.app_access;
 
-  if (!isAdmin && Array.isArray(appAccess) && !appAccess.includes("finance")) {
-    redirect("/no-access");
-  }
+  // Access is the union of the legacy profiles list and the modern preferences
+  // list (onboarding writes preferences.app_access, not profiles.app_access).
+  const hasFinance =
+    isAdmin ||
+    !Array.isArray(profileAccess) || // legacy account with no explicit list → allow
+    profileAccess.includes("finance") ||
+    (Array.isArray(prefsAccess) && prefsAccess.includes("finance"));
+
+  if (!hasFinance) redirect("/finance/no-access");
 
   return {
     user,

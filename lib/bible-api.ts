@@ -177,27 +177,29 @@ export async function fetchChapter(
 
   if (apiKey) {
     const url = `${ABS_BASE}/bibles/${bibleId}/chapters/${chapterId}?content-type=json&include-notes=false&include-titles=true&include-chapter-numbers=false&include-verse-numbers=true&include-verse-spans=false`;
-    const res = await fetch(url, { headers: absHeaders(), next: { revalidate: 86400 } });
-    if (res.ok) {
-      const json = await res.json();
-      const data = json.data;
-      // ABS returns content as HTML/JSON — parse verses from items array
-      const verses: BibleVerse[] = (data.content ?? [])
-        .filter((item: any) => item.type === "verse" || item.verseId)
-        .map((item: any, idx: number) => ({
-          id: item.id ?? `${chapterId}.${idx + 1}`,
-          reference: item.reference ?? `${bookId} ${chapterNum}:${idx + 1}`,
-          number: parseInt(item.number ?? String(idx + 1)),
-          text: extractText(item),
-        }));
-      return {
-        id: chapterId,
-        bookId,
-        number: String(chapterNum),
-        reference: data.reference ?? `${bookId} ${chapterNum}`,
-        verses,
-      };
-    }
+    try {
+      const res = await fetch(url, { headers: absHeaders(), next: { revalidate: 86400 }, signal: AbortSignal.timeout(6000) });
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data;
+        // ABS returns content as HTML/JSON — parse verses from items array
+        const verses: BibleVerse[] = (data.content ?? [])
+          .filter((item: any) => item.type === "verse" || item.verseId)
+          .map((item: any, idx: number) => ({
+            id: item.id ?? `${chapterId}.${idx + 1}`,
+            reference: item.reference ?? `${bookId} ${chapterNum}:${idx + 1}`,
+            number: parseInt(item.number ?? String(idx + 1)),
+            text: extractText(item),
+          }));
+        return {
+          id: chapterId,
+          bookId,
+          number: String(chapterNum),
+          reference: data.reference ?? `${bookId} ${chapterNum}`,
+          verses,
+        };
+      }
+    } catch { /* timeout or network error — fall through to keyless source */ }
   }
 
   // Keyless primary source: wldeh CDN (KJV/ASV/WEB).
@@ -230,7 +232,7 @@ async function fetchChapterWldeh(
   if (!slug) return null;
   const url = `${WLDEH_BASE}/${version}/books/${slug}/chapters/${chapterNum}.json`;
   try {
-    const res = await fetch(url, { next: { revalidate: 86400 } });
+    const res = await fetch(url, { next: { revalidate: 86400 }, signal: AbortSignal.timeout(6000) });
     if (!res.ok) return null;
     const json = await res.json();
     const rows: { verse: string; text: string }[] = Array.isArray(json?.data) ? json.data : [];
@@ -265,7 +267,7 @@ async function fetchChapterFallback(
   const translation = FALLBACK_TRANSLATIONS[bibleId] ?? "kjv";
   const ref = encodeURIComponent(`${bookName} ${chapterNum}`);
   const url = `${FALLBACK_BASE}/${ref}?translation=${translation}&verse_numbers=true`;
-  const res = await fetch(url, { next: { revalidate: 86400 } });
+  const res = await fetch(url, { next: { revalidate: 86400 }, signal: AbortSignal.timeout(6000) });
   if (!res.ok) throw new Error(`Bible fetch failed: ${res.status}`);
   const json = await res.json();
   const verses: BibleVerse[] = (json.verses ?? []).map((v: any) => ({
@@ -400,12 +402,16 @@ export async function searchVerses(
   if (!apiKey) return lookupReference(bibleId, query, limit);
 
   const url = `${ABS_BASE}/bibles/${bibleId}/search?query=${encodeURIComponent(query)}&limit=${limit}&sort=relevance`;
-  const res = await fetch(url, { headers: absHeaders(), next: { revalidate: 3600 } });
-  if (!res.ok) return [];
-  const json = await res.json();
-  return (json.data?.verses ?? []).map((v: any) => ({
-    verseId: v.id,
-    reference: v.reference,
-    text: v.text?.trim() ?? "",
-  }));
+  try {
+    const res = await fetch(url, { headers: absHeaders(), next: { revalidate: 3600 }, signal: AbortSignal.timeout(6000) });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return (json.data?.verses ?? []).map((v: any) => ({
+      verseId: v.id,
+      reference: v.reference,
+      text: v.text?.trim() ?? "",
+    }));
+  } catch {
+    return [];
+  }
 }
