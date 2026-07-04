@@ -517,15 +517,19 @@ export default async function HomePage() {
 
   // When a finance PIN is set, the money glance must not reveal anything (even the
   // trend %) in the clear — mirror the PIN that guards the finance section itself.
-  const financePinRes = await service
-    .schema("hub")
-    .from("preferences")
-    .select("finance_pin")
-    .eq("user_id", user.id)
-    .maybeSingle()
-    .catch(() => null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const financeLocked = !!((financePinRes?.data as any)?.finance_pin);
+  let financeLocked = false;
+  try {
+    const { data: financePinRow } = await service
+      .schema("hub")
+      .from("preferences")
+      .select("finance_pin")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    financeLocked = !!((financePinRow as any)?.finance_pin);
+  } catch {
+    // finance_pin column not present / query failed — leave unlocked
+  }
 
   // Weather now leads the glance (replacing the calendar tile). Today's high
   // and current condition, from the user's saved location.
