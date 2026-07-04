@@ -15,6 +15,7 @@ import HomeClient from "./HomeClient";
 import QuickActions from "./_components/QuickActions";
 import TodayMarkets from "./_components/TodayMarkets";
 import TodayNews from "./_components/TodayNews";
+import MoneyGlanceValue from "./_components/MoneyGlanceValue";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -507,11 +508,6 @@ export default async function HomePage() {
   const netPrev: number | null = netSnaps.length > 1 ? (netSnaps[netSnaps.length - 1]?.net_position ?? null) : null;
   const netPct: number | null = netWorth != null && netPrev != null && netPrev !== 0
     ? ((netWorth - netPrev) / Math.abs(netPrev)) * 100 : null;
-  const moneyValue = netPct != null ? (
-    <span style={{ color: netPct >= 0 ? "var(--ios-green)" : "var(--ios-red)" }}>
-      {netPct >= 0 ? "▲" : "▼"} {Math.abs(netPct).toFixed(1)}%
-    </span>
-  ) : "Tracking";
 
   const homePrefs = await getPreferences(user.id).catch(() => null);
 
@@ -556,9 +552,11 @@ export default async function HomePage() {
     health: { value: stepsToday > 0 ? Math.round(stepsToday).toLocaleString() : "—", sub: stepsToday > 0 ? (stepsIsToday ? "steps today" : `steps · ${stepsDayShort}`) : "no data yet", href: "/health" },
     ...(netWorth != null
       ? {
-          money: financeLocked
-            ? { value: "🔒 Locked", sub: "Enter PIN to view", href: "/finance/dashboard" }
-            : { value: moneyValue, sub: "net worth trend", href: "/finance/dashboard" },
+          money: {
+            value: <MoneyGlanceValue pct={netPct} locked={financeLocked} />,
+            sub: "net worth trend",
+            href: "/finance/dashboard",
+          },
         }
       : {}),
   };
