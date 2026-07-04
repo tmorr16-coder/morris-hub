@@ -58,6 +58,11 @@ export default async function ChapterPage({ params, searchParams }: Props) {
   let nextReadingHref: string | null = null;
   let nextReadingLabel: string | null = null;
 
+  // Ordered list of readings AFTER the current one, so read-aloud can chain
+  // through a whole plan day (and beyond) hands-free. Capped to keep it bounded.
+  const MAX_UPCOMING = 24;
+  const upcomingReadings: { bookId: string; chapter: number; label: string }[] = [];
+
   if (planId && day && ridx !== undefined) {
     try {
       const { data: planData } = await db
@@ -90,10 +95,34 @@ export default async function ChapterPage({ params, searchParams }: Props) {
             nextReadingHref = `/bible/plans/${planId}`;
             nextReadingLabel = `Day ${day} complete`;
           }
+
+          // Remaining refs in the current day (after the current one)…
+          for (let i = ridxNum + 1; i < dayReadings.length && upcomingReadings.length < MAX_UPCOMING; i++) {
+            const p = parseRef(dayReadings[i]);
+            if (p) upcomingReadings.push({ bookId: p.bookId, chapter: p.chapter, label: dayReadings[i] });
+          }
+        }
+
+        // …then the following days' refs, in day order.
+        const laterDays = (planData.readings as { day: number; readings: string[] }[])
+          .filter(d => d.day > dayNum)
+          .sort((a, b) => a.day - b.day);
+        for (const d of laterDays) {
+          if (upcomingReadings.length >= MAX_UPCOMING) break;
+          for (const ref of d.readings ?? []) {
+            if (upcomingReadings.length >= MAX_UPCOMING) break;
+            const p = parseRef(ref);
+            if (p) upcomingReadings.push({ bookId: p.bookId, chapter: p.chapter, label: ref });
+          }
         }
       }
     } catch {
-      // Non-fatal — just won't have next reading link
+      // Non-fatal — just won't have next reading link / auto-continue
+    }
+  } else {
+    // No plan: chain through the subsequent chapters of the current book.
+    for (let n = chapterNum + 1; n <= book.chapters && upcomingReadings.length < MAX_UPCOMING; n++) {
+      upcomingReadings.push({ bookId: book.id, chapter: n, label: `${book.name} ${n}` });
     }
   }
 
@@ -118,6 +147,7 @@ export default async function ChapterPage({ params, searchParams }: Props) {
         bibleId={bibleId}
         nextReadingHref={nextReadingHref}
         nextReadingLabel={nextReadingLabel}
+        upcomingReadings={upcomingReadings}
       />
     </div>
   );

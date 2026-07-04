@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { BibleChapter, BibleVerse, BibleVersion } from "@/lib/bible-api";
+import { bookById } from "@/lib/bible-api";
 import { rankVoices, pickBestVoice } from "@/lib/tts-voices";
 import { Icons } from "@/components/ios";
 
@@ -24,6 +25,8 @@ interface Props {
   bibleId: string;
   nextReadingHref?: string | null;
   nextReadingLabel?: string | null;
+  /** Ordered readings AFTER the current one, for hands-free auto-continue. */
+  upcomingReadings?: { bookId: string; chapter: number; label: string }[];
 }
 
 const HIGHLIGHT_COLORS = [
@@ -57,11 +60,32 @@ const BookmarkIcon = (p: SVGProps<SVGSVGElement>) => (
 );
 
 export default function ChapterReader({
-  book, chapterNum, chapterData, version, allVersions,
+  book: bookProp, chapterNum: chapterNumProp, chapterData: chapterDataProp, version, allVersions,
   prevChapter, nextChapter, userId, initialHighlights, initialBookmarks, initialNotes, bibleId,
+  upcomingReadings = [],
 }: Props) {
   const router = useRouter();
   const db = createClient() as any;
+
+  // ── Displayed chapter is STATE so read-aloud can advance it in place ──
+  // (auto-continue swaps the shown chapter without any navigation/remount, so
+  // the speechSynthesis session survives — required for iOS to keep playing).
+  const [book, setBook] = useState(bookProp);
+  const [chapterNum, setChapterNum] = useState(chapterNumProp);
+  const [chapterData, setChapterData] = useState(chapterDataProp);
+
+  // Refs mirror the displayed chapter so the async onend handler always reads
+  // the freshest chapter (state updates are async / the utterance closure is stale).
+  const bookRef = useRef(book);
+  const chapterNumRef = useRef(chapterNum);
+  const chapterDataRef = useRef(chapterData);
+
+  // Pointer into upcomingReadings: the NEXT reading to auto-play after the
+  // currently displayed chapter finishes.
+  const queueIdxRef = useRef(0);
+
+  // Latest speakFrom, so the recursive auto-continue call isn't a stale closure.
+  const speakFromRef = useRef<(startIdx: number) => void>(() => {});
 
   // ── Core state ────────────────────────────────────────────
   const [highlights, setHighlights] = useState<Record<string, string>>(
@@ -112,14 +136,18 @@ export default function ChapterReader({
 
   // ── TTS ── speak from a specific verse index ──────────────
   const speakFrom = useCallback((startIdx: number) => {
-    if (!chapterData) return;
+    const data = chapterDataRef.current;
+    if (!data) return;
     window.speechSynthesis.cancel();
     setPaused(false);
 
-    const verses = chapterData.verses.slice(startIdx);
+    const verses = data.verses.slice(startIdx);
 
-    // Build full text + per-verse character offsets for onboundary tracking
-    let fullText = "";
+    // ANNOUNCE the book + chapter first, then the verses. Build the per-verse
+    // char offsets on TOP of the announcement so onboundary verse tracking stays
+    // correct — offsets naturally include the announcement's length.
+    const announcement = `${bookRef.current.name} chapter ${chapterNumRef.current}.  `;
+    let fullText = announcement;
     const offsets: number[] = []; // offsets[i] = char index where verse startIdx+i begins
     verses.forEach((v) => {
       offsets.push(fullText.length);
@@ -139,7 +167,8 @@ export default function ChapterReader({
     utter.onboundary = (e) => {
       if (e.name !== "word") return;
       const charIdx = e.charIndex;
-      // Find which verse is being read
+      // During the announcement (charIdx < offsets[0]) the first verse stays
+      // highlighted; once verses begin, track which one is being read.
       let currentVerse = startIdx;
       for (let i = 0; i < offsets.length; i++) {
         if (charIdx >= offsets[i]) currentVerse = startIdx + i;
@@ -148,20 +177,53 @@ export default function ChapterReader({
       setReadingVerseIdx(currentVerse);
     };
 
-    utter.onend = () => {
-      setSpeaking(false);
-      setPaused(false);
-      setReadingVerseIdx(null);
-    };
-    utter.onerror = () => {
+    const finishReading = () => {
       setSpeaking(false);
       setPaused(false);
       setReadingVerseIdx(null);
     };
 
+    utter.onend = () => {
+      // AUTO-CONTINUE: if there's a next reading queued, fetch its verses and
+      // speak them immediately in the SAME session (no navigation/reload) so
+      // iOS keeps playing hands-free through the whole plan day (and beyond).
+      const q = queueIdxRef.current;
+      if (q >= upcomingReadings.length) {
+        finishReading();
+        return;
+      }
+      const next = upcomingReadings[q];
+      queueIdxRef.current = q + 1;
+      fetch(`/api/bible/chapter?bibleId=${encodeURIComponent(bibleId)}&bookId=${encodeURIComponent(next.bookId)}&chapter=${next.chapter}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((nextData: BibleChapter | null) => {
+          if (!nextData || !nextData.verses?.length) { finishReading(); return; }
+          const nextBook = bookById(next.bookId) ?? bookRef.current;
+          // Swap the displayed chapter in place (refs first, so the immediate
+          // speakFrom(0) below reads the NEW chapter; state for the UI/highlight).
+          bookRef.current = nextBook;
+          chapterNumRef.current = next.chapter;
+          chapterDataRef.current = nextData;
+          setBook(nextBook);
+          setChapterNum(next.chapter);
+          setChapterData(nextData);
+          setReadingVerseIdx(0);
+          // Keep the URL shareable/bookmarkable WITHOUT navigating (history API
+          // integrates with the Next router but does not remount → session lives).
+          window.history.replaceState(null, "", `/bible/read/${next.bookId}/${next.chapter}?v=${encodeURIComponent(bibleId)}`);
+          // Announce + read the new chapter, same speechSynthesis session.
+          speakFromRef.current(0);
+        })
+        .catch(() => { finishReading(); });
+    };
+    utter.onerror = () => { finishReading(); };
+
     utterRef.current = utter;
     window.speechSynthesis.speak(utter);
-  }, [chapterData, selectedVoice, speechRate]);
+  }, [selectedVoice, speechRate, upcomingReadings, bibleId]);
+
+  // Keep the recursive-continue pointer aimed at the latest speakFrom.
+  useEffect(() => { speakFromRef.current = speakFrom; }, [speakFrom]);
 
   const pauseResume = useCallback(() => {
     if (!speaking) return;
@@ -175,11 +237,14 @@ export default function ChapterReader({
   }, [speaking, paused]);
 
   const stopSpeaking = useCallback(() => {
+    // Cancel the whole chain: park the queue pointer past the end BEFORE
+    // cancel() so that if cancel() triggers onend, it can't auto-advance.
+    queueIdxRef.current = upcomingReadings.length;
     window.speechSynthesis.cancel();
     setSpeaking(false);
     setPaused(false);
     setReadingVerseIdx(null);
-  }, []);
+  }, [upcomingReadings.length]);
 
   // ── Highlight ─────────────────────────────────────────────
   const toggleHighlight = async (verse: BibleVerse, color: string) => {
