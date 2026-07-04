@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { completeOnboarding } from "../actions";
 import { lookupZip } from "@/app/home/actions";
 import { Icons, Chip } from "@/components/ios";
@@ -150,7 +149,6 @@ interface Props {
 }
 
 export default function OnboardingFlow({ initialName, initialLocation }: Props) {
-  const router = useRouter();
   const [step, setStep] = useState(1);
   const [persona, setPersona] = useState<Persona | null>(null);
   const [profile, setProfile] = useState<Profile>({ displayName: initialName, locationName: initialLocation });
@@ -239,7 +237,10 @@ export default function OnboardingFlow({ initialName, initialLocation }: Props) 
       // The city captured on the profile step doubles as the local-news city.
       cityNames: city ? [city] : [],
     });
-    router.replace("/home");
+    // Hard navigation (not router.replace) so the root layout re-renders and picks
+    // up the new persona — otherwise the tab bar keeps its stale "Family" state
+    // until a manual reload.
+    window.location.href = "/home";
   }
 
   const cardStyle = (selected: boolean, color = "var(--ios-tint)"): React.CSSProperties => ({
