@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/finance/plaid/sync",
+      "schedule": "0 9 * * *"
+    },
+    {
       "path": "/api/health/oura/sync",
       "schedule": "0 11 * * *"
     },
