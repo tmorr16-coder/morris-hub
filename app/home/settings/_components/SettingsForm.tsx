@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Chip } from "@/components/ios";
 import { savePreferences, lookupZip } from "../../actions";
-import { ALL_WIDGETS, DEFAULT_REMINDER_CATEGORIES, DEFAULT_NEWS_SOURCES } from "@/lib/prefs-shared";
+import { DEFAULT_REMINDER_CATEGORIES, DEFAULT_NEWS_SOURCES } from "@/lib/prefs-shared";
 import { AVAILABLE_SPORTS_TEAMS } from "@/lib/sports-teams";
 import { CATEGORY_LABELS } from "@/lib/investment-ideas-constants";
 import type { WidgetId, NewsSource } from "@/lib/prefs-shared";
@@ -42,8 +43,8 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
 
   const [zip, setZip] = useState("");
   const [locationName, setLocationName] = useState(initialPrefs.location_name ?? "");
-  const [latitude, setLatitude] = useState(initialPrefs.latitude ?? 0);
-  const [longitude, setLongitude] = useState(initialPrefs.longitude ?? 0);
+  const [latitude, setLatitude] = useState<number | null>(initialPrefs.latitude ?? null);
+  const [longitude, setLongitude] = useState<number | null>(initialPrefs.longitude ?? null);
   const [resolvingZip, setResolvingZip] = useState(false);
 
   const [tickersInput, setTickersInput] = useState(initialPrefs.stock_tickers.join(", "));
@@ -62,9 +63,6 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
   });
   const [investmentCategories, setInvestmentCategories] = useState<string[]>(
     initialPrefs.investment_categories ?? ["stocks", "real_estate", "transportation", "tech", "other"]
-  );
-  const [visibleWidgets, setVisibleWidgets] = useState<WidgetId[]>(
-    initialPrefs.visible_widgets ?? [...ALL_WIDGETS]
   );
   const [appAccess, setAppAccess] = useState<string[]>(
     initialPrefs.app_access ?? ["hub", "health", "finance", "student-success", "children", "investments"]
@@ -125,17 +123,6 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
     );
   }
 
-  function moveWidget(id: WidgetId, dir: -1 | 1) {
-    setVisibleWidgets((prev) => {
-      const idx = prev.indexOf(id);
-      if (idx === -1) return prev;
-      const next = [...prev];
-      const swap = idx + dir;
-      if (swap < 0 || swap >= next.length) return prev;
-      [next[idx], next[swap]] = [next[swap], next[idx]];
-      return next;
-    });
-  }
   const [reminderCats, setReminderCats] = useState<string[]>(
     initialPrefs.reminder_categories ?? [...DEFAULT_REMINDER_CATEGORIES]
   );
@@ -158,12 +145,6 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
 
   function toggleTopic(id: string) {
     setTopics((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
-  }
-
-  function toggleWidget(id: WidgetId) {
-    setVisibleWidgets((prev) =>
-      prev.includes(id) ? prev.filter((w) => w !== id) : [...prev, id]
-    );
   }
 
   function toggleSportsTeam(teamId: string) {
@@ -251,8 +232,9 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
     startTransition(async () => {
       const res = await savePreferences({
         location_name: locationName,
-        latitude,
-        longitude,
+        // Only persist coordinates when a real location was resolved — never
+        // write 0,0, which would render as fake (Gulf of Guinea) weather.
+        ...(latitude !== null && longitude !== null ? { latitude, longitude } : { latitude: null, longitude: null }),
         stock_tickers: tickers,
         employer_ticker: employerTicker.trim().toUpperCase() || null,
         tts_voice: ttsVoice || null,
@@ -261,7 +243,6 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         city_names: cities,
         sports_enabled_teams: sportsTeams,
         investment_categories: investmentCategories,
-        visible_widgets: visibleWidgets,
         reminder_categories: reminderCats,
         app_access: appAccess,
         news_sources: newsSources.map((s) =>
@@ -282,45 +263,6 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
-      {/* Widgets — toggle + reorder */}
-      <section style={card}>
-        <SectionHeader title="Widgets" subtitle="Toggle which boxes appear and drag them into order" />
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {visibleWidgets.map((w, i) => (
-            <div key={w} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "var(--color-bg)", border: "1px solid var(--color-rule)", borderRadius: 10 }}>
-              <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "var(--color-ink)" }}>{WIDGET_LABELS[w]}</span>
-              <button
-                onClick={() => moveWidget(w, -1)}
-                disabled={i === 0}
-                style={{ ...reorderBtn, opacity: i === 0 ? 0.3 : 1 }}
-                title="Move up"
-              >↑</button>
-              <button
-                onClick={() => moveWidget(w, 1)}
-                disabled={i === visibleWidgets.length - 1}
-                style={{ ...reorderBtn, opacity: i === visibleWidgets.length - 1 ? 0.3 : 1 }}
-                title="Move down"
-              >↓</button>
-              <button
-                onClick={() => toggleWidget(w)}
-                style={{ fontSize: 11, padding: "3px 9px", borderRadius: 12, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-red)", cursor: "pointer", fontFamily: "inherit" }}
-                title="Hide this widget"
-              >Hide</button>
-            </div>
-          ))}
-          {/* Hidden widgets — add back */}
-          {ALL_WIDGETS.filter((w) => !visibleWidgets.includes(w)).map((w) => (
-            <div key={w} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "transparent", border: "1px dashed var(--color-rule)", borderRadius: 10, opacity: 0.6 }}>
-              <span style={{ flex: 1, fontSize: 13, color: "var(--color-ink-3)" }}>{WIDGET_LABELS[w]}</span>
-              <button
-                onClick={() => toggleWidget(w)}
-                style={{ fontSize: 11, padding: "3px 9px", borderRadius: 12, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-accent)", cursor: "pointer", fontFamily: "inherit" }}
-              >Show</button>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* Module access */}
       <section style={card}>
         <SectionHeader title="App access" subtitle="Which modules you can access" />
@@ -329,55 +271,71 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
             const isHub = module.id === "hub";
             const active = appAccess.includes(module.id);
             return (
-              <label key={module.id} style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: isHub ? "default" : "pointer", padding: "10px 12px", borderRadius: 8, background: "var(--color-bg)", border: `1px solid ${active ? "var(--color-rule)" : "var(--color-rule-soft)"}`, opacity: isHub ? 0.7 : 1 }}>
-                <input
-                  type="checkbox"
-                  checked={active}
-                  disabled={isHub}
-                  onChange={() => toggleModule(module.id)}
-                  style={{ marginTop: 2, cursor: isHub ? "default" : "pointer", width: 18, height: 18 }}
-                />
+              <div key={module.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, background: "var(--ios-bg)", opacity: isHub ? 0.7 : 1 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: active ? "var(--color-ink)" : "var(--color-ink-3)" }}>{module.label}</div>
-                  <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 2 }}>{module.description}</div>
+                  <div style={{ fontSize: 15, fontWeight: 500, color: active ? "var(--ios-label)" : "var(--ios-label-2)" }}>{module.label}</div>
+                  <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>{module.description}</div>
                 </div>
-                {isHub && <span style={{ fontSize: 10, color: "var(--color-ink-4)", alignSelf: "center" }}>Always on</span>}
-              </label>
+                {isHub ? (
+                  <span className="ios-caption" style={{ color: "var(--ios-label-3)", flexShrink: 0 }}>Always on</span>
+                ) : (
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={active}
+                    aria-label={`Toggle ${module.label}`}
+                    onClick={() => toggleModule(module.id)}
+                    style={{
+                      width: 51, height: 31, borderRadius: 999, border: "none", flexShrink: 0,
+                      background: active ? "var(--ios-green)" : "var(--ios-fill)",
+                      cursor: "pointer", position: "relative", transition: "background 200ms", padding: 0,
+                    }}
+                  >
+                    <span style={{
+                      position: "absolute", top: 2, left: active ? 22 : 2,
+                      width: 27, height: 27, borderRadius: "50%", background: "#fff",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.2)", transition: "left 200ms",
+                    }} />
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
-        <p style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 8 }}>
+        <p className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8 }}>
           Removing a module hides it from your menu. You can keep or delete your data when removing.
         </p>
       </section>
 
-      {/* Module removal confirmation modal */}
+      {/* Module removal confirmation sheet */}
       {removeConfirm && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 16, width: "100%", maxWidth: 400, padding: "28px 28px 24px", boxShadow: "0 20px 60px rgba(0,0,0,0.12)" }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, color: "var(--color-ink)", marginBottom: 8 }}>
+        <>
+          <div className="ios-sheet-backdrop" onClick={() => setRemoveConfirm(null)} />
+          <div className="ios-sheet" role="dialog" aria-modal="true">
+            <div className="ios-grabber" />
+            <h3 className="ios-title-3" style={{ color: "var(--ios-label)", marginBottom: 8, textAlign: "center" }}>
               Remove {removeConfirm.label}?
             </h3>
-            <p style={{ fontSize: 13, color: "var(--color-ink-3)", lineHeight: 1.6, marginBottom: 20 }}>
+            <p className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5, marginBottom: 20, textAlign: "center" }}>
               This hides {removeConfirm.label} from your menu. What would you like to do with your data?
             </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <button onClick={() => confirmRemove(true)} disabled={removingData}
-                style={{ padding: "11px 16px", borderRadius: 10, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink)", fontSize: 14, fontWeight: 500, fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}>
-                <div style={{ fontWeight: 600 }}>Keep my data</div>
-                <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 2 }}>Hide the module but preserve everything. You can re-enable it later.</div>
+                style={{ padding: "14px 16px", borderRadius: 12, border: "none", background: "var(--ios-fill)", color: "var(--ios-label)", fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}>
+                <div className="ios-headline" style={{ fontWeight: 600 }}>Keep my data</div>
+                <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>Hide the module but preserve everything. You can re-enable it later.</div>
               </button>
               <button onClick={() => confirmRemove(false)} disabled={removingData}
-                style={{ padding: "11px 16px", borderRadius: 10, border: "1px solid rgba(154,59,42,0.3)", background: "rgba(154,59,42,0.04)", color: "var(--color-red)", fontSize: 14, fontWeight: 500, fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}>
-                <div style={{ fontWeight: 600 }}>Remove and delete data</div>
-                <div style={{ fontSize: 11, marginTop: 2, opacity: 0.8 }}>Permanently delete your {removeConfirm.label} data. This cannot be undone.</div>
+                style={{ padding: "14px 16px", borderRadius: 12, border: "none", background: "var(--ios-fill)", color: "var(--ios-red)", fontFamily: "inherit", cursor: "pointer", textAlign: "left" }}>
+                <div className="ios-headline" style={{ fontWeight: 600 }}>Remove and delete data</div>
+                <div className="ios-caption" style={{ marginTop: 2, opacity: 0.85 }}>Permanently delete your {removeConfirm.label} data. This cannot be undone.</div>
               </button>
-              <button onClick={() => setRemoveConfirm(null)} style={{ padding: "9px 0", border: "none", background: "transparent", color: "var(--color-ink-4)", fontSize: 13, fontFamily: "inherit", cursor: "pointer" }}>
+              <button onClick={() => setRemoveConfirm(null)} className="ios-btn ios-btn--plain" style={{ width: "100%" }}>
                 Cancel
               </button>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Reminder categories */}
@@ -387,29 +345,21 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
           {reminderCats.map((c) => (
             <span
               key={c}
-              style={{
-                padding: "4px 10px",
-                borderRadius: 14,
-                background: "var(--color-bg)",
-                border: "1px solid var(--color-rule)",
-                fontSize: 12,
-                color: "var(--color-ink-2)",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-              }}
+              className="ios-chip ios-chip--sm"
+              style={{ gap: 6 }}
             >
               {c.charAt(0).toUpperCase() + c.slice(1)}
               <button
                 onClick={() => removeCat(c)}
                 title="Remove"
+                aria-label={`Remove ${c}`}
                 style={{
                   background: "transparent",
                   border: "none",
                   cursor: "pointer",
-                  color: "var(--color-ink-4)",
+                  color: "var(--ios-label-3)",
                   padding: 0,
-                  fontSize: 12,
+                  fontSize: 15,
                   lineHeight: 1,
                   fontFamily: "inherit",
                 }}
@@ -445,7 +395,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
         </div>
         <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
           Current: <strong style={{ color: "var(--color-ink)" }}>{locationName || "Not set"}</strong>
-          {latitude !== 0 && (
+          {latitude !== null && longitude !== null && (
             <span className="mono" style={{ color: "var(--color-ink-4)", marginLeft: 6, fontSize: 11 }}>
               ({latitude.toFixed(4)}, {longitude.toFixed(4)})
             </span>
@@ -648,31 +598,22 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
       {/* Investment categories */}
       <section style={card}>
         <SectionHeader title="Investment categories" subtitle="Which investment categories to explore" />
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {Object.entries(CATEGORY_LABELS).map(([cat, label]) => {
             const active = investmentCategories.includes(cat);
             return (
-              <button
+              <Chip
                 key={cat}
+                small
+                selected={active}
                 onClick={() =>
                   setInvestmentCategories((prev) =>
                     prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
                   )
                 }
-                style={{
-                  padding: "6px 14px",
-                  borderRadius: 18,
-                  border: `1px solid ${active ? "var(--color-accent)" : "var(--color-rule)"}`,
-                  background: active ? "var(--color-accent)" : "transparent",
-                  color: active ? "#FFFDF8" : "var(--color-ink-2)",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
               >
                 {label}
-              </button>
+              </Chip>
             );
           })}
         </div>
@@ -694,26 +635,29 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
               {/* Source row */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px" }}>
                 <button
+                  type="button"
+                  role="switch"
+                  aria-checked={source.enabled}
                   onClick={() => toggleNewsSource(source.id)}
                   style={{
-                    width: 36, height: 20, borderRadius: 10, border: "none",
-                    background: source.enabled ? "var(--color-accent)" : "var(--color-rule)",
-                    cursor: "pointer", position: "relative", flexShrink: 0, transition: "background 150ms",
+                    width: 51, height: 31, borderRadius: 999, border: "none",
+                    background: source.enabled ? "var(--ios-green)" : "var(--ios-fill)",
+                    cursor: "pointer", position: "relative", flexShrink: 0, transition: "background 200ms", padding: 0,
                   }}
                   aria-label={source.enabled ? "Disable" : "Enable"}
                 >
                   <span style={{
-                    position: "absolute", top: 2, left: source.enabled ? 18 : 2,
-                    width: 16, height: 16, borderRadius: "50%", background: "#fff",
-                    transition: "left 150ms",
+                    position: "absolute", top: 2, left: source.enabled ? 22 : 2,
+                    width: 27, height: 27, borderRadius: "50%", background: "#fff",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.2)", transition: "left 200ms",
                   }} />
                 </button>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>{source.name}</div>
-                  <div style={{ fontSize: 10, color: "var(--color-ink-3)" }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: "var(--ios-label)" }}>{source.name}</div>
+                  <div style={{ fontSize: 12, color: "var(--ios-label-2)" }}>
                     {source.id === "medium"
                       ? `Topic: ${mediumTopic}`
-                      : source.auth === "google" ? "🔑 Sign in with Google" : source.rss}
+                      : source.auth === "google" ? "Sign in with Google" : source.rss}
                   </div>
                 </div>
                 {source.authUrl && (
@@ -741,22 +685,11 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
                     Medium shows articles by topic or publication — not your personal reading list (Medium doesn't expose that via RSS).
                   </div>
                   {/* Preset popular topics */}
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
                     {["technology", "ai", "science", "business", "programming", "design", "health", "politics", "startups"].map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => setMediumTopic(t)}
-                        style={{
-                          padding: "4px 12px", borderRadius: 16, fontSize: 12,
-                          border: `1px solid ${mediumTopic === t ? "var(--color-accent)" : "var(--color-rule)"}`,
-                          background: mediumTopic === t ? "var(--color-accent-soft)" : "transparent",
-                          color: mediumTopic === t ? "var(--color-accent)" : "var(--color-ink-2)",
-                          cursor: "pointer", fontFamily: "inherit", fontWeight: mediumTopic === t ? 600 : 400,
-                          textTransform: "capitalize",
-                        }}
-                      >
-                        {t}
-                      </button>
+                      <Chip key={t} small selected={mediumTopic === t} onClick={() => setMediumTopic(t)}>
+                        <span style={{ textTransform: "capitalize" }}>{t}</span>
+                      </Chip>
                     ))}
                   </div>
                   {/* Custom publication or tag */}
@@ -846,51 +779,27 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
       {/* News topics */}
       <section style={card}>
         <SectionHeader title="News topics" subtitle="What Morris searches when refreshing the news feed" />
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {AVAILABLE_TOPICS.map((t) => {
             const active = topics.includes(t.id);
             return (
-              <button
-                key={t.id}
-                onClick={() => toggleTopic(t.id)}
-                style={{
-                  padding: "6px 14px",
-                  borderRadius: 18,
-                  border: `1px solid ${active ? "var(--color-accent)" : "var(--color-rule)"}`,
-                  background: active ? "var(--color-accent)" : "transparent",
-                  color: active ? "#FFFDF8" : "var(--color-ink-2)",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
+              <Chip key={t.id} small selected={active} onClick={() => toggleTopic(t.id)}>
                 {t.label}
-              </button>
+              </Chip>
             );
           })}
         </div>
       </section>
 
       {/* Save */}
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
-        {error && <span style={{ fontSize: 13, color: "var(--color-red)" }}>{error}</span>}
-        {savedMsg && <span style={{ fontSize: 13, color: "var(--color-green)" }}>✓ {savedMsg}</span>}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+        {error && <span className="ios-footnote" style={{ color: "var(--ios-red)", textAlign: "center" }}>{error}</span>}
+        {savedMsg && <span className="ios-footnote" style={{ color: "var(--ios-green)", textAlign: "center" }}>{savedMsg}</span>}
         <button
           onClick={handleSave}
           disabled={pending}
-          style={{
-            padding: "10px 22px",
-            borderRadius: 10,
-            border: "1px solid var(--color-accent-dark)",
-            background: "var(--color-accent)",
-            color: "#FFFDF8",
-            fontSize: 14,
-            fontWeight: 500,
-            fontFamily: "inherit",
-            cursor: pending ? "not-allowed" : "pointer",
-            opacity: pending ? 0.5 : 1,
-          }}
+          className="ios-btn ios-btn--primary"
+          style={{ cursor: pending ? "not-allowed" : "pointer", opacity: pending ? 0.5 : 1 }}
         >
           {pending ? "Saving…" : "Save preferences"}
         </button>
@@ -944,58 +853,56 @@ function TtsVoicePicker({ value, onChange }: { value: string; onChange: (v: stri
 }
 
 const inputBase: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", border: "1px solid var(--color-rule)",
-  borderRadius: 8, background: "var(--color-paper)", color: "var(--color-ink)",
-  fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+  width: "100%", padding: "11px 14px", border: "0.5px solid var(--ios-separator)",
+  borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-label)",
+  fontSize: 15, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
 };
 
 function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div style={{ marginBottom: 16 }}>
-      <h2 className="serif" style={{ fontSize: 20, marginBottom: 4 }}>{title}</h2>
-      <p style={{ fontSize: 12, color: "var(--color-ink-3)" }}>{subtitle}</p>
+      <h2 className="ios-headline" style={{ color: "var(--ios-label)", marginBottom: 4 }}>{title}</h2>
+      <p className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>{subtitle}</p>
     </div>
   );
 }
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <label style={{ display: "block", fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 4 }}>
+    <label style={{ display: "block", fontSize: 13, fontWeight: 400, letterSpacing: "0.02em", textTransform: "uppercase", color: "var(--ios-label-2)", marginBottom: 6 }}>
       {children}
     </label>
   );
 }
 
 const card: React.CSSProperties = {
-  background: "var(--color-bg-card)",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 12,
-  padding: "22px 26px",
-  boxShadow: "var(--shadow-card)",
+  background: "var(--ios-cell)",
+  borderRadius: "var(--ios-radius-card)",
+  padding: "20px 20px",
 };
 
 const input: React.CSSProperties = {
   width: "100%",
-  padding: "9px 12px",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 8,
-  background: "var(--color-bg)",
-  color: "var(--color-ink)",
-  fontSize: 14,
+  padding: "11px 14px",
+  border: "0.5px solid var(--ios-separator)",
+  borderRadius: 10,
+  background: "var(--ios-bg)",
+  color: "var(--ios-label)",
+  fontSize: 15,
   fontFamily: "inherit",
   outline: "none",
   boxSizing: "border-box",
 };
 
 const reorderBtn: React.CSSProperties = {
-  background: "transparent",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 6,
-  width: 26,
-  height: 26,
-  fontSize: 12,
+  background: "var(--ios-fill)",
+  border: "none",
+  borderRadius: 8,
+  width: 30,
+  height: 30,
+  fontSize: 13,
   cursor: "pointer",
-  color: "var(--color-ink-3)",
+  color: "var(--ios-tint)",
   padding: 0,
   fontFamily: "inherit",
   display: "inline-flex",
@@ -1004,13 +911,13 @@ const reorderBtn: React.CSSProperties = {
 };
 
 const secondaryBtn: React.CSSProperties = {
-  padding: "9px 16px",
-  borderRadius: 8,
-  border: "1px solid var(--color-rule)",
-  background: "var(--color-bg-card)",
-  color: "var(--color-ink-2)",
-  fontSize: 13,
-  fontWeight: 500,
+  padding: "10px 16px",
+  borderRadius: 10,
+  border: "none",
+  background: "var(--ios-fill)",
+  color: "var(--ios-tint)",
+  fontSize: 15,
+  fontWeight: 600,
   fontFamily: "inherit",
   cursor: "pointer",
   whiteSpace: "nowrap",

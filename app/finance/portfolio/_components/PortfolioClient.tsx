@@ -52,31 +52,29 @@ function AccountRow({
   accent?: string; onEdit?: () => void; onRemove?: () => void;
 }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid var(--color-rule-soft)" }}>
+    <div className="ios-cell">
       {accent && (
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, flexShrink: 0 }} />
+        <span className="ios-cell-lead">
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: accent, display: "block" }} />
+        </span>
       )}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-          {label}
-        </div>
-        {sublabel && (
-          <div style={{ fontSize: 11, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-            {sublabel}
-          </div>
-        )}
+      <div className="ios-cell-body">
+        <span className="ios-cell-title" style={{ fontSize: 15, fontWeight: 500 }}>{label}</span>
+        {sublabel && <span className="ios-cell-sub">{sublabel}</span>}
       </div>
-      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif", flexShrink: 0 }}>
+      <span className="ios-cell-trail ios-num" style={{ color: "var(--ios-label)", fontWeight: 600, fontSize: 15 }}>
         {fmt(balance)}
       </span>
       {onEdit && (
-        <button onClick={onEdit} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "var(--color-ink-4)", padding: "2px 6px", fontFamily: "inherit" }}>
+        <button onClick={onEdit} style={{ color: "var(--ios-tint)", fontSize: 14, padding: "0 2px" }}>
           Edit
         </button>
       )}
       {onRemove && (
-        <button onClick={onRemove} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "var(--color-red)", padding: "2px 6px", fontFamily: "inherit" }}>
-          ✕
+        <button onClick={onRemove} aria-label="Remove" style={{ color: "var(--ios-red)", display: "inline-flex", padding: "0 2px" }}>
+          <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
         </button>
       )}
     </div>
@@ -87,17 +85,15 @@ function SectionCard({ label, subtotal, children, footer }: {
   label: string; subtotal: number; children: React.ReactNode; footer?: React.ReactNode;
 }) {
   return (
-    <div style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 12, padding: "20px 24px", boxShadow: "var(--shadow-card)", marginBottom: 14 }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-        <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", margin: 0, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-          {label}
-        </h2>
-        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: "0 4px 7px" }}>
+        <h2 className="ios-group-header" style={{ padding: 0 }}>{label}</h2>
+        <span className="ios-num" style={{ fontSize: 15, fontWeight: 700, color: "var(--ios-label)" }}>
           {fmt(subtotal)}
         </span>
       </div>
-      {children}
-      {footer && <div style={{ marginTop: 12 }}>{footer}</div>}
+      <div className="ios-list" style={{ margin: 0 }}>{children}</div>
+      {footer && <div style={{ padding: "8px 4px 0" }}>{footer}</div>}
     </div>
   );
 }
@@ -128,16 +124,16 @@ function AddItemForm({ onAdd }: { onAdd: (item: ManualItem) => void }) {
 
   if (!open) {
     return (
-      <button onClick={() => setOpen(true)} style={{ fontSize: 12, color: "var(--color-accent)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font-geist, system-ui), sans-serif", padding: "6px 0", textAlign: "left" }}>
+      <button onClick={() => setOpen(true)} style={{ fontSize: 15, color: "var(--ios-tint)", cursor: "pointer", padding: "4px 0", textAlign: "left" }}>
         + Add custom account
       </button>
     );
   }
 
-  const inp: React.CSSProperties = { width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "var(--color-bg)", color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
+  const inp: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--ios-separator)", background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 15, outline: "none", boxSizing: "border-box" };
 
   return (
-    <form onSubmit={handleSubmit} style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8, padding: "14px", background: "var(--color-bg)", borderRadius: 10, border: "1px solid var(--color-rule)" }}>
+    <form onSubmit={handleSubmit} style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 10, padding: 14, background: "var(--ios-fill-2)", borderRadius: 10 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         <input style={inp} placeholder="Account name" value={name} onChange={e => setName(e.target.value)} required />
         <input style={inp} placeholder="Institution (optional)" value={institution} onChange={e => setInstitution(e.target.value)} />
@@ -148,12 +144,12 @@ function AddItemForm({ onAdd }: { onAdd: (item: ManualItem) => void }) {
         </select>
         <input style={inp} placeholder="Balance ($)" value={balance} onChange={e => setBalance(e.target.value)} required />
       </div>
-      {error && <div style={{ fontSize: 11, color: "var(--color-red)" }}>{error}</div>}
-      <div style={{ display: "flex", gap: 8 }}>
-        <button type="submit" disabled={saving} style={{ padding: "7px 16px", borderRadius: 8, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 12, fontWeight: 600, cursor: saving ? "wait" : "pointer", fontFamily: "inherit" }}>
+      {error && <div className="ios-footnote" style={{ color: "var(--ios-red)" }}>{error}</div>}
+      <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+        <button type="submit" disabled={saving} style={{ padding: "9px 18px", borderRadius: 999, background: "var(--ios-tint)", color: "var(--ios-on-tint)", fontSize: 14, fontWeight: 600, cursor: saving ? "wait" : "pointer" }}>
           {saving ? "Saving…" : "Add"}
         </button>
-        <button type="button" onClick={() => setOpen(false)} style={{ padding: "7px 12px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "none", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--color-ink-3)" }}>
+        <button type="button" onClick={() => setOpen(false)} style={{ padding: "0 4px", color: "var(--ios-tint)", fontSize: 15, cursor: "pointer" }}>
           Cancel
         </button>
       </div>
@@ -190,7 +186,12 @@ export default function PortfolioClient({
     if (!hasAlpaca) return;
     fetch("/api/investments/alpaca/account")
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.portfolio_value) setAlpacaValue(parseFloat(d.portfolio_value)); })
+      .then(d => {
+        // Route returns { connected:false } when the user has no brokerage,
+        // or { connected:true, account:{ portfolio_value } } when connected.
+        const pv = d?.account?.portfolio_value;
+        if (d?.connected && pv) setAlpacaValue(parseFloat(pv));
+      })
       .catch(() => {})
       .finally(() => setAlpacaLoading(false));
   }, [hasAlpaca]);
@@ -226,18 +227,18 @@ export default function PortfolioClient({
   }
 
   return (
-    <div style={{ maxWidth: 760, margin: "0 auto", padding: "28px 20px 100px" }}>
+    <div>
 
       {/* ── Total hero ─────────────────────────────────────────────────── */}
-      <div style={{ textAlign: "center", marginBottom: 32 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 8, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+      <div className="ios-list" style={{ margin: "8px 0 8px", padding: 18, textAlign: "center" }}>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
           Total portfolio
         </div>
-        <div className="serif" style={{ fontSize: 48, fontWeight: 400, color: "var(--color-ink)", lineHeight: 1 }}>
+        <div className="ios-num" style={{ fontSize: 40, fontWeight: 700, letterSpacing: "-0.01em", marginTop: 4, lineHeight: 1.1 }}>
           {fmt(netTotal)}
         </div>
         {debtTotal > 0 && (
-          <div style={{ fontSize: 12, color: "var(--color-ink-4)", marginTop: 6, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+          <div className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)", marginTop: 6 }}>
             {fmt(grossTotal)} gross · {fmt(debtTotal)} liabilities
           </div>
         )}
@@ -248,13 +249,13 @@ export default function PortfolioClient({
         label="Retirement Foundation"
         subtotal={retirementTotal}
         footer={
-          <a href="/finance/retirement" style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+          <a href="/finance/retirement" className="ios-footnote" style={{ color: "var(--ios-tint)" }}>
             {hasProfile ? "Manage retirement accounts →" : "Set up retirement plan →"}
           </a>
         }
       >
         {retirementAccounts.length === 0 ? (
-          <p style={{ fontSize: 13, color: "var(--color-ink-4)", margin: "0 0 8px", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+          <p className="ios-footnote ios-cell" style={{ color: "var(--ios-label-2)" }}>
             No retirement accounts yet. Add them in the Retirement planner.
           </p>
         ) : (
@@ -264,14 +265,14 @@ export default function PortfolioClient({
               label={a.name}
               sublabel={`${RETIREMENT_TYPE_LABELS[a.type] ?? a.type}${a.plaid_account_id ? " · Plaid-linked" : ""}${a.monthly_contribution > 0 ? ` · $${a.monthly_contribution.toLocaleString()}/mo contribution` : ""}`}
               balance={a.balance}
-              accent="var(--color-accent)"
+              accent="var(--ios-tint)"
             />
           ))
         )}
       </SectionCard>
 
       {/* ── Alpaca + Plaid investments ──────────────────────────────────── */}
-      {(hasAlpaca || plaidInvestmentAccounts.length > 0) && (
+      {(hasAlpaca || plaidInvestmentAccounts.length > 0) ? (
         <SectionCard label="Investment Accounts" subtotal={plaidInvestTotal + alpacaTotal}>
           {plaidInvestmentAccounts.map(a => (
             <AccountRow
@@ -279,7 +280,7 @@ export default function PortfolioClient({
               label={a.name}
               sublabel={`${a.subtype ?? "Investment"}${a.mask ? ` ···${a.mask}` : ""}${a.name.includes("(shared)") ? " · Shared" : " · Plaid"}`}
               balance={a.balance}
-              accent="#8B6A47"
+              accent="var(--ios-finance)"
             />
           ))}
           {hasAlpaca && (
@@ -287,19 +288,25 @@ export default function PortfolioClient({
               label="Alpaca Paper Portfolio"
               sublabel={alpacaLoading ? "Loading…" : `${alpacaValue !== null ? "Live balance" : "Unavailable"} · Paper trading · Gamification`}
               balance={alpacaValue ?? 0}
-              accent="#C97A3A"
+              accent="var(--ios-orange)"
             />
           )}
-          {plaidInvestmentAccounts.length === 0 && !hasAlpaca && (
-            <div style={{ padding: "8px 0" }}>
-              <p style={{ fontSize: 13, color: "var(--color-ink-4)", margin: "0 0 8px", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-                Connect a brokerage account for live investment data.
-              </p>
-              <a href="/finance/dashboard/import" style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-                Connect via Plaid (E*TRADE, Fidelity, Schwab, etc.) →
-              </a>
-            </div>
-          )}
+        </SectionCard>
+      ) : (
+        // Not connected → show the connect CTA (previously buried inside the
+        // populated card's guard, so it never rendered for new users).
+        <SectionCard label="Investment Accounts" subtotal={0}>
+          <div className="ios-cell" style={{ flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
+            <p className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
+              Connect a brokerage account for live investment data.
+            </p>
+            <a href="/investments" className="ios-footnote" style={{ color: "var(--ios-tint)" }}>
+              Connect a brokerage (research &amp; paper trading) →
+            </a>
+            <a href="/finance/dashboard/import" className="ios-footnote" style={{ color: "var(--ios-tint)" }}>
+              Or connect via Plaid (E*TRADE, Fidelity, Schwab, etc.) →
+            </a>
+          </div>
         </SectionCard>
       )}
 
@@ -314,23 +321,23 @@ export default function PortfolioClient({
         }
       >
         {manualItems.length === 0 ? (
-          <p style={{ fontSize: 13, color: "var(--color-ink-4)", margin: "0 0 4px", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+          <p className="ios-footnote ios-cell" style={{ color: "var(--ios-label-2)" }}>
             Add brokerage accounts, real estate, crypto, or any other asset.
           </p>
         ) : (
           manualItems.map((item) => (
             editingId === item.id ? (
-              <div key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--color-rule-soft)" }}>
-                <span style={{ flex: 1, fontSize: 13, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{item.name}</span>
+              <div key={item.id} className="ios-cell" style={{ gap: 8 }}>
+                <span className="ios-cell-body ios-cell-title" style={{ fontSize: 15 }}>{item.name}</span>
                 <input
                   value={editBalance}
                   onChange={e => setEditBalance(e.target.value)}
-                  style={{ width: 120, padding: "6px 10px", borderRadius: 7, border: "1px solid var(--color-accent)", fontSize: 13, fontFamily: "inherit", outline: "none", background: "var(--color-bg)", color: "var(--color-ink)" }}
+                  style={{ width: 120, padding: "7px 10px", borderRadius: 7, border: "1px solid var(--ios-tint)", fontSize: 15, outline: "none", background: "var(--ios-bg)", color: "var(--ios-label)" }}
                   autoFocus
                   onKeyDown={e => { if (e.key === "Enter") handleEditSave(item.id); if (e.key === "Escape") setEditingId(null); }}
                 />
-                <button onClick={() => handleEditSave(item.id)} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: "var(--color-accent)", color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Save</button>
-                <button onClick={() => setEditingId(null)} style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid var(--color-rule)", background: "none", fontSize: 12, cursor: "pointer", fontFamily: "inherit", color: "var(--color-ink-3)" }}>Cancel</button>
+                <button onClick={() => handleEditSave(item.id)} style={{ padding: "7px 14px", borderRadius: 999, background: "var(--ios-tint)", color: "var(--ios-on-tint)", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Save</button>
+                <button onClick={() => setEditingId(null)} style={{ padding: "0 4px", color: "var(--ios-tint)", fontSize: 14, cursor: "pointer" }}>Cancel</button>
               </div>
             ) : (
               <AccountRow
@@ -342,7 +349,7 @@ export default function PortfolioClient({
                   item.is_shared ? "Shared" : item.source === "import" ? "Imported" : null,
                 ].filter(Boolean).join(" · ")}
                 balance={item.balance}
-                accent={item.is_shared ? "#8B6A47" : "var(--color-green)"}
+                accent={item.is_shared ? "var(--ios-finance)" : "var(--ios-green)"}
                 onEdit={item.is_shared ? undefined : () => { setEditingId(item.id); setEditBalance(String(item.balance)); }}
                 onRemove={item.is_shared ? undefined : () => handleRemove(item.id)}
               />
@@ -360,11 +367,11 @@ export default function PortfolioClient({
               label={d.name}
               sublabel={`${d.type}${d.rate_pct ? ` · ${d.rate_pct}% APR` : ""}${d.monthly_payment ? ` · $${d.monthly_payment.toLocaleString()}/mo` : ""}`}
               balance={-(d.balance ?? 0)}
-              accent="var(--color-red)"
+              accent="var(--ios-red)"
             />
           ))}
-          <p style={{ fontSize: 11, color: "var(--color-ink-4)", margin: "10px 0 0", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-            Liabilities from your retirement plan. <a href="/finance/retirement" style={{ color: "var(--color-accent)", textDecoration: "none" }}>Manage →</a>
+          <p className="ios-footnote ios-cell" style={{ color: "var(--ios-label-2)" }}>
+            Liabilities from your retirement plan. <a href="/finance/retirement" style={{ color: "var(--ios-tint)" }}>Manage →</a>
           </p>
         </SectionCard>
       )}

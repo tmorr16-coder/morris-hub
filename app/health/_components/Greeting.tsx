@@ -15,18 +15,9 @@ export default function Greeting({ name }: { name: string | null }) {
              "Good evening";
 
   return (
-    <div
-      suppressHydrationWarning
-      style={{
-        fontFamily: "var(--font-display)",
-        fontSize: 34,
-        fontWeight: 400,
-        letterSpacing: "-0.02em",
-        lineHeight: 1.1,
-      }}
-    >
-      <span suppressHydrationWarning>{salutation}</span>,<br />
-      <span style={{ color: "var(--color-accent)" }}>{name ?? "there"}.</span>
-    </div>
+    <h1 suppressHydrationWarning className="ios-large-title" style={{ padding: "8px var(--ios-gutter) 6px" }}>
+      <span suppressHydrationWarning>{salutation}</span>,{" "}
+      <span style={{ color: "var(--ios-tint)" }}>{name ?? "there"}</span>
+    </h1>
   );
 }

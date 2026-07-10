@@ -2,15 +2,34 @@ import { fetchStockPrice, generateStockSummary } from "@/lib/stock-research";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 import { unstable_cache } from "next/cache";
 
-// Cache stock summaries for 24 hours
+// AI summary generation can take 5-15s (Claude + web search). It's expensive,
+// so allow up to 30s and let callers that only need a live quote skip it
+// entirely via ?quote=1 (used by the watchlist, which never shows the summary).
+export const maxDuration = 30;
+
+// Cache stock summaries for 24 hours.
+// `quoteOnly` is part of the cache args, so the fast quote-only variant and the
+// full summary variant are cached under separate keys and never collide.
 const getCachedStockSummary = unstable_cache(
-  async (ticker: string) => {
+  async (ticker: string, quoteOnly: boolean) => {
     const stock = await fetchStockPrice(ticker.toUpperCase());
     if (!stock) {
       throw new Error(`Stock ${ticker} not found`);
     }
 
-    const summary = await generateStockSummary(ticker.toUpperCase(), stock);
+    if (quoteOnly) {
+      return { stock, summary: "" };
+    }
+
+    // Summary generation must never sink the whole request — if it fails,
+    // still return the live quote so price/name always render.
+    let summary = "";
+    try {
+      summary = await generateStockSummary(ticker.toUpperCase(), stock);
+    } catch (err) {
+      console.error(`[stock-summary] summary generation failed for ${ticker}:`, err);
+      summary = "Summary temporarily unavailable.";
+    }
     return { stock, summary };
   },
   ["stock-summary"],
@@ -26,12 +45,22 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const ticker = searchParams.get("ticker");
+    const quoteOnly = searchParams.get("quote") === "1";
 
     if (!ticker || typeof ticker !== "string") {
       return Response.json({ error: "Ticker required" }, { status: 400 });
     }
 
-    const { stock, summary } = await getCachedStockSummary(ticker);
+    // Distinguish "stock data not configured" (missing key) from a real error
+    // so the UI can show a clear state instead of a silent blank.
+    if (!process.env.FINNHUB_API_KEY) {
+      return Response.json(
+        { error: "Stock data not configured", notConfigured: true },
+        { status: 503 }
+      );
+    }
+
+    const { stock, summary } = await getCachedStockSummary(ticker, quoteOnly);
 
     return Response.json({
       ticker: stock.ticker,

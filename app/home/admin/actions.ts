@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { Resend } from "resend";
 import { requireAdmin } from "@/lib/supabase/auth-utils";
 import { logEvent } from "@/lib/usage";
@@ -59,6 +58,42 @@ export async function updateUserRole(
 }
 
 /**
+ * Persist a user's module access to the authoritative store used for gating.
+ *
+ * There are two app_access columns in play:
+ *  - hub.preferences.app_access — read by getPreferences() and thus by the More
+ *    menu, Me dashboard, and the Career / Investments / Courses / Finance gates.
+ *    This is the store the app actually reads, so it MUST be written.
+ *  - public.profiles.app_access — read by the Finance and Health server layouts
+ *    (lib/finance/access.ts, app/health/layout.tsx) and shown in this console.
+ *
+ * We write BOTH so the two stores stay in sync and every gate agrees.
+ */
+async function persistAppAccess(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  userId: string,
+  appAccess: AppKey[]
+): Promise<{ error?: string }> {
+  // Authoritative store consumed by getPreferences(). Upsert so users without a
+  // preferences row yet still get one.
+  const { error: prefErr } = await db
+    .schema("hub")
+    .from("preferences")
+    .upsert({ user_id: userId, app_access: appAccess }, { onConflict: "user_id" });
+  if (prefErr) return { error: prefErr.message };
+
+  // Mirror onto profiles for the Finance/Health layouts and this console's list.
+  const { error: profErr } = await db
+    .from("profiles")
+    .update({ app_access: appAccess })
+    .eq("id", userId);
+  if (profErr) return { error: profErr.message };
+
+  return {};
+}
+
+/**
  * Update per-app access for a user. Pass the full new app_access array.
  */
 export async function updateAppAccess(
@@ -66,12 +101,7 @@ export async function updateAppAccess(
   appAccess: AppKey[]
 ): Promise<{ error?: string }> {
   const { db } = await requireAdmin();
-  const { error } = await db
-    .from("profiles")
-    .update({ app_access: appAccess })
-    .eq("id", userId);
-  if (error) return { error: error.message };
-  return {};
+  return persistAppAccess(db, userId, appAccess);
 }
 
 export async function removeUser(userId: string): Promise<{ error?: string }> {
@@ -102,6 +132,10 @@ export async function approveUser(userId: string, appAccess: AppKey[] = ["hub"])
     .update({ status: "approved", app_access: appAccess })
     .eq("id", userId);
   if (error) return { error: error.message };
+
+  // Keep the authoritative preferences store in sync with the granted modules.
+  const syncErr = await persistAppAccess(db, userId, appAccess);
+  if (syncErr.error) return { error: syncErr.error };
 
   const { data: authUser } = await db.auth.admin.getUserById(userId);
   const userEmail = authUser?.user?.email;
@@ -150,6 +184,40 @@ export async function updateTicketStatus(
     .from("support_tickets")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", id);
+  if (error) return { error: error.message };
+  return {};
+}
+
+// ── Access requests (public waitlist) ───────────────────────────────────────
+// The public "Request access" form on the landing page inserts into
+// hub.waitlist (see app/api/waitlist/route.ts). These helpers let an admin turn
+// a waitlist entry into a real invite, or dismiss it.
+
+/**
+ * Approve a waitlist entry: send the applicant an invite with the chosen role
+ * and module access, then remove them from the waitlist. Reuses inviteUser so
+ * the invite path is identical to the manual "Invite user" flow.
+ */
+export async function approveAccessRequest(
+  id: string,
+  email: string,
+  role: "standard" | "admin" = "standard",
+  appAccess: AppKey[] = ["hub"]
+): Promise<{ error?: string }> {
+  const { db } = await requireAdmin();
+
+  const result = await inviteUser(email, role, appAccess);
+  if (result.error) return { error: result.error };
+
+  const { error } = await db.schema("hub").from("waitlist").delete().eq("id", id);
+  if (error) return { error: error.message };
+  return {};
+}
+
+/** Dismiss (delete) a waitlist entry without inviting the applicant. */
+export async function dismissAccessRequest(id: string): Promise<{ error?: string }> {
+  const { db } = await requireAdmin();
+  const { error } = await db.schema("hub").from("waitlist").delete().eq("id", id);
   if (error) return { error: error.message };
   return {};
 }

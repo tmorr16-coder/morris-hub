@@ -1,17 +1,28 @@
 "use client";
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 import type { ChildWorkspaceData, ChildActivity, ChildHealthNote } from "../_lib/children";
 import AddActivityForm from "./AddActivityForm";
 import AddHealthNoteForm from "./AddHealthNoteForm";
 
-const CATEGORY_EMOJI: Record<string, string> = { school: "📚", sports: "⚽", church: "🕊️", other: "⭐" };
+const CATEGORY_META: Record<string, { color: string; icon: React.ReactNode }> = {
+  school: { color: "var(--ios-tint)", icon: <Icons.BookIcon /> },
+  sports: { color: "var(--ios-green)", icon: <Icons.DumbbellIcon /> },
+  church: { color: "#B565A7", icon: <Icons.HeartIcon /> },
+  other: { color: "var(--ios-orange)", icon: <Icons.SparkleIcon /> },
+};
+
+function catMeta(category: string) {
+  return CATEGORY_META[category] ?? CATEGORY_META.other;
+}
 
 export default function ElementaryWorkspace({ data, viewerUserId }: { data: ChildWorkspaceData; viewerUserId: string }) {
   const [activities, setActivities] = useState<ChildActivity[]>(data.activities);
   const [healthNotes, setHealthNotes] = useState<ChildHealthNote[]>(data.healthNotes);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createClient() as any;
 
   async function complete(id: string) {
@@ -26,35 +37,37 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
 
   const today = activities.filter((a) => !a.completed);
   const done = activities.filter((a) => a.completed);
+  const openNotes = healthNotes.filter((h) => !h.resolved);
 
   return (
-    <main style={{ maxWidth: 760, margin: "0 auto", padding: "28px 20px 100px" }}>
-      <h1 className="serif" style={{ fontSize: 34, marginBottom: 4 }}>Hi, {data.name}! 👋</h1>
-      <p style={{ fontSize: 15, color: "var(--color-ink-3)", marginBottom: 28 }}>Here&apos;s what&apos;s happening today.</p>
+    <>
+      <LargeTitle title={`Hi, ${data.name}!`} subtitle="Here's what's happening today." />
 
-      <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--color-ink)", marginBottom: 14 }}>My Routine</h2>
-      {today.length === 0 ? (
-        <div style={{ fontSize: 15, color: "var(--color-ink-4)", marginBottom: 28 }}>Nothing on your list right now — great job!</div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 28 }}>
-          {today.map((a) => (
-            <button key={a.id} onClick={() => complete(a.id)} style={{
-              display: "flex", alignItems: "center", gap: 16, padding: "18px 22px", textAlign: "left",
-              background: "var(--color-bg-card)", border: "2px solid var(--color-rule)", borderRadius: 18,
-              cursor: "pointer", fontFamily: "inherit",
-            }}>
-              <span style={{ fontSize: 28 }}>{CATEGORY_EMOJI[a.category]}</span>
-              <span style={{ flex: 1, fontSize: 18, fontWeight: 600, color: "var(--color-ink)" }}>{a.title}</span>
-              <span style={{
-                width: 32, height: 32, borderRadius: "50%", border: "2px solid var(--color-rule)",
-                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              }}>✓</span>
-            </button>
-          ))}
-        </div>
-      )}
+      <Group header="My routine" footer={today.length === 0 ? "Nothing on your list right now — great job!" : undefined}>
+        {today.map((a) => {
+          const meta = catMeta(a.category);
+          return (
+            <Cell
+              key={a.id}
+              onClick={() => complete(a.id)}
+              chevron={false}
+              lead={<IconBadge color={meta.color}>{meta.icon}</IconBadge>}
+              title={a.title}
+              trailing={
+                <span
+                  aria-hidden
+                  style={{
+                    width: 26, height: 26, borderRadius: "50%",
+                    border: "2px solid var(--ios-separator)", flexShrink: 0,
+                  }}
+                />
+              }
+            />
+          );
+        })}
+      </Group>
 
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ margin: "12px var(--ios-gutter) 0" }}>
         <AddActivityForm
           childId={data.childId}
           viewerUserId={viewerUserId}
@@ -63,34 +76,41 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       </div>
 
       {done.length > 0 && (
-        <>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--color-ink)", marginBottom: 14 }}>Achievements 🌟</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {done.map((a) => (
-              <div key={a.id} style={{
-                display: "flex", alignItems: "center", gap: 14, padding: "14px 20px",
-                background: "rgba(77,107,58,0.08)", borderRadius: 16,
-              }}>
-                <span style={{ fontSize: 22 }}>🏆</span>
-                <span style={{ fontSize: 15, color: "var(--color-ink-2)", textDecoration: "line-through" }}>{a.title}</span>
-              </div>
-            ))}
-          </div>
-        </>
+        <Group header="Achievements">
+          {done.map((a) => (
+            <Cell
+              key={a.id}
+              chevron={false}
+              lead={<IconBadge color="var(--ios-green)"><Icons.ChecklistIcon /></IconBadge>}
+              title={<span style={{ textDecoration: "line-through", color: "var(--ios-label-2)" }}>{a.title}</span>}
+            />
+          ))}
+        </Group>
       )}
 
-      <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--color-ink)", margin: "28px 0 14px" }}>Health notes for next visit</h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {healthNotes.filter((h) => !h.resolved).map((h) => (
-          <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14, color: "var(--color-ink-2)", padding: "12px 16px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10 }}>
-            <span style={{ flex: 1 }}>{h.note}{h.targetVisitDate ? ` · ${new Date(`${h.targetVisitDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}</span>
-            <button onClick={() => resolveNote(h.id)} style={{ fontSize: 12, color: "var(--color-ink-4)", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>
-              Resolve
-            </button>
-          </div>
-        ))}
+      <Group header="Health notes for next visit">
+        {openNotes.length === 0 ? (
+          <Cell chevron={false} title={<span style={{ color: "var(--ios-label-2)" }}>No notes for your next visit.</span>} />
+        ) : (
+          openNotes.map((h) => (
+            <Cell
+              key={h.id}
+              chevron={false}
+              title={h.note}
+              subtitle={h.targetVisitDate ? new Date(`${h.targetVisitDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : undefined}
+              trailing={
+                <button type="button" className="ios-btn--plain" onClick={() => resolveNote(h.id)} style={{ fontSize: 15 }}>
+                  Resolve
+                </button>
+              }
+            />
+          ))
+        )}
+      </Group>
+
+      <div style={{ margin: "12px var(--ios-gutter) 0" }}>
         <AddHealthNoteForm childId={data.childId} viewerUserId={viewerUserId} onAdded={(h) => setHealthNotes((prev) => [...prev, h])} />
       </div>
-    </main>
+    </>
   );
 }

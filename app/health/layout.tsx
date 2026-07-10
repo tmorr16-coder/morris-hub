@@ -2,63 +2,42 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/health/auth";
-import PlatformMenu from "@/components/PlatformMenu";
-import PrivateIndicator from "@/components/PrivateIndicator";
-import HealthSubNav from "./_components/HealthSubNav";
-// Health-specific BottomNav removed — platform BottomNav (in PlatformMenu) handles mobile nav
+import { getPreferences } from "@/lib/prefs";
+import { TabBar } from "@/components/ios";
 
-export default async function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  let menuUser = null;
+export default async function HealthLayout({ children }: { children: React.ReactNode }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  // Skip approval check in local dev bypass mode
+  // Skip approval/access gate in local dev bypass mode
   if (process.env.NEXT_PUBLIC_AUTH_BYPASS !== "true") {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = createAdminClient() as any;
     const userId = await getCurrentUserId();
-    const { data } = await db
-      .from("profiles")
-      .select("status, role, app_access")
-      .eq("id", userId)
-      .maybeSingle();
+    const [{ data }, prefs] = await Promise.all([
+      db.from("profiles").select("status, role, app_access").eq("id", userId).maybeSingle(),
+      getPreferences(userId),
+    ]);
     const profile = data as { status?: string; role?: string; app_access?: string[] } | null;
-    const status = profile?.status;
-
-    if (status === "pending") redirect("/pending-approval");
-    if (status === "rejected") redirect("/?error=account_rejected");
-
-    // Per-app access gate. Admins always pass; legacy users without an
-    // app_access array also pass (treated as full-access until backfilled).
+    if (profile?.status === "pending") redirect("/pending-approval");
+    if (profile?.status === "rejected") redirect("/?error=account_rejected");
     const isAdmin = profile?.role === "admin";
-    const appAccess = profile?.app_access;
-    if (!isAdmin && Array.isArray(appAccess) && !appAccess.includes("health")) {
-      redirect("/");
-    }
-
-    // Build menuUser from auth for the PlatformMenu
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      menuUser = {
-        name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-        email: user.email,
-        avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
-        isAdmin,
-      };
-    }
+    const profileAccess = profile?.app_access;
+    const prefsAccess = prefs.app_access;
+    // Union of the legacy profiles list and the modern preferences list —
+    // onboarding writes preferences.app_access, not profiles.app_access.
+    const denied =
+      !isAdmin &&
+      Array.isArray(profileAccess) &&
+      !profileAccess.includes("health") &&
+      !(Array.isArray(prefsAccess) && prefsAccess.includes("health"));
+    if (denied) redirect("/");
   }
 
   return (
-    <>
-      <PlatformMenu currentApp="health" user={menuUser} />
-      <HealthSubNav />
-      <div data-section="health" style={{ paddingBottom: 100 }}>
-        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "16px 20px 0" }}><PrivateIndicator /></div>
-        {children}
-      </div>
-    </>
+    <div data-ui="ios">
+      {children}
+      <TabBar current="health" currentUserId={user?.id} sourceApp="health" />
+    </div>
   );
 }

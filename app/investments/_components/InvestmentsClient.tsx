@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { InvestmentIdea } from "@/lib/investment-ideas-constants";
 import { CATEGORY_LABELS, STATUS_LABELS } from "@/lib/investment-ideas-constants";
+import { Chip, Icons } from "@/components/ios";
 import IdeaCard from "./IdeaCard";
 import IdeaForm from "./IdeaForm";
 import InvestmentChat from "./InvestmentChat";
@@ -204,225 +205,233 @@ export default function InvestmentsClient({
 
   const favoriteCount = savedIdeas.filter((i) => i.isFavorite).length;
 
+  const statusOptions: { value: StatusFilter; label: string }[] = [
+    { value: "all", label: "All" },
+    ...Object.entries(STATUS_LABELS).map(([key, label]) => ({
+      value: key as StatusFilter,
+      label,
+    })),
+  ];
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      {/* Toolbar */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-          paddingBottom: 12,
-          borderBottom: "1px solid var(--color-rule)",
-        }}
-      >
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Filters */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {/* Category Filter */}
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: "var(--color-ink-3)", fontWeight: 600 }}>
-            CATEGORY
-          </span>
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value as CategoryFilter)}
+        <div>
+          <div className="ios-group-header" style={{ padding: "0 0 7px" }}>
+            Category
+          </div>
+          <div
             style={{
-              padding: "6px 10px",
-              borderRadius: 6,
-              border: "1px solid var(--color-rule)",
-              background: "var(--color-bg)",
-              color: "var(--color-ink)",
-              fontSize: 12,
-              fontFamily: "inherit",
-              cursor: "pointer",
+              display: "flex",
+              gap: 8,
+              overflowX: "auto",
+              paddingBottom: 2,
+              WebkitOverflowScrolling: "touch",
             }}
           >
-            <option value="all">All Categories</option>
+            <Chip
+              small
+              selected={selectedCategory === "all"}
+              onClick={() => setSelectedCategory("all")}
+            >
+              All
+            </Chip>
             {enabledCategories.map((cat) => (
-              <option key={cat} value={cat}>
+              <Chip
+                key={cat}
+                small
+                selected={selectedCategory === cat}
+                onClick={() => setSelectedCategory(cat as CategoryFilter)}
+              >
                 {CATEGORY_LABELS[cat] || cat}
-              </option>
+              </Chip>
             ))}
-          </select>
+          </div>
         </div>
 
         {/* Status Filter */}
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: "var(--color-ink-3)", fontWeight: 600 }}>
-            STATUS
-          </span>
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value as StatusFilter)}
+        <div>
+          <div className="ios-group-header" style={{ padding: "0 0 7px" }}>
+            Status
+          </div>
+          <div
             style={{
-              padding: "6px 10px",
-              borderRadius: 6,
-              border: "1px solid var(--color-rule)",
-              background: "var(--color-bg)",
-              color: "var(--color-ink)",
-              fontSize: 12,
-              fontFamily: "inherit",
-              cursor: "pointer",
+              display: "flex",
+              gap: 8,
+              overflowX: "auto",
+              paddingBottom: 2,
+              WebkitOverflowScrolling: "touch",
             }}
           >
-            <option value="all">All Statuses</option>
-            {Object.entries(STATUS_LABELS).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
+            {statusOptions.map((o) => (
+              <Chip
+                key={o.value}
+                small
+                selected={selectedStatus === o.value}
+                onClick={() => setSelectedStatus(o.value)}
+              >
+                {o.label}
+              </Chip>
             ))}
-          </select>
+          </div>
         </div>
 
         {/* Favorites Toggle */}
+        <div style={{ display: "flex", gap: 8 }}>
+          <Chip
+            small
+            selected={showFavoritesOnly}
+            onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+          >
+            <StarGlyph
+              filled={showFavoritesOnly}
+              style={{
+                width: 14,
+                height: 14,
+                color: showFavoritesOnly ? "var(--ios-on-tint)" : "var(--ios-orange)",
+              }}
+            />
+            Favorites{favoriteCount > 0 ? ` (${favoriteCount})` : ""}
+          </Chip>
+        </div>
+
+        {/* Capital Required Range */}
+        <div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "baseline",
+              marginBottom: 4,
+            }}
+          >
+            <span className="ios-group-header" style={{ padding: 0 }}>
+              Capital
+            </span>
+            <span className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)" }}>
+              ${(capitalRange[0] / 1000).toFixed(0)}k – ${(capitalRange[1] / 1000).toFixed(0)}k
+            </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <input
+              type="range"
+              min="0"
+              max="1000000"
+              step="50000"
+              value={capitalRange[0]}
+              onChange={(e) => {
+                const newMin = parseInt(e.target.value);
+                if (newMin <= capitalRange[1]) {
+                  setCapitalRange([newMin, capitalRange[1]]);
+                }
+              }}
+              style={{ width: "100%", cursor: "pointer", accentColor: "var(--ios-tint)" }}
+              title="Min capital required"
+            />
+            <input
+              type="range"
+              min="0"
+              max="1000000"
+              step="50000"
+              value={capitalRange[1]}
+              onChange={(e) => {
+                const newMax = parseInt(e.target.value);
+                if (newMax >= capitalRange[0]) {
+                  setCapitalRange([capitalRange[0], newMax]);
+                }
+              }}
+              style={{ width: "100%", cursor: "pointer", accentColor: "var(--ios-tint)" }}
+              title="Max capital required"
+            />
+          </div>
+        </div>
+
+        {/* Expected Returns Range */}
+        <div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "baseline",
+              marginBottom: 4,
+            }}
+          >
+            <span className="ios-group-header" style={{ padding: 0 }}>
+              Returns
+            </span>
+            <span className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)" }}>
+              {returnsRange[0]}% – {returnsRange[1]}%
+            </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              value={returnsRange[0]}
+              onChange={(e) => {
+                const newMin = parseInt(e.target.value);
+                if (newMin <= returnsRange[1]) {
+                  setReturnsRange([newMin, returnsRange[1]]);
+                }
+              }}
+              style={{ width: "100%", cursor: "pointer", accentColor: "var(--ios-tint)" }}
+              title="Min expected returns"
+            />
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              value={returnsRange[1]}
+              onChange={(e) => {
+                const newMax = parseInt(e.target.value);
+                if (newMax >= returnsRange[0]) {
+                  setReturnsRange([returnsRange[0], newMax]);
+                }
+              }}
+              style={{ width: "100%", cursor: "pointer", accentColor: "var(--ios-tint)" }}
+              title="Max expected returns"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <button
-          onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-          style={{
-            padding: "6px 12px",
-            borderRadius: 6,
-            border: "1px solid var(--color-rule)",
-            background: showFavoritesOnly ? "var(--color-accent)" : "transparent",
-            color: showFavoritesOnly ? "#FFFDF8" : "var(--color-ink-2)",
-            fontSize: 11,
-            fontWeight: 500,
-            cursor: "pointer",
-            fontFamily: "inherit",
-          }}
+          onClick={() => setShowAddForm(true)}
+          className="ios-btn ios-btn--primary"
         >
-          ⭐ Favorites {favoriteCount > 0 && `(${favoriteCount})`}
+          <Icons.PlusIcon style={{ width: 18, height: 18 }} />
+          Add New Idea
         </button>
-
-        {/* Capital Required Range Slider */}
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: "var(--color-ink-3)", fontWeight: 600 }}>
-            CAPITAL
-          </span>
-          <input
-            type="range"
-            min="0"
-            max="1000000"
-            step="50000"
-            value={capitalRange[0]}
-            onChange={(e) => {
-              const newMin = parseInt(e.target.value);
-              if (newMin <= capitalRange[1]) {
-                setCapitalRange([newMin, capitalRange[1]]);
-              }
-            }}
-            style={{
-              width: "100px",
-              cursor: "pointer",
-            }}
-            title="Min capital required"
-          />
-          <input
-            type="range"
-            min="0"
-            max="1000000"
-            step="50000"
-            value={capitalRange[1]}
-            onChange={(e) => {
-              const newMax = parseInt(e.target.value);
-              if (newMax >= capitalRange[0]) {
-                setCapitalRange([capitalRange[0], newMax]);
-              }
-            }}
-            style={{
-              width: "100px",
-              cursor: "pointer",
-            }}
-            title="Max capital required"
-          />
-          <span style={{ fontSize: 10, color: "var(--color-ink-2)", minWidth: "80px" }}>
-            ${(capitalRange[0] / 1000).toFixed(0)}k - ${(capitalRange[1] / 1000).toFixed(0)}k
-          </span>
-        </div>
-
-        {/* Expected Returns Range Slider */}
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: "var(--color-ink-3)", fontWeight: 600 }}>
-            RETURNS
-          </span>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            step="5"
-            value={returnsRange[0]}
-            onChange={(e) => {
-              const newMin = parseInt(e.target.value);
-              if (newMin <= returnsRange[1]) {
-                setReturnsRange([newMin, returnsRange[1]]);
-              }
-            }}
-            style={{
-              width: "80px",
-              cursor: "pointer",
-            }}
-            title="Min expected returns"
-          />
-          <input
-            type="range"
-            min="0"
-            max="100"
-            step="5"
-            value={returnsRange[1]}
-            onChange={(e) => {
-              const newMax = parseInt(e.target.value);
-              if (newMax >= returnsRange[0]) {
-                setReturnsRange([returnsRange[0], newMax]);
-              }
-            }}
-            style={{
-              width: "80px",
-              cursor: "pointer",
-            }}
-            title="Max expected returns"
-          />
-          <span style={{ fontSize: 10, color: "var(--color-ink-2)", minWidth: "60px" }}>
-            {returnsRange[0]}% - {returnsRange[1]}%
-          </span>
-        </div>
-
-        {/* Spacer */}
-        <div style={{ flex: 1 }} />
-
-        {/* Generate AI Ideas Button */}
         <button
           onClick={handleGenerateIdeas}
           disabled={generatingIdeas}
           title="Generate AI investment ideas (uses API credits)"
           style={{
-            padding: "8px 16px",
-            borderRadius: 8,
-            border: "1px solid var(--color-rule)",
-            background: generatingIdeas ? "var(--color-bg)" : "transparent",
-            color: generatingIdeas ? "var(--color-ink-3)" : "var(--color-ink-2)",
-            fontSize: 12,
-            fontWeight: 500,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            padding: "13px 20px",
+            borderRadius: 12,
+            minHeight: 50,
+            border: "none",
+            background: "var(--ios-fill)",
+            color: "var(--ios-tint)",
+            fontSize: 17,
+            fontWeight: 600,
             cursor: generatingIdeas ? "not-allowed" : "pointer",
-            fontFamily: "inherit",
             opacity: generatingIdeas ? 0.6 : 1,
           }}
         >
-          {generatingIdeas ? "Generating..." : hasAiIdeas ? "↺ Refresh AI Ideas" : "✨ Generate AI Ideas"}
-        </button>
-
-        {/* Add New Idea Button */}
-        <button
-          onClick={() => setShowAddForm(true)}
-          style={{
-            padding: "8px 16px",
-            borderRadius: 8,
-            border: "1px solid var(--color-accent-dark)",
-            background: "var(--color-accent)",
-            color: "#FFFDF8",
-            fontSize: 12,
-            fontWeight: 500,
-            cursor: "pointer",
-            fontFamily: "inherit",
-          }}
-        >
-          + Add New Idea
+          <Icons.SparkleIcon style={{ width: 18, height: 18 }} />
+          {generatingIdeas ? "Generating…" : hasAiIdeas ? "Refresh AI Ideas" : "Generate AI Ideas"}
         </button>
       </div>
 
@@ -431,42 +440,34 @@ export default function InvestmentsClient({
         <div
           style={{
             padding: "12px 16px",
-            borderRadius: 8,
-            background: "rgba(220, 38, 38, 0.1)",
-            border: "1px solid rgba(220, 38, 38, 0.3)",
-            color: "var(--color-red)",
-            fontSize: 12,
+            borderRadius: 12,
+            background: "color-mix(in srgb, var(--ios-red) 14%, transparent)",
+            color: "var(--ios-red)",
+            fontSize: 13,
           }}
         >
           Failed to generate ideas: {generateError}
         </div>
       )}
 
-      {/* Ideas Grid */}
+      {/* Ideas List */}
       {displayedIdeas.length === 0 ? (
         <div
           style={{
             textAlign: "center",
             padding: "60px 20px",
-            color: "var(--color-ink-3)",
+            color: "var(--ios-label-3)",
           }}
         >
-          <p style={{ fontSize: 14 }}>No ideas match your filters.</p>
-          <p style={{ fontSize: 12, marginTop: 8 }}>
+          <p className="ios-subhead">No ideas match your filters.</p>
+          <p className="ios-footnote" style={{ marginTop: 8 }}>
             {showFavoritesOnly
               ? "Mark ideas as favorites to see them here."
               : "Add a new idea or generate AI suggestions to get started."}
           </p>
         </div>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-            gap: 14,
-            alignItems: "stretch",
-          }}
-        >
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {displayedIdeas.map((idea) => (
             <IdeaCard
               key={idea.id}
@@ -479,26 +480,28 @@ export default function InvestmentsClient({
       )}
 
       {/* Research Chat Section */}
-      <div style={{ borderTop: "1px solid var(--color-rule)", paddingTop: 12 }}>
-        <button
-          onClick={() => setShowChat(!showChat)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            background: "transparent",
-            border: "none",
-            padding: "8px 0",
-            cursor: "pointer",
-            fontSize: 14,
-            fontWeight: 600,
-            color: "var(--color-ink)",
-            fontFamily: "inherit",
-          }}
-        >
-          <span>{showChat ? "▼" : "▶"}</span>
-          <span>💬 Research Chat</span>
-        </button>
+      <div>
+        <div className="ios-list" style={{ margin: 0 }}>
+          <button
+            type="button"
+            className="ios-cell"
+            onClick={() => setShowChat(!showChat)}
+          >
+            <span className="ios-cell-lead">
+              <span className="ios-icon" style={{ background: "var(--ios-tint)" }}>
+                <Icons.SparkleIcon />
+              </span>
+            </span>
+            <span className="ios-cell-body">
+              <span className="ios-cell-title">Research Chat</span>
+              <span className="ios-cell-sub">Ask about your displayed ideas</span>
+            </span>
+            <Icons.ChevronRight
+              className="ios-chevron"
+              style={{ transform: showChat ? "rotate(90deg)" : "none", transition: "transform 0.2s" }}
+            />
+          </button>
+        </div>
 
         {showChat && (
           <div style={{ marginTop: 12 }}>
@@ -514,7 +517,7 @@ export default function InvestmentsClient({
         )}
       </div>
 
-      {/* Add Idea Form Modal */}
+      {/* Add Idea Form Sheet */}
       {showAddForm && (
         <IdeaForm
           onClose={() => setShowAddForm(false)}
@@ -522,5 +525,22 @@ export default function InvestmentsClient({
         />
       )}
     </div>
+  );
+}
+
+/** Small star glyph — filled or outline, inherits currentColor. */
+function StarGlyph({ filled, style }: { filled?: boolean; style?: React.CSSProperties }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden
+      style={{ width: 16, height: 16, ...style }}
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinejoin="round"
+    >
+      <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9L12 3.5Z" />
+    </svg>
   );
 }

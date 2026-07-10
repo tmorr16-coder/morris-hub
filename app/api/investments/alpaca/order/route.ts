@@ -1,5 +1,5 @@
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
-import { placeOrder, type OrderRequest } from "@/lib/alpaca";
+import { placeOrder, AlpacaNotConnectedError, type OrderRequest } from "@/lib/alpaca";
 
 export async function POST(request: Request) {
   const userId = await getCurrentUserId();
@@ -18,9 +18,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const order = await placeOrder({ symbol, qty, side, type, time_in_force, limit_price });
+    const order = await placeOrder(userId, { symbol, qty, side, type, time_in_force, limit_price });
     return Response.json(order);
   } catch (err) {
+    if (err instanceof AlpacaNotConnectedError) {
+      return Response.json({ error: err.message }, { status: 503 });
+    }
     const msg = err instanceof Error ? err.message : "Order failed";
     console.error("[alpaca/order]", msg);
     return Response.json({ error: msg }, { status: 502 });

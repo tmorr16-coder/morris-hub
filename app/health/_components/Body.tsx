@@ -9,8 +9,8 @@
  *   <Body primary={['quads']} secondary={['calves']} view="front"
  *         size={220} onMuscleClick={(g) => toggle(g)} theme="light" />
  *
- * Colors come from CSS variables: --accent, --accent-soft. Define them in
- * your Tailwind v4 @theme block (see handoff README).
+ * Highlight colors come from the iOS tint token (--ios-tint); the skin and
+ * outline tones are illustration hues that key off the `theme` prop.
  */
 
 'use client';
@@ -261,9 +261,9 @@ export function Body({
             <path
               key={i}
               d={m.d}
-              fill={p ? 'var(--color-accent, #b84a2e)' : s ? 'var(--color-accent-soft, #f1d9cf)' : skin}
-              fillOpacity={p ? 0.85 : s ? 0.6 : 0.5}
-              stroke={active ? 'var(--color-accent, #b84a2e)' : muscleLine}
+              fill={p ? 'var(--ios-tint, #356FB0)' : s ? 'var(--ios-tint, #356FB0)' : skin}
+              fillOpacity={p ? 0.85 : s ? 0.4 : 0.5}
+              stroke={active ? 'var(--ios-tint, #356FB0)' : muscleLine}
               strokeWidth={active ? 3 : 1.8}
               strokeOpacity={active ? 0.9 : 0.7}
               style={{ transition: 'fill 220ms ease, fill-opacity 220ms ease, stroke 220ms ease' }}

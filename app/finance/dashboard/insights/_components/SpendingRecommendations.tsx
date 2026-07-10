@@ -80,35 +80,37 @@ export default async function SpendingRecommendations(props: Props) {
   if (recs.length === 0) return null;
 
   return (
-    <div style={{
-      background: "var(--color-paper-card)",
-      border: "1px solid var(--color-rule)",
-      borderRadius: 12,
-      padding: "20px 24px",
-      boxShadow: "var(--shadow-card)",
-    }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
-        <h2 className="serif" style={{ fontSize: 20 }}>
-          Recommendations
-        </h2>
-        <span style={{ fontSize: 10, color: "var(--color-bronze-dark)", background: "rgba(139,106,71,0.08)", padding: "3px 9px", borderRadius: 20, letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>
+    <div className="ios-list" style={{ margin: 0, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, padding: "14px 16px 10px" }}>
+        <span className="ios-headline">Recommendations</span>
+        <span className="ios-caption" style={{ color: "var(--ios-finance)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>
           AI · refreshes hourly
         </span>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {recs.map((rec, i) => (
-          <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-            <div style={{
-              width: 24, height: 24, borderRadius: "50%", background: "var(--color-bronze)", color: "#fff",
-              fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1,
-            }}>
-              {i + 1}
-            </div>
-            <p style={{ fontSize: 13, color: "var(--color-ink-2)", lineHeight: 1.6, margin: 0 }}>{rec}</p>
-          </div>
-        ))}
-      </div>
+      {recs.map((rec, i) => (
+        <div
+          key={i}
+          style={{
+            display: "flex",
+            gap: 12,
+            alignItems: "flex-start",
+            padding: "12px 16px",
+            boxShadow: "inset 0 0.5px 0 0 var(--ios-separator)",
+          }}
+        >
+          <span
+            style={{
+              width: 24, height: 24, borderRadius: "50%", background: "var(--ios-finance)", color: "#fff",
+              fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1,
+            }}
+            className="ios-num"
+          >
+            {i + 1}
+          </span>
+          <p className="ios-footnote" style={{ color: "var(--ios-label)", lineHeight: 1.5, margin: 0 }}>{rec}</p>
+        </div>
+      ))}
     </div>
   );
 }

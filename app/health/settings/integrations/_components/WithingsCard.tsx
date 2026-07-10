@@ -2,6 +2,7 @@
 
 import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Cell, IconBadge } from "@/components/ios";
 import { disconnectWithings, triggerSync } from "../actions";
 
 interface Props {
@@ -12,12 +13,28 @@ interface Props {
 }
 
 function relativeTime(isoTs: string): string {
-  const mins = Math.floor((Date.now() - new Date(isoTs).getTime()) / 60_000);
+  const mins = Math.floor((new Date().getTime() - new Date(isoTs).getTime()) / 60_000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
+}
+
+const ScaleGlyph = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <rect x="4" y="4" width="16" height="16" rx="4.5" />
+    <path d="M12 8.5v3.5M12 8.5a2 2 0 0 1 1.8 1.1" />
+  </svg>
+);
+
+function StatusPill({ on }: { on: boolean }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 15, color: on ? "var(--ios-green)" : "var(--ios-label-2)" }}>
+      <span style={{ width: 8, height: 8, borderRadius: "50%", background: on ? "var(--ios-green)" : "var(--ios-label-3)" }} />
+      {on ? "Connected" : "Not connected"}
+    </span>
+  );
 }
 
 export default function WithingsCard({ connected, connectedAt, lastSyncAt, successMessage }: Props) {
@@ -52,113 +69,61 @@ export default function WithingsCard({ connected, connectedAt, lastSyncAt, succe
   void connectedAt;
 
   return (
-    <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="ios-list" style={{ margin: 0 }}>
+        <Cell
+          chevron={false}
+          lead={<IconBadge color="#0A84C7"><ScaleGlyph /></IconBadge>}
+          title="Withings"
+          subtitle="Weight · body composition · blood pressure"
+          trailing={<StatusPill on={connected} />}
+        />
 
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: "1px solid var(--color-line)" }}>
-        <div style={{ fontSize: 24, lineHeight: 1 }}>⚖️</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 500, color: "var(--color-ink)" }}>Withings</div>
-          <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 1 }}>Weight · body composition · blood pressure · SpO₂</div>
-        </div>
-        <div style={{
-          fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase",
-          padding: "4px 10px", borderRadius: 999, whiteSpace: "nowrap",
-          background: connected ? "var(--color-moss-soft)" : "var(--color-bg-sunk)",
-          color: connected ? "var(--color-moss)" : "var(--color-ink-4)",
-          border: `1px solid ${connected ? "var(--color-moss)" : "var(--color-line)"}`,
-        }}>
-          {connected ? "Connected" : "Not connected"}
-        </div>
-      </div>
-
-      {/* Stats — only when connected */}
-      {connected && lastSyncAt && (
-        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--color-line)" }}>
-          <div style={{ flex: 1, padding: "12px 14px" }}>
-            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 3 }}>
-              Last sync
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)" }}>
-              {relativeTime(lastSyncAt)}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Body */}
-      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.6 }}>
-          {connected
-            ? "Data syncs automatically. Tap Sync Now to pull the latest measurements."
-            : "Connect your Withings scale or device to automatically sync weight and body composition data."}
-        </div>
-
-        {/* Setup steps */}
-        {!connected && (
-          <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.8, display: "flex", flexDirection: "column", gap: 2 }}>
-            <li>Download <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Health Mate</span> from the App Store and create a Withings account.</li>
-            <li>Follow the in-app instructions to pair your Withings device.</li>
-            <li>Tap <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Connect Withings</span> below to authorize access.</li>
-          </ol>
-        )}
-
-        {/* Connect button — not connected */}
-        {!connected && (
-          <a
-            href="/api/health/withings/connect"
-            style={{
-              display: "inline-block",
-              padding: "10px 18px",
-              borderRadius: 10,
-              background: "var(--color-ink)",
-              color: "var(--color-bg)",
-              fontSize: 13,
-              fontWeight: 600,
-              textDecoration: "none",
-              alignSelf: "flex-start",
-              opacity: isPending ? 0.5 : 1,
-            }}
-          >
-            Connect Withings
-          </a>
-        )}
-
-        {/* Connected actions */}
         {connected && (
           <>
-            {(successMessage || syncMsg) && (
-              <div style={{ background: "var(--color-moss-soft)", border: "1px solid var(--color-moss)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--color-moss)" }}>
-                ✓ {successMessage ?? syncMsg}
-              </div>
+            {lastSyncAt && (
+              <Cell chevron={false} title="Last synced" trailing={<span className="ios-num">{relativeTime(lastSyncAt)}</span>} />
             )}
-            {syncErr && (
-              <div style={{ background: "var(--color-accent-soft)", border: "1px solid var(--color-accent)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--color-accent)" }}>
-                {syncErr}
-              </div>
-            )}
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={handleSync} disabled={isPending} style={{
-                padding: "10px 18px", borderRadius: 10, border: "none",
-                background: isPending ? "var(--color-bg-sunk)" : "var(--color-ink)",
-                color: isPending ? "var(--color-ink-4)" : "var(--color-bg)",
-                fontSize: 13, fontWeight: 600, cursor: isPending ? "wait" : "pointer", fontFamily: "inherit",
-              }}>
-                {isPending ? "Syncing…" : "Sync Now"}
-              </button>
-              <button onClick={handleDisconnect} disabled={isPending} style={{
-                padding: "10px 18px", borderRadius: 10,
-                border: "1px solid var(--color-line)",
-                background: "transparent", color: "var(--color-ink-3)",
-                fontSize: 13, fontWeight: 500, cursor: isPending ? "wait" : "pointer", fontFamily: "inherit",
-                opacity: isPending ? 0.5 : 1,
-              }}>
-                Disconnect
-              </button>
-            </div>
+            <Cell
+              chevron={false}
+              onClick={handleSync}
+              title={<span style={{ color: "var(--ios-tint)" }}>{isPending ? "Syncing…" : "Sync now"}</span>}
+            />
+            <Cell
+              chevron={false}
+              onClick={handleDisconnect}
+              title={<span style={{ color: "var(--ios-red)" }}>Disconnect</span>}
+            />
           </>
         )}
       </div>
+
+      {connected ? (
+        <>
+          {(successMessage || syncMsg) && <p className="ios-footnote" style={{ color: "var(--ios-green)", padding: "2px 16px 0" }}>{successMessage ?? syncMsg}</p>}
+          {syncErr && <p className="ios-footnote" style={{ color: "var(--ios-red)", padding: "2px 16px 0" }}>{syncErr}</p>}
+          {!successMessage && !syncMsg && !syncErr && (
+            <p className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "2px 16px 0" }}>
+              Data syncs automatically. Tap Sync now to pull the latest measurements.
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          <a
+            href="/api/health/withings/connect"
+            className="ios-btn ios-btn--primary"
+            style={{ margin: "0 16px", width: "calc(100% - 32px)", opacity: isPending ? 0.5 : 1 }}
+          >
+            Connect Withings
+          </a>
+          <ol className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "2px 16px 0 34px", margin: 0, lineHeight: 1.7 }}>
+            <li>Download <b style={{ fontWeight: 600 }}>Health Mate</b> from the App Store and create a Withings account.</li>
+            <li>Follow the in-app instructions to pair your Withings device.</li>
+            <li>Tap <b style={{ fontWeight: 600 }}>Connect Withings</b> above to authorize access.</li>
+          </ol>
+        </>
+      )}
     </div>
   );
 }

@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
+import { LargeTitle, Group, Cell, IconBadge, BarRows, RadialGauge, Sparkline, Icons } from "@/components/ios";
 
 export default async function AnalyticsPage() {
   const userId = await getCurrentUserId();
@@ -26,6 +27,7 @@ export default async function AnalyticsPage() {
   const all = attempts ?? [];
   const total = all.length;
   const correct = all.filter((a: { is_correct: boolean }) => a.is_correct).length;
+  const accuracyPct = total > 0 ? Math.round(correct / total * 100) : 0;
 
   // Calibration
   const calibMatrix = {
@@ -34,6 +36,43 @@ export default async function AnalyticsPage() {
     unsureRight: all.filter((a: { confidence: number; is_correct: boolean }) => a.confidence < 4 && a.is_correct).length,
     unsureWrong: all.filter((a: { confidence: number; is_correct: boolean }) => a.confidence < 4 && !a.is_correct).length,
   };
+
+  // Cumulative accuracy trend over time (chronological)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chrono = [...all].reverse() as { is_correct: boolean }[];
+  const accuracyTrend: number[] = [];
+  let running = 0;
+  chrono.forEach((a, i) => {
+    if (a.is_correct) running++;
+    accuracyTrend.push(Math.round(running / (i + 1) * 100));
+  });
+
+  // Section-type accuracy
+  const typeStats = new Map<string, { label: string; correct: number; total: number }>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const a of all as any[]) {
+    const qt = a.lsat_questions?.lsat_question_types;
+    if (!qt) continue;
+    const key = `${qt.section}|${qt.category}|${qt.subcategory ?? ""}`;
+    const label = `${qt.section} · ${qt.category}${qt.subcategory ? ` (${qt.subcategory})` : ""}`;
+    if (!typeStats.has(key)) typeStats.set(key, { label, correct: 0, total: 0 });
+    const entry = typeStats.get(key)!;
+    entry.total++;
+    if (a.is_correct) entry.correct++;
+  }
+  const typeAccuracy = [...typeStats.values()]
+    .filter((t) => t.total >= 2)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 8)
+    .map((t) => {
+      const pct = Math.round(t.correct / t.total * 100);
+      return {
+        label: t.label,
+        value: pct,
+        display: `${pct}%`,
+        color: pct >= 70 ? "#2E7D46" : pct >= 50 ? "#E08600" : "#C0392B",
+      };
+    });
 
   // Error patterns by question type (wrong answers only)
   const wrong = all.filter((a: { is_correct: boolean }) => !a.is_correct);
@@ -58,93 +97,78 @@ export default async function AnalyticsPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
-      <main style={{ maxWidth: 800, margin: "0 auto", padding: "32px 28px 100px" }}>
-        <Link href="/career/lsat" style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none" }}>
-          ← LSAT Prep
-        </Link>
-        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 400, margin: "12px 0 4px" }}>Analytics</h1>
-        <p style={{ fontSize: 14, color: "var(--color-ink-3)", marginBottom: 32 }}>
-          {total} total attempts · {total > 0 ? Math.round(correct / total * 100) : 0}% accuracy
-        </p>
+    <div className="ios-scroll">
+      <LargeTitle title="Analytics" subtitle={`${total} attempts · ${accuracyPct}% accuracy`} />
 
-        {total === 0 && (
-          <div style={{ textAlign: "center", padding: "60px 0", color: "var(--color-ink-3)" }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
-            <div>Complete some practice to see your analytics.</div>
-          </div>
-        )}
+      {total === 0 && (
+        <Group header="Analytics" footer="Complete some practice to see your analytics.">
+          <Cell href="/career/lsat/practice" lead={<IconBadge color="var(--ios-tint)"><Icons.PlusIcon /></IconBadge>} title="Start practicing" />
+        </Group>
+      )}
 
-        {total > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-            {/* Calibration matrix */}
-            <div style={{
-              background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
-              borderRadius: 14, padding: "20px 24px", boxShadow: "var(--shadow-card)",
-              gridColumn: "1 / -1",
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-3)", marginBottom: 16 }}>
-                Confidence Calibration Matrix
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                {[
-                  { label: "Confident & Right", n: calibMatrix.confRight, color: "#4A6B3A", bg: "rgba(74,107,58,0.1)", note: "Mastered ✓" },
-                  { label: "Confident & Wrong", n: calibMatrix.confWrong, color: "#9A3B2A", bg: "rgba(154,59,42,0.12)", note: "⚠ Dangerous gap — highest priority" },
-                  { label: "Unsure & Right",    n: calibMatrix.unsureRight, color: "#B88A2E", bg: "rgba(184,138,46,0.1)", note: "Lucky / shaky — needs reinforcement" },
-                  { label: "Unsure & Wrong",    n: calibMatrix.unsureWrong, color: "#6B6258", bg: "rgba(107,98,88,0.08)", note: "Still learning" },
-                ].map((c) => (
-                  <div key={c.label} style={{ padding: "14px 16px", borderRadius: 10, background: c.bg, border: `1px solid ${c.color}30` }}>
-                    <div style={{ fontSize: 28, fontWeight: 700, color: c.color }}>{c.n}</div>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: c.color }}>{c.label}</div>
-                    <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 2 }}>{c.note}</div>
-                    {total > 0 && <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 4 }}>{Math.round(c.n / total * 100)}%</div>}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Error patterns */}
-            <div style={{
-              background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
-              borderRadius: 14, padding: "20px 24px", boxShadow: "var(--shadow-card)",
-              gridColumn: "1 / -1",
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-3)", marginBottom: 16 }}>
-                Error Patterns by Question Type
-              </div>
-              {errorsByType.length === 0 ? (
-                <div style={{ fontSize: 13, color: "var(--color-ink-3)" }}>No wrong answers yet — great work!</div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {errorsByType.slice(0, 10).map((e) => {
-                    const topTrap = Object.entries(e.traps).sort((a, b) => b[1] - a[1])[0];
-                    return (
-                      <div key={`${e.section}|${e.category}|${e.subcategory}`} style={{
-                        display: "flex", justifyContent: "space-between", alignItems: "center",
-                        padding: "12px 16px", borderRadius: 8, background: "var(--color-bg)", border: "1px solid var(--color-rule-soft)",
-                      }}>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>
-                            {e.section} · {e.category}{e.subcategory ? ` (${e.subcategory})` : ""}
-                          </div>
-                          {topTrap && (
-                            <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 2 }}>
-                              Top trap: {TRAP_LABELS[topTrap[0]] ?? topTrap[0]} ({topTrap[1]}×)
-                            </div>
-                          )}
-                        </div>
-                        <div style={{ fontSize: 20, fontWeight: 700, color: "var(--color-red)", minWidth: 36, textAlign: "right" }}>
-                          {e.count}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+      {total > 0 && (
+        <>
+          {/* Accuracy hero — single target-progress gauge + trend */}
+          <div className="ios-list" style={{ margin: "8px 16px 0", padding: "18px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+            <RadialGauge
+              value={accuracyPct / 100}
+              color={accuracyPct >= 70 ? "#34C759" : accuracyPct >= 50 ? "#E08600" : "#FF3B30"}
+              label="Accuracy"
+              center={<span className="ios-num" style={{ fontSize: 22, fontWeight: 700 }}>{accuracyPct}%</span>}
+            />
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, minWidth: 0 }}>
+              <span className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>Accuracy trend</span>
+              {accuracyTrend.length >= 2
+                ? <Sparkline points={accuracyTrend} color="var(--ios-tint)" width={132} height={40} />
+                : <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>Not enough data yet</span>}
+              <span className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)" }}>{correct}/{total} correct</span>
             </div>
           </div>
-        )}
-      </main>
+
+          {/* Confidence calibration */}
+          <div className="ios-list" style={{ margin: "14px 16px 0", padding: "4px 0 6px" }}>
+            <div className="ios-group-header" style={{ padding: "12px 16px 0" }}>Confidence calibration</div>
+            <BarRows
+              items={[
+                { label: "Confident & right", value: calibMatrix.confRight, color: "#2E7D46" },
+                { label: "Confident & wrong", value: calibMatrix.confWrong, color: "#C0392B" },
+                { label: "Unsure & right", value: calibMatrix.unsureRight, color: "#E08600" },
+                { label: "Unsure & wrong", value: calibMatrix.unsureWrong, color: "#8E8E93" },
+              ]}
+            />
+            <div className="ios-footnote" style={{ padding: "0 16px", color: "var(--ios-label-2)" }}>Confident &amp; wrong is your highest-priority gap.</div>
+          </div>
+
+          {/* Section-type accuracy */}
+          {typeAccuracy.length > 0 && (
+            <div className="ios-list" style={{ margin: "14px 16px 0", padding: "4px 0 6px" }}>
+              <div className="ios-group-header" style={{ padding: "12px 16px 0" }}>Accuracy by question type</div>
+              <BarRows items={typeAccuracy} />
+            </div>
+          )}
+
+          {/* Error patterns */}
+          {errorsByType.length > 0 && (
+            <Group header="Error patterns" footer="Wrong answers grouped by question type.">
+              {errorsByType.slice(0, 10).map((e) => {
+                const topTrap = Object.entries(e.traps).sort((a, b) => b[1] - a[1])[0];
+                return (
+                  <Cell
+                    key={`${e.section}|${e.category}|${e.subcategory}`}
+                    chevron={false}
+                    lead={<IconBadge color="#C0392B"><Icons.TrendUpIcon /></IconBadge>}
+                    title={`${e.section} · ${e.category}${e.subcategory ? ` (${e.subcategory})` : ""}`}
+                    subtitle={topTrap ? `Top trap: ${TRAP_LABELS[topTrap[0]] ?? topTrap[0]} (${topTrap[1]}×)` : undefined}
+                    trailing={<span className="ios-num" style={{ color: "var(--ios-red)", fontWeight: 700 }}>{e.count}</span>}
+                  />
+                );
+              })}
+            </Group>
+          )}
+        </>
+      )}
+
+      <div style={{ height: 12 }} />
     </div>
   );
 }

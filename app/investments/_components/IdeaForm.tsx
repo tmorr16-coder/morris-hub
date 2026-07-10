@@ -1,8 +1,11 @@
 "use client";
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useState } from "react";
 import { addInvestmentIdea } from "@/app/home/actions";
 import { CATEGORY_LABELS } from "@/lib/investment-ideas-constants";
+import { Icons } from "@/components/ios";
 
 interface IdeaFormProps {
   onClose: () => void;
@@ -57,56 +60,71 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
     }
   };
 
-  const modal: React.CSSProperties = {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: "rgba(0,0,0,0.5)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1000,
-  };
-
-  const card: React.CSSProperties = {
-    background: "var(--color-bg-card)",
-    borderRadius: 12,
-    padding: "32px",
-    maxWidth: 500,
-    width: "calc(100% - 40px)",
-    maxHeight: "90vh",
-    overflowY: "auto",
-    boxShadow: "var(--shadow-card), 0 20px 25px rgba(0,0,0,0.15)",
+  const labelStyle: React.CSSProperties = {
+    display: "block",
+    fontSize: 13,
+    fontWeight: 600,
+    color: "var(--ios-label-2)",
+    textTransform: "uppercase",
+    letterSpacing: "0.02em",
+    marginBottom: 6,
   };
 
   const inputStyle: React.CSSProperties = {
     width: "100%",
-    padding: "10px 12px",
-    borderRadius: 8,
-    border: "1px solid var(--color-rule)",
-    background: "var(--color-bg)",
-    color: "var(--color-ink)",
-    fontSize: 13,
+    padding: "11px 12px",
+    borderRadius: 10,
+    border: "var(--ios-hair) solid var(--ios-separator)",
+    background: "var(--ios-fill-2)",
+    color: "var(--ios-label)",
+    fontSize: 16,
     fontFamily: "inherit",
     boxSizing: "border-box",
   };
 
+  const addBtnStyle: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 3,
+    background: "transparent",
+    border: "none",
+    color: "var(--ios-tint)",
+    fontSize: 13,
+    cursor: "pointer",
+    fontWeight: 600,
+    padding: 0,
+  };
+
+  const removeBtnStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "var(--ios-fill)",
+    border: "none",
+    borderRadius: 10,
+    padding: "0 12px",
+    color: "var(--ios-label-3)",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    fontSize: 18,
+    lineHeight: 1,
+  };
+
   return (
-    <div style={modal} onClick={onClose}>
-      <div style={card} onClick={(e) => e.stopPropagation()}>
-        <h2 style={{ fontSize: 24, marginBottom: 20 }}>Add Investment Idea</h2>
+    <div className="ios-sheet-backdrop" onClick={onClose}>
+      <div className="ios-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="ios-grabber" />
+        <h2 className="ios-title-2" style={{ margin: "0 0 16px" }}>Add Investment Idea</h2>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {error && (
             <div
               style={{
                 padding: 12,
-                borderRadius: 8,
-                background: "var(--color-red)" + "20",
-                color: "var(--color-red)",
-                fontSize: 12,
+                borderRadius: 10,
+                background: "color-mix(in srgb, var(--ios-red) 14%, transparent)",
+                color: "var(--ios-red)",
+                fontSize: 13,
               }}
             >
               {error}
@@ -115,9 +133,7 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
 
           {/* Category */}
           <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 6 }}>
-              CATEGORY *
-            </label>
+            <label style={labelStyle}>Category *</label>
             <select
               value={formData.category}
               onChange={(e) => setFormData({ ...formData, category: e.target.value })}
@@ -133,9 +149,7 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
 
           {/* Title */}
           <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 6 }}>
-              TITLE *
-            </label>
+            <label style={labelStyle}>Title *</label>
             <input
               type="text"
               value={formData.title}
@@ -147,9 +161,7 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
 
           {/* Rationale */}
           <div>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 6 }}>
-              RATIONALE
-            </label>
+            <label style={labelStyle}>Rationale</label>
             <textarea
               value={formData.rationale}
               onChange={(e) => setFormData({ ...formData, rationale: e.target.value })}
@@ -161,9 +173,7 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
           {/* Risk Level & Time Horizon */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 6 }}>
-                RISK LEVEL
-              </label>
+              <label style={labelStyle}>Risk Level</label>
               <select
                 value={formData.riskLevel}
                 onChange={(e) => setFormData({ ...formData, riskLevel: e.target.value as any })}
@@ -175,9 +185,7 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
               </select>
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 6 }}>
-                TIME HORIZON
-              </label>
+              <label style={labelStyle}>Time Horizon</label>
               <select
                 value={formData.timeHorizon}
                 onChange={(e) => setFormData({ ...formData, timeHorizon: e.target.value as any })}
@@ -193,9 +201,7 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
           {/* Capital & Returns */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 6 }}>
-                CAPITAL REQUIRED
-              </label>
+              <label style={labelStyle}>Capital Required</label>
               <input
                 type="text"
                 value={formData.capitalRequired}
@@ -205,9 +211,7 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
               />
             </div>
             <div>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 600, marginBottom: 6 }}>
-                EXPECTED RETURNS
-              </label>
+              <label style={labelStyle}>Expected Returns</label>
               <input
                 type="text"
                 value={formData.expectedReturns}
@@ -221,7 +225,7 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
           {/* Related Assets */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 600 }}>RELATED ASSETS</label>
+              <label style={{ ...labelStyle, marginBottom: 0 }}>Related Assets</label>
               <button
                 type="button"
                 onClick={() =>
@@ -230,21 +234,14 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
                     relatedAssets: [...formData.relatedAssets, ""],
                   })
                 }
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--color-accent)",
-                  fontSize: 10,
-                  cursor: "pointer",
-                  fontWeight: 600,
-                  padding: 0,
-                }}
+                style={addBtnStyle}
               >
-                + Add
+                <Icons.PlusIcon style={{ width: 13, height: 13 }} />
+                Add
               </button>
             </div>
             {formData.relatedAssets.map((asset, i) => (
-              <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+              <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                 <input
                   type="text"
                   value={asset}
@@ -254,7 +251,7 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
                     setFormData({ ...formData, relatedAssets: newAssets });
                   }}
                   placeholder="e.g., AAPL, VNQ"
-                  style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
+                  style={{ ...inputStyle, flex: 1 }}
                 />
                 <button
                   type="button"
@@ -264,17 +261,10 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
                       relatedAssets: formData.relatedAssets.filter((_, idx) => idx !== i),
                     });
                   }}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid var(--color-rule)",
-                    borderRadius: 6,
-                    padding: "10px 8px",
-                    color: "var(--color-ink-3)",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
+                  aria-label="Remove asset"
+                  style={removeBtnStyle}
                 >
-                  ✕
+                  ×
                 </button>
               </div>
             ))}
@@ -283,7 +273,7 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
           {/* Action Items */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 600 }}>ACTION ITEMS</label>
+              <label style={{ ...labelStyle, marginBottom: 0 }}>Action Items</label>
               <button
                 type="button"
                 onClick={() =>
@@ -292,21 +282,14 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
                     actionItems: [...formData.actionItems, ""],
                   })
                 }
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--color-accent)",
-                  fontSize: 10,
-                  cursor: "pointer",
-                  fontWeight: 600,
-                  padding: 0,
-                }}
+                style={addBtnStyle}
               >
-                + Add
+                <Icons.PlusIcon style={{ width: 13, height: 13 }} />
+                Add
               </button>
             </div>
             {formData.actionItems.map((item, i) => (
-              <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+              <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                 <input
                   type="text"
                   value={item}
@@ -316,7 +299,7 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
                     setFormData({ ...formData, actionItems: newItems });
                   }}
                   placeholder="e.g., Research company fundamentals"
-                  style={{ ...inputStyle, flex: 1, marginBottom: 0 }}
+                  style={{ ...inputStyle, flex: 1 }}
                 />
                 <button
                   type="button"
@@ -326,58 +309,42 @@ export default function IdeaForm({ onClose, categories }: IdeaFormProps) {
                       actionItems: formData.actionItems.filter((_, idx) => idx !== i),
                     });
                   }}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid var(--color-rule)",
-                    borderRadius: 6,
-                    padding: "10px 8px",
-                    color: "var(--color-ink-3)",
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
+                  aria-label="Remove action item"
+                  style={removeBtnStyle}
                 >
-                  ✕
+                  ×
                 </button>
               </div>
             ))}
           </div>
 
           {/* Buttons */}
-          <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 20 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="ios-btn ios-btn--primary"
+              style={{ opacity: isSubmitting ? 0.5 : 1, cursor: isSubmitting ? "not-allowed" : "pointer" }}
+            >
+              {isSubmitting ? "Creating…" : "Create Idea"}
+            </button>
             <button
               type="button"
               onClick={onClose}
               style={{
-                padding: "10px 20px",
-                borderRadius: 8,
-                border: "1px solid var(--color-rule)",
-                background: "transparent",
-                color: "var(--color-ink-2)",
-                fontSize: 13,
-                fontWeight: 500,
+                padding: "13px 20px",
+                borderRadius: 12,
+                minHeight: 50,
+                border: "none",
+                background: "var(--ios-fill)",
+                color: "var(--ios-label)",
+                fontSize: 17,
+                fontWeight: 600,
                 cursor: "pointer",
                 fontFamily: "inherit",
               }}
             >
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              style={{
-                padding: "10px 20px",
-                borderRadius: 8,
-                border: "none",
-                background: "var(--color-accent)",
-                color: "#FFFDF8",
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: isSubmitting ? "not-allowed" : "pointer",
-                fontFamily: "inherit",
-                opacity: isSubmitting ? 0.5 : 1,
-              }}
-            >
-              {isSubmitting ? "Creating..." : "Create Idea"}
             </button>
           </div>
         </form>

@@ -13,9 +13,12 @@ export default async function NewsWidget({ topics }: { topics: string[] }) {
 
   return (
     <div style={card}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-        <h2 className="serif" style={{ fontSize: 22 }}>News</h2>
-        <span style={{ fontSize: 10, color: "var(--color-ink-3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+      <div style={header}>
+        <span className="ios-headline">News</span>
+        <span
+          className="ios-footnote ios-truncate"
+          style={{ color: "var(--ios-label-2)", maxWidth: "55%" }}
+        >
           {topics.join(" · ")}
         </span>
       </div>
@@ -25,11 +28,15 @@ export default async function NewsWidget({ topics }: { topics: string[] }) {
 }
 
 const card: React.CSSProperties = {
-  background: "var(--color-bg-card)",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 12,
-  padding: "20px 24px",
-  boxShadow: "var(--shadow-card)",
-  height: "100%",
-  boxSizing: "border-box",
+  background: "var(--ios-cell)",
+  borderRadius: "var(--ios-radius-card)",
+  overflow: "hidden",
+};
+
+const header: React.CSSProperties = {
+  display: "flex",
+  alignItems: "baseline",
+  justifyContent: "space-between",
+  gap: 8,
+  padding: "12px 16px 6px",
 };

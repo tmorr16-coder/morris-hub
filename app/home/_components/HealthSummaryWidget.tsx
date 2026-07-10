@@ -1,24 +1,25 @@
 import { createServiceClient } from "@/lib/supabase/server";
 
 interface TrendPoint { timestamp: string; value: number }
+type Arrow = { symbol: "up" | "down" | "flat"; color: string };
 
-function trendArrow(recent: number, older: number): { symbol: string; color: string } {
+function trendArrow(recent: number, older: number): Arrow {
   const delta = ((recent - older) / Math.max(Math.abs(older), 0.001)) * 100;
-  if (Math.abs(delta) < 2) return { symbol: "→", color: "var(--color-ink-3)" };
-  if (delta > 0) return { symbol: "↑", color: "var(--color-green)" };
-  return { symbol: "↓", color: "var(--color-red)" };
+  if (Math.abs(delta) < 2) return { symbol: "flat", color: "var(--ios-label-2)" };
+  if (delta > 0) return { symbol: "up", color: "var(--ios-green)" };
+  return { symbol: "down", color: "var(--ios-red)" };
 }
 
-function weightTrend(points: TrendPoint[]): { current: number | null; arrow: { symbol: string; color: string } | null } {
+function weightTrend(points: TrendPoint[]): { current: number | null; arrow: Arrow | null } {
   if (points.length === 0) return { current: null, arrow: null };
   const recent = points.slice(-7).map((p) => p.value);
   const older = points.slice(-30, -7).map((p) => p.value);
   const avgRecent = recent.reduce((s, v) => s + v, 0) / Math.max(recent.length, 1);
   const avgOlder = older.reduce((s, v) => s + v, 0) / Math.max(older.length, 1);
   const current = points[points.length - 1].value;
-  const arrow = older.length > 0
+  const arrow: Arrow | null = older.length > 0
     // For weight, down is good (inverted)
-    ? { ...trendArrow(avgRecent, avgOlder), color: avgRecent < avgOlder ? "var(--color-green)" : avgRecent > avgOlder ? "var(--color-red)" : "var(--color-ink-3)" }
+    ? { ...trendArrow(avgRecent, avgOlder), color: avgRecent < avgOlder ? "var(--ios-green)" : avgRecent > avgOlder ? "var(--ios-red)" : "var(--ios-label-2)" }
     : null;
   return { current, arrow };
 }
@@ -29,6 +30,15 @@ function avgLast(points: TrendPoint[], days: number): number | null {
   const slice = points.filter((p) => p.timestamp >= cutoff);
   if (slice.length === 0) return null;
   return Math.round(slice.reduce((s, p) => s + p.value, 0) / slice.length);
+}
+
+function ArrowGlyph({ arrow }: { arrow: Arrow }) {
+  const d = arrow.symbol === "up" ? "M6 15l6-6 6 6" : arrow.symbol === "down" ? "M6 9l6 6 6-6" : "M5 12h14";
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke={arrow.color} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" width={14} height={14} aria-hidden>
+      <path d={d} />
+    </svg>
+  );
 }
 
 export default async function HealthSummaryWidget({ userId }: { userId: string }) {
@@ -96,36 +106,34 @@ export default async function HealthSummaryWidget({ userId }: { userId: string }
     if (slice.length === 0) return null;
     return Math.round(slice.reduce((s, p) => s + p.value, 0) / slice.length);
   })();
-  const hrvArrow = hrvNow != null && hrvPrev != null
-    ? { ...trendArrow(hrvNow, hrvPrev), color: hrvNow >= hrvPrev ? "var(--color-green)" : "var(--color-red)" }
+  const hrvArrow: Arrow | null = hrvNow != null && hrvPrev != null
+    ? { ...trendArrow(hrvNow, hrvPrev), color: hrvNow >= hrvPrev ? "var(--ios-green)" : "var(--ios-red)" }
     : null;
   const rhrNow = avgLast(rhr, 7);
 
   const workoutsThisWeek = ((sessionsThisWeek ?? []).length) + ((ahWorkoutsThisWeek ?? []).length);
   const workoutsLastWeek = (sessionsLastWeek ?? []).length;
-  const workoutArrow = workoutsThisWeek >= workoutsLastWeek
-    ? { symbol: workoutsThisWeek > workoutsLastWeek ? "↑" : "→", color: "var(--color-green)" }
-    : { symbol: "↓", color: "var(--color-red)" };
+  const workoutArrow: Arrow = workoutsThisWeek >= workoutsLastWeek
+    ? { symbol: workoutsThisWeek > workoutsLastWeek ? "up" : "flat", color: "var(--ios-green)" }
+    : { symbol: "down", color: "var(--ios-red)" };
 
   const hasData = weights.length > 0 || hrv.length > 0 || rhr.length > 0;
 
   return (
     <div style={card}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-        <h2 className="serif" style={{ fontSize: 20 }}>
-          Health <span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>summary</span>
-        </h2>
-        <a href="https://health.morrisai.family/dashboard" style={{ fontSize: 10, color: "var(--color-ink-3)", textDecoration: "none", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-          View →
+      <div style={header}>
+        <span className="ios-headline">Health summary</span>
+        <a href="https://health.morrisai.family/dashboard" className="ios-footnote" style={{ color: "var(--ios-tint)" }}>
+          View
         </a>
       </div>
 
       {!hasData ? (
-        <p style={{ fontSize: 13, color: "var(--color-ink-4)", padding: "20px 0", textAlign: "center" }}>
+        <p className="ios-footnote" style={{ color: "var(--ios-label-3)", padding: "20px 16px", textAlign: "center" }}>
           No health data yet — sync Apple Health to see trends here.
         </p>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, padding: "6px 16px 16px" }}>
           <Metric
             label="Weight"
             value={weightNow != null ? `${weightNow.toFixed(1)} lbs` : "—"}
@@ -163,29 +171,33 @@ export default async function HealthSummaryWidget({ userId }: { userId: string }
 function Metric({ label, value, arrow, sub }: {
   label: string;
   value: string;
-  arrow: { symbol: string; color: string } | null;
+  arrow: Arrow | null;
   sub: string;
 }) {
   return (
-    <div style={{ background: "var(--color-bg)", border: "1px solid var(--color-rule-soft)", borderRadius: 10, padding: "12px 14px" }}>
-      <div style={{ fontSize: 10, color: "var(--color-ink-3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+    <div style={{ background: "var(--ios-fill)", borderRadius: 12, padding: "12px 14px" }}>
+      <div className="ios-caption" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>
         {label}
       </div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-        <span className="mono" style={{ fontSize: 18, fontWeight: 600, color: "var(--color-ink)" }}>{value}</span>
-        {arrow && (
-          <span style={{ fontSize: 14, color: arrow.color, fontWeight: 600 }}>{arrow.symbol}</span>
-        )}
+      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+        <span className="ios-num" style={{ fontSize: 20, fontWeight: 600, color: "var(--ios-label)" }}>{value}</span>
+        {arrow && <ArrowGlyph arrow={arrow} />}
       </div>
-      <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 2 }}>{sub}</div>
+      <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 2 }}>{sub}</div>
     </div>
   );
 }
 
 const card: React.CSSProperties = {
-  background: "var(--color-bg-card)",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 12,
-  padding: "18px 20px",
-  boxShadow: "var(--shadow-card)",
+  background: "var(--ios-cell)",
+  borderRadius: "var(--ios-radius-card)",
+  overflow: "hidden",
+};
+
+const header: React.CSSProperties = {
+  display: "flex",
+  alignItems: "baseline",
+  justifyContent: "space-between",
+  gap: 8,
+  padding: "12px 16px 6px",
 };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Icons } from "@/components/ios";
 
 interface PlatformUser {
   id: string;
@@ -23,29 +24,6 @@ interface ShareTabProps {
   colorTag: string;
 }
 
-const MIGRATION_SQL = `-- Run this in your Supabase SQL Editor:
--- https://supabase.com/dashboard/project/mrqutkseujckfhkjuzfr/sql/new
-
--- Step 1: create the table (safe to re-run)
-create table if not exists student_support.course_shares (
-  id                   uuid primary key default gen_random_uuid(),
-  course_id            uuid not null references student_support.courses(id) on delete cascade,
-  owner_user_id        uuid not null references auth.users(id) on delete cascade,
-  shared_with_user_id  uuid not null references auth.users(id) on delete cascade,
-  share_grades         boolean not null default true,
-  share_assignments    boolean not null default true,
-  created_at           timestamptz not null default now(),
-  unique (course_id, shared_with_user_id)
-);
-create index if not exists course_shares_owner_idx
-  on student_support.course_shares(owner_user_id);
-create index if not exists course_shares_recipient_idx
-  on student_support.course_shares(shared_with_user_id);
-
--- Step 2: grant access (fixes "permission denied" errors)
-grant all on student_support.course_shares to service_role;
-grant select, insert, update, delete on student_support.course_shares to authenticated;`;
-
 export default function ShareTab({ courseId, courseName, colorTag }: ShareTabProps) {
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [shares, setShares] = useState<CourseShare[]>([]);
@@ -54,7 +32,6 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null); // per-toggle error
   const [setupRequired, setSetupRequired] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   // Load platform users + current shares in parallel
   useEffect(() => {
@@ -96,16 +73,6 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
     };
     load();
   }, [courseId]);
-
-  const handleCopySQL = async () => {
-    try {
-      await navigator.clipboard.writeText(MIGRATION_SQL);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // fallback: select the text
-    }
-  };
 
   const getShare = (userId: string): CourseShare | undefined =>
     shares.find((s) => s.shared_with_user_id === userId);
@@ -199,105 +166,40 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
 
   if (loading) {
     return (
-      <div style={{ color: "var(--color-ink-3)", fontSize: 13, paddingTop: 24 }}>
+      <div className="ios-footnote" style={{ color: "var(--ios-label-2)", paddingTop: 24 }}>
         Loading sharing settings…
       </div>
     );
   }
 
-  // ── Database setup required ─────────────────────────────────────
+  // ── Sharing backend unavailable ─────────────────────────────────
   if (setupRequired) {
     return (
       <div>
-        <div style={{ marginBottom: 20 }}>
-          <h2 className="serif" style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px 0" }}>
-            Share Course
-          </h2>
+        <div style={{ marginBottom: 16 }}>
+          <h2 className="ios-title-3" style={{ margin: "0 0 4px 0" }}>Share Course</h2>
         </div>
         <div style={{
-          background: "#fffbeb",
-          border: "1px solid #f59e0b",
-          borderRadius: 10,
-          padding: "20px 24px",
-          marginBottom: 16,
+          background: "var(--ios-cell)",
+          borderRadius: "var(--ios-radius-card)",
+          padding: "24px 20px",
+          textAlign: "center",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <span style={{ fontSize: 20 }}>⚠️</span>
-            <strong style={{ fontSize: 14, color: "#92400e" }}>One-time database setup needed</strong>
-          </div>
-          <p style={{ fontSize: 13, color: "#78350f", margin: "0 0 16px 0", lineHeight: 1.6 }}>
-            The sharing table hasn&apos;t been created yet. Copy the SQL below and run it in your{" "}
-            <a
-              href="https://supabase.com/dashboard/project/mrqutkseujckfhkjuzfr/sql/new"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: "#92400e", fontWeight: 600 }}
-            >
-              Supabase SQL Editor ↗
-            </a>
-            , then refresh this page.
+          <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: 0, lineHeight: 1.6 }}>
+            Sharing is temporarily unavailable. Please try again later.
           </p>
-          <div style={{ position: "relative" }}>
-            <pre style={{
-              background: "#1e1e2e",
-              color: "#cdd6f4",
-              borderRadius: 8,
-              padding: "14px 16px",
-              fontSize: 11,
-              lineHeight: 1.6,
-              overflowX: "auto",
-              margin: 0,
-              fontFamily: "monospace",
-            }}>
-              {MIGRATION_SQL}
-            </pre>
-            <button
-              onClick={handleCopySQL}
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                padding: "4px 10px",
-                borderRadius: 5,
-                border: "none",
-                background: copied ? "#16a34a" : "#6B5B95",
-                color: "white",
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              {copied ? "✓ Copied!" : "Copy SQL"}
-            </button>
-          </div>
         </div>
-        <button
-          onClick={() => { setLoading(true); setSetupRequired(false); setTimeout(() => window.location.reload(), 100); }}
-          style={{
-            padding: "8px 18px",
-            borderRadius: 7,
-            border: `1px solid ${colorTag}`,
-            background: "transparent",
-            color: colorTag,
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          ↺ Retry after running SQL
-        </button>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{
+      <div className="ios-footnote" style={{
         padding: "12px 16px",
-        borderRadius: 8,
-        background: "#fee2e2",
-        color: "#991b1b",
-        fontSize: 13,
+        borderRadius: 10,
+        background: "var(--ios-cell)",
+        color: "var(--ios-red)",
       }}>
         {error}
       </div>
@@ -310,38 +212,37 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
     <div>
       {/* Save error banner */}
       {saveError && (
-        <div style={{
+        <div className="ios-footnote" style={{
           padding: "10px 14px",
-          borderRadius: 8,
-          background: "#fee2e2",
-          color: "#991b1b",
-          fontSize: 12,
+          borderRadius: 10,
+          background: "var(--ios-cell)",
+          color: "var(--ios-red)",
           marginBottom: 16,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
         }}>
-          <span>⚠️ {saveError}</span>
+          <span>{saveError}</span>
           <button
             onClick={() => setSaveError(null)}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "#991b1b", fontSize: 14, padding: 0 }}
-          >×</button>
+            aria-label="Dismiss"
+            style={{ color: "var(--ios-red)", padding: 0, display: "inline-flex" }}
+          >
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
         </div>
       )}
 
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h2
-          className="serif"
-          style={{ fontSize: 20, fontWeight: 700, margin: "0 0 4px 0" }}
-        >
-          Share Course
-        </h2>
-        <p style={{ fontSize: 13, color: "var(--color-ink-3)", margin: 0 }}>
+      <div style={{ marginBottom: 20 }}>
+        <h2 className="ios-title-3" style={{ margin: "0 0 4px 0" }}>Share Course</h2>
+        <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: 0 }}>
           Give other family members read-only access to grades and assignments for{" "}
           <strong>{courseName}</strong>.
           {sharedCount > 0 && (
-            <span style={{ marginLeft: 8, color: colorTag, fontWeight: 600 }}>
+            <span className="ios-num" style={{ marginLeft: 8, color: colorTag, fontWeight: 600 }}>
               Shared with {sharedCount} {sharedCount === 1 ? "person" : "people"}
             </span>
           )}
@@ -350,21 +251,21 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
 
       {users.length === 0 ? (
         <div style={{
-          background: "var(--color-bg-card)",
-          border: "1px dashed var(--color-rule)",
-          borderRadius: 12,
+          background: "var(--ios-cell)",
+          borderRadius: "var(--ios-radius-card)",
           padding: "40px 24px",
           textAlign: "center",
-          color: "var(--color-ink-3)",
         }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>👨‍👩‍👧‍👦</div>
-          <p style={{ fontSize: 14, margin: 0 }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, color: "var(--ios-label-3)" }}>
+            <Icons.PeopleIcon style={{ width: 32, height: 32 }} />
+          </div>
+          <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: 0 }}>
             No other platform members found. Invite family members from the{" "}
             <a href="/home/admin" style={{ color: colorTag }}>Admin panel</a>.
           </p>
         </div>
       ) : (
-        <div style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {users.map((u) => {
             const share = getShare(u.id);
             const shared = !!share;
@@ -376,13 +277,11 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
               <div
                 key={u.id}
                 style={{
-                  background: shared
-                    ? colorTag + "0d"
-                    : "var(--color-bg-card)",
-                  border: `1px solid ${shared ? colorTag + "40" : "var(--color-rule)"}`,
-                  borderRadius: 10,
+                  background: "var(--ios-cell)",
+                  borderRadius: "var(--ios-radius-card)",
+                  border: shared ? `1px solid ${colorTag}` : undefined,
                   padding: "16px 18px",
-                  transition: "border-color 0.2s, background 0.2s",
+                  transition: "border-color 0.2s",
                   opacity: isSavingThis ? 0.65 : 1,
                 }}
               >
@@ -399,23 +298,23 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
                       width: 36,
                       height: 36,
                       borderRadius: "50%",
-                      background: colorTag + "25",
+                      background: colorTag,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       fontSize: 15,
                       fontWeight: 700,
-                      color: colorTag,
+                      color: "#fff",
                       flexShrink: 0,
                     }}>
                       {initials}
                     </div>
                     <div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>
+                      <div className="ios-body" style={{ fontWeight: 600 }}>
                         {displayName}
                       </div>
                       {u.full_name && u.email && (
-                        <div style={{ fontSize: 11, color: "var(--color-ink-3)" }}>{u.email}</div>
+                        <div className="ios-caption" style={{ color: "var(--ios-label-2)" }}>{u.email}</div>
                       )}
                     </div>
                   </div>
@@ -424,28 +323,28 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
                   <button
                     onClick={() => handleToggleShare(u, !shared)}
                     disabled={isSavingThis}
+                    role="switch"
+                    aria-checked={shared}
                     style={{
                       position: "relative",
-                      width: 44,
-                      height: 24,
-                      borderRadius: 12,
-                      border: "none",
-                      background: shared ? colorTag : "var(--color-rule)",
-                      cursor: isSavingThis ? "default" : "pointer",
+                      width: 51,
+                      height: 31,
+                      borderRadius: 999,
+                      background: shared ? "var(--ios-green)" : "var(--ios-fill)",
                       transition: "background 0.2s",
                       flexShrink: 0,
                     }}
-                    title={shared ? "Remove access" : "Grant access"}
+                    aria-label={shared ? "Remove access" : "Grant access"}
                   >
                     <span style={{
                       position: "absolute",
-                      top: 3,
-                      left: shared ? 23 : 3,
-                      width: 18,
-                      height: 18,
+                      top: 2,
+                      left: shared ? 22 : 2,
+                      width: 27,
+                      height: 27,
                       borderRadius: "50%",
-                      background: "white",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                      background: "#fff",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
                       transition: "left 0.2s",
                       display: "block",
                     }} />
@@ -457,18 +356,18 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
                   <div style={{
                     marginTop: 12,
                     paddingTop: 12,
-                    borderTop: `1px solid ${colorTag}20`,
+                    borderTop: "var(--ios-hair) solid var(--ios-separator)",
                     display: "flex",
                     gap: 20,
                     flexWrap: "wrap",
+                    alignItems: "center",
                   }}>
-                    <label style={{
+                    <label className="ios-footnote" style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 7,
-                      fontSize: 12,
                       cursor: "pointer",
-                      color: "var(--color-ink-2)",
+                      color: "var(--ios-label)",
                     }}>
                       <input
                         type="checkbox"
@@ -477,18 +376,17 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
                         onChange={(e) =>
                           handleToggleOption(u, "share_grades", e.target.checked)
                         }
-                        style={{ accentColor: colorTag, width: 14, height: 14 }}
+                        style={{ accentColor: colorTag, width: 16, height: 16 }}
                       />
-                      📊 Grades
+                      Grades
                     </label>
 
-                    <label style={{
+                    <label className="ios-footnote" style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 7,
-                      fontSize: 12,
                       cursor: "pointer",
-                      color: "var(--color-ink-2)",
+                      color: "var(--ios-label)",
                     }}>
                       <input
                         type="checkbox"
@@ -497,20 +395,20 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
                         onChange={(e) =>
                           handleToggleOption(u, "share_assignments", e.target.checked)
                         }
-                        style={{ accentColor: colorTag, width: 14, height: 14 }}
+                        style={{ accentColor: colorTag, width: 16, height: 16 }}
                       />
-                      📋 Assignments
+                      Assignments
                     </label>
 
                     <a
                       href={`/home/me/courses/shared/${courseId}`}
                       target="_blank"
                       rel="noopener noreferrer"
+                      className="ios-caption"
                       style={{
-                        fontSize: 11,
                         color: colorTag,
-                        textDecoration: "none",
                         marginLeft: "auto",
+                        fontWeight: 600,
                         display: "flex",
                         alignItems: "center",
                         gap: 4,
@@ -527,9 +425,8 @@ export default function ShareTab({ courseId, courseName, colorTag }: ShareTabPro
       )}
 
       {/* Info note */}
-      <p style={{
-        fontSize: 11,
-        color: "var(--color-ink-3)",
+      <p className="ios-caption" style={{
+        color: "var(--ios-label-3)",
         marginTop: 20,
         lineHeight: 1.6,
       }}>

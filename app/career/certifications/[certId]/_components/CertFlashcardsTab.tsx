@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { Segmented, Chip } from "@/components/ios";
 
 interface Domain {
   id: string;
@@ -107,148 +108,66 @@ export default function CertFlashcardsTab({
 
   const COUNT_OPTIONS = [5, 10, 15, 20];
 
+  const smallFilled: React.CSSProperties = {
+    padding: "10px 18px", borderRadius: 10, border: "none",
+    background: loading ? "var(--ios-fill)" : "var(--ios-tint)",
+    color: loading ? "var(--ios-label-2)" : "var(--ios-on-tint)",
+    fontSize: 15, fontWeight: 600, cursor: loading ? "default" : "pointer",
+    opacity: loading ? 0.7 : 1,
+  };
+
+  const navBtn = (disabled: boolean): React.CSSProperties => ({
+    flex: 1, padding: "12px", borderRadius: 12,
+    border: "var(--ios-hair) solid var(--ios-separator)",
+    background: "var(--ios-cell)",
+    color: disabled ? "var(--ios-label-3)" : "var(--ios-label)",
+    fontSize: 16, fontWeight: 600,
+    cursor: disabled ? "default" : "pointer",
+    opacity: disabled ? 0.5 : 1,
+  });
+
   return (
-    <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 20,
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <h2 className="ios-title-3" style={{ margin: 0 }}>
           Flashcards — {examName}
         </h2>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           {/* Count selector */}
-          <div style={{ position: "relative" }}>
-            <select
-              value={countOption}
-              onChange={(e) => setCountOption(Number(e.target.value))}
-              style={{
-                padding: "7px 28px 7px 10px",
-                border: "1px solid var(--color-rule)",
-                borderRadius: 7,
-                fontSize: 12,
-                appearance: "none",
-                background: "var(--color-paper)",
-                color: "var(--color-ink)",
-                cursor: "pointer",
-              }}
-            >
-              {COUNT_OPTIONS.map((n) => (
-                <option key={n} value={n}>
-                  {n} cards
-                </option>
-              ))}
-            </select>
-            <span
-              style={{
-                position: "absolute",
-                right: 8,
-                top: "50%",
-                transform: "translateY(-50%)",
-                pointerEvents: "none",
-                fontSize: 10,
-                color: "var(--color-ink-3)",
-              }}
-            >
-              ▾
-            </span>
-          </div>
+          <Segmented
+            options={COUNT_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
+            value={String(countOption)}
+            onChange={(v) => setCountOption(Number(v))}
+            ariaLabel="Number of flashcards"
+          />
 
-          <button
-            onClick={handleGenerate}
-            disabled={loading}
-            style={{
-              padding: "8px 18px",
-              borderRadius: 7,
-              border: "none",
-              background: loading ? "var(--color-paper-deep)" : colorTag,
-              color: "white",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: loading ? "default" : "pointer",
-              opacity: loading ? 0.7 : 1,
-            }}
-          >
+          <button type="button" onClick={handleGenerate} disabled={loading} style={smallFilled}>
             {loading
               ? "Generating…"
               : hasDeck
               ? "Regenerate"
-              : "Generate Flashcards from exam materials"}
+              : "Generate flashcards"}
           </button>
         </div>
       </div>
 
       {error && (
-        <div
-          style={{
-            padding: "10px 16px",
-            borderRadius: 7,
-            background: "#fee2e2",
-            color: "#991b1b",
-            fontSize: 13,
-            marginBottom: 20,
-          }}
-        >
-          {error}
-        </div>
+        <p className="ios-footnote" style={{ color: "var(--ios-red)", margin: 0 }}>{error}</p>
       )}
 
       {!hasDeck && !loading && (
-        <div
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px dashed var(--color-rule)",
-            borderRadius: 12,
-            padding: "56px 32px",
-            textAlign: "center",
-            color: "var(--color-ink-3)",
-          }}
-        >
-          <div style={{ fontSize: 40, marginBottom: 14 }}>🃏</div>
-          <p
-            style={{
-              margin: "0 0 6px 0",
-              fontWeight: 600,
-              color: "var(--color-ink-2)",
-              fontSize: 15,
-            }}
-          >
-            No flashcards yet
-          </p>
-          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, maxWidth: 420, marginLeft: "auto", marginRight: "auto" }}>
-            Click "Generate Flashcards from exam materials" to create a deck
-            using your uploaded study materials and exam domains.
+        <div className="ios-list" style={{ margin: 0, padding: "48px 32px", textAlign: "center" }}>
+          <div className="ios-headline" style={{ color: "var(--ios-label)", marginBottom: 6 }}>No flashcards yet</div>
+          <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: 0, lineHeight: 1.5, maxWidth: 420, marginLeft: "auto", marginRight: "auto" }}>
+            Tap &ldquo;Generate flashcards&rdquo; to create a deck using your uploaded study materials and exam domains.
           </p>
         </div>
       )}
 
       {loading && (
-        <div
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 12,
-            padding: "56px 32px",
-            textAlign: "center",
-            color: "var(--color-ink-3)",
-          }}
-        >
-          <div
-            style={{
-              display: "inline-flex",
-              gap: 4,
-              alignItems: "center",
-              fontSize: 14,
-              color: "var(--color-ink-2)",
-            }}
-          >
+        <div className="ios-list" style={{ margin: 0, padding: "48px 32px", textAlign: "center" }}>
+          <div className="ios-body" style={{ display: "inline-flex", gap: 4, alignItems: "center", color: "var(--ios-label-2)" }}>
             <span>Generating {countOption} flashcards</span>
             <span>
               <span style={{ animation: "blink 0.7s infinite" }}>•</span>
@@ -268,101 +187,31 @@ export default function CertFlashcardsTab({
       {hasDeck && !loading && (
         <div style={{ maxWidth: 680 }}>
           {/* Progress bar */}
-          <div style={{ marginBottom: 8 }}>
-            <div
-              style={{
-                height: 5,
-                borderRadius: 3,
-                background: "var(--color-paper-deep)",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${progressPercent}%`,
-                  background: colorTag,
-                  transition: "width 0.2s ease",
-                  borderRadius: 3,
-                }}
-              />
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ height: 5, borderRadius: 3, background: "var(--ios-fill)", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${progressPercent}%`, background: colorTag, transition: "width 0.2s ease", borderRadius: 3 }} />
             </div>
           </div>
 
           {/* Card counter row */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 14,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 15,
-                fontWeight: 700,
-                color: colorTag,
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <div className="ios-num" style={{ fontSize: 15, fontWeight: 700, color: "var(--ios-label)" }}>
               Card {currentIndex + 1}
-              <span
-                style={{
-                  fontWeight: 400,
-                  color: "var(--color-ink-3)",
-                  fontSize: 13,
-                }}
-              >
+              <span style={{ fontWeight: 400, color: "var(--ios-label-2)", fontSize: 13 }}>
                 {" "}/ {cards.length}
               </span>
             </div>
 
             {/* Domain badge */}
-            {domainMatch && (
-              <span
-                style={{
-                  display: "inline-block",
-                  padding: "3px 10px",
-                  borderRadius: 6,
-                  background: colorTag + "18",
-                  color: colorTag,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  letterSpacing: "0.04em",
-                }}
-              >
-                {domainMatch.name}
-              </span>
-            )}
-            {!domainMatch && currentCard?.domain_name && (
-              <span
-                style={{
-                  display: "inline-block",
-                  padding: "3px 10px",
-                  borderRadius: 6,
-                  background: "var(--color-paper-deep)",
-                  color: "var(--color-ink-3)",
-                  fontSize: 11,
-                  fontWeight: 600,
-                }}
-              >
-                {currentCard.domain_name}
-              </span>
-            )}
+            {domainMatch && <Chip small>{domainMatch.name}</Chip>}
+            {!domainMatch && currentCard?.domain_name && <Chip small>{currentCard.domain_name}</Chip>}
           </div>
 
           {/* Flip card */}
           {currentCard && (
             <div
               onClick={() => setIsFlipped((f) => !f)}
-              style={{
-                position: "relative",
-                minHeight: 220,
-                marginBottom: 16,
-                cursor: "pointer",
-                perspective: 800,
-              }}
+              style={{ position: "relative", minHeight: 220, marginBottom: 16, cursor: "pointer", perspective: 800 }}
             >
               <div
                 style={{
@@ -381,45 +230,26 @@ export default function CertFlashcardsTab({
                     inset: 0,
                     backfaceVisibility: "hidden",
                     WebkitBackfaceVisibility: "hidden",
-                    background: "white",
-                    border: `2px solid ${colorTag}`,
-                    borderRadius: 14,
+                    background: "var(--ios-cell)",
+                    border: "var(--ios-hair) solid var(--ios-separator)",
+                    borderRadius: 16,
                     padding: "36px 32px",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "center",
                     alignItems: "center",
                     textAlign: "center",
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.09)",
                     minHeight: 220,
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      letterSpacing: "0.1em",
-                      textTransform: "uppercase",
-                      color: colorTag,
-                      marginBottom: 18,
-                      opacity: 0.8,
-                    }}
-                  >
+                  <div className="ios-caption" style={{ fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: colorTag, marginBottom: 18 }}>
                     Question
                   </div>
-                  <div
-                    style={{
-                      fontSize: 18,
-                      fontWeight: 600,
-                      lineHeight: 1.5,
-                      color: "#1a1a2e",
-                      maxWidth: 520,
-                    }}
-                  >
+                  <div style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.5, color: "var(--ios-label)", maxWidth: 520 }}>
                     {currentCard.question}
                   </div>
-                  <div style={{ marginTop: 24, fontSize: 11, color: "#a0a0b0" }}>
-                    Click or press Space to flip
+                  <div className="ios-caption" style={{ marginTop: 24, color: "var(--ios-label-3)" }}>
+                    Tap or press Space to flip
                   </div>
                 </div>
 
@@ -432,38 +262,20 @@ export default function CertFlashcardsTab({
                     WebkitBackfaceVisibility: "hidden",
                     transform: "rotateY(180deg)",
                     background: colorTag,
-                    borderRadius: 14,
+                    borderRadius: 16,
                     padding: "36px 32px",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "center",
                     alignItems: "center",
                     textAlign: "center",
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
                     minHeight: 220,
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      letterSpacing: "0.1em",
-                      textTransform: "uppercase",
-                      color: "rgba(255,255,255,0.75)",
-                      marginBottom: 18,
-                    }}
-                  >
+                  <div className="ios-caption" style={{ fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.75)", marginBottom: 18 }}>
                     Answer
                   </div>
-                  <div
-                    style={{
-                      fontSize: 18,
-                      fontWeight: 600,
-                      lineHeight: 1.5,
-                      color: "white",
-                      maxWidth: 520,
-                    }}
-                  >
+                  <div style={{ fontSize: 18, fontWeight: 600, lineHeight: 1.5, color: "#fff", maxWidth: 520 }}>
                     {currentCard.answer}
                   </div>
                 </div>
@@ -473,76 +285,22 @@ export default function CertFlashcardsTab({
 
           {/* Navigation */}
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <button
-              onClick={() => goTo(currentIndex - 1)}
-              disabled={currentIndex === 0}
-              style={{
-                flex: 1,
-                padding: "10px",
-                borderRadius: 7,
-                border: "1px solid var(--color-rule)",
-                background:
-                  currentIndex === 0 ? "var(--color-paper-deep)" : "transparent",
-                cursor: currentIndex === 0 ? "default" : "pointer",
-                fontSize: 13,
-                fontWeight: 500,
-                color:
-                  currentIndex === 0
-                    ? "var(--color-ink-3)"
-                    : "var(--color-ink)",
-                opacity: currentIndex === 0 ? 0.5 : 1,
-              }}
-            >
+            <button type="button" onClick={() => goTo(currentIndex - 1)} disabled={currentIndex === 0} style={navBtn(currentIndex === 0)}>
               ← Previous
             </button>
-            <button
-              onClick={() => goTo(currentIndex + 1)}
-              disabled={currentIndex === cards.length - 1}
-              style={{
-                flex: 1,
-                padding: "10px",
-                borderRadius: 7,
-                border: "1px solid var(--color-rule)",
-                background:
-                  currentIndex === cards.length - 1
-                    ? "var(--color-paper-deep)"
-                    : "transparent",
-                cursor:
-                  currentIndex === cards.length - 1 ? "default" : "pointer",
-                fontSize: 13,
-                fontWeight: 500,
-                color:
-                  currentIndex === cards.length - 1
-                    ? "var(--color-ink-3)"
-                    : "var(--color-ink)",
-                opacity: currentIndex === cards.length - 1 ? 0.5 : 1,
-              }}
-            >
+            <button type="button" onClick={() => goTo(currentIndex + 1)} disabled={currentIndex === cards.length - 1} style={navBtn(currentIndex === cards.length - 1)}>
               Next →
             </button>
           </div>
 
           {/* Keyboard hint */}
-          <div
-            style={{
-              textAlign: "center",
-              fontSize: 11,
-              color: "var(--color-ink-3)",
-              marginBottom: 8,
-            }}
-          >
+          <div className="ios-caption" style={{ textAlign: "center", color: "var(--ios-label-2)", marginBottom: 8 }}>
             ← → to navigate · Space to flip
           </div>
 
           {/* Note: flashcards are ephemeral — generated in-session */}
-          <div
-            style={{
-              textAlign: "center",
-              fontSize: 11,
-              color: "var(--color-ink-4)",
-            }}
-          >
-            These flashcards are generated fresh each session. Click "Regenerate" for a new set.
+          <div className="ios-caption" style={{ textAlign: "center", color: "var(--ios-label-3)" }}>
+            These flashcards are generated fresh each session. Tap &ldquo;Regenerate&rdquo; for a new set.
           </div>
         </div>
       )}

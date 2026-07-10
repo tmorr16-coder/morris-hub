@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireFinanceAccess } from "@/lib/finance/access";
 import { Suspense } from "react";
+import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 import MonthlyTrendChart, { type MonthPoint } from "./_components/MonthlyTrendChart";
 import CategoryBreakdown, { type CategoryRow } from "./_components/CategoryBreakdown";
 import RecurringCharges, { type RecurringRow } from "./_components/RecurringCharges";
@@ -232,7 +234,7 @@ export default async function InsightsPage({
 
     if (acctIds.length > 0) {
       // Pull last 12 months of transactions
-      const twelveAgo = new Date(Date.now() - 365 * 86400_000).toISOString().slice(0, 10);
+      const twelveAgo = new Date(new Date().getTime() - 365 * 86400_000).toISOString().slice(0, 10);
       const { data: txRows } = await service
         .schema("finance")
         .from("transactions")
@@ -403,91 +405,84 @@ export default async function InsightsPage({
   const totalRecurringMonthly = recurring.reduce((s, r) => s + r.monthlyCost, 0);
 
   return (
-    <div>
+    <div className="ios-scroll">
+      <LargeTitle
+        title="Insights"
+        subtitle={`Last 12 months · ${transactions.length.toLocaleString()} transactions`}
+      />
 
-      <main style={{ maxWidth: 1180, margin: "0 auto", padding: "32px 28px 80px" }}>
+      {transactions.length === 0 ? (
+        <Group footer="Connect a bank to start analyzing your spending.">
+          <Cell
+            lead={<IconBadge color="var(--ios-finance)"><Icons.WalletIcon /></IconBadge>}
+            title="Connect a bank"
+            subtitle="No transactions to analyze yet"
+            href="/finance/dashboard"
+          />
+        </Group>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingTop: 4 }}>
 
-        {/* Header section */}
-        <section style={{ marginBottom: 32, paddingBottom: 20, borderBottom: "1px solid var(--color-rule)" }}>
-          <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 10 }}>
-            Last 12 months · {transactions.length.toLocaleString()} transactions
+          {/* Top-line stats */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, padding: "0 16px" }}>
+            <StatCard
+              label="This month spend"
+              value={currentMonthOutflow}
+              delta={prevMonthOutflow > 0 ? ((currentMonthOutflow - prevMonthOutflow) / prevMonthOutflow) * 100 : null}
+              deltaSuffix="vs last month"
+              invert
+            />
+            <StatCard
+              label="Last month spend"
+              value={prevMonthOutflow}
+              delta={null}
+            />
+            <StatCard
+              label="Recurring monthly"
+              value={totalRecurringMonthly}
+              delta={null}
+              sub={`${recurring.length} subscription${recurring.length !== 1 ? "s" : ""}`}
+            />
           </div>
-          <h1 className="serif" style={{ fontSize: 40, lineHeight: 1.05 }}>
-            Insights<span style={{ fontStyle: "italic", color: "var(--color-bronze-dark)" }}>.</span>
-          </h1>
-        </section>
 
-        {transactions.length === 0 ? (
-          <p style={{ fontSize: 14, color: "var(--color-ink-3)", textAlign: "center", padding: "60px 0" }}>
-            No transactions to analyze yet. <Link href="/finance/dashboard" style={{ color: "var(--color-bronze-dark)" }}>Connect a bank →</Link>
-          </p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-
-            {/* Top-line stats */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
-              <StatCard
-                label="This month spend"
-                value={currentMonthOutflow}
-                delta={prevMonthOutflow > 0 ? ((currentMonthOutflow - prevMonthOutflow) / prevMonthOutflow) * 100 : null}
-                deltaSuffix="vs last month"
-                invert
-              />
-              <StatCard
-                label="Last month spend"
-                value={prevMonthOutflow}
-                delta={null}
-              />
-              <StatCard
-                label="Recurring monthly"
-                value={totalRecurringMonthly}
-                delta={null}
-                sub={`${recurring.length} subscription${recurring.length !== 1 ? "s" : ""}`}
-              />
-            </div>
-
-            {/* Monthly trend */}
+          {/* Monthly trend */}
+          <div style={{ padding: "0 16px" }}>
             <MonthlyTrendChart data={monthlyTrend} />
+          </div>
 
-            {/* Category breakdown */}
+          {/* Category breakdown */}
+          <div style={{ padding: "0 16px" }}>
             <CategoryBreakdown rows={categoryBreakdown.slice(0, 12)} />
+          </div>
 
-            {/* Top-N picker — controls how many rows show in Recurring + Top merchants */}
-            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, paddingBottom: 4, fontSize: 11, color: "var(--color-ink-3)" }}>
-              <span style={{ letterSpacing: "0.08em", textTransform: "uppercase" }}>Show top</span>
-              {[10, 20, 50, 100].map((n) => (
-                <Link
-                  key={n}
-                  href={`/finance/dashboard/insights?topN=${n}#top`}
-                  scroll={false}
-                  prefetch={false}
-                  style={{
-                    padding: "4px 10px",
-                    borderRadius: 14,
-                    border: `1px solid ${n === topN ? "var(--color-bronze)" : "var(--color-rule)"}`,
-                    background: n === topN ? "var(--color-bronze)" : "transparent",
-                    color: n === topN ? "#fff" : "var(--color-ink-2)",
-                    textDecoration: "none",
-                    fontWeight: 600,
-                    fontSize: 11,
-                  }}
-                >
-                  {n}
-                </Link>
-              ))}
-            </div>
+          {/* Top-N picker — controls how many rows show in Recurring + Top merchants */}
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, padding: "0 16px" }}>
+            <span className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Show top</span>
+            {[10, 20, 50, 100].map((n) => (
+              <Link
+                key={n}
+                href={`/finance/dashboard/insights?topN=${n}#top`}
+                scroll={false}
+                prefetch={false}
+                className={`ios-chip ios-chip--sm${n === topN ? " is-selected" : ""}`}
+              >
+                {n}
+              </Link>
+            ))}
+          </div>
 
-            {/* Recurring + top merchants — side by side */}
-            <div id="top" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 14 }}>
-              <RecurringCharges rows={recurring.slice(0, topN)} />
-              <TopMerchants rows={topMerchants} />
-            </div>
+          {/* Recurring + top merchants — side by side */}
+          <div id="top" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14, padding: "0 16px" }}>
+            <RecurringCharges rows={recurring.slice(0, topN)} />
+            <TopMerchants rows={topMerchants} />
+          </div>
 
-            {/* AI Recommendations */}
+          {/* AI Recommendations */}
+          <div style={{ padding: "0 16px" }}>
             <Suspense fallback={
-              <div style={{ background: "var(--color-paper-card)", border: "1px solid var(--color-rule)", borderRadius: 12, padding: "20px 24px", boxShadow: "var(--shadow-card)" }}>
-                <h2 className="serif" style={{ fontSize: 20, marginBottom: 10 }}>Recommendations</h2>
-                <p style={{ fontSize: 13, color: "var(--color-ink-4)", textAlign: "center", padding: "20px 0" }}>Analyzing your spending…</p>
+              <div className="ios-list" style={{ margin: 0, padding: "18px 16px" }}>
+                <div className="ios-headline">Recommendations</div>
+                <p className="ios-footnote" style={{ color: "var(--ios-label-2)", textAlign: "center", padding: "20px 0" }}>Analyzing your spending…</p>
               </div>
             }>
               <SpendingRecommendations
@@ -498,10 +493,11 @@ export default async function InsightsPage({
                 topMerchants={Array.from(merchantsThisMonth.values()).slice(0, 5).map((m) => ({ merchant: m.merchant, total: m.total, count: m.count }))}
               />
             </Suspense>
-
           </div>
-        )}
-      </main>
+
+          <div style={{ height: 12 }} />
+        </div>
+      )}
     </div>
   );
 }
@@ -527,37 +523,29 @@ function StatCard({
 }) {
   const deltaColor =
     delta == null
-      ? "var(--color-ink-4)"
+      ? "var(--ios-label-2)"
       : invert
       ? delta < 0
-        ? "var(--color-green)"
-        : "var(--color-red)"
+        ? "var(--ios-green)"
+        : "var(--ios-red)"
       : delta > 0
-      ? "var(--color-green)"
-      : "var(--color-red)";
+      ? "var(--ios-green)"
+      : "var(--ios-red)";
 
   return (
-    <div
-      style={{
-        background: "var(--color-paper-card)",
-        border: "1px solid var(--color-rule)",
-        borderRadius: 12,
-        padding: "16px 18px",
-        boxShadow: "var(--shadow-card)",
-      }}
-    >
-      <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 8 }}>
+    <div className="ios-list" style={{ margin: 0, padding: "14px 16px" }}>
+      <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
         {label}
       </div>
-      <div className="mono" style={{ fontSize: 26, fontWeight: 500, color: "var(--color-ink)", letterSpacing: "-0.01em" }}>
+      <div className="ios-num" style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.01em", marginTop: 4 }}>
         {fmtMoney(value)}
       </div>
       {delta != null && (
-        <div style={{ fontSize: 11, color: deltaColor, marginTop: 6 }}>
-          {delta > 0 ? "↑" : "↓"} {Math.abs(delta).toFixed(1)}% <span style={{ color: "var(--color-ink-4)" }}>{deltaSuffix}</span>
+        <div className="ios-footnote" style={{ color: deltaColor, marginTop: 4 }}>
+          {delta > 0 ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}% <span style={{ color: "var(--ios-label-2)" }}>{deltaSuffix}</span>
         </div>
       )}
-      {sub && <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 4 }}>{sub}</div>}
+      {sub && <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 4 }}>{sub}</div>}
     </div>
   );
 }

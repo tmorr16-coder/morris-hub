@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { generateInvestmentIdeas } from "@/lib/investment-ideas";
 
+// Web-search-grounded generation fires several searches — give it room so it
+// doesn't hit the default serverless timeout and surface "Failed to generate".
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     // Verify user is authenticated

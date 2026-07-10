@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Cell, IconBadge, Segmented, Chip, Icons } from "@/components/ios";
 
 export interface TxRow {
   id: string;
@@ -94,96 +95,72 @@ export default function RecentActivityClient({
 
   return (
     <>
-      {/* Filter row */}
-      <div
-        style={{
-          background: "var(--color-paper-card)",
-          border: "1px solid var(--color-rule)",
-          borderRadius: 12,
-          padding: "12px 16px",
-          marginBottom: 14,
-          display: "grid",
-          gridTemplateColumns: "1.4fr 1fr 1fr auto auto",
-          gap: 10,
-          alignItems: "center",
-        }}
-      >
-        <input
-          type="search"
-          placeholder="Search merchant…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          style={inputStyle}
-        />
-        <select value={accountId} onChange={(e) => setAccountId(e.target.value)} style={inputStyle}>
-          <option value="">All accounts</option>
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}{a.mask ? ` ····${a.mask}` : ""}
-            </option>
-          ))}
-        </select>
-        <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputStyle}>
-          <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
-        <div style={{ display: "flex", gap: 0, border: "1px solid var(--color-rule)", borderRadius: 8, overflow: "hidden" }}>
-          {(["all", "in", "out"] as Direction[]).map((d) => (
-            <button
-              key={d}
-              onClick={() => setDirection(d)}
-              style={{
-                padding: "6px 10px",
-                fontSize: 11,
-                fontFamily: "inherit",
-                border: "none",
-                background: direction === d ? "var(--color-paper-deep)" : "transparent",
-                color: direction === d ? "var(--color-ink)" : "var(--color-ink-3)",
-                cursor: "pointer",
-                fontWeight: direction === d ? 600 : 400,
-              }}
-            >
-              {d === "all" ? "All" : d === "in" ? "In" : "Out"}
-            </button>
-          ))}
+      {/* Filters */}
+      <div style={{ margin: "0 var(--ios-gutter) 12px", display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, ...inputStyle }}>
+          <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="var(--ios-label-3)" strokeWidth={2} strokeLinecap="round" aria-hidden style={{ flexShrink: 0 }}>
+            <circle cx={11} cy={11} r={7} />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            type="search"
+            placeholder="Search merchant"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            style={{ flex: 1, minWidth: 0, border: "none", background: "none", outline: "none", fontSize: 16, color: "var(--ios-label)", fontFamily: "inherit" }}
+          />
         </div>
-        {anyFilterActive && (
-          <button
-            onClick={resetFilters}
-            style={{
-              padding: "6px 10px",
-              fontSize: 11,
-              border: "1px solid var(--color-rule)",
-              borderRadius: 8,
-              background: "transparent",
-              color: "var(--color-ink-3)",
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-            title="Clear filters"
-          >
-            ✕ Clear
-          </button>
-        )}
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <select value={accountId} onChange={(e) => setAccountId(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
+            <option value="">All accounts</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}{a.mask ? ` ····${a.mask}` : ""}
+              </option>
+            ))}
+          </select>
+          <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
+            <option value="">All categories</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Segmented
+            ariaLabel="Direction"
+            value={direction}
+            onChange={(v) => setDirection(v)}
+            options={[
+              { value: "all", label: "All" },
+              { value: "in", label: "In" },
+              { value: "out", label: "Out" },
+            ]}
+            style={{ flex: 1 }}
+          />
+          {anyFilterActive && (
+            <Chip small onClick={resetFilters}>Clear</Chip>
+          )}
+        </div>
       </div>
 
       {/* Result count + page size */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, fontSize: 11, color: "var(--color-ink-3)" }}>
-        <span>
-          Showing <span className="mono" style={{ color: "var(--color-ink)" }}>{visible.length}</span> of{" "}
-          <span className="mono" style={{ color: "var(--color-ink)" }}>{filtered.length}</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "0 var(--ios-gutter) 8px" }}>
+        <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
+          Showing <span className="ios-num" style={{ color: "var(--ios-label)" }}>{visible.length}</span> of{" "}
+          <span className="ios-num" style={{ color: "var(--ios-label)" }}>{filtered.length}</span>
           {filtered.length !== transactions.length && (
-            <> (filtered from {transactions.length})</>
+            <> (of {transactions.length})</>
           )}
         </span>
-        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span className="ios-footnote" style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ios-label-2)" }}>
           Show
           <select
             value={limit}
             onChange={(e) => setLimit(parseInt(e.target.value, 10))}
-            style={{ ...inputStyle, padding: "4px 6px", fontSize: 11 }}
+            style={{ ...inputStyle, padding: "4px 8px", fontSize: 13 }}
           >
             {PAGE_SIZES.map((n) => (
               <option key={n} value={n}>{n}</option>
@@ -193,92 +170,60 @@ export default function RecentActivityClient({
       </div>
 
       {filtered.length === 0 ? (
-        <p style={{ fontSize: 13, color: "var(--color-ink-4)", padding: "24px 0", textAlign: "center" }}>
+        <p className="ios-subhead" style={{ color: "var(--ios-label-3)", padding: "24px 0", textAlign: "center" }}>
           {transactions.length === 0
             ? "No transactions yet — they'll appear here after the next sync."
             : "No transactions match your filters."}
         </p>
       ) : (
-        <div
-          style={{
-            background: "var(--color-paper-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 12,
-            overflow: "hidden",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "90px 1fr 130px 160px 120px",
-              padding: "10px 18px",
-              borderBottom: "1px solid var(--color-rule)",
-              fontSize: 10,
-              fontWeight: 600,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: "var(--color-ink-3)",
-              background: "var(--color-paper-deep)",
-            }}
-          >
-            <div>Date</div>
-            <div>Merchant</div>
-            <div>Category</div>
-            <div>Account</div>
-            <div style={{ textAlign: "right" }}>Amount</div>
-          </div>
-          {visible.map((tx, idx) => {
+        <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
+          {visible.map((tx) => {
             const acct = accountById.get(tx.account_id);
             const cat = categoryFromPFC(tx.personal_finance_category);
             const isIncome = tx.amount < 0;
+            const subParts = [
+              fmtTxDate(tx.date),
+              acct ? `${acct.name.split(" ")[0]}${acct.mask ? ` ····${acct.mask}` : ""}` : null,
+              cat,
+            ].filter(Boolean);
             return (
-              <div
+              <Cell
                 key={tx.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "90px 1fr 130px 160px 120px",
-                  padding: "12px 18px",
-                  borderTop: idx === 0 ? undefined : "1px solid var(--color-rule-soft)",
-                  fontSize: 13,
-                  alignItems: "center",
-                }}
-              >
-                <div className="mono" style={{ fontSize: 12, color: "var(--color-ink-3)" }}>{fmtTxDate(tx.date)}</div>
-                <div style={{ color: "var(--color-ink)", display: "flex", alignItems: "center", gap: 8 }}>
-                  {tx.merchant_name ?? tx.name}
-                  {tx.pending && (
-                    <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 3, background: "var(--color-paper-deep)", color: "var(--color-ink-3)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      Pending
-                    </span>
-                  )}
-                </div>
-                <div>
-                  {cat && (
-                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, background: "var(--color-paper-deep)", color: "var(--color-ink-2)", whiteSpace: "nowrap" }}>
-                      {cat}
-                    </span>
-                  )}
-                </div>
-                <div style={{ fontSize: 11, color: "var(--color-ink-3)" }}>
-                  {acct ? `${acct.name.split(" ")[0]}${acct.mask ? ` ····${acct.mask}` : ""}` : "—"}
-                </div>
-                <div className="mono" style={{ textAlign: "right", color: isIncome ? "var(--color-green)" : "var(--color-ink)", fontWeight: isIncome ? 500 : 400 }}>
-                  {isIncome ? "+" : "−"}{fmtMoney(Math.abs(tx.amount))}
-                </div>
-              </div>
+                lead={
+                  <IconBadge color={isIncome ? "var(--ios-green)" : "var(--ios-finance)"}>
+                    {isIncome ? <Icons.WalletIcon width={17} height={17} /> : <Icons.CartIcon width={17} height={17} />}
+                  </IconBadge>
+                }
+                title={
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    {tx.merchant_name ?? tx.name}
+                    {tx.pending && <Chip small>Pending</Chip>}
+                  </span>
+                }
+                subtitle={<span className="ios-num">{subParts.join(" · ")}</span>}
+                trailing={
+                  <span
+                    className="ios-num ios-callout"
+                    style={{ fontWeight: isIncome ? 600 : 400, color: isIncome ? "var(--ios-green)" : "var(--ios-label)" }}
+                  >
+                    {isIncome ? "+" : "−"}{fmtMoney(Math.abs(tx.amount))}
+                  </span>
+                }
+              />
             );
           })}
-          {hasMore && (
-            <div style={{ padding: "10px 18px", borderTop: "1px solid var(--color-rule-soft)", textAlign: "center", background: "var(--color-paper-deep)" }}>
-              <button
-                onClick={() => setLimit((l) => l + 50)}
-                style={{ fontSize: 12, color: "var(--color-bronze-dark)", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit" }}
-              >
-                Load 50 more →
-              </button>
-            </div>
-          )}
+        </div>
+      )}
+
+      {hasMore && (
+        <div style={{ textAlign: "center", marginTop: 6 }}>
+          <button
+            type="button"
+            onClick={() => setLimit((l) => l + 50)}
+            className="ios-btn ios-btn--plain"
+          >
+            Load 50 more
+          </button>
         </div>
       )}
     </>
@@ -286,12 +231,13 @@ export default function RecentActivityClient({
 }
 
 const inputStyle: React.CSSProperties = {
-  padding: "6px 10px",
-  borderRadius: 8,
-  border: "1px solid var(--color-rule)",
-  background: "#fff",
-  fontSize: 12,
-  color: "var(--color-ink)",
+  padding: "9px 12px",
+  borderRadius: 10,
+  border: "var(--ios-hair) solid var(--ios-separator)",
+  background: "var(--ios-cell)",
+  fontSize: 16,
+  color: "var(--ios-label)",
   fontFamily: "inherit",
   minWidth: 0,
+  outline: "none",
 };

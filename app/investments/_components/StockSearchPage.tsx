@@ -46,44 +46,26 @@ export default function StockSearchPage({ watchedStocks }: StockSearchPageProps)
       }}
     >
       {/* Search Section */}
-      <div
-        style={{
-          background: "var(--color-bg-card)",
-          border: "1px solid var(--color-rule)",
-          borderRadius: 12,
-          padding: "20px 24px",
-          boxShadow: "var(--shadow-card)",
-        }}
-      >
-        <h3
+      <div>
+        <h3 className="ios-group-header" style={{ padding: "0 0 7px" }}>
+          Find a Stock
+        </h3>
+        <div
           style={{
-            fontSize: 14,
-            fontWeight: 600,
-            margin: "0 0 16px 0",
-            color: "var(--color-ink)",
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
+            background: "var(--ios-cell)",
+            borderRadius: "var(--ios-radius-card)",
+            padding: 16,
           }}
         >
-          🔍 Find a Stock
-        </h3>
-        <StockSearch onSelectStock={setSelectedStock} />
+          <StockSearch onSelectStock={setSelectedStock} />
+        </div>
       </div>
 
       {/* Watchlist Section */}
       {localWatched.length > 0 && (
         <div>
-          <h3
-            style={{
-              fontSize: 14,
-              fontWeight: 600,
-              margin: "0 0 16px 0",
-              color: "var(--color-ink)",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-            }}
-          >
-            ❤️ Your Watchlist ({localWatched.length})
+          <h3 className="ios-group-header" style={{ padding: "0 0 7px" }}>
+            Your Watchlist ({localWatched.length})
           </h3>
           <Watchlist
             initialTickers={localWatched}

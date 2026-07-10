@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Chip } from "@/components/ios";
 import type {
   RetirementAccount,
   RetirementProfile,
@@ -58,18 +59,30 @@ function fmtLarge(n: number): string {
   return fmtMoney(n);
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// ── Styles (iOS) ────────────────────────────────────────────────────────────
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase",
-  color: "var(--color-ink-3)", display: "block", marginBottom: 6,
+  fontSize: 13, fontWeight: 400, letterSpacing: "0.02em", textTransform: "uppercase",
+  color: "var(--ios-label-2)", display: "block", marginBottom: 6,
 };
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "9px 12px", border: "1px solid var(--color-rule)",
-  borderRadius: 8, background: "var(--color-paper)", color: "var(--color-ink)",
-  fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+  width: "100%", padding: "10px 12px", border: "1px solid var(--ios-separator)",
+  borderRadius: 8, background: "var(--ios-bg)", color: "var(--ios-label)",
+  fontSize: 15, outline: "none", boxSizing: "border-box",
 };
 const selectStyle: React.CSSProperties = { ...inputStyle };
+
+// Small uppercase token pill (type / Plaid tags)
+function Pill({ children, color }: { children: React.ReactNode; color: string }) {
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase",
+      color, background: "var(--ios-fill)", padding: "2px 7px", borderRadius: 6,
+    }}>
+      {children}
+    </span>
+  );
+}
 
 const EMPTY_FORM = {
   name: "", type: "401k", owner: "self", balance: "",
@@ -225,27 +238,19 @@ export default function AccountsTab({
   function renderGroup(label: string, group: RetirementAccount[]) {
     if (group.length === 0) return null;
     return (
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 10 }}>
-          {label}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <>
+        <div className="ios-group-header" style={{ padding: "16px 0 7px" }}>{label}</div>
+        <div className="ios-list" style={{ margin: 0 }}>
           {group.map((acct) => (
-            <div key={acct.id} style={{ background: "var(--color-paper-card)", border: "1px solid var(--color-rule)", borderRadius: 10, padding: "14px 18px", boxShadow: "var(--shadow-card)", display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <span className="serif" style={{ fontSize: 16 }}>{acct.name}</span>
-                  <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-bronze-dark)", background: "rgba(139,106,71,0.1)", padding: "2px 7px", borderRadius: 8 }}>
-                    {TYPE_LABELS[acct.type] ?? acct.type}
-                  </span>
-                  {acct.plaid_account_id && (
-                    <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-accent)", background: "rgba(59,92,127,0.08)", padding: "2px 7px", borderRadius: 8 }}>
-                      Plaid
-                    </span>
-                  )}
+            <div key={acct.id} className="ios-cell" style={{ alignItems: "flex-start", flexWrap: "wrap", rowGap: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                  <span className="ios-headline">{acct.name}</span>
+                  <Pill color="var(--ios-finance)">{TYPE_LABELS[acct.type] ?? acct.type}</Pill>
+                  {acct.plaid_account_id && <Pill color="var(--ios-tint)">Plaid</Pill>}
                 </div>
-                {/* Contribution — click to quick-edit */}
-                <div style={{ display: "flex", gap: 18, fontSize: 12, color: "var(--color-ink-3)", alignItems: "center" }}>
+                {/* Contribution — tap to quick-edit */}
+                <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--ios-label-2)", alignItems: "center", flexWrap: "wrap" }}>
                   {quickEdit?.id === acct.id && quickEdit.field === "monthly_contribution" ? (
                     <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       +<input
@@ -257,20 +262,21 @@ export default function AccountsTab({
                         onChange={(e) => setQuickEdit((q) => q ? { ...q, value: e.target.value } : q)}
                         onBlur={commitQuickEdit}
                         onKeyDown={(e) => { if (e.key === "Enter") commitQuickEdit(); if (e.key === "Escape") setQuickEdit(null); }}
-                        style={{ width: 90, padding: "2px 6px", border: "1.5px solid var(--color-accent)", borderRadius: 5, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+                        style={{ width: 90, padding: "3px 8px", border: "1.5px solid var(--ios-tint)", borderRadius: 6, fontSize: 13, outline: "none", background: "var(--ios-bg)", color: "var(--ios-label)" }}
                       />/mo
                     </span>
                   ) : (
                     <button
                       onClick={() => startQuickEdit(acct, "monthly_contribution")}
-                      title="Click to edit contribution"
-                      style={{ background: "none", border: "none", cursor: "text", padding: 0, color: "var(--color-ink-3)", fontSize: 12, fontFamily: "inherit", textDecoration: "underline dotted", textUnderlineOffset: 2 }}
+                      title="Tap to edit contribution"
+                      className="ios-num"
+                      style={{ padding: 0, color: "var(--ios-tint)", fontSize: 13 }}
                     >
                       +{fmtMoney(acct.monthly_contribution)}/mo
                     </button>
                   )}
                   {acct.employer_match_pct > 0 && (
-                    <span style={{ color: "var(--color-green)" }}>+{acct.employer_match_pct}% match</span>
+                    <span style={{ color: "var(--ios-green)" }}>+{acct.employer_match_pct}% match</span>
                   )}
                   <span>
                     {acct.return_override != null
@@ -280,59 +286,62 @@ export default function AccountsTab({
                 </div>
               </div>
 
-              {/* Balance — click to quick-edit */}
-              {quickEdit?.id === acct.id && quickEdit.field === "balance" ? (
-                <input
-                  autoFocus
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={quickEdit.value}
-                  onChange={(e) => setQuickEdit((q) => q ? { ...q, value: e.target.value } : q)}
-                  onBlur={commitQuickEdit}
-                  onKeyDown={(e) => { if (e.key === "Enter") commitQuickEdit(); if (e.key === "Escape") setQuickEdit(null); }}
-                  style={{ width: 120, padding: "4px 8px", border: "1.5px solid var(--color-accent)", borderRadius: 7, fontSize: 18, fontFamily: "var(--font-mono, monospace)", fontWeight: 500, outline: "none", textAlign: "right" }}
-                />
-              ) : (
-                <button
-                  onClick={() => startQuickEdit(acct, "balance")}
-                  title="Click to update balance"
-                  style={{ background: "none", border: "none", cursor: "text", padding: 0, fontFamily: "var(--font-mono, monospace)", fontSize: 20, fontWeight: 500, color: "var(--color-ink)", textDecoration: "underline dotted", textUnderlineOffset: 3 }}
-                >
-                  {fmtLarge(acct.balance ?? 0)}
-                </button>
-              )}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+                {/* Balance — tap to quick-edit */}
+                {quickEdit?.id === acct.id && quickEdit.field === "balance" ? (
+                  <input
+                    autoFocus
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={quickEdit.value}
+                    onChange={(e) => setQuickEdit((q) => q ? { ...q, value: e.target.value } : q)}
+                    onBlur={commitQuickEdit}
+                    onKeyDown={(e) => { if (e.key === "Enter") commitQuickEdit(); if (e.key === "Escape") setQuickEdit(null); }}
+                    style={{ width: 120, padding: "4px 8px", border: "1.5px solid var(--ios-tint)", borderRadius: 7, fontSize: 18, fontWeight: 600, outline: "none", textAlign: "right", background: "var(--ios-bg)", color: "var(--ios-label)" }}
+                  />
+                ) : (
+                  <button
+                    onClick={() => startQuickEdit(acct, "balance")}
+                    title="Tap to update balance"
+                    className="ios-num"
+                    style={{ padding: 0, fontSize: 22, fontWeight: 600, color: "var(--ios-label)" }}
+                  >
+                    {fmtLarge(acct.balance ?? 0)}
+                  </button>
+                )}
 
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => openEdit(acct)} style={{ padding: "5px 12px", borderRadius: 7, border: "1px solid var(--color-rule)", background: "var(--color-paper)", color: "var(--color-ink-2)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-                  Edit
-                </button>
-                <button onClick={() => handleDelete(acct.id)} style={{ padding: "5px 12px", borderRadius: 7, border: "1px solid rgba(154,59,42,0.3)", background: "rgba(154,59,42,0.05)", color: "var(--color-red)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-                  Remove
-                </button>
+                <div style={{ display: "flex", gap: 14 }}>
+                  <button onClick={() => openEdit(acct)} style={{ padding: 0, color: "var(--ios-tint)", fontSize: 14 }}>
+                    Edit
+                  </button>
+                  <button onClick={() => handleDelete(acct.id)} style={{ padding: 0, color: "var(--ios-red)", fontSize: 14 }}>
+                    Remove
+                  </button>
+                </div>
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </>
     );
   }
 
   return (
     <div>
-      {/* Summary */}
-      <div style={{ background: "var(--color-paper-card)", border: "1px solid var(--color-rule)", borderRadius: 12, padding: "20px 24px", boxShadow: "var(--shadow-card)", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>Total portfolio</div>
-          <div className="mono" style={{ fontSize: 36, fontWeight: 500, color: "var(--color-ink)" }}>{fmtLarge(totalPortfolio)}</div>
-        </div>
-        <div style={{ textAlign: "right", fontSize: 13, color: "var(--color-ink-3)" }}>
-          <div>{accounts.length} account{accounts.length !== 1 ? "s" : ""}</div>
+      {/* Summary hero */}
+      <div className="ios-list" style={{ margin: "0 0 8px", padding: 18, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Total portfolio</div>
+          <div className="ios-num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.01em", marginTop: 2 }}>{fmtLarge(totalPortfolio)}</div>
           {accounts.length > 0 && (
-            <div style={{ fontSize: 12, marginTop: 4 }}>
+            <div className="ios-subhead ios-num" style={{ marginTop: 2, color: "var(--ios-green)" }}>
               +{fmtMoney(accounts.reduce((s, a) => s + a.monthly_contribution, 0))}/mo contributions
             </div>
           )}
+        </div>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textAlign: "right", flexShrink: 0 }}>
+          {accounts.length} account{accounts.length !== 1 ? "s" : ""}
         </div>
       </div>
 
@@ -340,7 +349,7 @@ export default function AccountsTab({
       {profile.spouse_enabled && renderGroup(profile.spouse_name ?? "Spouse", spouseAccounts)}
 
       {accounts.length === 0 && !showForm && (
-        <div style={{ textAlign: "center", padding: "40px 24px", color: "var(--color-ink-3)", fontSize: 14 }}>
+        <div className="ios-footnote" style={{ textAlign: "center", padding: "36px 24px", color: "var(--ios-label-2)" }}>
           No accounts yet. Add your first retirement account below.
         </div>
       )}
@@ -348,18 +357,20 @@ export default function AccountsTab({
       {!showForm && (
         <button
           onClick={openAdd}
-          style={{ marginTop: 8, padding: "10px 22px", borderRadius: 10, border: "1px dashed var(--color-rule)", background: "transparent", color: "var(--color-ink-2)", fontSize: 13, cursor: "pointer", fontFamily: "inherit", width: "100%" }}
+          className="ios-btn ios-btn--primary"
+          style={{ marginTop: 16 }}
         >
-          + Add account
+          Add account
         </button>
       )}
 
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          style={{ background: "var(--color-paper-card)", border: "1px solid var(--color-rule)", borderRadius: 12, padding: "20px 24px", boxShadow: "var(--shadow-card)", marginTop: 12 }}
+          className="ios-list"
+          style={{ margin: "16px 0 0", padding: 18 }}
         >
-          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", marginBottom: 18 }}>
+          <div className="ios-title-3" style={{ marginBottom: 16 }}>
             {editId ? "Edit account" : "Add retirement account"}
           </div>
 
@@ -371,25 +382,18 @@ export default function AccountsTab({
                 {availableSources.map((s) => {
                   const active = source === s.key;
                   return (
-                    <button
+                    <Chip
                       key={s.key}
-                      type="button"
+                      small
+                      selected={active}
                       onClick={() => {
                         setSource(s.key);
                         // Reset source-specific fields when switching
                         setForm((f) => ({ ...f, plaid_account_id: "" }));
                       }}
-                      title={s.description}
-                      style={{
-                        padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 500,
-                        border: active ? "2px solid var(--color-bronze)" : "1px solid var(--color-rule)",
-                        background: active ? "rgba(139,106,71,0.08)" : "transparent",
-                        color: active ? "var(--color-bronze-dark)" : "var(--color-ink-3)",
-                        cursor: "pointer", fontFamily: "inherit", transition: "all 100ms",
-                      }}
                     >
                       {s.label}
-                    </button>
+                    </Chip>
                   );
                 })}
               </div>
@@ -410,7 +414,7 @@ export default function AccountsTab({
                       </option>
                     ))}
                   </select>
-                  <p style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 4 }}>
+                  <p className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 4 }}>
                     Name and balance will be pre-filled. You can edit before saving.
                   </p>
                 </div>
@@ -431,7 +435,7 @@ export default function AccountsTab({
                       </option>
                     ))}
                   </select>
-                  <p style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 4 }}>
+                  <p className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 4 }}>
                     Name, type, and balance will be pre-filled from your saved account.
                   </p>
                 </div>
@@ -452,8 +456,8 @@ export default function AccountsTab({
                       </option>
                     ))}
                   </select>
-                  <p style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 4 }}>
-                    Balance reflects the shared account's current value. You can adjust before saving.
+                  <p className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 4 }}>
+                    Balance reflects the shared account&apos;s current value. You can adjust before saving.
                   </p>
                 </div>
               )}
@@ -505,11 +509,11 @@ export default function AccountsTab({
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-            <button type="submit" style={{ padding: "9px 22px", borderRadius: 9, border: "1px solid var(--color-bronze-dark)", background: "var(--color-bronze)", color: "#FBF8F1", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+          <div style={{ display: "flex", gap: 10, marginTop: 20, alignItems: "center" }}>
+            <button type="submit" className="ios-btn ios-btn--primary" style={{ width: "auto", flex: 1 }}>
               {editId ? "Save changes" : "Add account"}
             </button>
-            <button type="button" onClick={() => { setShowForm(false); setEditId(null); }} style={{ padding: "9px 18px", borderRadius: 9, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-2)", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+            <button type="button" onClick={() => { setShowForm(false); setEditId(null); }} style={{ padding: "0 8px", color: "var(--ios-tint)", fontSize: 17 }}>
               Cancel
             </button>
           </div>

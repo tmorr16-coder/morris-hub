@@ -1,14 +1,35 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import PlatformMenu from "@/components/PlatformMenu";
-import AnalyticsClient, {
+import { IOSScreen, LargeTitle, Group, Cell, IconBadge, Sparkline, BarRows, TabBar, Icons } from "@/components/ios";
+import {
   type DailyCount,
   type TokenSummary,
   type EventTotals,
 } from "./_components/AnalyticsClient";
+
+// Cost model (mirrors AnalyticsClient) — Haiku token pricing + Resend free tier.
+const HAIKU_INPUT_PER_TOKEN = 0.0000008; // $0.80 / 1M
+const HAIKU_OUTPUT_PER_TOKEN = 0.000004; // $4.00 / 1M
+const RESEND_FREE_TIER = 3000;
+const RESEND_PRICE_PER_EMAIL = 0.001;
+
+const EVENT_LABELS: Record<string, string> = {
+  chat: "AI chats",
+  email: "Emails sent",
+  signup: "New signups",
+  oura_sync: "Oura syncs",
+  withings_sync: "Withings syncs",
+  apple_sync: "Apple Health syncs",
+  support_ticket: "Support tickets",
+  integration_request: "Integration requests",
+};
+
+function fmtCurrency(n: number): string {
+  if (n < 0.01) return "< $0.01";
+  return `$${n.toFixed(2)}`;
+}
 
 export default async function AnalyticsPage() {
   const supabase = await createClient();
@@ -138,43 +159,93 @@ export default async function AnalyticsPage() {
     totalUsers = count ?? 0;
   } catch { /* status column may not exist yet */ }
 
-  const menuUser = {
-    name: authUser.user_metadata?.full_name ?? authUser.user_metadata?.name ?? null,
-    email: authUser.email,
-    avatarUrl: authUser.user_metadata?.avatar_url ?? authUser.user_metadata?.picture ?? null,
-  };
+  // ── Derived presentation data ──────────────────────────────────────────────
+  // Daily chat activity → sparkline points (chronological).
+  const chatByDate = new Map<string, number>();
+  for (const row of dailyCounts) {
+    if (row.event_type === "chat") {
+      chatByDate.set(row.date, (chatByDate.get(row.date) ?? 0) + row.count);
+    }
+  }
+  const chatDates = Array.from(chatByDate.keys()).sort();
+  const chatPoints = chatDates.map((d) => chatByDate.get(d) ?? 0);
+  const chatTotal = chatPoints.reduce((s, n) => s + n, 0);
+
+  const anthropicCost =
+    tokenSummary.tokens_in * HAIKU_INPUT_PER_TOKEN +
+    tokenSummary.tokens_out * HAIKU_OUTPUT_PER_TOKEN;
+  const resendCost =
+    resendCount30d > RESEND_FREE_TIER
+      ? (resendCount30d - RESEND_FREE_TIER) * RESEND_PRICE_PER_EMAIL
+      : 0;
+  const totalCost = anthropicCost + resendCost;
+
+  const totalBars = eventTotals.slice(0, 8).map((e) => ({
+    label: EVENT_LABELS[e.event_type] ?? e.event_type,
+    value: e.count,
+    display: e.count.toLocaleString(),
+    color: "var(--ios-tint)",
+  }));
 
   return (
-    <div>
-      <PlatformMenu currentApp="hub" user={menuUser} />
+    <IOSScreen>      <LargeTitle
+        title="Usage & costs"
+        subtitle="Daily activity trends & platform cost breakdown"
+        trailing={<Icons.ChartIcon style={{ width: 26, height: 26, color: "var(--ios-label-2)" }} />}
+      />
 
-      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 28px 100px" }}>
-        <Link
-          href="/home/admin"
-          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--color-ink-3)", textDecoration: "none", marginBottom: 16 }}
-        >
-          ← Admin
-        </Link>
+      <Group header="Overview">
+        <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.PeopleIcon /></IconBadge>} title="Total users" trailing={<span className="ios-num">{totalUsers}</span>} chevron={false} />
+        <Cell lead={<IconBadge color="var(--ios-green)"><Icons.PersonIcon /></IconBadge>} title="Active" subtitle="last 30 days" trailing={<span className="ios-num">{activeUsers30d}</span>} chevron={false} />
+        <Cell lead={<IconBadge color="#5E5CE6"><Icons.SparkleIcon /></IconBadge>} title="AI messages" subtitle="last 30 days" trailing={<span className="ios-num">{tokenSummary.chat_count}</span>} chevron={false} />
+      </Group>
 
-        <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>
-          Platform
+      {/* Daily AI activity — sparkline hero */}
+      <div className="ios-list" style={{ margin: "14px 16px 0", padding: "12px 16px 14px" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+          <div>
+            <div className="ios-group-header" style={{ padding: 0 }}>AI chats · last 30 days</div>
+            <div className="ios-title-2 ios-num" style={{ marginTop: 2 }}>{chatTotal.toLocaleString()}</div>
+          </div>
+          {chatPoints.length >= 2 && <Sparkline points={chatPoints} width={132} height={44} />}
         </div>
-        <h1 className="serif" style={{ fontSize: 40, lineHeight: 1.05, marginBottom: 6 }}>
-          Usage &amp; costs<span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>.</span>
-        </h1>
-        <p style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 24 }}>
-          Daily activity trends and platform cost breakdown across all apps.
-        </p>
+        {chatPoints.length < 2 && (
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 6 }}>Not enough data to chart yet.</div>
+        )}
+      </div>
 
-        <AnalyticsClient
-          dailyCounts={dailyCounts}
-          tokenSummary={tokenSummary}
-          eventTotals={eventTotals}
-          activeUsers30d={activeUsers30d}
-          totalUsers={totalUsers}
-          resendCount30d={resendCount30d}
+      <Group header="Variable costs — month to date">
+        <Cell
+          lead={<IconBadge color="#C97A3A"><Icons.SparkleIcon /></IconBadge>}
+          title="Anthropic (Haiku)"
+          subtitle={`${(tokenSummary.tokens_in / 1000).toFixed(1)}k in · ${(tokenSummary.tokens_out / 1000).toFixed(1)}k out`}
+          trailing={<span className="ios-num">{fmtCurrency(anthropicCost)}</span>}
+          chevron={false}
         />
-      </main>
-    </div>
+        <Cell
+          lead={<IconBadge color="#5E5CE6"><Icons.BellIcon /></IconBadge>}
+          title="Resend"
+          subtitle={`${resendCount30d} / ${RESEND_FREE_TIER.toLocaleString()} emails`}
+          trailing={<span className="ios-num">{resendCost > 0 ? fmtCurrency(resendCost) : "Free"}</span>}
+          chevron={false}
+        />
+        <Cell
+          lead={<IconBadge color="var(--ios-finance)"><Icons.WalletIcon /></IconBadge>}
+          title="Total"
+          trailing={<span className="ios-num ios-headline">{fmtCurrency(totalCost)}</span>}
+          chevron={false}
+        />
+      </Group>
+
+      {totalBars.length > 0 && (
+        <div className="ios-list" style={{ margin: "14px 16px 0", padding: "4px 0 6px" }}>
+          <div className="ios-group-header" style={{ padding: "12px 16px 0" }}>All-time event totals</div>
+          <BarRows items={totalBars} />
+        </div>
+      )}
+
+      <div style={{ height: 12 }} />
+      <TabBar current="more" currentUserId={authUser.id} sourceApp="hub" />
+    </IOSScreen>
   );
 }

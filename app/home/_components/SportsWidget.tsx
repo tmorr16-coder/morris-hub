@@ -7,16 +7,12 @@ export default async function SportsWidget({ teams }: { teams: string[] }) {
   if (scores.length === 0) {
     return (
       <div style={card}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-          <h2 className="serif" style={{ fontSize: 22 }}>
-            <span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>Sports</span>
-          </h2>
-          <span style={{ fontSize: 10, color: "var(--color-ink-3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            scores
-          </span>
+        <div style={header}>
+          <span className="ios-headline">Sports</span>
+          <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>Scores</span>
         </div>
-        <p style={{ fontSize: 13, color: "var(--color-ink-4)", padding: "30px 0", textAlign: "center" }}>
-          
+        <p className="ios-footnote" style={{ color: "var(--ios-label-3)", padding: "24px 16px", textAlign: "center" }}>
+          No teams selected.
         </p>
       </div>
     );
@@ -24,13 +20,9 @@ export default async function SportsWidget({ teams }: { teams: string[] }) {
 
   return (
     <div style={card}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-        <h2 className="serif" style={{ fontSize: 22 }}>
-          <span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>Sports</span>
-        </h2>
-        <span style={{ fontSize: 10, color: "var(--color-ink-3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-          scores
-        </span>
+      <div style={header}>
+        <span className="ios-headline">Sports</span>
+        <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>Scores</span>
       </div>
       <SportsClient scores={scores} />
     </div>
@@ -38,14 +30,18 @@ export default async function SportsWidget({ teams }: { teams: string[] }) {
 }
 
 const card: React.CSSProperties = {
-  background: "var(--color-bg-card)",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 12,
-  padding: "20px 24px",
-  boxShadow: "var(--shadow-card)",
+  background: "var(--ios-cell)",
+  borderRadius: "var(--ios-radius-card)",
+  overflow: "hidden",
   minHeight: 320,
-  height: "100%",
-  boxSizing: "border-box",
   display: "flex",
   flexDirection: "column",
+};
+
+const header: React.CSSProperties = {
+  display: "flex",
+  alignItems: "baseline",
+  justifyContent: "space-between",
+  gap: 8,
+  padding: "12px 16px 6px",
 };

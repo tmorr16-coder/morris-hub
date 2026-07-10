@@ -43,19 +43,22 @@ export default function MarketBar() {
   return (
     <div
       style={{
-        background: "#0a0d12",
-        borderBottom: "1px solid rgba(255,255,255,0.05)",
+        background: "var(--ios-cell)",
+        borderBottom: "1px solid var(--ios-separator)",
         padding: "0 20px",
         height: 36,
         display: "flex",
         alignItems: "center",
         gap: 0,
         flexShrink: 0,
+        overflowX: "auto",
+        scrollbarWidth: "none",
+        WebkitOverflowScrolling: "touch",
       }}
     >
       {indices.map((idx, i) => {
         const isUp = idx.direction === "up";
-        const color = isUp ? "#4ade80" : "#f87171";
+        const color = isUp ? "var(--ios-green)" : "var(--ios-red)";
         return (
           <div
             key={idx.key}
@@ -65,13 +68,15 @@ export default function MarketBar() {
               gap: 6,
               paddingRight: 24,
               marginRight: i < indices.length - 1 ? 4 : 0,
-              borderRight: i < indices.length - 1 ? "1px solid rgba(255,255,255,0.07)" : "none",
+              borderRight: i < indices.length - 1 ? "1px solid var(--ios-separator)" : "none",
+              flexShrink: 0,
+              whiteSpace: "nowrap",
             }}
           >
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#9ca3b0", letterSpacing: "0.04em" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ios-label-2)", letterSpacing: "0.04em" }}>
               {idx.label}
             </span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#e8ecf0" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ios-label)" }}>
               {fmtPrice(idx.price)}
             </span>
             <span style={{ fontSize: 10, color }}>
@@ -82,17 +87,17 @@ export default function MarketBar() {
       })}
 
       {/* Market status — right-aligned */}
-      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+      <div style={{ marginLeft: "auto", paddingLeft: 16, display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
         <span
           style={{
             width: 6,
             height: 6,
             borderRadius: "50%",
-            background: marketOpen ? "#4ade80" : "#6b7280",
+            background: marketOpen ? "var(--ios-green)" : "var(--ios-label-3)",
             flexShrink: 0,
           }}
         />
-        <span style={{ fontSize: 10, color: "#6b7280", whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: 10, color: "var(--ios-label-2)", whiteSpace: "nowrap" }}>
           US Markets {marketOpen ? "Open" : "Closed"}
         </span>
       </div>

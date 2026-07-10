@@ -1,10 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const dynamic = "force-dynamic";
 
 import { requireFinanceAccess } from "@/lib/finance/access";
 import { createServiceClient } from "@/lib/supabase/server";
+import { LargeTitle, Group } from "@/components/ios";
 import ImportClient from "./_components/ImportClient";
 import QuickEntryForm from "./_components/QuickEntryForm";
 import ManualAccountsList from "./_components/ManualAccountsList";
+import ConnectSection from "../_components/ConnectSection";
 
 interface ManualAccount {
   id: string;
@@ -49,46 +52,49 @@ export default async function ImportPage() {
   ).map((r) => ({ ...r, visible_to_family: sharingMap.get(r.id) ?? false }));
 
   return (
-    <div>
-      <main style={{ maxWidth: 880, margin: "0 auto", padding: "32px 28px 80px" }}>
+    <div className="ios-scroll">
+      <LargeTitle title="Add accounts" subtitle="Connect a bank, or add accounts manually" />
 
-        {/* Quick entry — primary path */}
-        <section style={{ marginBottom: 40 }}>
-          <h1 className="serif" style={{ fontSize: 32, marginBottom: 6 }}>Manual account entry</h1>
-          <p style={{ fontSize: 14, color: "var(--color-ink-3)", lineHeight: 1.55, marginBottom: 24, maxWidth: 560 }}>
-            Enter your 401k or other account balance directly. Paste the balance history rows from Alight to track monthly trends.
-          </p>
-          <div style={{ background: "var(--color-paper-card)", border: "1px solid var(--color-rule)", borderRadius: 12, padding: "24px 28px", boxShadow: "var(--shadow-card)" }}>
-            <QuickEntryForm />
-          </div>
-        </section>
-
-        {/* Divider */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 40 }}>
-          <div style={{ flex: 1, height: 1, background: "var(--color-rule)" }} />
-          <span style={{ fontSize: 11, color: "var(--color-ink-4)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-            or import from a file
-          </span>
-          <div style={{ flex: 1, height: 1, background: "var(--color-rule)" }} />
+      {/* Plaid — automatic bank/brokerage sync */}
+      <Group
+        header="Connect a bank"
+        footer="Securely link a bank, card, or brokerage via Plaid to sync balances and transactions automatically."
+      >
+        <div style={{ padding: 16 }}>
+          <ConnectSection label="Connect with Plaid" variant="primary" />
         </div>
+      </Group>
 
-        {/* File upload — secondary path */}
-        <section style={{ marginBottom: 40 }}>
-          <h2 className="serif" style={{ fontSize: 22, marginBottom: 6 }}>Upload statement</h2>
-          <p style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 16, maxWidth: 560 }}>
-            Upload a PDF or CSV — Morris will extract the balance and holdings. Works best with holdings summaries, not transaction logs.
-          </p>
+      {/* Quick entry — manual path */}
+      <Group
+        header="Manual account entry"
+        footer="Enter your 401k or other account balance directly. Paste the balance history rows from Alight to track monthly trends."
+      >
+        <div style={{ padding: 16 }}>
+          <QuickEntryForm />
+        </div>
+      </Group>
+
+      {/* File upload — secondary path */}
+      <Group
+        header="Upload statement"
+        footer="Upload a PDF or CSV — Morris will extract the balance and holdings. Works best with holdings summaries, not transaction logs."
+      >
+        <div style={{ padding: 16 }}>
           <ImportClient userId={user.id} />
-        </section>
+        </div>
+      </Group>
 
-        {/* Saved accounts */}
-        {accounts.length > 0 && (
-          <section>
-            <h2 className="serif" style={{ fontSize: 24, marginBottom: 16 }}>Saved accounts</h2>
+      {/* Saved accounts */}
+      {accounts.length > 0 && (
+        <Group header="Saved accounts">
+          <div style={{ padding: 16 }}>
             <ManualAccountsList initialAccounts={accounts} />
-          </section>
-        )}
-      </main>
+          </div>
+        </Group>
+      )}
+
+      <div style={{ height: 12 }} />
     </div>
   );
 }

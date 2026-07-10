@@ -1,10 +1,8 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { getPreferences } from "@/lib/prefs";
-import PlatformMenu from "@/components/PlatformMenu";
+import { LargeTitle, Group, Cell, TabBar } from "@/components/ios";
 
 interface Row {
   category: string;
@@ -15,24 +13,36 @@ interface Row {
 }
 
 const STATE_LABEL: Record<Row["state"], string> = {
-  shared: "Shared with circle",
-  private: "Private to you",
-  mixed: "Partially shared",
+  shared: "Shared",
+  private: "Private",
+  mixed: "Partial",
   "not-saved": "Not saved",
 };
 const STATE_COLOR: Record<Row["state"], string> = {
-  shared: "#4A6B3A",
-  private: "var(--color-accent)",
-  mixed: "var(--color-amber)",
-  "not-saved": "var(--color-ink-4)",
+  shared: "var(--ios-green)",
+  private: "var(--ios-tint)",
+  mixed: "var(--ios-orange)",
+  "not-saved": "var(--ios-label-2)",
 };
+
+function StateBadge({ state }: { state: Row["state"] }) {
+  const color = STATE_COLOR[state];
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 600, letterSpacing: "0.02em",
+      padding: "2px 9px", borderRadius: 999, background: `${color}22`, color,
+      whiteSpace: "nowrap",
+    }}>
+      {STATE_LABEL[state]}
+    </span>
+  );
+}
 
 export default async function PrivacySettingsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const prefs = await getPreferences(user.id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
 
@@ -141,58 +151,39 @@ export default async function PrivacySettingsPage() {
     },
   ];
 
-  const menuUser = {
-    name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-    email: user.email,
-    avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
-    appAccess: prefs.app_access ?? null,
-  };
-
   return (
-    <div>
-      <PlatformMenu currentApp="hub" user={menuUser} />
-      <main style={{ maxWidth: 760, margin: "0 auto", padding: "32px 20px 100px" }}>
-        <Link href="/home/settings" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--color-ink-3)", textDecoration: "none", marginBottom: 20 }}>
-          ← Settings
-        </Link>
-        <h1 className="serif" style={{ fontSize: 32, marginBottom: 6 }}>Sharing &amp; Privacy</h1>
-        <p style={{ fontSize: 14, color: "var(--color-ink-3)", marginBottom: 28, lineHeight: 1.6 }}>
-          Every data type below has an explicit, visible sharing state. Nothing is ever assumed shared —
-          {circleSize > 0 ? " your family circle only sees what's marked \"Shared\" or \"Partially shared\" here." : " you don't have anyone in your family circle yet, so everything is private regardless."}
-        </p>
+    <div data-ui="ios">
+      <div className="ios-scroll">
+        <LargeTitle
+          title="Sharing & Privacy"
+          subtitle={circleSize > 0
+            ? "Your circle only sees what's marked Shared or Partial below"
+            : "You have no one in your family circle yet, so everything is private"}
+        />
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <Group
+          header="Every data type"
+          footer="Nothing is ever assumed shared. Never assume a family member sees more than what's marked Shared here."
+        >
           {rows.map((r) => (
-            <div key={r.category} style={{
-              background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10,
-              padding: "14px 18px", display: "flex", alignItems: "center", gap: 14,
-            }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>{r.category}</span>
-                  <span style={{
-                    fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-                    padding: "2px 7px", borderRadius: 8, background: `${STATE_COLOR[r.state]}15`, color: STATE_COLOR[r.state],
-                  }}>
-                    {STATE_LABEL[r.state]}
-                  </span>
-                </div>
-                <div style={{ fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.5 }}>{r.detail}</div>
-              </div>
-              {r.href && (
-                <Link href={r.href} style={{ fontSize: 12, fontWeight: 600, color: "var(--color-accent)", textDecoration: "none", flexShrink: 0, whiteSpace: "nowrap" }}>
-                  {r.linkLabel ?? "Open"} →
-                </Link>
-              )}
-            </div>
+            <Cell
+              key={r.category}
+              title={r.category}
+              subtitle={r.detail}
+              trailing={<StateBadge state={r.state} />}
+              href={r.href}
+              chevron={!!r.href}
+            />
           ))}
-        </div>
+        </Group>
 
-        <p style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 20, lineHeight: 1.5 }}>
-          Never assume a spouse or family member sees more than what&apos;s listed above as &quot;Shared.&quot;
-          Use <Link href="/home/family/preview" style={{ color: "var(--color-accent)" }}>Preview as a family member</Link> to see exactly what someone else sees of your data.
-        </p>
-      </main>
+        <Group footer="See exactly what someone else sees of your data.">
+          <Cell title="Preview as a family member" href="/home/family/preview" />
+        </Group>
+
+        <div style={{ height: 12 }} />
+      </div>
+      <TabBar current="more" currentUserId={user.id} sourceApp="hub" />
     </div>
   );
 }

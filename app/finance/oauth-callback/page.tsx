@@ -14,16 +14,15 @@ export default function OAuthCallback() {
 
   return (
     <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
+      className="ios-scroll"
+      style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}
     >
-      <p className="serif" style={{ fontSize: 20, color: "var(--color-ink-2)" }}>
-        Connecting your bank…
-      </p>
+      <div style={{ textAlign: "center", padding: "0 24px" }}>
+        <div className="ios-title-3" style={{ color: "var(--ios-label)" }}>Connecting your bank…</div>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 6 }}>
+          You can close this window.
+        </div>
+      </div>
     </div>
   );
 }

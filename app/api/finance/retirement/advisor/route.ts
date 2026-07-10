@@ -48,6 +48,7 @@ You analyze their retirement plan data and give personalized, actionable advice.
 Rules:
 - Be concise: 2-4 sentences for most answers. Use bullet points for lists of 3+.
 - Use specific numbers from their plan — never invent figures.
+- The "Projected nest egg" is the NOMINAL (future-dollar) figure shown in the app — use that as the headline number so you always match what they see on screen. A today's-dollars (inflation-adjusted) equivalent is also provided; only cite it when the discussion is specifically about purchasing power, and label it clearly as "in today's dollars." Never present a different headline nest-egg number than the app's.
 - Focus on actionable insights: gaps to close, timing decisions, risk factors.
 - For Social Security: consider optimal claim age based on break-even analysis.
 - For lease vs buy decisions: factor the monthly payment's impact on savings capacity.
@@ -143,7 +144,11 @@ ${debtsSection}
 
 ## Lifestyle Scenario: ${scenario.selected_scenario}
 Monthly spend: ${fmt(monthlySpend)} | Annual travel: ${fmt(scenario.annual_travel)} | Healthcare: ${fmt(scenario.monthly_health_premium)}/mo
-Projected nest egg: ${fmtLarge(snap.nestEgg)} | Safe withdrawal: ${fmt(snap.safeMonthlyWithdrawal)}/mo | Depletion: ${snap.depletionAge != null ? `age ${snap.depletionAge}` : "outlives plan"}`;
+Projected nest egg: ${fmtLarge(snap.nestEgg)} (nominal — future dollars at retirement, the figure shown in the app)${(() => {
+  const yrs = Math.max(0, profile.retirement_age - profile.current_age);
+  const real = snap.nestEgg / Math.pow(1 + (profile.inflation_rate || 0), yrs);
+  return ` | in today's dollars: ${fmtLarge(real)} (inflation-adjusted purchasing power)`;
+})()} | Safe withdrawal: ${fmt(snap.safeMonthlyWithdrawal)}/mo | Depletion: ${snap.depletionAge != null ? `age ${snap.depletionAge}` : "outlives plan"}`;
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────

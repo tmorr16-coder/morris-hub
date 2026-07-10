@@ -109,8 +109,8 @@ export async function deleteTodo(id: string): Promise<{ error?: string }> {
 
 export async function savePreferences(data: {
   location_name?: string;
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | null;
+  longitude?: number | null;
   stock_tickers?: string[];
   employer_ticker?: string | null;
   tts_voice?: string | null;

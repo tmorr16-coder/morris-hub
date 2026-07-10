@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Chip, Icons } from "@/components/ios";
 import { MODULE_DOT, MODULE_BADGE } from "@/app/home/_components/FamilyTimeline";
 
 interface CalendarEvent {
@@ -97,7 +98,6 @@ export default function CalendarClient({ view, anchorDate, todayStr, rangeStart,
     fontSize: 9, fontWeight: 700, letterSpacing: "0.04em",
     padding: "1px 6px", borderRadius: 6,
     background: `${color}15`, color,
-    fontFamily: "var(--font-geist, system-ui), sans-serif",
   });
 
   return (
@@ -105,51 +105,36 @@ export default function CalendarClient({ view, anchorDate, todayStr, rangeStart,
       {/* ── Header: nav + view toggle ── */}
       {!embedded && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <a href={navHref(view, prevAnchor)} aria-label="Previous" style={navBtn}>‹</a>
-            <span style={{ fontSize: 16, fontWeight: 600, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif", minWidth: 160, textAlign: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <a href={navHref(view, prevAnchor)} aria-label="Previous" style={navBtn}><Icons.ChevronLeft style={{ width: 18, height: 18 }} /></a>
+            <span className="ios-headline" style={{ minWidth: 150, textAlign: "center" }}>
               {view === "month" ? monthLabel(anchorDate) : `Week of ${new Date(`${rangeStart}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
             </span>
-            <a href={navHref(view, nextAnchor)} aria-label="Next" style={navBtn}>›</a>
-            <a href={navHref(view, todayStr)} style={{ ...navBtn, width: "auto", padding: "0 12px", fontSize: 12 }}>Today</a>
+            <a href={navHref(view, nextAnchor)} aria-label="Next" style={navBtn}><Icons.ChevronRight style={{ width: 18, height: 18 }} /></a>
+            <a href={navHref(view, todayStr)} className="ios-subhead" style={{ color: "var(--ios-tint)", fontWeight: 500, padding: "0 6px" }}>Today</a>
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <a href={navHref("month", anchorDate)} style={toggleBtn(view === "month")}>Month</a>
-            <a href={navHref("week", anchorDate)} style={toggleBtn(view === "week")}>Week</a>
+          <div style={{ display: "flex", gap: 2, padding: 2, background: "var(--ios-fill)", borderRadius: 9, flex: "0 0 auto" }}>
+            <a href={navHref("month", anchorDate)} style={segLink(view === "month")}>Month</a>
+            <a href={navHref("week", anchorDate)} style={segLink(view === "week")}>Week</a>
           </div>
         </div>
       )}
 
       {/* ── Person filter chips ── */}
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
-        {chips.map((c) => {
-          const active = personFilter === c.id;
-          return (
-            <button
-              key={c.id}
-              onClick={() => setPersonFilter(c.id)}
-              aria-pressed={active}
-              style={{
-                padding: "4px 12px", borderRadius: 20,
-                border: active ? "1.5px solid var(--color-accent)" : "1px solid var(--color-rule)",
-                background: active ? "var(--color-accent-soft)" : "var(--color-bg-card)",
-                color: active ? "var(--color-accent)" : "var(--color-ink-3)",
-                fontSize: 12, fontWeight: active ? 600 : 500, cursor: "pointer",
-                fontFamily: "var(--font-geist, system-ui), sans-serif",
-              }}
-            >
-              {c.label}
-            </button>
-          );
-        })}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        {chips.map((c) => (
+          <Chip key={c.id} small selected={personFilter === c.id} onClick={() => setPersonFilter(c.id)}>
+            {c.label}
+          </Chip>
+        ))}
       </div>
 
       {view === "month" ? (
         <>
           {/* ── Month grid ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, background: "var(--color-rule)", border: "1px solid var(--color-rule)", borderRadius: 12, overflow: "hidden" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, background: "var(--ios-separator)", borderRadius: "var(--ios-radius-card)", overflow: "hidden" }}>
             {WEEKDAY_LABELS.map((wd) => (
-              <div key={wd} style={{ background: "var(--color-bg-deep)", padding: "6px 8px", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+              <div key={wd} className="ios-caption" style={{ background: "var(--ios-bg)", padding: "6px 8px", fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase", color: "var(--ios-label-2)" }}>
                 {wd}
               </div>
             ))}
@@ -164,32 +149,30 @@ export default function CalendarClient({ view, anchorDate, todayStr, rangeStart,
                   key={d}
                   onClick={() => setSelectedDate(d)}
                   style={{
-                    background: isSelected ? "var(--color-accent-soft)" : "var(--color-bg-card)",
-                    border: "none", textAlign: "left", cursor: "pointer",
+                    background: isSelected ? "var(--ios-fill)" : "var(--ios-cell)",
+                    textAlign: "left",
                     padding: "6px 6px 8px", minHeight: 84, display: "flex", flexDirection: "column", gap: 3,
                     opacity: inMonth ? 1 : 0.4,
                   }}
                 >
-                  <span style={{
-                    fontSize: 11, fontWeight: isToday ? 700 : 500,
-                    color: isToday ? "var(--color-accent)" : "var(--color-ink-3)",
-                    fontFamily: "var(--font-geist, system-ui), sans-serif",
+                  <span className="ios-num" style={{
+                    fontSize: 13, fontWeight: isToday ? 700 : 500,
+                    color: isToday ? "#fff" : "var(--ios-label)",
                     display: "inline-flex", alignItems: "center", justifyContent: "center",
-                    width: 18, height: 18, borderRadius: "50%",
-                    background: isToday ? "var(--color-accent)" : "transparent",
-                    ...(isToday ? { color: "#FFFDF8" } : {}),
+                    width: 22, height: 22, borderRadius: "50%",
+                    background: isToday ? "var(--ios-tint)" : "transparent",
                   }}>
                     {dayNum}
                   </span>
                   <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                     {dayEvents.slice(0, 3).map((e) => (
-                      <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "var(--color-ink-3)", fontFamily: "var(--font-geist, system-ui), sans-serif", overflow: "hidden" }}>
-                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: MODULE_DOT[e.category] ?? MODULE_DOT[e.module] ?? "var(--color-ink-4)", flexShrink: 0 }} />
+                      <div key={e.id} className="ios-caption" style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--ios-label-2)", overflow: "hidden" }}>
+                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: MODULE_DOT[e.category] ?? MODULE_DOT[e.module] ?? "var(--ios-label-3)", flexShrink: 0 }} />
                         <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span>
                       </div>
                     ))}
                     {dayEvents.length > 3 && (
-                      <span style={{ fontSize: 9, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
+                      <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>
                         +{dayEvents.length - 3} more
                       </span>
                     )}
@@ -212,24 +195,24 @@ export default function CalendarClient({ view, anchorDate, todayStr, rangeStart,
               const isToday = d === todayStr;
               const dayEvents = eventsByDate.get(d) ?? [];
               return (
-                <div key={d} style={{ background: "var(--color-bg-card)", border: isToday ? "1.5px solid var(--color-accent)" : "1px solid var(--color-rule)", borderRadius: 10, padding: "8px 10px", minHeight: 160 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? "var(--color-accent)" : "var(--color-ink-3)", fontFamily: "var(--font-geist, system-ui), sans-serif", marginBottom: 6 }}>
+                <div key={d} style={{ background: "var(--ios-cell)", boxShadow: isToday ? "inset 0 0 0 1.5px var(--ios-tint)" : undefined, borderRadius: "var(--ios-radius-card)", padding: "8px 10px", minHeight: 160 }}>
+                  <div className="ios-caption ios-num" style={{ fontWeight: 700, color: isToday ? "var(--ios-tint)" : "var(--ios-label-2)", marginBottom: 6 }}>
                     {new Date(`${d}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", day: "numeric" })}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {dayEvents.length === 0 && (
-                      <span style={{ fontSize: 11, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>—</span>
+                      <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>—</span>
                     )}
                     {dayEvents.map((e) => {
-                      const dotColor = MODULE_DOT[e.category] ?? MODULE_DOT[e.module] ?? "var(--color-ink-3)";
+                      const dotColor = MODULE_DOT[e.category] ?? MODULE_DOT[e.module] ?? "var(--ios-label-2)";
                       const badge = e.personLabel ?? MODULE_BADGE[e.module] ?? MODULE_BADGE[e.category];
                       const body = (
                         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                             <span style={{ width: 5, height: 5, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
-                            <span style={{ fontSize: 9, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{e.timeLabel}</span>
+                            <span className="ios-caption ios-num" style={{ color: "var(--ios-label-3)" }}>{e.timeLabel}</span>
                           </div>
-                          <span style={{ fontSize: 11, color: "var(--color-ink-2)", fontFamily: "var(--font-geist, system-ui), sans-serif", lineHeight: 1.3 }}>{e.title}</span>
+                          <span className="ios-caption" style={{ color: "var(--ios-label)", lineHeight: 1.3 }}>{e.title}</span>
                           {badge && <span style={chip(badge, dotColor)}>{badge}</span>}
                         </div>
                       );
@@ -252,29 +235,27 @@ export default function CalendarClient({ view, anchorDate, todayStr, rangeStart,
 
 function DayDetail({ date, events }: { date: string; events: CalendarEvent[] }) {
   return (
-    <div style={{ marginTop: 16, background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 12, padding: "16px 20px" }}>
-      <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 10, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-        {dayLabel(date)}
-      </div>
+    <div style={{ marginTop: 16 }}>
+      <h3 className="ios-group-header">{dayLabel(date)}</h3>
       {events.length === 0 ? (
-        <div style={{ fontSize: 13, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>Nothing scheduled.</div>
+        <p className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "0 var(--ios-gutter)" }}>Nothing scheduled.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="ios-list" style={{ margin: 0 }}>
           {events.map((e) => {
-            const dotColor = MODULE_DOT[e.category] ?? MODULE_DOT[e.module] ?? "var(--color-ink-3)";
+            const dotColor = MODULE_DOT[e.category] ?? MODULE_DOT[e.module] ?? "var(--ios-label-2)";
             const badge = e.personLabel ?? MODULE_BADGE[e.module] ?? MODULE_BADGE[e.category];
-            const row = (
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 11, color: "var(--color-ink-4)", minWidth: 64, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{e.timeLabel}</span>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
-                <span style={{ fontSize: 13, color: "var(--color-ink-2)", fontFamily: "var(--font-geist, system-ui), sans-serif", flex: 1 }}>{e.title}</span>
-                {badge && <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: dotColor, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{badge}</span>}
-              </div>
+            const inner = (
+              <>
+                <span className="ios-cell-lead ios-caption ios-num" style={{ color: "var(--ios-label-2)", minWidth: 64, justifyContent: "flex-start" }}>{e.timeLabel}</span>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+                <span className="ios-cell-body"><span className="ios-cell-title ios-subhead">{e.title}</span></span>
+                {badge && <span className="ios-caption" style={{ fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase", color: dotColor, flexShrink: 0 }}>{badge}</span>}
+              </>
             );
             return e.href ? (
-              <a key={e.id} href={e.href} style={{ textDecoration: "none" }}>{row}</a>
+              <a key={e.id} href={e.href} className="ios-cell">{inner}</a>
             ) : (
-              <div key={e.id}>{row}</div>
+              <div key={e.id} className="ios-cell">{inner}</div>
             );
           })}
         </div>
@@ -285,17 +266,17 @@ function DayDetail({ date, events }: { date: string; events: CalendarEvent[] }) 
 
 const navBtn: React.CSSProperties = {
   display: "inline-flex", alignItems: "center", justifyContent: "center",
-  width: 28, height: 28, borderRadius: 8, border: "1px solid var(--color-rule)",
-  background: "var(--color-bg-card)", color: "var(--color-ink-3)",
-  textDecoration: "none", fontSize: 16, fontFamily: "var(--font-geist, system-ui), sans-serif",
+  width: 30, height: 30, borderRadius: "50%",
+  background: "var(--ios-fill)", color: "var(--ios-tint)",
+  textDecoration: "none",
 };
 
-function toggleBtn(active: boolean): React.CSSProperties {
+function segLink(active: boolean): React.CSSProperties {
   return {
-    padding: "5px 14px", borderRadius: 8, fontSize: 12, fontWeight: active ? 600 : 500,
-    border: active ? "1.5px solid var(--color-accent)" : "1px solid var(--color-rule)",
-    background: active ? "var(--color-accent-soft)" : "var(--color-bg-card)",
-    color: active ? "var(--color-accent)" : "var(--color-ink-3)",
-    textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif",
+    padding: "6px 14px", borderRadius: 7, fontSize: 14, fontWeight: active ? 600 : 500,
+    textAlign: "center",
+    background: active ? "var(--ios-bg-elevated)" : "transparent",
+    boxShadow: active ? "0 1px 3px rgba(0,0,0,0.10), 0 0 0 0.5px rgba(0,0,0,0.04)" : "none",
+    color: "var(--ios-label)", textDecoration: "none",
   };
 }

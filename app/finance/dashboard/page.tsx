@@ -2,12 +2,23 @@ export const revalidate = 1800; // cache for 30 minutes
 
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireFinanceAccess } from "@/lib/finance/access";
-import ConnectSection from "./_components/ConnectSection";
-import FinanceChat from "./_components/FinanceChat";
-import RecentActivityClient from "./_components/RecentActivityClient";
-// PinGate moved to finance/layout.tsx — covers all Money routes including investments
-import SharedAccountsSection from "./_components/SharedAccountsSection";
 import type { SharedWithMe } from "./settings/share-actions";
+import { LargeTitle, Group, Cell, IconBadge, Sparkline, Icons } from "@/components/ios";
+import SyncNowButton from "./_components/SyncNowButton";
+import ImportedAccounts from "./_components/ImportedAccounts";
+import ConnectSection from "./_components/ConnectSection";
+
+/* This dashboard reads many finance-schema tables through the service-role
+   client, which is untyped — `as any` casts are used throughout the data layer. */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+const BUCKETS = [
+  { key: "cash", label: "Cash & savings", color: "var(--ios-green)" },
+  { key: "investment", label: "Investments", color: "#C97A3A" },
+  { key: "credit", label: "Credit", color: "var(--ios-red)" },
+  { key: "loan", label: "Loans", color: "var(--ios-red)" },
+  { key: "other", label: "Other", color: "#8E8E93" },
+] as const;
 
 interface AccountRow {
   id: string;
@@ -49,17 +60,6 @@ function fmtMoney(n: number | null, currency = "USD"): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n);
-}
-
-function fmtMoneyLarge(n: number): { whole: string; cents: string } {
-  const sign = n < 0 ? "−" : "";
-  const abs = Math.abs(n);
-  const whole = Math.floor(abs);
-  const cents = Math.round((abs - whole) * 100).toString().padStart(2, "0");
-  return {
-    whole: `${sign}$${whole.toLocaleString()}`,
-    cents: `.${cents}`,
-  };
 }
 
 function relativeTime(iso: string | null): string {
@@ -238,7 +238,6 @@ export default async function DashboardPage() {
     }, 0);
 
   const name = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email ?? "there";
-  const firstName = name.split(" ")[0];
 
   // Group visible accounts by type for the dashboard layout.
   // Investments are split into their own section so spending-side totals
@@ -284,21 +283,26 @@ export default async function DashboardPage() {
     const bal = a.current_balance ?? 0;
     return sum + (a.type === "credit" || a.type === "loan" ? -bal : bal);
   }, 0) + manualTotal + sharedPortfolioTotal;
-  const netFmt = fmtMoneyLarge(netPosition);
 
   // ── Net position delta via snapshots ──────────────────────────────────────
   // Read previous snapshot, then store today's so next load shows the delta.
   let netDelta: number | null = null;
+  let netSeries: number[] = [];
   try {
-    const { data: prevSnap } = await (service as any)
+    // Last 30 daily snapshots (oldest→newest) for the trend line + the delta.
+    const { data: snaps } = await (service as any)
       .schema("finance").from("net_position_snapshots")
       .select("net_position, captured_at")
       .eq("user_id", user.id)
       .order("captured_at", { ascending: false })
-      .limit(1).maybeSingle();
+      .limit(30);
 
-    if (prevSnap?.net_position != null) {
-      netDelta = netPosition - Number(prevSnap.net_position);
+    const ordered = ((snaps ?? []) as { net_position: number | string }[]).slice().reverse();
+    if (ordered.length > 0) {
+      const prev = ordered[ordered.length - 1];
+      if (prev?.net_position != null) netDelta = netPosition - Number(prev.net_position);
+      // Series ends with today's live net position
+      netSeries = [...ordered.map((s) => Number(s.net_position)), netPosition];
     }
 
     // Store today's snapshot (upsert on user_id + date to avoid spam)
@@ -306,7 +310,7 @@ export default async function DashboardPage() {
     await (service as any).schema("finance").from("net_position_snapshots")
       .upsert({ user_id: user.id, net_position: netPosition, date: today_date, captured_at: new Date().toISOString() },
         { onConflict: "user_id,date" });
-  } catch { /* table not yet created — skip delta */ }
+  } catch { /* table not yet created — skip trend */ }
 
   const lastSyncAcrossItems = items.reduce<string | null>((latest, it) => {
     if (!it.last_synced_at) return latest;
@@ -335,322 +339,129 @@ export default async function DashboardPage() {
     year: "numeric",
     timeZone: userTz,
   });
-
   return (
-    <div>
+    <div className="ios-scroll">
+      <LargeTitle brand title="Money" subtitle={`${todayDisplay} · ${greeting}`} avatarInitial={(name || "T")[0]?.toUpperCase()} />
 
-      <main style={{ maxWidth: 1180, margin: "0 auto", padding: "32px 28px 80px" }}>
-
-        {/* ── Hero ────────────────────────────────────────────────────── */}
-        <section
-          id="overview"
-          style={{
-            textAlign: "center",
-            marginBottom: 40,
-            paddingBottom: 32,
-            borderBottom: "1px solid var(--color-rule)",
-          }}
-        >
-          {/* Compact greeting above the number */}
-          <div style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 20 }}>
-            {greeting}, {firstName} · {todayDisplay}
+      {/* Net position hero — the real number is fine here since the whole
+          Money dashboard sits behind the finance PIN. */}
+      <div className="ios-list" style={{ margin: "8px 16px 0", padding: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Net position</div>
+          <SyncNowButton />
+        </div>
+        <div className="ios-num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.01em", marginTop: 4 }}>
+          {fmtMoney(netPosition)}
+        </div>
+        {netDelta != null && netDelta !== 0 && (
+          <div className="ios-subhead" style={{ marginTop: 2, color: netDelta >= 0 ? "var(--ios-green)" : "var(--ios-red)" }}>
+            {netDelta >= 0 ? "▲" : "▼"} {fmtMoney(Math.abs(netDelta))} since last visit
           </div>
-
-          {(items.length > 0 || manualAccounts.length > 0) ? (
-            <>
-              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 10 }}>
-                Net Position
-              </div>
-
-              {/* Hero number */}
-              <div className="mono" style={{ fontSize: 68, fontWeight: 500, color: "var(--color-ink)", letterSpacing: "-0.03em", lineHeight: 1 }}>
-                {netFmt.whole}
-                <span style={{ fontSize: "0.45em", color: "var(--color-ink-3)", verticalAlign: "super" }}>{netFmt.cents}</span>
-              </div>
-
-              {/* Delta */}
-              {netDelta !== null && (
-                <div style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  marginTop: 12,
-                  padding: "5px 14px",
-                  borderRadius: 20,
-                  background: netDelta >= 0 ? "rgba(74,107,58,0.08)" : "rgba(154,59,42,0.08)",
-                  border: `1px solid ${netDelta >= 0 ? "rgba(74,107,58,0.2)" : "rgba(154,59,42,0.2)"}`,
-                }}>
-                  <span style={{ fontSize: 14, color: netDelta >= 0 ? "var(--color-green)" : "var(--color-red)" }}>
-                    {netDelta >= 0 ? "↑" : "↓"}
-                  </span>
-                  <span className="mono" style={{ fontSize: 14, fontWeight: 600, color: netDelta >= 0 ? "var(--color-green)" : "var(--color-red)" }}>
-                    {fmtMoney(Math.abs(netDelta))}
-                  </span>
-                  <span style={{ fontSize: 12, color: "var(--color-ink-4)" }}>since last visit</span>
-                </div>
-              )}
-
-              {/* Metadata */}
-              <div style={{ fontSize: 12, color: "var(--color-ink-4)", marginTop: 14, display: "flex", justifyContent: "center", gap: 12 }}>
-                <span>
-                  {accounts.length + manualAccounts.length} account{(accounts.length + manualAccounts.length) !== 1 ? "s" : ""}
-                </span>
-                {lastSyncAcrossItems && (
-                  <>
-                    <span>·</span>
-                    <span>synced {relativeTime(lastSyncAcrossItems)}</span>
-                  </>
-                )}
-                {manualAccounts.length > 0 && (
-                  <>
-                    <span>·</span>
-                    <span>{manualAccounts.length} imported</span>
-                  </>
-                )}
-              </div>
-            </>
-          ) : (
-            <h1 className="serif" style={{ fontSize: 44, lineHeight: 1.05, marginTop: 8 }}>
-              {greeting}, <span style={{ fontStyle: "italic", color: "var(--color-bronze-dark)" }}>{firstName}.</span>
-            </h1>
-          )}
-        </section>
-
-        {/* ── AI insights chat ────────────────────────────────── */}
-        {items.length > 0 && (
-          <section style={{ marginBottom: 36 }}>
-            <FinanceChat />
-          </section>
         )}
-
-        {/* Accounts shared with this user — shown at top so recipients
-            (who may have no accounts of their own) see them immediately */}
-        <SharedAccountsSection initialShares={sharedWithMe} />
-
-        {items.length === 0 ? (
-          /* ── Empty state ─────────────────────────────────────────── */
-          <div
-            style={{
-              background: "var(--color-paper-card)",
-              border: "1px solid var(--color-rule)",
-              borderRadius: 12,
-              padding: "60px 32px",
-              textAlign: "center",
-              boxShadow: "var(--shadow-card)",
-            }}
-          >
-            <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--color-paper-deep)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 18, fontSize: 22, color: "var(--color-bronze-dark)" }}>
-              ◐
-            </div>
-            <h2 className="serif" style={{ fontSize: 24, marginBottom: 8 }}>No accounts connected yet</h2>
-            <p style={{ fontSize: 14, color: "var(--color-ink-3)", maxWidth: 360, margin: "0 auto 24px", lineHeight: 1.6 }}>
-              Connect your first bank to start importing transactions. Your access tokens are encrypted before storage.
-            </p>
-            <ConnectSection />
-            <p style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 18 }}>
-              Sandbox: use <code style={{ background: "var(--color-paper-deep)", padding: "1px 6px", borderRadius: 3 }}>user_good</code> / <code style={{ background: "var(--color-paper-deep)", padding: "1px 6px", borderRadius: 3 }}>pass_good</code>
-            </p>
+        {netSeries.length >= 2 && (
+          <div style={{ marginTop: 12 }}>
+            <Sparkline points={netSeries} color={netDelta != null && netDelta < 0 ? "var(--ios-red)" : "var(--ios-green)"} width={320} height={44} />
           </div>
-        ) : (
-          <>
-            {/* ── Institutions row ────────────────────────────────── */}
-            <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginBottom: 36 }}>
-              {items.map((it) => {
-                const acctsForItem = accounts.filter((a) => a.item_id === it.id);
-                const balForItem = acctsForItem.reduce((s, a) => s + (a.current_balance ?? 0), 0);
-                return (
-                  <div
-                    key={it.id}
-                    style={{
-                      background: "var(--color-paper-card)",
-                      border: "1px solid var(--color-rule)",
-                      borderRadius: 12,
-                      padding: "16px 18px",
-                      boxShadow: "var(--shadow-card)",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <span className="serif" style={{ fontSize: 18 }}>{it.institution_name}</span>
-                      <span style={{ fontSize: 10, color: it.status === "active" ? "var(--color-green)" : "var(--color-red)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 5 }}>
-                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: it.status === "active" ? "var(--color-green)" : "var(--color-red)", display: "inline-block" }} />
-                        {it.status === "active" ? "Synced" : it.status}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginBottom: 10 }}>
-                      {acctsForItem.length} account{acctsForItem.length !== 1 ? "s" : ""} · {relativeTime(it.last_synced_at)}
-                    </div>
-                    <div className="mono" style={{ fontSize: 22, color: "var(--color-ink)", fontWeight: 500 }}>
-                      {fmtMoney(balForItem)}
-                    </div>
-                  </div>
-                );
-              })}
-            </section>
+        )}
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 6 }}>
+          {accounts.length + manualAccounts.length} accounts{lastSyncAcrossItems ? ` · synced ${relativeTime(lastSyncAcrossItems)}` : ""}
+        </div>
+      </div>
 
-            {/* ── Accounts (grouped by type) ──────────────────────── */}
-            <section id="accounts" style={{ marginBottom: 36 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid var(--color-rule)" }}>
-                <h2 className="serif" style={{ fontSize: 24 }}>Accounts</h2>
-                <span style={{ fontSize: 11, color: "var(--color-ink-3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  {accounts.length} visible{allAccounts.length !== accounts.length ? ` · ${allAccounts.length - accounts.length} hidden` : ""}
-                </span>
-              </div>
+      {accounts.length + manualAccounts.length === 0 && (
+        <Group header="Get started" footer="Securely link a bank or brokerage with Plaid to pull in balances and transactions automatically.">
+          <div className="ios-cell" style={{ padding: "14px 16px" }}>
+            <ConnectSection label="Connect a bank" />
+          </div>
+        </Group>
+      )}
 
-              {(["cash", "credit", "loan", "investment", "other"] as const).map((bucketKey) => {
-                const group = accountsByBucket[bucketKey];
-                if (group.length === 0) return null;
-                const label =
-                  bucketKey === "cash" ? "Cash & savings" :
-                  bucketKey === "credit" ? "Credit" :
-                  bucketKey === "loan" ? "Loans" :
-                  bucketKey === "investment" ? "Investments" :
-                  "Other";
-                const subtotal = group.reduce((s, a) => {
-                  const bal = a.current_balance ?? 0;
-                  return s + (bucketKey === "credit" || bucketKey === "loan" ? -bal : bal);
-                }, 0);
-                return (
-                  <div key={bucketKey} style={{ marginBottom: 20 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-                      <h3 style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)" }}>
-                        {label} <span style={{ color: "var(--color-ink-4)", fontWeight: 400 }}>· {group.length}</span>
-                      </h3>
-                      <span className="mono" style={{ fontSize: 13, color: subtotal < 0 ? "var(--color-red)" : "var(--color-ink-2)", fontWeight: 500 }}>
-                        {fmtMoney(subtotal)}
-                      </span>
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
-                      {group.map((a) => {
-                        const isLiability = a.type === "credit" || a.type === "loan";
-                        const bal = a.current_balance ?? 0;
-                        const displayBal = isLiability ? -bal : bal;
-                        return (
-                          <div
-                            key={a.id}
-                            style={{
-                              background: "var(--color-paper-card)",
-                              border: "1px solid var(--color-rule)",
-                              borderRadius: 12,
-                              padding: "16px 18px 14px",
-                              boxShadow: "var(--shadow-card)",
-                            }}
-                          >
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                              <div>
-                                <div className="serif" style={{ fontSize: 16, color: "var(--color-ink)" }}>{a.name}</div>
-                                <div style={{ fontSize: 10, color: "var(--color-ink-3)", textTransform: "capitalize", marginTop: 2, letterSpacing: "0.04em" }}>
-                                  {a.subtype ? a.subtype.replace(/_/g, " ") : a.type}
-                                </div>
-                              </div>
-                              {a.mask && (
-                                <div className="mono" style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
-                                  ····{a.mask}
-                                </div>
-                              )}
-                            </div>
-                            <div
-                              className="mono"
-                              style={{
-                                fontSize: 22,
-                                fontWeight: 500,
-                                color: displayBal < 0 ? "var(--color-red)" : "var(--color-ink)",
-                              }}
-                            >
-                              {fmtMoney(displayBal, a.iso_currency_code)}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </section>
-
-            {/* ── Imported / manual accounts ───────────────────────── */}
-            {manualAccounts.length > 0 && (
-              <section style={{ marginBottom: 36 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid var(--color-rule)" }}>
-                  <h2 className="serif" style={{ fontSize: 24 }}>Imported accounts</h2>
-                  <a href="/finance/dashboard/import" style={{ fontSize: 11, color: "var(--color-ink-3)", textDecoration: "none", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                    Manage →
-                  </a>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
-                  {manualAccounts.map((a) => {
-                    const TYPE_LABEL: Record<string, string> = {
-                      "401k": "401(k)", roth_ira: "Roth IRA", traditional_ira: "Traditional IRA",
-                      hsa: "HSA", brokerage: "Brokerage", pension: "Pension", other_investment: "Investment",
-                    };
-                    return (
-                      <div key={a.id} style={{ background: "var(--color-paper-card)", border: "1px solid var(--color-rule)", borderRadius: 12, padding: "16px 18px 14px", boxShadow: "var(--shadow-card)" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                          <div>
-                            <div className="serif" style={{ fontSize: 16, color: "var(--color-ink)", marginBottom: 2 }}>{a.name}</div>
-                            <div style={{ fontSize: 10, color: "var(--color-ink-3)", textTransform: "capitalize", letterSpacing: "0.04em" }}>
-                              {TYPE_LABEL[a.account_type] ?? a.account_type}
-                              {a.institution ? ` · ${a.institution}` : ""}
-                            </div>
-                          </div>
-                          <span style={{ fontSize: 9, color: "var(--color-bronze-dark)", background: "rgba(139,106,71,0.1)", padding: "2px 7px", borderRadius: 8, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", flexShrink: 0 }}>
-                            imported
-                          </span>
-                        </div>
-                        <div className="mono" style={{ fontSize: 22, fontWeight: 500, color: "var(--color-ink)" }}>
-                          {a.balance != null
-                            ? new Intl.NumberFormat("en-US", { style: "currency", currency: a.currency, minimumFractionDigits: 2 }).format(a.balance)
-                            : "—"}
-                        </div>
-                        {a.as_of_date && (
-                          <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 4 }}>
-                            as of {new Date(a.as_of_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-
-            {/* ── Recent activity ─────────────────────────────────── */}
-            <section id="activity">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid var(--color-rule)" }}>
-                <h2 className="serif" style={{ fontSize: 24 }}>Recent activity</h2>
-                <span style={{ fontSize: 11, color: "var(--color-ink-3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Last {transactions.length} transactions
-                </span>
-              </div>
-
-              <RecentActivityClient
-                transactions={transactions}
-                accounts={accounts.map((a) => ({ id: a.id, name: a.name, mask: a.mask }))}
+      {BUCKETS.map((b) => {
+        const list = accountsByBucket[b.key];
+        if (!list.length) return null;
+        const isLiab = b.key === "credit" || b.key === "loan";
+        const subtotal = list.reduce((s, a) => s + (a.current_balance ?? 0), 0);
+        return (
+          <Group key={b.key} header={`${b.label} · ${isLiab ? "−" : ""}${fmtMoney(Math.abs(subtotal))}`}>
+            {list.map((a) => (
+              <Cell
+                key={a.id}
+                chevron={false}
+                lead={<IconBadge color={b.color}><Icons.WalletIcon /></IconBadge>}
+                title={a.name}
+                subtitle={[a.subtype || a.type, a.mask ? `····${a.mask}` : null].filter(Boolean).join(" · ") || undefined}
+                trailing={<span className="ios-num" style={isLiab ? { color: "var(--ios-red)" } : undefined}>{isLiab ? `−${fmtMoney(Math.abs(a.current_balance ?? 0))}` : fmtMoney(a.current_balance ?? 0)}</span>}
               />
+            ))}
+          </Group>
+        );
+      })}
 
-              <div style={{ marginTop: 20, display: "flex", justifyContent: "center" }}>
-                <ConnectSection label="Connect another bank" variant="secondary" />
-              </div>
-            </section>
-          </>
-        )}
+      <ImportedAccounts
+        accounts={[
+          ...ownManualAccounts.map((a) => ({
+            id: a.id, name: a.name, account_type: a.account_type ?? null, institution: a.institution ?? null,
+            balance: a.balance ?? null, currency: a.currency ?? "USD", editable: true,
+          })),
+          ...sharedManual.map((a) => ({
+            id: a.id, name: a.name, account_type: a.account_type ?? null, institution: a.institution ?? null,
+            balance: a.balance ?? null, currency: a.currency ?? "USD", editable: false,
+          })),
+        ]}
+      />
 
-      </main>
+      {sharedWithMe.length > 0 && (
+        <Group header="Shared with me">
+          {sharedWithMe.map((s) => (
+            <Cell
+              key={s.id}
+              chevron={false}
+              lead={<IconBadge color="#B565A7"><Icons.PeopleIcon /></IconBadge>}
+              title={s.account?.name ?? "Account"}
+              subtitle={s.owner?.full_name ? `from ${s.owner.full_name}` : undefined}
+              trailing={<span className="ios-num">{fmtMoney(s.account?.current_balance ?? null)}</span>}
+            />
+          ))}
+        </Group>
+      )}
 
-      <footer
-        style={{
-          maxWidth: 1180,
-          margin: "0 auto",
-          padding: "24px 28px",
-          borderTop: "1px solid var(--color-rule)",
-          display: "flex",
-          justifyContent: "space-between",
-          fontSize: 11,
-          color: "var(--color-ink-3)",
-        }}
-      >
-        <span>Secured · TLS · AES-256-GCM · Plaid</span>
-        <span>finance.morrisai.family</span>
-      </footer>
+      {items.length > 0 && (
+        <Group header="Institutions">
+          {items.map((it) => (
+            <Cell
+              key={it.id}
+              chevron={false}
+              lead={<IconBadge color="var(--ios-tint)"><Icons.WalletIcon /></IconBadge>}
+              title={it.institution_name}
+              subtitle={it.status === "active" || it.status === "good" ? "Synced" : it.status}
+              trailing={<span style={{ color: "var(--ios-label-2)" }}>{relativeTime(it.last_synced_at)}</span>}
+            />
+          ))}
+        </Group>
+      )}
+
+      {transactions.length > 0 && (
+        <Group header="Recent activity">
+          {transactions.slice(0, 6).map((t) => (
+            <Cell
+              key={t.id}
+              chevron={false}
+              lead={<IconBadge color="#8E8E93"><Icons.WalletIcon /></IconBadge>}
+              title={t.merchant_name || t.name}
+              subtitle={new Date(`${t.date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              trailing={<span className="ios-num" style={{ color: t.amount < 0 ? "var(--ios-green)" : "var(--ios-label)" }}>{t.amount < 0 ? "+" : "−"}{fmtMoney(Math.abs(t.amount))}</span>}
+            />
+          ))}
+        </Group>
+      )}
+
+      <Group header="More">
+        <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.SparkleIcon /></IconBadge>} title="Insights" subtitle="AI analysis of your spending" href="/finance/dashboard/insights" />
+        <Cell lead={<IconBadge color="#C97A3A"><Icons.TrendUpIcon /></IconBadge>} title="Investments" href="/investments" />
+        <Cell lead={<IconBadge color="#8E8E93"><Icons.PlusIcon /></IconBadge>} title="Add or import accounts" href="/finance/dashboard/import" />
+      </Group>
+
+      <div style={{ height: 12 }} />
     </div>
   );
 }

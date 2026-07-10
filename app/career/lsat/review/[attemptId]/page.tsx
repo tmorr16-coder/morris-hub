@@ -1,9 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
+import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 import ReviewClient from "./ReviewClient";
 
 export default async function ReviewAttemptPage({
@@ -35,24 +35,47 @@ export default async function ReviewAttemptPage({
   if (!attempt) notFound();
 
   const q = attempt.lsat_questions;
+  const qt = q.lsat_question_types;
   const choices = (q.lsat_answer_choices ?? []).sort(
     (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label)
   );
   const existingReview = attempt.lsat_review_notes?.[0] ?? null;
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
-      <main style={{ maxWidth: 760, margin: "0 auto", padding: "32px 28px 100px" }}>
-        <Link href="/career/lsat/review" style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none" }}>
-          ← Blind Review Queue
-        </Link>
+    <div className="ios-scroll">
+      <LargeTitle
+        title={qt?.category ?? "Review"}
+        subtitle={[qt?.section, qt?.subcategory].filter(Boolean).join(" · ") || undefined}
+      />
+
+      <Group header="Attempt">
+        <Cell
+          chevron={false}
+          lead={<IconBadge color={attempt.is_correct ? "var(--ios-green)" : "var(--ios-red)"}><Icons.ChecklistIcon /></IconBadge>}
+          title="Result"
+          trailing={<span className="ios-subhead" style={{ color: attempt.is_correct ? "var(--ios-green)" : "var(--ios-red)", fontWeight: 600 }}>{attempt.is_correct ? "Correct" : "Wrong"}</span>}
+        />
+        {attempt.confidence != null && (
+          <Cell chevron={false} lead={<IconBadge color="var(--ios-tint)"><Icons.TrendUpIcon /></IconBadge>} title="Confidence" trailing={<span className="ios-num">{attempt.confidence}/5</span>} />
+        )}
+        {attempt.time_spent_s != null && (
+          <Cell chevron={false} lead={<IconBadge color="#8E8E93"><Icons.ChartIcon /></IconBadge>} title="Time spent" trailing={<span className="ios-num">{Math.round(attempt.time_spent_s)}s</span>} />
+        )}
+        {q.difficulty != null && (
+          <Cell chevron={false} lead={<IconBadge color="var(--ios-orange)"><Icons.BookIcon /></IconBadge>} title="Difficulty" trailing={<span className="ios-num">{q.difficulty}</span>} />
+        )}
+      </Group>
+
+      <div style={{ padding: "0 16px" }}>
         <ReviewClient
           attempt={attempt}
           question={q}
           choices={choices}
           existingReview={existingReview}
         />
-      </main>
+      </div>
+
+      <div style={{ height: 12 }} />
     </div>
   );
 }

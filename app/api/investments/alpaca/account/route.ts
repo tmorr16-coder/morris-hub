@@ -5,17 +5,17 @@ export async function GET() {
   const userId = await getCurrentUserId();
   if (!userId) return Response.json({ error: "Not authenticated" }, { status: 401 });
 
-  if (!process.env.ALPACA_API_KEY || !process.env.ALPACA_API_SECRET) {
-    return Response.json({ error: "Alpaca API keys not configured" }, { status: 500 });
-  }
-
   try {
-    const [account, positions, clock] = await Promise.all([
-      getAccount(),
-      getPositions(),
-      getClock(),
+    const account = await getAccount(userId);
+    // No connection for this user → 200 with connected:false so clients can
+    // render the "connect a brokerage" prompt instead of treating it as an error.
+    if (!account) return Response.json({ connected: false }, { status: 200 });
+
+    const [positions, clock] = await Promise.all([
+      getPositions(userId),
+      getClock(userId),
     ]);
-    return Response.json({ account, positions, clock });
+    return Response.json({ connected: true, account, positions, clock });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Alpaca fetch failed";
     console.error("[alpaca/account]", msg);

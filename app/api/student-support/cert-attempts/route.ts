@@ -25,6 +25,21 @@ export async function POST(request: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
 
+  // Verify the session exists and belongs to the caller
+  const { data: session } = await db
+    .schema("student_support")
+    .from("cert_sessions")
+    .select("id, user_id, exam_id")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (!session) {
+    return NextResponse.json({ error: "Session not found" }, { status: 404 });
+  }
+  if (session.user_id !== user.id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   // Look up whether the selected choice is correct
   const { data: choice } = await db
     .schema("student_support")
@@ -40,6 +55,18 @@ export async function POST(request: NextRequest) {
   // Verify the choice belongs to the stated question
   if (choice.question_id !== questionId) {
     return NextResponse.json({ error: "Choice does not belong to this question" }, { status: 400 });
+  }
+
+  // Confirm the question belongs to the same exam as the session
+  const { data: question } = await db
+    .schema("student_support")
+    .from("cert_questions")
+    .select("id, exam_id")
+    .eq("id", questionId)
+    .maybeSingle();
+
+  if (!question || question.exam_id !== session.exam_id) {
+    return NextResponse.json({ error: "Question does not belong to this session's exam" }, { status: 403 });
   }
 
   // Fetch the correct choice for this question

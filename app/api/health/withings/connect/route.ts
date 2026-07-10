@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
+import { publicOrigin } from "@/lib/site-url";
 
 export async function GET() {
   const clientId = process.env.WITHINGS_CLIENT_ID;
-  const siteUrl  = process.env.NEXT_PUBLIC_SITE_URL;
+  const siteUrl  = publicOrigin();
 
-  if (!clientId || !siteUrl) {
+  if (!clientId) {
     return NextResponse.json(
-      { error: "WITHINGS_CLIENT_ID or NEXT_PUBLIC_SITE_URL not set" },
+      { error: "WITHINGS_CLIENT_ID not set" },
       { status: 500 }
     );
   }

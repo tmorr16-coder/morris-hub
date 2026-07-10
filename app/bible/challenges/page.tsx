@@ -32,7 +32,6 @@ export default async function ChallengesPage() {
   const challenges = [...(platformChallenges ?? []), ...(familyChallenges ?? [])] as any[];
   challenges.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
 
-  const menuUser = { email: user.email, name: user.user_metadata?.full_name ?? user.email, avatarUrl: user.user_metadata?.avatar_url ?? null };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const joinedIds: string[] = ((joined ?? []) as any[]).map((j) => String(j.challenge_id));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,7 +40,7 @@ export default async function ChallengesPage() {
     .map((up) => ({ id: up.plan.id as string, title: up.plan.title as string, duration_days: up.plan.duration_days as number }));
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)", paddingBottom: 80 }}>
+    <div className="ios-scroll">
       <ChallengesClient
         challenges={challenges}
         joinedIds={joinedIds}

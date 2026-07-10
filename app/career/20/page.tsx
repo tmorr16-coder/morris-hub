@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { LargeTitle } from "@/components/ios";
 import RelationshipsPageClient from "./_components/RelationshipsPageClient";
 
 const RELATIONSHIP_TYPES = ["mentor", "coach", "peer", "sponsor", "community"];
@@ -33,7 +34,7 @@ export default async function TwentyPercentPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/login");
+  if (!user) redirect("/login");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
@@ -77,34 +78,20 @@ export default async function TwentyPercentPage() {
   });
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{ marginBottom: 28 }}>
-        <h1
-          style={{
-            fontFamily: "var(--font-display, serif)",
-            fontSize: 28,
-            fontWeight: 400,
-            color: "var(--color-ink)",
-            margin: "0 0 6px",
-          }}
-        >
-          20% · Social &amp; Relationship Learning
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--color-ink-3)", margin: 0, maxWidth: 640 }}>
-          20% of career development comes from relationships — mentors who guide you, peers who
-          challenge you, coaches who develop you, and sponsors who advocate for you.
-        </p>
-      </div>
+    <div className="ios-scroll">
+      <LargeTitle
+        title="20% · Relationships"
+        subtitle="Mentors, peers, coaches & sponsors who develop you"
+      />
 
       {/* Stats */}
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 28 }}>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", padding: "8px 16px 20px" }}>
         {RELATIONSHIP_TYPES.map((t) => (
           <div
             key={t}
             style={{
-              background: "var(--color-bg-card)",
-              border: "1px solid var(--color-rule)",
+              background: "var(--ios-cell)",
+              border: "var(--ios-hair) solid var(--ios-separator)",
               borderRadius: 10,
               padding: "12px 18px",
               borderTop: `3px solid ${TYPE_COLORS[t]}`,
@@ -114,7 +101,7 @@ export default async function TwentyPercentPage() {
             <div style={{ fontSize: 22, fontWeight: 600, color: TYPE_COLORS[t] }}>
               {countByType[t] ?? 0}
             </div>
-            <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: "var(--ios-label-2)", marginTop: 2 }}>
               {TYPE_LABELS[t]}
             </div>
           </div>

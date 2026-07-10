@@ -6,9 +6,8 @@ export default async function GeneratePlanPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
-  const menuUser = { email: user.email, name: user.user_metadata?.full_name ?? user.email, avatarUrl: user.user_metadata?.avatar_url ?? null };
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)", paddingBottom: 80 }}>
+    <div className="ios-scroll">
       <PlanGenerator userId={user.id} />
     </div>
   );

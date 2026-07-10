@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Segmented } from "@/components/ios";
 
 interface FamilyMember {
   id: string;
@@ -26,6 +27,17 @@ function initials(name: string | null, email: string | null): string {
   const s = name ?? email ?? "?";
   return s.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 }
+
+const avatarStyle: React.CSSProperties = {
+  width: 36, height: 36, borderRadius: "50%", background: "var(--ios-fill)",
+  display: "flex", alignItems: "center", justifyContent: "center",
+  fontSize: 13, fontWeight: 600, color: "var(--ios-label)", flexShrink: 0,
+};
+
+const sectionLabel: React.CSSProperties = {
+  fontSize: 13, fontWeight: 600, letterSpacing: "0.04em",
+  textTransform: "uppercase", color: "var(--ios-label-2)", padding: "0 0 10px",
+};
 
 export default function ShareAccountModal({ accountId, accountName, onClose }: ShareAccountModalProps) {
   const [circle, setCircle] = useState<FamilyMember[]>([]);
@@ -91,24 +103,34 @@ export default function ShareAccountModal({ accountId, accountName, onClose }: S
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.12)" }}>
+    <>
+      <div className="ios-sheet-backdrop" onClick={onClose} aria-hidden="true" />
+      <div className="ios-sheet" role="dialog" aria-modal="true" aria-label={`Share ${accountName}`}>
+        <div className="ios-grabber" />
 
         {/* Header */}
-        <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid var(--color-rule)", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-accent)", marginBottom: 3 }}>Share Account</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-ink)" }}>{accountName}</div>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, padding: "2px 0 18px" }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="ios-headline" style={{ color: "var(--ios-label)" }}>Share account</div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>{accountName}</div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--color-ink-3)", padding: "2px 6px" }}>✕</button>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 999, border: "none", background: "var(--ios-fill)", color: "var(--ios-label-2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden style={{ width: 15, height: 15 }}>
+              <path d="M6 6 18 18M18 6 6 18" />
+            </svg>
+          </button>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
-          {loading && <div style={{ fontSize: 13, color: "var(--color-ink-3)", textAlign: "center", padding: "24px 0" }}>Loading…</div>}
+        <div>
+          {loading && <div className="ios-subhead" style={{ color: "var(--ios-label-2)", textAlign: "center", padding: "24px 0" }}>Loading…</div>}
 
           {!loading && noCircle && (
-            <div style={{ fontSize: 13, color: "var(--color-ink-3)", lineHeight: 1.6 }}>
-              Your family circle is empty. <a href="/home/settings/family" style={{ color: "var(--color-accent)" }}>Add people</a> to your circle first, then come back to share.
+            <div className="ios-subhead" style={{ color: "var(--ios-label-2)", lineHeight: 1.6 }}>
+              Your family circle is empty. <a href="/home/settings/family" style={{ color: "var(--ios-tint)" }}>Add people</a> to your circle first, then come back to share.
             </div>
           )}
 
@@ -116,44 +138,43 @@ export default function ShareAccountModal({ accountId, accountName, onClose }: S
             <>
               {/* Already shared */}
               {existing.length > 0 && (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 10 }}>
-                    Currently shared with
-                  </div>
-                  {existing.map((share) => {
-                    const person = circle.find((m) => m.member_user_id === share.recipient_user_id);
-                    const name = person?.full_name ?? person?.email ?? share.recipient_user_id;
-                    return (
-                      <div key={share.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--color-bg-deep)", borderRadius: 8, marginBottom: 6 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(74,107,58,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "var(--color-green)", flexShrink: 0 }}>
-                          {initials(person?.full_name ?? null, person?.email ?? null)}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>{name}</div>
-                          <div style={{ fontSize: 10, color: "var(--color-ink-4)" }}>
-                            {share.mode === "auto" ? "Auto — visible immediately" : share.accepted ? "Manual — accepted" : "Manual — pending acceptance"}
+                <div style={{ marginBottom: 22 }}>
+                  <div style={sectionLabel}>Currently shared with</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {existing.map((share) => {
+                      const person = circle.find((m) => m.member_user_id === share.recipient_user_id);
+                      const name = person?.full_name ?? person?.email ?? share.recipient_user_id;
+                      return (
+                        <div key={share.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 12px", background: "var(--ios-fill)", borderRadius: 12 }}>
+                          <div style={avatarStyle}>
+                            {initials(person?.full_name ?? null, person?.email ?? null)}
                           </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="ios-subhead" style={{ fontWeight: 500, color: "var(--ios-label)" }}>{name}</div>
+                            <div className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>
+                              {share.mode === "auto" ? "Auto — visible immediately" : share.accepted ? "Manual — accepted" : "Manual — pending acceptance"}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleRevoke(share.id, share.recipient_user_id)}
+                            disabled={revoking.has(share.id)}
+                            className="ios-btn--plain"
+                            style={{ color: "var(--ios-red)", flexShrink: 0 }}
+                          >
+                            {revoking.has(share.id) ? "…" : "Revoke"}
+                          </button>
                         </div>
-                        <button
-                          onClick={() => handleRevoke(share.id, share.recipient_user_id)}
-                          disabled={revoking.has(share.id)}
-                          style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-3)", cursor: "pointer", fontFamily: "inherit" }}
-                        >
-                          {revoking.has(share.id) ? "…" : "Revoke"}
-                        </button>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
               {/* Add new shares */}
               {notYetShared.length > 0 && (
                 <>
-                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 10 }}>
-                    Share with
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+                  <div style={sectionLabel}>Share with</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
                     {notYetShared.map((m) => {
                       const isSelected = selected.has(m.member_user_id);
                       return (
@@ -161,20 +182,33 @@ export default function ShareAccountModal({ accountId, accountName, onClose }: S
                           key={m.member_user_id}
                           onClick={() => toggleSelect(m.member_user_id)}
                           style={{
-                            display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
-                            borderRadius: 8, border: `1px solid ${isSelected ? "var(--color-accent)" : "var(--color-rule)"}`,
-                            background: isSelected ? "var(--color-accent-soft)" : "var(--color-bg-card)",
-                            cursor: "pointer", textAlign: "left", fontFamily: "inherit", transition: "all 0.15s",
+                            display: "flex", alignItems: "center", gap: 12, padding: "8px 12px",
+                            borderRadius: 12, border: "none",
+                            background: isSelected ? "var(--ios-fill-2)" : "var(--ios-fill)",
+                            cursor: "pointer", textAlign: "left", fontFamily: "inherit",
                           }}
                         >
-                          <div style={{ width: 32, height: 32, borderRadius: "50%", background: isSelected ? "var(--color-accent-soft)" : "var(--color-bg-deep)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: isSelected ? "var(--color-accent)" : "var(--color-ink-3)", flexShrink: 0 }}>
+                          <div style={avatarStyle}>
                             {initials(m.full_name, m.email)}
                           </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>{m.full_name ?? "—"}</div>
-                            <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>{m.email}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="ios-subhead" style={{ fontWeight: 500, color: "var(--ios-label)" }}>{m.full_name ?? "—"}</div>
+                            <div className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>{m.email}</div>
                           </div>
-                          {isSelected && <span style={{ fontSize: 16, color: "var(--color-accent)" }}>✓</span>}
+                          <span
+                            style={{
+                              flexShrink: 0, width: 22, height: 22, borderRadius: "50%",
+                              border: isSelected ? "none" : "1.5px solid var(--ios-separator)",
+                              background: isSelected ? "var(--ios-tint)" : "transparent",
+                              color: "var(--ios-on-tint)", display: "flex", alignItems: "center", justifyContent: "center",
+                            }}
+                          >
+                            {isSelected && (
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ width: 13, height: 13 }}>
+                                <path d="M5 12.5 10 17.5 19 6.5" />
+                              </svg>
+                            )}
+                          </span>
                         </button>
                       );
                     })}
@@ -182,27 +216,21 @@ export default function ShareAccountModal({ accountId, accountName, onClose }: S
 
                   {/* Mode picker */}
                   {selected.size > 0 && (
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 8 }}>Sharing mode</div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        {([
-                          { v: "auto" as const, label: "Automatic", desc: "Visible in their dashboard immediately" },
-                          { v: "manual" as const, label: "Manual", desc: "They receive a request and must accept" },
-                        ]).map(({ v, label, desc }) => (
-                          <button
-                            key={v}
-                            onClick={() => setMode(v)}
-                            style={{
-                              flex: 1, padding: "10px 12px", borderRadius: 8, textAlign: "left",
-                              border: `1px solid ${mode === v ? "var(--color-accent)" : "var(--color-rule)"}`,
-                              background: mode === v ? "var(--color-accent-soft)" : "transparent",
-                              cursor: "pointer", fontFamily: "inherit",
-                            }}
-                          >
-                            <div style={{ fontSize: 12, fontWeight: 700, color: mode === v ? "var(--color-accent)" : "var(--color-ink-2)", marginBottom: 2 }}>{label}</div>
-                            <div style={{ fontSize: 10, color: "var(--color-ink-4)", lineHeight: 1.4 }}>{desc}</div>
-                          </button>
-                        ))}
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={sectionLabel}>Sharing mode</div>
+                      <Segmented
+                        options={[
+                          { value: "auto", label: "Automatic" },
+                          { value: "manual", label: "Manual" },
+                        ]}
+                        value={mode}
+                        onChange={setMode}
+                        ariaLabel="Sharing mode"
+                      />
+                      <div className="ios-footnote" style={{ color: "var(--ios-label-3)", marginTop: 8, lineHeight: 1.4 }}>
+                        {mode === "auto"
+                          ? "Visible in their dashboard immediately."
+                          : "They receive a request and must accept."}
                       </div>
                     </div>
                   )}
@@ -210,7 +238,7 @@ export default function ShareAccountModal({ accountId, accountName, onClose }: S
               )}
 
               {notYetShared.length === 0 && existing.length === 0 && (
-                <div style={{ fontSize: 13, color: "var(--color-ink-4)", textAlign: "center", padding: "16px 0" }}>
+                <div className="ios-subhead" style={{ color: "var(--ios-label-3)", textAlign: "center", padding: "16px 0" }}>
                   Everyone in your circle already has access.
                 </div>
               )}
@@ -220,17 +248,16 @@ export default function ShareAccountModal({ accountId, accountName, onClose }: S
 
         {/* Footer */}
         {!loading && !noCircle && selected.size > 0 && (
-          <div style={{ padding: "16px 24px", borderTop: "1px solid var(--color-rule)" }}>
-            <button
-              onClick={handleShare}
-              disabled={saving}
-              style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 14, fontWeight: 600, fontFamily: "inherit", cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1 }}
-            >
-              {saving ? "Sharing…" : `Share with ${selected.size} person${selected.size !== 1 ? "s" : ""} · ${mode === "auto" ? "Automatic" : "Manual"}`}
-            </button>
-          </div>
+          <button
+            onClick={handleShare}
+            disabled={saving}
+            className="ios-btn ios-btn--primary"
+            style={{ marginTop: 8, opacity: saving ? 0.6 : 1 }}
+          >
+            {saving ? "Sharing…" : `Share with ${selected.size} person${selected.size !== 1 ? "s" : ""} · ${mode === "auto" ? "Automatic" : "Manual"}`}
+          </button>
         )}
       </div>
-    </div>
+    </>
   );
 }

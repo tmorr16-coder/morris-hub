@@ -1,7 +1,33 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { RateLimitErrorBoundary } from "@/components/RateLimitErrorBoundary";
+import ThemeApplier from "@/components/ThemeApplier";
+import GlobalBackButton from "@/components/GlobalBackButton";
+import { NavModeProvider } from "@/components/NavModeProvider";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { isPersonalPersona } from "@/lib/prefs";
 import "./globals.css";
+import "./ios.css";
+
+/** Whether the signed-in user is a solo (personal) user — drives "Me" vs "Family" nav. */
+async function resolvePersonalMode(): Promise<boolean> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const service = createServiceClient() as any;
+    const { data } = await service
+      .schema("hub")
+      .from("preferences")
+      .select("persona")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    return isPersonalPersona(data?.persona);
+  } catch {
+    return false;
+  }
+}
 
 const geist = Geist({
   variable: "--font-geist",
@@ -33,23 +59,28 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#3B5C7F",
+  themeColor: "#356FB0",
   width: "device-width",
   initialScale: 1,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const personal = await resolvePersonalMode();
   return (
     <html
       lang="en"
       className={`${geist.variable} ${jetBrainsMono.variable} ${instrumentSerif.variable}`}
     >
       <body>
-        <RateLimitErrorBoundary>{children}</RateLimitErrorBoundary>
+        <ThemeApplier />
+        <GlobalBackButton />
+        <NavModeProvider personal={personal}>
+          <RateLimitErrorBoundary>{children}</RateLimitErrorBoundary>
+        </NavModeProvider>
       </body>
     </html>
   );

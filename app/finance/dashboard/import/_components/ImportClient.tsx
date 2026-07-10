@@ -47,7 +47,7 @@ export default function ImportClient({ userId }: { userId: string }) {
   }
 
   return (
-    <div style={{ maxWidth: 560 }}>
+    <div>
       {/* Drop zone */}
       <div
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -55,24 +55,30 @@ export default function ImportClient({ userId }: { userId: string }) {
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
         style={{
-          border: `2px dashed ${dragging ? "var(--color-bronze)" : "var(--color-rule)"}`,
+          border: `2px dashed ${dragging ? "var(--ios-tint)" : "var(--ios-separator)"}`,
           borderRadius: 14,
-          padding: "40px 24px",
+          padding: "36px 20px",
           textAlign: "center",
           cursor: "pointer",
-          background: dragging ? "rgba(139,106,71,0.04)" : "var(--color-paper-card)",
-          transition: "all 150ms",
-          marginBottom: 16,
+          background: dragging ? "var(--ios-fill)" : "transparent",
+          transition: "border-color 150ms, background 150ms",
         }}
       >
-        <div style={{ fontSize: 32, marginBottom: 12 }}>📄</div>
-        <div style={{ fontSize: 15, fontWeight: 500, color: "var(--color-ink)", marginBottom: 6 }}>
+        <svg
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}
+          strokeLinecap="round" strokeLinejoin="round" aria-hidden
+          style={{ width: 34, height: 34, color: dragging ? "var(--ios-tint)" : "var(--ios-label-3)", marginBottom: 12 }}
+        >
+          <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z" />
+          <path d="M14 3v5h5M9 13h6M9 17h6" />
+        </svg>
+        <div className="ios-callout" style={{ fontWeight: 500, color: "var(--ios-label)", marginBottom: 4 }}>
           {file ? file.name : "Drop your statement here"}
         </div>
-        <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>
           {file
-            ? `${(file.size / 1024).toFixed(0)} KB — click Upload to import`
-            : "or click to browse — PDF, CSV, or TXT, up to 10 MB"}
+            ? `${(file.size / 1024).toFixed(0)} KB — tap Upload to import`
+            : "or tap to browse — PDF, CSV, or TXT, up to 10 MB"}
         </div>
         <input
           ref={inputRef}
@@ -84,27 +90,18 @@ export default function ImportClient({ userId }: { userId: string }) {
       </div>
 
       {file && (
-        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 4 }}>
           <button
             onClick={handleSubmit}
             disabled={isPending}
-            style={{
-              flex: 1, padding: "12px", borderRadius: 10, border: "none",
-              background: isPending ? "var(--color-paper-deep)" : "var(--color-bronze)",
-              color: isPending ? "var(--color-ink-3)" : "#fff",
-              fontSize: 14, fontWeight: 600, cursor: isPending ? "default" : "pointer",
-              fontFamily: "inherit",
-            }}
+            className="ios-btn ios-btn--primary"
+            style={{ opacity: isPending ? 0.5 : 1 }}
           >
             {isPending ? "Extracting…" : "Upload & Extract"}
           </button>
           <button
             onClick={() => { setFile(null); setError(null); }}
-            style={{
-              padding: "12px 16px", borderRadius: 10, border: "1px solid var(--color-rule)",
-              background: "transparent", color: "var(--color-ink-3)", fontSize: 13,
-              cursor: "pointer", fontFamily: "inherit",
-            }}
+            className="ios-btn--plain ios-btn--full"
           >
             Clear
           </button>
@@ -112,26 +109,29 @@ export default function ImportClient({ userId }: { userId: string }) {
       )}
 
       {isPending && (
-        <div style={{ fontSize: 12, color: "var(--color-ink-3)", padding: "8px 0" }}>
+        <p className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "12px 0 0" }}>
           Extracting from document — PDFs may take 10–15 seconds…
-        </div>
+        </p>
       )}
 
       {error && (
-        <div style={{ padding: "10px 14px", background: "rgba(154,59,42,0.08)", border: "1px solid var(--color-red)", borderRadius: 8, fontSize: 13, color: "var(--color-red)", marginBottom: 12 }}>
+        <p className="ios-subhead" style={{ color: "var(--ios-red)", padding: "12px 0 0" }}>
           {error}
-        </div>
+        </p>
       )}
 
       {success && (
-        <div style={{ padding: "10px 14px", background: "rgba(77,107,58,0.08)", border: "1px solid var(--color-green)", borderRadius: 8, fontSize: 13, color: "var(--color-green)" }}>
-          ✓ Statement imported — scroll down to see the extracted account.
-        </div>
+        <p className="ios-subhead" style={{ color: "var(--ios-green)", padding: "12px 0 0", display: "flex", alignItems: "center", gap: 6 }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ width: 16, height: 16 }}>
+            <path d="M5 12.5 10 17.5 19 6.5" />
+          </svg>
+          Statement imported — scroll down to see the extracted account.
+        </p>
       )}
 
-      <div style={{ fontSize: 11, color: "var(--color-ink-4)", lineHeight: 1.6, marginTop: 12 }}>
-        <strong style={{ color: "var(--color-ink-3)" }}>Privacy:</strong> Your file is sent directly to Anthropic for extraction and is not stored on our servers. Only the extracted data (balance, fund names, allocation %) is saved.
-      </div>
+      <p className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.6, marginTop: 16 }}>
+        <strong style={{ color: "var(--ios-label)" }}>Privacy:</strong> Your file is sent directly to Anthropic for extraction and is not stored on our servers. Only the extracted data (balance, fund names, allocation %) is saved.
+      </p>
     </div>
   );
 }

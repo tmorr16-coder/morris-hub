@@ -1,7 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { Icons } from "@/components/ios";
 import FlashcardSetViewer from "./FlashcardSetViewer";
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "11px 14px",
+  borderRadius: 10,
+  border: "var(--ios-hair) solid var(--ios-separator)",
+  background: "var(--ios-cell)",
+  color: "var(--ios-label)",
+  fontSize: 16,
+  outline: "none",
+  fontFamily: "inherit",
+  boxSizing: "border-box",
+  colorScheme: "light dark",
+};
 
 interface FlashcardSet {
   id: string;
@@ -97,184 +112,113 @@ export default function FlashcardsTab({
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Study Flashcards</h2>
-        <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          style={{
-            padding: "6px 14px",
-            borderRadius: 6,
-            border: "none",
-            background: "var(--color-accent-dark)",
-            color: "white",
-            fontSize: 12,
-            cursor: "pointer",
-            fontWeight: 500,
-          }}
-        >
-          + New Set
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <h2 className="ios-title-3" style={{ margin: 0 }}>Study Flashcards</h2>
+        <button type="button" className="ios-btn--plain" onClick={() => setShowAddForm(true)} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <Icons.PlusIcon style={{ width: 17, height: 17 }} />
+          New Set
         </button>
       </div>
 
-      {showAddForm && (
-        <div
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 8,
-            padding: 20,
-            marginBottom: 20,
-          }}
-        >
-          <form onSubmit={handleAddSet}>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
-                Set Name *
-              </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-                placeholder="e.g., Chapter 3 Vocabulary"
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid var(--color-rule)",
-                  borderRadius: 6,
-                  fontSize: 13,
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
-                Description
-              </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="What topics does this cover?"
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid var(--color-rule)",
-                  borderRadius: 6,
-                  fontSize: 13,
-                  boxSizing: "border-box",
-                  minHeight: 60,
-                  resize: "vertical",
-                }}
-              />
-            </div>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setShowAddForm(false)}
-                style={{
-                  flex: 1,
-                  padding: "8px 12px",
-                  borderRadius: 6,
-                  border: "1px solid var(--color-rule)",
-                  background: "transparent",
-                  cursor: "pointer",
-                  fontSize: 12,
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading || !formData.name}
-                style={{
-                  flex: 1,
-                  padding: "8px 12px",
-                  borderRadius: 6,
-                  border: "none",
-                  background: loading || !formData.name ? "var(--color-paper-deep)" : "var(--color-accent-dark)",
-                  color: "white",
-                  cursor: loading || !formData.name ? "default" : "pointer",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  opacity: loading || !formData.name ? 0.6 : 1,
-                }}
-              >
-                {loading ? "Creating..." : "Create Set"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
       {flashcardSets.length === 0 ? (
-        <div
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 8,
-            padding: "32px 24px",
-            textAlign: "center",
-            color: "var(--color-ink-3)",
-          }}
-        >
-          <p>No flashcard sets yet. Create one to start studying!</p>
+        <div style={{
+          background: "var(--ios-cell)",
+          borderRadius: "var(--ios-radius-card)",
+          padding: "32px 24px",
+          textAlign: "center",
+        }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, color: "var(--ios-label-3)" }}>
+            <Icons.BookIcon style={{ width: 30, height: 30 }} />
+          </div>
+          <p className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
+            No flashcard sets yet. Create one to start studying.
+          </p>
         </div>
       ) : (
-        <div style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {flashcardSets.map((set) => (
             <div
               key={set.id}
               style={{
-                background: "var(--color-bg-card)",
-                border: "1px solid var(--color-rule)",
-                borderRadius: 8,
-                padding: "16px",
+                background: "var(--ios-cell)",
+                borderRadius: "var(--ios-radius-card)",
+                padding: "14px 16px",
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "start",
+                alignItems: "flex-start",
                 gap: 12,
               }}
             >
               <button
                 onClick={() => setSelectedSetId(set.id)}
-                style={{
-                  flex: 1,
-                  textAlign: "left",
-                  border: "none",
-                  background: "transparent",
-                  cursor: "pointer",
-                  padding: 0,
-                }}
+                style={{ flex: 1, textAlign: "left", padding: 0, minWidth: 0 }}
               >
-                <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "var(--color-accent-dark)" }}>
-                  🎯 {set.name}
+                <h3 className="ios-headline" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                  <Icons.BookIcon style={{ width: 18, height: 18, color: colorTag }} />
+                  {set.name}
                 </h3>
                 {set.description && (
-                  <p style={{ fontSize: 12, color: "var(--color-ink-3)", margin: "6px 0 0 0" }}>
+                  <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: "4px 0 0 0" }}>
                     {set.description}
                   </p>
                 )}
               </button>
               <button
                 onClick={() => handleDeleteSet(set.id)}
-                style={{
-                  padding: "4px 8px",
-                  borderRadius: 4,
-                  border: "1px solid #fecaca",
-                  background: "#fee2e2",
-                  color: "#991b1b",
-                  fontSize: 11,
-                  cursor: "pointer",
-                  fontWeight: 500,
-                }}
+                className="ios-footnote"
+                style={{ color: "var(--ios-red)", fontWeight: 600, flexShrink: 0 }}
               >
                 Delete
               </button>
             </div>
           ))}
         </div>
+      )}
+
+      {showAddForm && (
+        <>
+          <div className="ios-sheet-backdrop" onClick={() => setShowAddForm(false)} aria-hidden="true" />
+          <div className="ios-sheet" role="dialog" aria-modal="true" aria-label="New flashcard set">
+            <div className="ios-grabber" />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <button type="button" className="ios-btn--plain" onClick={() => setShowAddForm(false)}>Cancel</button>
+              <span className="ios-headline">New Set</span>
+              <span style={{ width: 52 }} />
+            </div>
+
+            <form onSubmit={handleAddSet}>
+              <div className="ios-group-header" style={{ padding: "0 0 8px" }}>
+                Set Name <span style={{ color: "var(--ios-red)" }}>*</span>
+              </div>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+                placeholder="e.g. Chapter 3 Vocabulary"
+                style={inputStyle}
+              />
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Description</div>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="What topics does this cover?"
+                rows={2}
+                style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+              />
+
+              <button
+                type="submit"
+                disabled={loading || !formData.name}
+                className="ios-btn ios-btn--primary"
+                style={{ marginTop: 22, opacity: loading || !formData.name ? 0.5 : 1 }}
+              >
+                {loading ? "Creating…" : "Create Set"}
+              </button>
+            </form>
+          </div>
+        </>
       )}
     </div>
   );

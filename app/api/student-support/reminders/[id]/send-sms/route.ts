@@ -21,7 +21,7 @@ export async function POST(
     // Fetch reminder and verify ownership
     const { data: reminder, error: reminderError } = await service
       .schema("student_support")
-      .from("reminders")
+      .from("course_reminders")
       .select("*, courses(user_id)")
       .eq("id", reminderId)
       .maybeSingle();
@@ -83,7 +83,7 @@ export async function POST(
     // Update reminder with sent timestamp
     const { error: updateError } = await service
       .schema("student_support")
-      .from("reminders")
+      .from("course_reminders")
       .update({
         reminder_sent: true,
         sent_at: new Date().toISOString(),

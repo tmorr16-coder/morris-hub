@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { LargeTitle } from "@/components/ios";
 import { quickLogWorkout } from "./actions";
 
 const WORKOUT_TYPES = [
@@ -79,53 +79,14 @@ export default function QuickLogPage() {
   }
 
   return (
-    <div style={{ padding: "20px 20px 100px", maxWidth: 480, margin: "0 auto" }}>
+    <div className="ios-scroll" style={{ paddingBottom: 100 }}>
 
-      {/* Back link */}
-      <Link
-        href="/health/train"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          fontSize: 13,
-          color: "var(--color-ink-3)",
-          textDecoration: "none",
-          marginBottom: 20,
-        }}
-      >
-        ← Train
-      </Link>
+      <LargeTitle
+        title={isBackdated ? "Log a past workout" : "Log today's workout"}
+        subtitle="Quick log"
+      />
 
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 500,
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-          color: "var(--color-ink-3)",
-          marginBottom: 6,
-        }}
-      >
-        Quick log
-      </div>
-      <div
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: 32,
-          fontWeight: 400,
-          letterSpacing: "-0.02em",
-          lineHeight: 1,
-          color: "var(--color-ink)",
-          marginBottom: 24,
-        }}
-      >
-        {isBackdated ? "Log a past" : "Log today's"}
-        <br />
-        <span style={{ color: "var(--color-accent)" }}>workout.</span>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 20, padding: "8px 16px 0" }}>
 
         {/* Date */}
         <div>

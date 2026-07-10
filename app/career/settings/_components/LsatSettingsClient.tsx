@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { List } from "@/components/ios";
 import { saveLsatSettings } from "../actions";
 
 interface Props {
@@ -16,9 +17,6 @@ export default function LsatSettingsClient({
   const [lsatTargetScore, setLsatTargetScore] = useState(initialLsatTargetScore ?? 165);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-
-  const card: React.CSSProperties = { background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 12, padding: "20px 22px", marginBottom: 16 };
-  const label: React.CSSProperties = { fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 10, display: "block" };
 
   async function handleToggle() {
     const next = !lsatEnabled;
@@ -46,65 +44,70 @@ export default function LsatSettingsClient({
     }
   }
 
-  return (
-    <div style={card}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-        <div>
-          <span style={label}>LSAT Prep</span>
-          <p style={{ fontSize: 12, color: "var(--color-ink-3)", margin: 0 }}>
-            Error log, blind review, confidence calibration, and AI-powered explanations.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={handleToggle}
-          disabled={isSaving}
-          style={{
-            width: 44, height: 24, borderRadius: 12, border: "none",
-            background: lsatEnabled ? "var(--color-accent)" : "var(--color-rule)",
-            cursor: isSaving ? "default" : "pointer", position: "relative", flexShrink: 0, marginLeft: 16, transition: "background 150ms",
-          }}
-        >
-          <span style={{
-            position: "absolute", top: 2, left: lsatEnabled ? 22 : 2,
-            width: 20, height: 20, borderRadius: "50%", background: "#fff",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.2)", transition: "left 150ms",
-          }} />
-        </button>
-      </div>
+  const subFieldLabel: React.CSSProperties = {
+    fontSize: 13, fontWeight: 400, color: "var(--ios-label-2)",
+    textTransform: "uppercase", letterSpacing: "0.02em",
+  };
 
-      {lsatEnabled && (
-        <div>
-          <label style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6, color: "var(--color-ink-2)" }}>
-            Target Score (120–180)
-          </label>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+  return (
+    <section className="ios-group">
+      <List>
+        <div className="ios-cell">
+          <span className="ios-cell-body">
+            <span className="ios-cell-title">LSAT Prep</span>
+            <span className="ios-cell-sub">
+              Error log, blind review, confidence calibration, and AI-powered explanations.
+            </span>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={lsatEnabled}
+            onClick={handleToggle}
+            disabled={isSaving}
+            style={{
+              width: 51, height: 31, borderRadius: 16, border: "none",
+              background: lsatEnabled ? "var(--ios-green)" : "var(--ios-fill-2)",
+              cursor: isSaving ? "default" : "pointer", position: "relative", flexShrink: 0, transition: "background 150ms",
+            }}
+          >
+            <span style={{
+              position: "absolute", top: 2, left: lsatEnabled ? 22 : 2,
+              width: 27, height: 27, borderRadius: "50%", background: "#fff",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.2)", transition: "left 150ms",
+            }} />
+          </button>
+        </div>
+
+        {lsatEnabled && (
+          <div className="ios-cell" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={subFieldLabel}>Target Score (120–180)</span>
+              <span className="ios-num" style={{ fontSize: 22, fontWeight: 700, color: "var(--ios-tint)" }}>{lsatTargetScore}</span>
+            </div>
             <input
               type="range" min="140" max="180" step="1"
               value={lsatTargetScore}
               onChange={(e) => setLsatTargetScore(parseInt(e.target.value))}
               onMouseUp={handleSaveScore}
               onTouchEnd={handleSaveScore}
-              style={{ flex: 1, cursor: "pointer", accentColor: "var(--color-accent)" }}
+              style={{ width: "100%", cursor: "pointer", accentColor: "var(--ios-tint)" }}
             />
-            <span style={{ fontSize: 20, fontWeight: 700, color: "var(--color-accent)", minWidth: 36 }}>{lsatTargetScore}</span>
+            <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
+              The AI study plan and drill prioritization will optimize toward this score.
+            </span>
           </div>
-          <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 4 }}>
-            The AI study plan and drill prioritization will optimize toward this score.
-          </p>
-        </div>
-      )}
+        )}
+      </List>
 
       {message && (
-        <div style={{
-          marginTop: 14, padding: "10px 14px", borderRadius: 8, fontSize: 13,
-          background: message.type === "success" ? "rgba(74,107,58,0.08)" : "rgba(154,59,42,0.08)",
-          color: message.type === "success" ? "var(--color-green)" : "var(--color-red)",
-          border: `1px solid ${message.type === "success" ? "var(--color-green)" : "var(--color-red)"}`,
-        }}>
+        <p
+          className="ios-group-footer ios-footnote"
+          style={{ color: message.type === "success" ? "var(--ios-green)" : "var(--ios-red)" }}
+        >
           {message.text}
-        </div>
+        </p>
       )}
-    </div>
+    </section>
   );
 }

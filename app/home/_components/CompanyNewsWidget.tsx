@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { fetchTickerNews } from "@/lib/news";
+import { IconBadge, Icons } from "@/components/ios";
 
 interface Props {
   ticker: string; // e.g. "LLY", "NVDA"
@@ -11,42 +12,51 @@ export default async function CompanyNewsWidget({ ticker }: Props) {
 
   return (
     <div style={card}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-        <h2 className="serif" style={{ fontSize: 20 }}>
-          {upper} <span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>news</span>
-        </h2>
-        <Link
-          href="/home/settings"
-          style={{ fontSize: 10, color: "var(--color-ink-3)", letterSpacing: "0.08em", textTransform: "uppercase", textDecoration: "none" }}
-        >
+      <div style={header}>
+        <span className="ios-headline">{upper} news</span>
+        <Link href="/home/settings" className="ios-footnote" style={{ color: "var(--ios-tint)" }}>
           Company news
         </Link>
       </div>
 
       {items.length === 0 ? (
-        <p style={{ fontSize: 13, color: "var(--color-ink-4)", padding: "20px 0", textAlign: "center" }}>
+        <p className="ios-footnote" style={{ color: "var(--ios-label-3)", padding: "24px 16px", textAlign: "center" }}>
           No recent {upper} headlines.
         </p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column" }}>
+        <div>
           {items.map((it, idx) => (
             <a
               key={`${it.url}-${idx}`}
               href={it.url}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ display: "block", padding: "10px 0", borderTop: idx === 0 ? undefined : "1px solid var(--color-rule-soft)", textDecoration: "none", color: "inherit" }}
+              className="ios-cell"
+              style={{ alignItems: "flex-start", color: "inherit" }}
             >
-              <div style={{ fontSize: 13, color: "var(--color-ink)", fontWeight: 500, lineHeight: 1.4, marginBottom: 3 }}>
-                {it.headline}
-              </div>
-              <div style={{ fontSize: 11, color: "var(--color-ink-3)", lineHeight: 1.5 }}>
-                {it.summary}
-              </div>
-              <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 4, display: "flex", gap: 8 }}>
-                <span>{it.source}</span>
-                {it.publishedAt && <span>· {it.publishedAt}</span>}
-              </div>
+              <span className="ios-cell-lead" style={{ marginTop: 2 }}>
+                <IconBadge color="#3B5C7F">
+                  <Icons.NewsIcon />
+                </IconBadge>
+              </span>
+              <span className="ios-cell-body">
+                <span
+                  className="ios-cell-title"
+                  style={{ fontSize: 15, fontWeight: 500, lineHeight: 1.35 }}
+                >
+                  {it.headline}
+                </span>
+                <span className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>
+                  {it.summary}
+                </span>
+                <span
+                  className="ios-caption"
+                  style={{ color: "var(--ios-label-3)", marginTop: 3, display: "flex", gap: 6 }}
+                >
+                  <span>{it.source}</span>
+                  {it.publishedAt && <span>· {it.publishedAt}</span>}
+                </span>
+              </span>
             </a>
           ))}
         </div>
@@ -56,12 +66,16 @@ export default async function CompanyNewsWidget({ ticker }: Props) {
 }
 
 const card: React.CSSProperties = {
-  background: "var(--color-bg-card)",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 12,
-  padding: "18px 20px",
-  boxShadow: "var(--shadow-card)",
+  background: "var(--ios-cell)",
+  borderRadius: "var(--ios-radius-card)",
+  overflow: "hidden",
   minHeight: 320,
-  height: "100%",
-  boxSizing: "border-box" as const,
+};
+
+const header: React.CSSProperties = {
+  display: "flex",
+  alignItems: "baseline",
+  justifyContent: "space-between",
+  gap: 8,
+  padding: "12px 16px 6px",
 };

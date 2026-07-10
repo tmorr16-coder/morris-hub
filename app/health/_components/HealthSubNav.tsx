@@ -7,9 +7,8 @@ const TABS = [
   { href: "/health/train", label: "Workouts" },
   { href: "/health/nutrition", label: "Nutrition" },
   { href: "/health/medications", label: "Medications" },
-  { href: "/health/progress", label: "Progress" },
   { href: "/health/wellness", label: "Wellness" },
-  { href: "/health/settings/integrations", label: "⚙ Settings" },
+  { href: "/health/settings/integrations", label: "Settings" },
 ];
 
 function isActive(pathname: string, href: string): boolean {

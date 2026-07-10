@@ -4,7 +4,30 @@ import { requireFinanceAccess } from "@/lib/finance/access";
 import { createServiceClient } from "@/lib/supabase/server";
 import { loadPlan } from "../retirement/actions";
 import type { RetirementAccount, RetirementDebt } from "../retirement/types";
+import { LargeTitle, Group, BarRows } from "@/components/ios";
+import { hasAlpacaConnection } from "@/lib/alpaca";
 import PortfolioClient from "./_components/PortfolioClient";
+
+// Roll individual account types up into a handful of asset classes for the
+// allocation chart. Anything unmapped falls into "Other".
+const ASSET_CLASS: Record<string, string> = {
+  "401k": "Retirement",
+  "roth_ira": "Retirement",
+  "traditional_ira": "Retirement",
+  "pension": "Retirement",
+  "hsa": "HSA",
+  "brokerage": "Brokerage",
+  "other_investment": "Investments",
+  "real_estate": "Real estate",
+  "crypto": "Crypto",
+  "other": "Other",
+};
+function assetClass(type: string): string {
+  return ASSET_CLASS[type] ?? "Other";
+}
+function fmtUSD(n: number): string {
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+}
 
 export interface ManualItem {
   id: string;
@@ -30,6 +53,17 @@ export default async function PortfolioPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
 
+  // The accounts table has no user_id column — it's scoped by item_id. Resolve
+  // this user's plaid_items first so the investment-accounts query can filter by
+  // item_id (matching the dashboard). Filtering accounts on user_id returned none.
+  const { data: itemRows } = await service
+    .schema("finance")
+    .from("plaid_items")
+    .select("id")
+    .eq("user_id", user.id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userItemIds = ((itemRows ?? []) as { id: string }[]).map((r) => r.id);
+
   const [plan, myManualResult, plaidResult, sharedManualResult, sharedPlaidResult] = await Promise.all([
     loadPlan(),
     // My own manually-entered and imported accounts — EXCLUDE retirement types
@@ -42,14 +76,16 @@ export default async function PortfolioPage() {
       .eq("user_id", user.id)
       .not("account_type", "in", '("401k","roth_ira","traditional_ira","hsa","pension")')
       .order("created_at", { ascending: true }),
-    // My Plaid investment accounts
-    service
-      .schema("finance")
-      .from("accounts")
-      .select("id, name, subtype, current_balance, mask")
-      .eq("user_id", user.id)
-      .eq("type", "investment")
-      .eq("is_hidden", false),
+    // My Plaid investment accounts (scoped by item_id — accounts has no user_id).
+    userItemIds.length > 0
+      ? service
+          .schema("finance")
+          .from("accounts")
+          .select("id, name, subtype, current_balance, mask")
+          .in("item_id", userItemIds)
+          .eq("type", "investment")
+          .eq("is_hidden", false)
+      : Promise.resolve({ data: [] }),
     // Manual accounts shared WITH this user by others (excluding retirement types)
     service
       .schema("finance")
@@ -107,18 +143,63 @@ export default async function PortfolioPage() {
       })),
   ];
 
-  const hasAlpaca = !!(
-    process.env.ALPACA_API_KEY && process.env.ALPACA_API_SECRET
-  );
+  // Per-user brokerage connection (own Alpaca keys, or owner/admin env fallback).
+  const hasAlpaca = await hasAlpacaConnection(user.id);
+
+  // ── Allocation by asset class (server-computed for the summary chart) ──────
+  const allocation = new Map<string, number>();
+  const addAlloc = (label: string, value: number) => {
+    if (value > 0) allocation.set(label, (allocation.get(label) ?? 0) + value);
+  };
+  for (const a of plan.accounts as RetirementAccount[]) addAlloc(assetClass(a.type), a.balance ?? 0);
+  for (const m of allManualItems) addAlloc(assetClass(m.account_type), m.balance ?? 0);
+  for (const p of plaidInvestmentAccounts) addAlloc("Brokerage", p.balance ?? 0);
+  const allocItems = [...allocation.entries()].sort((a, b) => b[1] - a[1]);
+  const allocTotal = allocItems.reduce((s, [, v]) => s + v, 0);
 
   return (
-    <PortfolioClient
-      retirementAccounts={plan.accounts as RetirementAccount[]}
-      retirementDebts={plan.debts as RetirementDebt[]}
-      hasProfile={!!plan.profile}
-      manualItems={allManualItems}
-      plaidInvestmentAccounts={plaidInvestmentAccounts}
-      hasAlpaca={hasAlpaca}
-    />
+    <div className="ios-scroll">
+      <LargeTitle title="Portfolio" subtitle="Investments, retirement & assets" />
+
+      {allocItems.length > 0 && (
+        <>
+          <div className="ios-list" style={{ margin: "8px 16px 0", padding: 18 }}>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              Total invested
+            </div>
+            <div className="ios-num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.01em", marginTop: 2 }}>
+              {fmtUSD(allocTotal)}
+            </div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 4 }}>
+              {allocItems.length} asset {allocItems.length === 1 ? "class" : "classes"}
+            </div>
+          </div>
+
+          <Group header="Allocation">
+            <BarRows
+              items={allocItems.map(([label, value]) => ({
+                label,
+                value,
+                display: fmtUSD(value),
+                color: "var(--ios-finance)",
+              }))}
+            />
+          </Group>
+        </>
+      )}
+
+      <div style={{ padding: "0 16px" }}>
+        <PortfolioClient
+          retirementAccounts={plan.accounts as RetirementAccount[]}
+          retirementDebts={plan.debts as RetirementDebt[]}
+          hasProfile={!!plan.profile}
+          manualItems={allManualItems}
+          plaidInvestmentAccounts={plaidInvestmentAccounts}
+          hasAlpaca={hasAlpaca}
+        />
+      </div>
+
+      <div style={{ height: 12 }} />
+    </div>
   );
 }

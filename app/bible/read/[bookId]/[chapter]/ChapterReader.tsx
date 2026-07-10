@@ -1,11 +1,15 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import type { SVGProps } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { BibleChapter, BibleVerse, BibleVersion } from "@/lib/bible-api";
-import FocusReader from "./FocusReader";
+import { bookById } from "@/lib/bible-api";
+import { rankVoices, pickBestVoice } from "@/lib/tts-voices";
+import { setActiveReadingSession, clearActiveReadingSession } from "@/lib/active-reading-session";
+import { Icons } from "@/components/ios";
 
 interface Props {
   book: { id: string; name: string; chapters: number; testament: "OT" | "NT" };
@@ -20,9 +24,10 @@ interface Props {
   initialBookmarks: any[];
   initialNotes: any[];
   bibleId: string;
-  autoFocus?: boolean;
   nextReadingHref?: string | null;
   nextReadingLabel?: string | null;
+  /** Ordered readings AFTER the current one, for hands-free auto-continue. */
+  upcomingReadings?: { bookId: string; chapter: number; label: string }[];
 }
 
 const HIGHLIGHT_COLORS = [
@@ -32,13 +37,56 @@ const HIGHLIGHT_COLORS = [
   { key: "pink",   label: "Rose",  bg: "rgba(154,59,90,0.18)",   dot: "#9A3B5A" },
 ];
 
+// ── Inline SF-style glyphs (24×24, currentColor) ─────────────
+const strokeSvg = (p: SVGProps<SVGSVGElement>) => ({
+  viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
+  strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
+  width: "1em", height: "1em", "aria-hidden": true, ...p,
+});
+const PlayIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em" aria-hidden {...p}>
+    <path d="M7 5.3v13.4a1 1 0 0 0 1.5.87l11-6.7a1 1 0 0 0 0-1.74l-11-6.7A1 1 0 0 0 7 5.3Z" />
+  </svg>
+);
+const PauseIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...strokeSvg(p)}><path d="M8.5 5v14M15.5 5v14" /></svg>
+);
+const StopIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em" aria-hidden {...p}>
+    <rect x="6" y="6" width="12" height="12" rx="2.5" />
+  </svg>
+);
+const BookmarkIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...strokeSvg(p)}><path d="M6.5 4h11a1 1 0 0 1 1 1v15l-6.5-4-6.5 4V5a1 1 0 0 1 1-1Z" /></svg>
+);
+
 export default function ChapterReader({
-  book, chapterNum, chapterData, version, allVersions,
+  book: bookProp, chapterNum: chapterNumProp, chapterData: chapterDataProp, version, allVersions,
   prevChapter, nextChapter, userId, initialHighlights, initialBookmarks, initialNotes, bibleId,
-  autoFocus = false, nextReadingHref, nextReadingLabel,
+  upcomingReadings = [],
 }: Props) {
   const router = useRouter();
   const db = createClient() as any;
+
+  // ── Displayed chapter is STATE so read-aloud can advance it in place ──
+  // (auto-continue swaps the shown chapter without any navigation/remount, so
+  // the speechSynthesis session survives — required for iOS to keep playing).
+  const [book, setBook] = useState(bookProp);
+  const [chapterNum, setChapterNum] = useState(chapterNumProp);
+  const [chapterData, setChapterData] = useState(chapterDataProp);
+
+  // Refs mirror the displayed chapter so the async onend handler always reads
+  // the freshest chapter (state updates are async / the utterance closure is stale).
+  const bookRef = useRef(book);
+  const chapterNumRef = useRef(chapterNum);
+  const chapterDataRef = useRef(chapterData);
+
+  // Pointer into upcomingReadings: the NEXT reading to auto-play after the
+  // currently displayed chapter finishes.
+  const queueIdxRef = useRef(0);
+
+  // Latest speakFrom, so the recursive auto-continue call isn't a stale closure.
+  const speakFromRef = useRef<(startIdx: number) => void>(() => {});
 
   // ── Core state ────────────────────────────────────────────
   const [highlights, setHighlights] = useState<Record<string, string>>(
@@ -54,51 +102,53 @@ export default function ChapterReader({
 
   // ── TTS state ─────────────────────────────────────────────
   const [speaking, setSpeaking] = useState(false);
-  const [focusMode, setFocusMode] = useState(autoFocus && !!chapterData);
   const [paused, setPaused] = useState(false);
   const [readingVerseIdx, setReadingVerseIdx] = useState<number | null>(null);
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [speechRate, setSpeechRate] = useState(0.88);
-  const [showVoicePicker, setShowVoicePicker] = useState(false);
   const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  // Load available English voices
+  // Load available English voices and honor the voice/speed saved in
+  // Bible → Settings (the single source of truth), falling back to the
+  // best-ranked voice when none is saved.
   useEffect(() => {
-    function loadVoices() {
+    let savedVoiceName: string | null = null;
+    function apply() {
       const all = window.speechSynthesis.getVoices();
-      const english = all.filter(
-        (v) => v.lang.startsWith("en") && !v.name.includes("(compact)")
-      );
-      if (english.length > 0) {
-        setVoices(english);
-        // Default: prefer a natural-sounding US voice
-        const preferred = english.find(
-          (v) =>
-            v.name.includes("Google US English") ||
-            v.name.includes("Samantha") ||
-            v.name.includes("Alex") ||
-            v.name === "Karen" ||
-            v.name === "Daniel"
-        );
-        setSelectedVoice(preferred ?? english[0]);
-      }
+      if (all.length === 0) return;
+      const ranked = rankVoices(all);
+      if (ranked.length === 0) return;
+      const fromSaved = savedVoiceName ? ranked.find((v) => v.name === savedVoiceName) : null;
+      // The Settings voice is authoritative — switch to it as soon as it's
+      // known, even if a default was picked first (the /api/tts-prefs fetch
+      // resolves after voices load). Otherwise keep/pick the best default.
+      if (fromSaved) setSelectedVoice(fromSaved);
+      else setSelectedVoice((prev) => prev ?? pickBestVoice(ranked));
     }
-    loadVoices();
-    window.speechSynthesis.onvoiceschanged = loadVoices;
+    fetch("/api/tts-prefs").then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (d?.tts_voice) savedVoiceName = d.tts_voice;
+      if (typeof d?.tts_speed === "number") setSpeechRate(d.tts_speed);
+      apply();
+    }).catch(() => {});
+    apply();
+    window.speechSynthesis.onvoiceschanged = apply;
     return () => { window.speechSynthesis.onvoiceschanged = null; };
   }, []);
 
   // ── TTS ── speak from a specific verse index ──────────────
   const speakFrom = useCallback((startIdx: number) => {
-    if (!chapterData) return;
+    const data = chapterDataRef.current;
+    if (!data) return;
     window.speechSynthesis.cancel();
     setPaused(false);
 
-    const verses = chapterData.verses.slice(startIdx);
+    const verses = data.verses.slice(startIdx);
 
-    // Build full text + per-verse character offsets for onboundary tracking
-    let fullText = "";
+    // ANNOUNCE the book + chapter first, then the verses. Build the per-verse
+    // char offsets on TOP of the announcement so onboundary verse tracking stays
+    // correct — offsets naturally include the announcement's length.
+    const announcement = `${bookRef.current.name} chapter ${chapterNumRef.current}.  `;
+    let fullText = announcement;
     const offsets: number[] = []; // offsets[i] = char index where verse startIdx+i begins
     verses.forEach((v) => {
       offsets.push(fullText.length);
@@ -113,12 +163,19 @@ export default function ChapterReader({
     utter.onstart = () => {
       setSpeaking(true);
       setReadingVerseIdx(startIdx);
+      setActiveReadingSession({
+        bookId: bookRef.current.id,
+        chapter: chapterNumRef.current,
+        bibleId,
+        label: `${bookRef.current.name} ${chapterNumRef.current}`,
+      });
     };
 
     utter.onboundary = (e) => {
       if (e.name !== "word") return;
       const charIdx = e.charIndex;
-      // Find which verse is being read
+      // During the announcement (charIdx < offsets[0]) the first verse stays
+      // highlighted; once verses begin, track which one is being read.
       let currentVerse = startIdx;
       for (let i = 0; i < offsets.length; i++) {
         if (charIdx >= offsets[i]) currentVerse = startIdx + i;
@@ -127,20 +184,54 @@ export default function ChapterReader({
       setReadingVerseIdx(currentVerse);
     };
 
+    const finishReading = () => {
+      setSpeaking(false);
+      setPaused(false);
+      setReadingVerseIdx(null);
+      clearActiveReadingSession();
+    };
+
     utter.onend = () => {
-      setSpeaking(false);
-      setPaused(false);
-      setReadingVerseIdx(null);
+      // AUTO-CONTINUE: if there's a next reading queued, fetch its verses and
+      // speak them immediately in the SAME session (no navigation/reload) so
+      // iOS keeps playing hands-free through the whole plan day (and beyond).
+      const q = queueIdxRef.current;
+      if (q >= upcomingReadings.length) {
+        finishReading();
+        return;
+      }
+      const next = upcomingReadings[q];
+      queueIdxRef.current = q + 1;
+      fetch(`/api/bible/chapter?bibleId=${encodeURIComponent(bibleId)}&bookId=${encodeURIComponent(next.bookId)}&chapter=${next.chapter}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((nextData: BibleChapter | null) => {
+          if (!nextData || !nextData.verses?.length) { finishReading(); return; }
+          const nextBook = bookById(next.bookId) ?? bookRef.current;
+          // Swap the displayed chapter in place (refs first, so the immediate
+          // speakFrom(0) below reads the NEW chapter; state for the UI/highlight).
+          bookRef.current = nextBook;
+          chapterNumRef.current = next.chapter;
+          chapterDataRef.current = nextData;
+          setBook(nextBook);
+          setChapterNum(next.chapter);
+          setChapterData(nextData);
+          setReadingVerseIdx(0);
+          // Keep the URL shareable/bookmarkable WITHOUT navigating (history API
+          // integrates with the Next router but does not remount → session lives).
+          window.history.replaceState(null, "", `/bible/read/${next.bookId}/${next.chapter}?v=${encodeURIComponent(bibleId)}`);
+          // Announce + read the new chapter, same speechSynthesis session.
+          speakFromRef.current(0);
+        })
+        .catch(() => { finishReading(); });
     };
-    utter.onerror = () => {
-      setSpeaking(false);
-      setPaused(false);
-      setReadingVerseIdx(null);
-    };
+    utter.onerror = () => { finishReading(); };
 
     utterRef.current = utter;
     window.speechSynthesis.speak(utter);
-  }, [chapterData, selectedVoice, speechRate]);
+  }, [selectedVoice, speechRate, upcomingReadings, bibleId]);
+
+  // Keep the recursive-continue pointer aimed at the latest speakFrom.
+  useEffect(() => { speakFromRef.current = speakFrom; }, [speakFrom]);
 
   const pauseResume = useCallback(() => {
     if (!speaking) return;
@@ -154,11 +245,15 @@ export default function ChapterReader({
   }, [speaking, paused]);
 
   const stopSpeaking = useCallback(() => {
+    // Cancel the whole chain: park the queue pointer past the end BEFORE
+    // cancel() so that if cancel() triggers onend, it can't auto-advance.
+    queueIdxRef.current = upcomingReadings.length;
     window.speechSynthesis.cancel();
     setSpeaking(false);
     setPaused(false);
     setReadingVerseIdx(null);
-  }, []);
+    clearActiveReadingSession();
+  }, [upcomingReadings.length]);
 
   // ── Highlight ─────────────────────────────────────────────
   const toggleHighlight = async (verse: BibleVerse, color: string) => {
@@ -214,27 +309,34 @@ export default function ChapterReader({
     setSelectedVerse(null);
   };
 
-  // ── Voice name shortener ──────────────────────────────────
-  const shortVoiceName = (v: SpeechSynthesisVoice) =>
-    v.name.replace(/\(.*?\)/g, "").replace("Google", "").trim();
+  // ── Shared chrome styles ──────────────────────────────────
+  const iconBtn: React.CSSProperties = {
+    display: "flex", alignItems: "center", justifyContent: "center",
+    width: 38, height: 38, borderRadius: 10, fontSize: 18,
+    background: "var(--ios-fill)", border: "none", color: "var(--ios-label)",
+    cursor: "pointer", flexShrink: 0,
+  };
+  const pillBtn: React.CSSProperties = {
+    display: "flex", alignItems: "center", gap: 6,
+    padding: "0 14px", height: 38, borderRadius: 999, border: "none",
+    background: "var(--ios-tint)", color: "var(--ios-on-tint)",
+    fontSize: 15, fontWeight: 600, cursor: "pointer",
+  };
 
   return (
-    <div style={{ maxWidth: "var(--reader-width)", margin: "0 auto", padding: "24px 20px 120px" }}>
+    <div style={{ maxWidth: "var(--reader-width)", margin: "0 auto", padding: "24px 16px 120px" }}>
 
       {/* ── Header ── */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{
-          fontSize: 10, color: "var(--color-ink-4)", fontWeight: 700,
-          textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 6,
+      <div style={{ marginBottom: 24 }}>
+        <div className="ios-caption" style={{
+          color: "var(--ios-label-2)", fontWeight: 600,
+          textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4,
         }}>
           {book.testament === "OT" ? "Old Testament" : "New Testament"}
         </div>
 
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-          <h1 style={{
-            fontFamily: "var(--font-display)", fontSize: 36, fontWeight: 400,
-            margin: 0, letterSpacing: "-0.01em", lineHeight: 1,
-          }}>
+          <h1 className="ios-large-title" style={{ margin: 0, color: "var(--ios-label)" }}>
             {book.name} {chapterNum}
           </h1>
 
@@ -244,10 +346,11 @@ export default function ChapterReader({
             <select
               value={bibleId}
               onChange={(e) => router.push(`/bible/read/${book.id}/${chapterNum}?v=${e.target.value}`)}
+              aria-label="Bible version"
               style={{
-                padding: "6px 10px", borderRadius: 8, border: "1px solid var(--color-rule)",
-                background: "var(--color-bg-card)", fontSize: 12, fontFamily: "inherit",
-                color: "var(--color-ink)", cursor: "pointer",
+                height: 38, padding: "0 12px", borderRadius: 10, border: "none",
+                background: "var(--ios-fill)", fontSize: 15, fontWeight: 600, fontFamily: "inherit",
+                color: "var(--ios-label)", cursor: "pointer",
               }}
             >
               {allVersions.map((v) => (
@@ -258,131 +361,95 @@ export default function ChapterReader({
             {/* Bookmark */}
             <button onClick={toggleBookmark}
               title={bookmarked ? "Remove bookmark" : "Bookmark"}
+              aria-label={bookmarked ? "Remove bookmark" : "Bookmark"}
               style={{
-                background: bookmarked ? "var(--color-accent-soft)" : "var(--color-bg-card)",
-                border: "1px solid var(--color-rule)", borderRadius: 8,
-                padding: "6px 10px", cursor: "pointer", fontSize: 14,
+                ...iconBtn,
+                background: bookmarked ? "var(--ios-tint)" : "var(--ios-fill)",
+                color: bookmarked ? "var(--ios-on-tint)" : "var(--ios-label)",
               }}>
-              {bookmarked ? "🔖" : "🗂"}
+              <BookmarkIcon />
             </button>
 
-            {/* Focus Mode */}
-            {chapterData && (
-              <button
-                onClick={() => setFocusMode(true)}
-                title="Focus mode: word-by-word with audio"
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "7px 14px", borderRadius: 8,
-                  border: "1px solid var(--color-rule)",
-                  background: "var(--color-bg-card)",
-                  color: "var(--color-ink-2)", fontSize: 12, fontWeight: 500, cursor: "pointer",
-                }}
-              >
-                ◈ Focus
-              </button>
-            )}
-
-          {/* Read aloud from start */}
-            {!speaking ? (
-              <button onClick={() => speakFrom(0)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "7px 14px", borderRadius: 8, border: "none",
-                  background: "var(--color-accent)", color: "#fff",
-                  fontSize: 12, fontWeight: 600, cursor: "pointer",
-                }}>
-                ▶ Read aloud
-              </button>
-            ) : (
-              <div style={{ display: "flex", gap: 6 }}>
-                <button onClick={pauseResume}
-                  style={{
-                    padding: "7px 14px", borderRadius: 8, border: "none",
-                    background: "var(--color-accent)", color: "#fff",
-                    fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  }}>
-                  {paused ? "▶ Resume" : "⏸ Pause"}
+            {/* Read aloud from start — only when the chapter actually loaded,
+                so there's no dead control under the "Unable to load" panel. */}
+            {chapterData && chapterData.verses.length > 0 && (
+              !speaking ? (
+                <button onClick={() => speakFrom(0)} style={pillBtn}>
+                  <PlayIcon style={{ fontSize: 14 }} /> Read aloud
                 </button>
-                <button onClick={stopSpeaking}
-                  style={{
-                    padding: "7px 12px", borderRadius: 8,
-                    border: "1px solid var(--color-rule)",
-                    background: "var(--color-bg-card)", color: "var(--color-ink-2)",
-                    fontSize: 12, cursor: "pointer",
-                  }}>
-                  ⏹
-                </button>
-              </div>
+              ) : (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={pauseResume} style={pillBtn}>
+                    {paused ? <><PlayIcon style={{ fontSize: 14 }} /> Resume</> : <><PauseIcon style={{ fontSize: 16 }} /> Pause</>}
+                  </button>
+                  <button onClick={stopSpeaking} title="Stop"
+                    aria-label="Stop reading"
+                    style={{ ...iconBtn, color: "var(--ios-red)" }}>
+                    <StopIcon />
+                  </button>
+                </div>
+              )
             )}
           </div>
         </div>
       </div>
 
-      {/* ── TTS Settings Bar ── */}
+      {/* ── TTS Settings Bar ── (only when the chapter loaded) */}
+      {chapterData && chapterData.verses.length > 0 && (
       <div style={{
         display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
-        padding: "10px 14px", borderRadius: 10,
-        background: "var(--color-bg-deep)",
-        border: "1px solid var(--color-rule)",
-        marginBottom: 24, fontSize: 12,
+        padding: "10px 14px", borderRadius: 12,
+        background: "var(--ios-fill)",
+        marginBottom: 22,
       }}>
-        {/* Voice picker */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ color: "var(--color-ink-3)", fontWeight: 600 }}>Voice</span>
-          <select
-            value={selectedVoice?.name ?? ""}
-            onChange={(e) => setSelectedVoice(voices.find((v) => v.name === e.target.value) ?? null)}
-            style={{
-              padding: "4px 8px", borderRadius: 6, border: "1px solid var(--color-rule)",
-              background: "var(--color-bg-card)", fontSize: 11, fontFamily: "inherit",
-              color: "var(--color-ink)", cursor: "pointer", maxWidth: 180,
-            }}
-          >
-            {voices.map((v) => (
-              <option key={v.name} value={v.name}>{shortVoiceName(v)} ({v.lang})</option>
-            ))}
-          </select>
-        </div>
-
         {/* Speed */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ color: "var(--color-ink-3)", fontWeight: 600 }}>Speed</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="ios-footnote" style={{ color: "var(--ios-label-2)", fontWeight: 600 }}>Speed</span>
           <input
             type="range" min={0.5} max={1.4} step={0.05}
             value={speechRate}
             onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
-            style={{ width: 80, accentColor: "var(--color-accent)" }}
+            aria-label="Reading speed"
+            style={{ width: 90, accentColor: "var(--ios-tint)" }}
           />
-          <span style={{ color: "var(--color-ink-3)", minWidth: 28 }}>{speechRate.toFixed(2)}×</span>
+          <span className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)", minWidth: 34 }}>{speechRate.toFixed(2)}×</span>
         </div>
 
         {/* Reading indicator */}
-        {speaking && readingVerseIdx !== null && chapterData && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--color-accent)", fontWeight: 600 }}>
-            <span style={{ animation: "pulse 1s infinite", display: "inline-block" }}>♪</span>
-            v.{chapterData.verses[readingVerseIdx]?.number}
+        {speaking && (
+          <div className="ios-footnote" style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ios-tint)", fontWeight: 600 }}>
+            <Icons.SparkleIcon style={{ fontSize: 15, animation: "pulse 1s infinite" }} />
+            Reading…
           </div>
         )}
       </div>
+      )}
 
       {/* ── Chapter navigation ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 28, fontSize: 13 }}>
+      <div className="ios-footnote" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         {prevChapter
-          ? <Link href={`/bible/read/${book.id}/${prevChapter}?v=${bibleId}`} style={{ color: "var(--color-accent)", textDecoration: "none" }}>← Ch. {prevChapter}</Link>
+          ? <Link href={`/bible/read/${book.id}/${prevChapter}?v=${bibleId}`} style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--ios-tint)", textDecoration: "none", fontWeight: 500 }}><Icons.ChevronLeft style={{ fontSize: 14 }} />Ch. {prevChapter}</Link>
           : <span />}
-        <Link href="/bible/read" style={{ color: "var(--color-ink-3)", textDecoration: "none" }}>All books</Link>
+        <Link href="/bible/read" style={{ color: "var(--ios-label-2)", textDecoration: "none" }}>All books</Link>
         {nextChapter
-          ? <Link href={`/bible/read/${book.id}/${nextChapter}?v=${bibleId}`} style={{ color: "var(--color-accent)", textDecoration: "none" }}>Ch. {nextChapter} →</Link>
+          ? <Link href={`/bible/read/${book.id}/${nextChapter}?v=${bibleId}`} style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--ios-tint)", textDecoration: "none", fontWeight: 500 }}>Ch. {nextChapter}<Icons.ChevronRight style={{ fontSize: 14 }} /></Link>
           : <span />}
       </div>
 
       {/* ── Error state ── */}
       {!chapterData && (
-        <div style={{ textAlign: "center", padding: "60px 0", color: "var(--color-ink-3)" }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
-          <div style={{ fontWeight: 600 }}>Unable to load this chapter</div>
-          <div style={{ fontSize: 13, marginTop: 4 }}>Set BIBLE_API_KEY for all versions, or choose KJV / ASV / WEB.</div>
+        <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--ios-label-2)" }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: "50%", margin: "0 auto 14px",
+            background: "var(--ios-fill)", display: "flex", alignItems: "center", justifyContent: "center",
+            color: "var(--ios-orange)",
+          }}>
+            <svg viewBox="0 0 24 24" width={28} height={28} fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M12 3.5 22 20H2L12 3.5Z" /><path d="M12 10v4M12 17h.01" />
+            </svg>
+          </div>
+          <div className="ios-headline" style={{ color: "var(--ios-label)" }}>Unable to load this chapter</div>
+          <div className="ios-footnote" style={{ marginTop: 4 }}>Set BIBLE_API_KEY for all versions, or choose KJV / ASV / WEB.</div>
         </div>
       )}
 
@@ -403,24 +470,24 @@ export default function ChapterReader({
                   display: "flex",
                   alignItems: "flex-start",
                   gap: 14,
-                  padding: "10px 14px",
-                  borderRadius: 10,
+                  padding: "10px 12px",
+                  borderRadius: 12,
                   background: isReading
-                    ? "rgba(107,59,124,0.08)"
+                    ? "color-mix(in srgb, var(--ios-tint) 12%, transparent)"
                     : isSelected
-                    ? "var(--color-accent-soft)"
+                    ? "var(--ios-fill)"
                     : hlDef
                     ? hlDef.bg
                     : "transparent",
                   border: isSelected
-                    ? "1px solid var(--color-accent)"
+                    ? "1px solid var(--ios-tint)"
                     : "1px solid transparent",
                   cursor: "pointer",
                   transition: "background 120ms",
                 }}
                 onClick={() => setSelectedVerse(isSelected ? null : verse)}
               >
-                {/* Left: verse number + play button */}
+                {/* Left: play button (verse number hidden) */}
                 <div style={{
                   display: "flex", flexDirection: "column", alignItems: "center",
                   gap: 4, flexShrink: 0, paddingTop: 2,
@@ -428,47 +495,37 @@ export default function ChapterReader({
                   <button
                     onClick={(e) => { e.stopPropagation(); speakFrom(idx); }}
                     title={`Read from verse ${verse.number}`}
+                    aria-label={`Read from verse ${verse.number}`}
                     style={{
-                      background: isReading ? "var(--color-accent)" : "transparent",
-                      border: "none", cursor: "pointer", padding: "2px 4px",
-                      borderRadius: 4, fontSize: 10,
-                      color: isReading ? "#fff" : "var(--color-ink-4)",
-                      opacity: isReading ? 1 : 0.5,
+                      background: isReading ? "var(--ios-tint)" : "transparent",
+                      border: "none", cursor: "pointer", padding: "3px 5px",
+                      borderRadius: 6, fontSize: 9,
+                      color: isReading ? "var(--ios-on-tint)" : "var(--ios-label-3)",
+                      opacity: isReading ? 1 : 0.6,
                       transition: "opacity 120ms",
-                      lineHeight: 1,
+                      display: "flex", alignItems: "center", justifyContent: "center",
                     }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = isReading ? "1" : "0.5"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = isReading ? "1" : "0.6"; }}
                   >
-                    ▶
+                    <PlayIcon />
                   </button>
-                  <span style={{
-                    fontSize: 11, fontWeight: 700,
-                    color: isReading ? "var(--color-accent)" : "var(--color-ink-4)",
-                    fontFamily: "var(--font-sans)",
-                    minWidth: 20, textAlign: "center",
-                    letterSpacing: "0.02em",
-                  }}>
-                    {verse.number}
-                  </span>
                 </div>
 
                 {/* Right: verse text */}
                 <div style={{
-                  fontFamily: "var(--font-display)",
                   fontSize: 18,
                   lineHeight: 1.75,
-                  color: "var(--color-ink)",
+                  color: "var(--ios-label)",
                   flex: 1,
-                  letterSpacing: "0.01em",
                 }}>
                   {verse.text}
                   {hasNote && (
                     <span
                       title="You have a note here"
-                      style={{ fontSize: 10, color: "var(--color-accent)", marginLeft: 6, cursor: "pointer" }}
+                      style={{ display: "inline-flex", verticalAlign: "middle", fontSize: 13, color: "var(--ios-tint)", marginLeft: 6, cursor: "pointer" }}
                       onClick={(e) => { e.stopPropagation(); setSelectedVerse(verse); }}
-                    >✎</span>
+                    ><Icons.ComposeIcon /></span>
                   )}
                 </div>
               </div>
@@ -479,89 +536,73 @@ export default function ChapterReader({
 
       {/* ── Bottom chapter nav ── */}
       {chapterData && (
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 48, paddingTop: 20, borderTop: "1px solid var(--color-rule)", fontSize: 13 }}>
+        <div className="ios-footnote" style={{ display: "flex", justifyContent: "space-between", marginTop: 44, paddingTop: 20, borderTop: "1px solid var(--ios-separator)" }}>
           {prevChapter
             ? <Link href={`/bible/read/${book.id}/${prevChapter}?v=${bibleId}`} style={{
-                display: "flex", alignItems: "center", gap: 6,
-                color: "var(--color-accent)", textDecoration: "none", fontWeight: 500,
-              }}>← {book.name} {prevChapter}</Link>
+                display: "flex", alignItems: "center", gap: 4,
+                color: "var(--ios-tint)", textDecoration: "none", fontWeight: 500,
+              }}><Icons.ChevronLeft style={{ fontSize: 15 }} />{book.name} {prevChapter}</Link>
             : <span />}
           {nextChapter
             ? <Link href={`/bible/read/${book.id}/${nextChapter}?v=${bibleId}`} style={{
-                display: "flex", alignItems: "center", gap: 6,
-                color: "var(--color-accent)", textDecoration: "none", fontWeight: 500,
-              }}>{book.name} {nextChapter} →</Link>
+                display: "flex", alignItems: "center", gap: 4,
+                color: "var(--ios-tint)", textDecoration: "none", fontWeight: 500,
+              }}>{book.name} {nextChapter}<Icons.ChevronRight style={{ fontSize: 15 }} /></Link>
             : <span />}
         </div>
       )}
 
-      {/* ── Verse action panel (fixed bottom) ── */}
+      {/* ── Verse action sheet ── */}
       {selectedVerse && (
-        <div style={{
-          position: "fixed", bottom: 72, left: 0, right: 0, zIndex: 60,
-          display: "flex", justifyContent: "center", padding: "0 16px",
-          pointerEvents: "none",
-        }}>
-          <div style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 18,
-            padding: "18px 22px",
-            boxShadow: "var(--shadow-float)",
-            width: "100%", maxWidth: 680,
-            pointerEvents: "all",
-          }}>
-            {/* Reference + play this verse */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div style={{ fontSize: 11, color: "var(--color-accent)", fontWeight: 700, letterSpacing: "0.05em" }}>
-                {selectedVerse.reference}
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={() => {
-                    const idx = chapterData?.verses.findIndex((v) => v.id === selectedVerse.id) ?? 0;
-                    speakFrom(idx);
-                    setSelectedVerse(null);
-                  }}
-                  style={{
-                    padding: "4px 10px", borderRadius: 6, border: "1px solid var(--color-rule)",
-                    background: "var(--color-bg-deep)", fontSize: 11, cursor: "pointer",
-                    display: "flex", alignItems: "center", gap: 4,
-                  }}
-                >
-                  ▶ Read from here
-                </button>
-                <button
-                  onClick={() => setSelectedVerse(null)}
-                  style={{
-                    padding: "4px 10px", borderRadius: 6, border: "1px solid var(--color-rule)",
-                    background: "transparent", fontSize: 11, cursor: "pointer", color: "var(--color-ink-3)",
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
+        <>
+          <div className="ios-sheet-backdrop" onClick={() => setSelectedVerse(null)} aria-hidden="true" />
+          <div className="ios-sheet" role="dialog" aria-modal="true" aria-label={`Verse ${selectedVerse.reference}`}>
+            <div className="ios-grabber" />
+
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ width: 60 }} />
+              <span className="ios-headline">{selectedVerse.reference}</span>
+              <button className="ios-btn--plain" style={{ width: 60, textAlign: "right" }} onClick={() => setSelectedVerse(null)}>Done</button>
             </div>
 
-            {/* Verse text */}
+            {/* Verse preview */}
             <div style={{
-              fontSize: 15, color: "var(--color-ink-2)", marginBottom: 14,
-              fontFamily: "var(--font-display)", lineHeight: 1.65,
-              borderLeft: "3px solid var(--color-accent-soft)", paddingLeft: 12,
+              fontSize: 16, color: "var(--ios-label-2)", margin: "4px 0 14px",
+              lineHeight: 1.6,
+              borderLeft: "3px solid var(--ios-tint)", paddingLeft: 12,
             }}>
               {selectedVerse.text}
             </div>
 
+            {/* Read from here */}
+            <button
+              onClick={() => {
+                const idx = chapterData?.verses.findIndex((v) => v.id === selectedVerse.id) ?? 0;
+                speakFrom(idx);
+                setSelectedVerse(null);
+              }}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                width: "100%", padding: "12px", borderRadius: 12, border: "none",
+                background: "var(--ios-fill)", color: "var(--ios-tint)",
+                fontSize: 16, fontWeight: 600, cursor: "pointer", marginBottom: 18,
+              }}
+            >
+              <PlayIcon style={{ fontSize: 14 }} /> Read from here
+            </button>
+
             {/* Highlight colors */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 11, color: "var(--color-ink-3)", fontWeight: 600 }}>Highlight</span>
+            <div className="ios-group-header" style={{ padding: "0 0 8px" }}>Highlight</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
               {HIGHLIGHT_COLORS.map((c) => (
                 <button
                   key={c.key}
                   onClick={() => toggleHighlight(selectedVerse, c.key)}
                   title={c.label}
+                  aria-label={c.label}
                   style={{
-                    width: 24, height: 24, borderRadius: "50%",
+                    width: 34, height: 34, borderRadius: "50%",
                     background: c.bg,
                     border: highlights[selectedVerse.id] === c.key
                       ? `2px solid ${c.dot}` : "2px solid transparent",
@@ -569,62 +610,48 @@ export default function ChapterReader({
                   }}
                 >
                   {highlights[selectedVerse.id] === c.key && (
-                    <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10 }}>✓</span>
+                    <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: c.dot }}>
+                      <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12.5l4 4L19 7" /></svg>
+                    </span>
                   )}
                 </button>
               ))}
               {highlights[selectedVerse.id] && (
                 <button
                   onClick={() => toggleHighlight(selectedVerse, highlights[selectedVerse.id])}
-                  style={{ fontSize: 10, color: "var(--color-ink-4)", background: "none", border: "none", cursor: "pointer" }}
+                  className="ios-footnote"
+                  style={{ color: "var(--ios-label-2)", background: "none", border: "none", cursor: "pointer", marginLeft: "auto" }}
                 >
-                  clear
+                  Clear
                 </button>
               )}
             </div>
 
             {/* Note */}
+            <div className="ios-group-header" style={{ padding: "0 0 8px" }}>Note</div>
             <textarea
               placeholder={notes[selectedVerse.number] ? "Edit note…" : "Add a note…"}
               defaultValue={notes[selectedVerse.number] ?? ""}
               onChange={(e) => setNoteText(e.target.value)}
-              rows={2}
+              rows={3}
               style={{
-                width: "100%", padding: "8px 12px",
-                border: "1px solid var(--color-rule)", borderRadius: 8,
-                fontSize: 13, fontFamily: "inherit", resize: "none",
-                boxSizing: "border-box", background: "var(--color-bg)",
-                marginBottom: 10,
+                width: "100%", padding: "12px 14px",
+                border: "none", borderRadius: 12,
+                fontSize: 16, fontFamily: "inherit", resize: "none",
+                boxSizing: "border-box", background: "var(--ios-fill)",
+                color: "var(--ios-label)", lineHeight: 1.5, marginBottom: 12,
               }}
             />
 
             {noteText.trim() && (
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <button onClick={saveNote} disabled={savingNote} style={{
-                  padding: "6px 16px", borderRadius: 8, border: "none",
-                  background: "var(--color-accent)", color: "#fff",
-                  fontSize: 12, fontWeight: 600, cursor: "pointer",
-                }}>
-                  {savingNote ? "Saving…" : "Save note"}
-                </button>
-              </div>
+              <button onClick={saveNote} disabled={savingNote} className="ios-btn ios-btn--primary">
+                {savingNote ? "Saving…" : "Save note"}
+              </button>
             )}
           </div>
-        </div>
+        </>
       )}
 
-      {/* ── Focus Reader overlay ── */}
-      {focusMode && chapterData && (
-        <FocusReader
-          book={book}
-          chapterNum={chapterNum}
-          chapterData={chapterData}
-          onClose={() => setFocusMode(false)}
-          initialVerseIdx={readingVerseIdx ?? 0}
-          nextReadingHref={nextReadingHref ?? undefined}
-          nextReadingLabel={nextReadingLabel ?? undefined}
-        />
-      )}
     </div>
   );
 }

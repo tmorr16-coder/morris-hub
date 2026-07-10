@@ -16,8 +16,8 @@ const COOKIE_DOMAIN = process.env.NEXT_PUBLIC_COOKIE_DOMAIN;
 
 function makeClient() {
   return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co"),
+    (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder-anon-key"),
     COOKIE_DOMAIN
       ? { cookieOptions: { domain: COOKIE_DOMAIN, path: "/", sameSite: "lax" } }
       : undefined
@@ -115,10 +115,12 @@ export default function PinGate({
         padding: 24,
       }}
     >
-      <div style={{ textAlign: "center", marginBottom: 32 }}>
-        <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
-        <h1 className="serif" style={{ fontSize: 28, marginBottom: 4 }}>Finance</h1>
-        <p style={{ fontSize: 13, color: "var(--color-ink-3)" }}>Enter your PIN to continue</p>
+      <div style={{ textAlign: "center", marginBottom: 28 }}>
+        <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--ios-fill)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--ios-label-2)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5" /><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" /></svg>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: "var(--ios-label)" }}>Money is locked</div>
+        <div style={{ fontSize: 15, color: "var(--ios-label-2)", marginTop: 2 }}>Enter your PIN to continue</div>
       </div>
 
       <div

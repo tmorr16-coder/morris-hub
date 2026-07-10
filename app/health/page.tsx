@@ -1,23 +1,39 @@
-export const revalidate = 3600; // cache for 1 hour
+// Personal, frequently-updated health data — always render fresh so a manual
+// Apple Health export (or a new sync) shows immediately instead of being masked
+// by a stale ISR cache.
+export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId, getCurrentUserName } from "@/lib/health/auth";
-import ScoreRings from "./_components/ScoreRings";
-import Greeting from "./_components/Greeting";
-import ActivityCard from "./_components/ActivityCard";
-import ActivityHistoryCard, { type CombinedWorkoutRow } from "./_components/ActivityHistoryCard";
-import ChatWidget from "./_components/ChatWidget";
-import MetricTrendsCard, { type TrendMetric, type TrendPoint } from "./_components/MetricTrendsCard";
-import SyncButton from "./_components/SyncButton";
+import { type CombinedWorkoutRow } from "./_components/ActivityHistoryCard";
+import { type TrendMetric, type TrendPoint } from "./_components/MetricTrendsCard";
+import Link from "next/link";
+import { LargeTitle, Group, Cell, IconBadge, Icons, RadialGauge, Sparkline } from "@/components/ios";
+import { getUserTimezone, startOfTodayInTz } from "@/lib/timezone";
 
-// ── constants ─────────────────────────────────────────────────────────────────
+// latest value + windowed delta for a trend metric
+function trendSummary(m: TrendMetric): { value: string; delta: string; color: string } | null {
+  if (!m.points.length) return null;
+  const latest = m.points[m.points.length - 1].value;
+  const d = latest - m.points[0].value;
+  const improving = m.invertDelta ? d < 0 : d > 0;
+  const r1 = (n: number) => Math.round(n * 10) / 10;
+  return {
+    value: `${r1(latest)}${m.unit ? ` ${m.unit}` : ""}`,
+    delta: d === 0 ? "no change" : `${d > 0 ? "▲" : "▼"} ${Math.abs(r1(d))} over ${m.points.length}d`,
+    color: d === 0 ? "var(--ios-label-2)" : improving ? "var(--ios-green)" : "var(--ios-red)",
+  };
+}
 
-const SCORE_FALLBACKS = [
-  { label: "Readiness", value: 82, color: "var(--color-moss)" },
-  { label: "Activity",  value: 74, color: "var(--color-accent)" },
-  { label: "Recovery",  value: 88, color: "var(--color-slate)" },
-];
+function workoutMeta(w: CombinedWorkoutRow): string {
+  const parts: string[] = [];
+  if (w.duration_sec != null) parts.push(`${Math.round(w.duration_sec / 60)} min`);
+  if (w.distance_m != null) parts.push(`${(w.distance_m / 1609.344).toFixed(1)} mi`);
+  if (w.calories != null) parts.push(`${Math.round(w.calories)} cal`);
+  const d = new Date(w.timestamp);
+  parts.push(d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }));
+  return parts.join(" · ");
+}
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -60,17 +76,18 @@ export default async function DashboardPage() {
   const [userId, userName] = await Promise.all([getCurrentUserId(), getCurrentUserName()]);
 
 
-  // Weight goal from user metadata
+  // Weight goal + timezone + Move goal from user metadata
   const { data: { user: authUser } } = await db.auth.admin.getUserById(userId);
   const targetWeightLbs: number | null = (authUser?.user_metadata?.target_weight_lbs as number | null) ?? null;
+  const tz = getUserTimezone(authUser?.user_metadata);
+  const moveGoal: number = Number(authUser?.user_metadata?.move_goal) || 1300;
 
   const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
+  // "Today" boundaries in the user's timezone (default Eastern) so daily totals
+  // match the watch instead of the server's UTC day.
+  const todayStart = startOfTodayInTz(tz);
   const tomorrowStart = new Date(todayStart);
   tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-  // Rolling 72-hour window — ensures data pushed up to 3 days ago still shows on the dashboard
-  const rollingWindowStart = new Date(now.getTime() - 72 * 60 * 60 * 1000);
   const sevenDaysAgo = new Date(todayStart);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const thirtyDaysAgo = new Date(todayStart);
@@ -105,22 +122,24 @@ export default async function DashboardPage() {
       .select("created_at")
       .eq("user_id", userId).eq("source", "withings")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    // Activity — rolling 28h window so delayed Apple Health pushes still populate the cards
+    // Activity — last 7 days. We show the most RECENT day that has data (today
+    // if present, else the latest available), grouped per day so multi-day data
+    // never overcounts. Apple (Watch) is preferred per day, Oura is the fallback.
     db.from("apple_health_metrics")
-      .select("value, source")
-      .eq("user_id", userId).eq("source", "apple_health")
+      .select("value, source, timestamp")
+      .eq("user_id", userId)
       .in("metric_name", ["step_count", "steps", "Step Count", "Steps"])
-      .gte("timestamp", rollingWindowStart.toISOString()),
+      .gte("timestamp", sevenDaysAgo.toISOString()),
     db.from("apple_health_metrics")
-      .select("value")
-      .eq("user_id", userId).eq("source", "apple_health")
+      .select("value, source, timestamp")
+      .eq("user_id", userId)
       .in("metric_name", ["active_energy", "active_energy_burned", "calories", "Active Energy", "Active Energy Burned"])
-      .gte("timestamp", rollingWindowStart.toISOString()),
+      .gte("timestamp", sevenDaysAgo.toISOString()),
     db.from("apple_health_metrics")
-      .select("value, unit")
-      .eq("user_id", userId).eq("source", "apple_health")
+      .select("value, unit, source, timestamp")
+      .eq("user_id", userId)
       .in("metric_name", ["walking_running_distance", "Walking + Running Distance", "Walking Running Distance"])
-      .gte("timestamp", rollingWindowStart.toISOString()),
+      .gte("timestamp", sevenDaysAgo.toISOString()),
     // Heart rate — try instantaneous first, fall back to resting
     db.from("apple_health_metrics")
       .select("value, metric_name")
@@ -207,12 +226,18 @@ export default async function DashboardPage() {
   // ── Derived values ────────────────────────────────────────────────────────
 
   type ScoreRow = { value: number } | null;
-  const scoresFromOura = !!(readinessRow || activityRow || sleepScoreRow);
+  // Only ever show REAL Oura scores. A missing row renders an empty gauge ("—"),
+  // never a fabricated number — fake vitals must not masquerade as the user's own.
   const SCORES = [
-    { label: "Readiness", value: Math.round((readinessRow  as ScoreRow)?.value ?? SCORE_FALLBACKS[0].value), color: SCORE_FALLBACKS[0].color },
-    { label: "Activity",  value: Math.round((activityRow   as ScoreRow)?.value ?? SCORE_FALLBACKS[1].value), color: SCORE_FALLBACKS[1].color },
-    { label: "Recovery",  value: Math.round((sleepScoreRow as ScoreRow)?.value ?? SCORE_FALLBACKS[2].value), color: SCORE_FALLBACKS[2].color },
-  ];
+    { label: "Readiness", row: readinessRow  as ScoreRow, color: "#34C759" },
+    { label: "Activity",  row: activityRow   as ScoreRow, color: "#356FB0" },
+    { label: "Recovery",  row: sleepScoreRow as ScoreRow, color: "#5E5CE6" },
+  ].map((s) => ({
+    label: s.label,
+    color: s.color,
+    value: s.row?.value != null ? Math.round(s.row.value) : null,
+  }));
+  const hasAnyScore = SCORES.some((s) => s.value != null);
 
   // Per-source sync timestamps
   type SyncRow = { created_at: string } | null;
@@ -222,21 +247,45 @@ export default async function DashboardPage() {
     { key: "withings", icon: "⚖️", label: "Withings", ts: (withingsLastRow as SyncRow)?.created_at ?? null },
   ].filter((s) => s.ts !== null) as { key: string; icon: string; label: string; ts: string }[];
 
-  type MetricRow = { value: number; source?: string };
-  const stepsData = (stepsRows as MetricRow[] | null) ?? [];
-  const steps: number | null = stepsData.length
-    ? Math.round(stepsData.reduce((s, r) => s + r.value, 0))
-    : null;
-  const activitySource: string | null = stepsData[0]?.source ?? null;
-
-  const activeEnergyCal: number | null = (energyRows as MetricRow[] | null)?.length
-    ? Math.round((energyRows as MetricRow[]).reduce((s, r) => s + r.value, 0))
-    : null;
-
-  type DistRow = { value: number; unit: string };
-  const distanceMiles: number | null = (distanceRows as DistRow[] | null)?.length
-    ? parseFloat((distanceRows as DistRow[]).reduce((s, r) => s + toMiles(r.value, r.unit), 0).toFixed(2))
-    : null;
+  type ActRow = { value: number; source?: string; timestamp?: string; unit?: string };
+  const tzFmt = new Intl.DateTimeFormat("en-CA", { timeZone: tz }); // -> YYYY-MM-DD in the user's tz
+  const todayKey = tzFmt.format(now);
+  // Day key must reflect the USER's timezone: Apple stores instantaneous UTC
+  // timestamps (convert to tz), while Oura stores a daily summary at UTC-midnight
+  // that already represents a local calendar day (use its date directly).
+  const dayKeyFor = (r: ActRow): string =>
+    r.source === "oura" ? (r.timestamp ?? "").slice(0, 10) : tzFmt.format(new Date(r.timestamp ?? 0));
+  // Most recent day that has data. Within a day, Apple (Watch) is preferred, then
+  // Oura — never summed together. Returns the day's total + which day it is.
+  const latestDay = (rows: ActRow[] | null, toVal: (r: ActRow) => number): { total: number; day: string } | null => {
+    const byDay = new Map<string, { apple: number; oura: number; hasApple: boolean; hasOura: boolean }>();
+    for (const r of rows ?? []) {
+      const day = dayKeyFor(r);
+      if (!day) continue;
+      const d = byDay.get(day) ?? { apple: 0, oura: 0, hasApple: false, hasOura: false };
+      const v = toVal(r);
+      if (r.source === "oura") { d.oura += v; d.hasOura = true; }
+      else { d.apple += v; d.hasApple = true; }
+      byDay.set(day, d);
+    }
+    for (const day of [...byDay.keys()].sort().reverse()) {
+      const d = byDay.get(day)!;
+      if (d.hasApple) return { total: d.apple, day };
+      if (d.hasOura) return { total: d.oura, day };
+    }
+    return null;
+  };
+  const dayLabel = (day: string): string => {
+    if (day === todayKey) return "today";
+    const [y, m, d] = day.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  };
+  const stepsDay = latestDay(stepsRows as ActRow[] | null, (r) => r.value);
+  const energyDay = latestDay(energyRows as ActRow[] | null, (r) => r.value);
+  const distanceDay = latestDay(distanceRows as ActRow[] | null, (r) => toMiles(r.value, r.unit ?? "km"));
+  const steps: number | null = stepsDay ? Math.round(stepsDay.total) : null;
+  const activeEnergyCal: number | null = energyDay ? Math.round(energyDay.total) : null;
+  const distanceMiles: number | null = distanceDay ? parseFloat(distanceDay.total.toFixed(2)) : null;
 
   const hrRow = (hrRows as { value: number; metric_name: string }[] | null)?.[0] ?? null;
   const heartRateBpm: number | null = hrRow?.value ?? null;
@@ -253,15 +302,25 @@ export default async function DashboardPage() {
   // appeared in the recent-workouts list, which only read apple_health_workouts.
   type AppleWorkoutRow = { id: string; timestamp: string; workout_type: string; duration_sec: number | null; distance_m: number | null; calories: number | null };
   type SessionRow = { id: string; date: string; type: string; duration_min: number | null; distance_miles: number | null };
-  const appleWorkouts: CombinedWorkoutRow[] = ((recentAppleWorkoutRows as AppleWorkoutRow[] | null) ?? []).map((w) => ({
-    id: w.id,
-    timestamp: w.timestamp,
-    workout_type: w.workout_type,
-    duration_sec: w.duration_sec,
-    distance_m: w.distance_m,
-    calories: w.calories,
-    source: "apple_health" as const,
-  }));
+  // Dedupe duplicate Apple workout rows (same start + type) — re-exports can
+  // create duplicates since apple_health_workouts has no unique index.
+  const seenAppleWorkout = new Set<string>();
+  const appleWorkouts: CombinedWorkoutRow[] = ((recentAppleWorkoutRows as AppleWorkoutRow[] | null) ?? [])
+    .filter((w) => {
+      const k = `${w.timestamp}|${w.workout_type}`;
+      if (seenAppleWorkout.has(k)) return false;
+      seenAppleWorkout.add(k);
+      return true;
+    })
+    .map((w) => ({
+      id: w.id,
+      timestamp: w.timestamp,
+      workout_type: w.workout_type,
+      duration_sec: w.duration_sec,
+      distance_m: w.distance_m,
+      calories: w.calories,
+      source: "apple_health" as const,
+    }));
   const manualWorkouts: CombinedWorkoutRow[] = ((recentSessionRows as SessionRow[] | null) ?? []).map((s) => ({
     id: s.id,
     timestamp: `${s.date}T12:00:00`,
@@ -326,226 +385,93 @@ export default async function DashboardPage() {
   ];
 
   const today = formatDate(new Date());
-
-  const healthSystemContext = `You are a knowledgeable health and fitness coach. Give concise, practical advice about nutrition, exercise, recovery, and wellness. Keep replies to 2-4 sentences unless more detail is genuinely needed. Be direct and specific. The user is tracking their health data including steps, sleep, readiness, and workouts.`;
+  const firstName = (userName ?? "").split(" ")[0];
 
   return (
-    <div>
+    <div className="ios-scroll">
+      <LargeTitle brand title="Health" subtitle={`${today} · ${getGreeting()}${firstName ? `, ${firstName}` : ""}`} avatarInitial={(userName || "T")[0]?.toUpperCase()} />
 
-      {/* ── Header ───────────────────────────────────────────────────────── */}
-      <div style={{ padding: "20px 20px 14px", borderBottom: "1px solid var(--color-line)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div
-            style={{
-              fontSize: 10,
-              color: "var(--color-ink-3)",
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              fontWeight: 500,
-              marginBottom: 6,
-            }}
-          >
-            {today}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <SyncButton />
-            <Link
-              href="/health/settings/integrations"
-              style={{
-                fontSize: 11,
-                color: "var(--color-ink-3)",
-                textDecoration: "none",
-                padding: "4px 10px",
-                border: "1px solid var(--color-line)",
-                borderRadius: 8,
-              }}
-            >
-              ⚙ Integrations
-            </Link>
-          </div>
+      {/* Scores hero — radial gauges. Hidden entirely when no real scores exist;
+          any individual missing score renders an empty gauge, never a fake value. */}
+      {hasAnyScore && (
+        <div className="ios-list" style={{ margin: "8px 16px 0", padding: "18px 8px", display: "flex", justifyContent: "space-around" }}>
+          {SCORES.map((s) => (
+            <RadialGauge
+              key={s.label}
+              value={s.value != null ? s.value / 100 : 0}
+              color={s.color}
+              label={s.label}
+              center={<span className="ios-num" style={{ fontSize: 22, fontWeight: 700, color: s.value != null ? undefined : "var(--ios-label-2)" }}>{s.value != null ? s.value : "—"}</span>}
+            />
+          ))}
         </div>
+      )}
 
-        <Greeting name={userName} />
+      <Group header="Today">
+        <Cell chevron={false} lead={<IconBadge color="var(--ios-green)"><Icons.HeartIcon /></IconBadge>} title="Steps" subtitle={stepsDay && stepsDay.day !== todayKey ? `as of ${dayLabel(stepsDay.day)}` : undefined} trailing={<span className="ios-num">{steps != null ? steps.toLocaleString() : "—"}</span>} />
+        <Cell
+          chevron={false}
+          lead={<IconBadge color="#FA114F"><Icons.DumbbellIcon /></IconBadge>}
+          title="Move"
+          subtitle={activeEnergyCal != null ? `${Math.round((activeEnergyCal / moveGoal) * 100)}% of ${moveGoal.toLocaleString()} cal goal${energyDay && energyDay.day !== todayKey ? ` · as of ${dayLabel(energyDay.day)}` : ""}` : `Goal ${moveGoal.toLocaleString()} cal`}
+          trailing={<span className="ios-num" style={{ color: activeEnergyCal != null && activeEnergyCal >= moveGoal ? "var(--ios-green)" : undefined }}>{activeEnergyCal != null ? `${activeEnergyCal.toLocaleString()} cal` : "—"}</span>}
+        />
+        <Cell chevron={false} lead={<IconBadge color="var(--ios-tint)"><Icons.TrendUpIcon /></IconBadge>} title="Distance" subtitle={distanceDay && distanceDay.day !== todayKey ? `as of ${dayLabel(distanceDay.day)}` : undefined} trailing={<span className="ios-num">{distanceMiles != null ? `${distanceMiles} mi` : "—"}</span>} />
+        <Cell chevron={false} lead={<IconBadge color="#FA114F"><Icons.HeartIcon /></IconBadge>} title={heartRateLabel} trailing={<span className="ios-num">{heartRateBpm != null ? `${heartRateBpm} bpm` : "—"}</span>} />
+        <Cell href="/health/nutrition" lead={<IconBadge color="#E8734A"><Icons.ForkKnifeIcon /></IconBadge>} title="Nutrition" subtitle={`${mealCount} ${mealCount === 1 ? "meal" : "meals"} logged`} trailing={<span className="ios-num">{todayCalories} cal</span>} />
+      </Group>
 
-        {/* Per-source sync status */}
-        {syncSources.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-            {syncSources.map(({ key, icon, label, ts }) => (
-              <div
-                key={key}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  padding: "3px 9px",
-                  borderRadius: 20,
-                  background: "var(--color-bg-raised)",
-                  border: "1px solid var(--color-line)",
-                  fontSize: 11,
-                  color: "var(--color-ink-3)",
-                }}
-              >
-                <span style={{ fontSize: 12 }}>{icon}</span>
-                <span style={{ fontWeight: 500 }}>{label}</span>
-                <span style={{ color: "var(--color-ink-4)" }}>·</span>
-                <span>{relativeTime(ts)}</span>
-              </div>
-            ))}
-          </div>
-        )}
+      <Group header="Trends" footer="Last 14 days.">
+        {trendMetrics.map((m) => {
+          const t = trendSummary(m);
+          const vals = m.points.map((p) => p.value);
+          return (
+            <div key={m.key} className="ios-cell">
+              <span className="ios-cell-body">
+                <span className="ios-cell-title">{m.label}</span>
+                <span className="ios-cell-sub" style={{ color: t ? t.color : "var(--ios-label-2)" }}>{t ? t.delta : "No data yet"}</span>
+              </span>
+              {vals.length >= 2 && <Sparkline points={vals} color="var(--ios-tint)" width={92} height={32} />}
+              <span className="ios-num" style={{ width: 66, textAlign: "right", fontWeight: 600 }}>{t ? t.value : "—"}</span>
+            </div>
+          );
+        })}
+      </Group>
+
+      {recentWorkouts.length > 0 && (
+        <Group header="Recent workouts">
+          {recentWorkouts.slice(0, 5).map((w) => (
+            <Cell key={w.id} href="/health/train" lead={<IconBadge color="var(--ios-green)"><Icons.DumbbellIcon /></IconBadge>} title={w.workout_type} subtitle={workoutMeta(w)} />
+          ))}
+        </Group>
+      )}
+
+      {syncSources.length > 0 ? (
+        <Group header="Connected">
+          {syncSources.map((s) => (
+            <Cell key={s.key} href="/health/settings/integrations" lead={<IconBadge color="#8E8E93"><Icons.HeartIcon /></IconBadge>} title={s.label} trailing={<span style={{ color: "var(--ios-label-2)" }}>{relativeTime(s.ts)}</span>} />
+          ))}
+        </Group>
+      ) : (
+        <Group header="Connected">
+          <Cell href="/health/settings/integrations" lead={<IconBadge color="#8E8E93"><Icons.HeartIcon /></IconBadge>} title="Connect a device" subtitle="Connect a device to see your health data" />
+        </Group>
+      )}
+
+      <div style={{ display: "flex", gap: 10, padding: "14px 16px 0" }}>
+        {[
+          { href: "/health/train", label: "Log workout", icon: <Icons.DumbbellIcon /> },
+          { href: "/health/nutrition", label: "Log meal", icon: <Icons.ForkKnifeIcon /> },
+          { href: "/health/medications", label: "Meds", icon: <Icons.PillIcon /> },
+        ].map((q) => (
+          <Link key={q.label} href={q.href} className="ios-list" style={{ flex: 1, padding: "12px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, margin: 0, color: "var(--ios-tint)" }}>
+            <span style={{ display: "flex", width: 22, height: 22 }}>{q.icon}</span>
+            <span className="ios-caption" style={{ color: "var(--ios-label)" }}>{q.label}</span>
+          </Link>
+        ))}
       </div>
 
-      {/* ── Cards ────────────────────────────────────────────────────────── */}
-      <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-
-        {/* Quick-start workout — replaced by Train page */}
-
-        {/* Activity + Scores */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
-          <ActivityCard
-            steps={steps}
-            activeEnergyCal={activeEnergyCal}
-            distanceMiles={distanceMiles}
-            heartRateBpm={heartRateBpm}
-            heartRateLabel={heartRateLabel}
-            source={activitySource}
-          />
-          {scoresFromOura ? (
-            <div
-              style={{
-                background: "var(--color-bg-raised)",
-                border: "1px solid var(--color-line)",
-                borderRadius: 14,
-                padding: "16px",
-                boxShadow: "var(--shadow-card)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)" }}>
-                  Today&apos;s Scores
-                </div>
-                <div style={{ fontSize: 10, color: "var(--color-ink-4)" }}>via 💍 Oura</div>
-              </div>
-              <ScoreRings scores={SCORES} />
-            </div>
-          ) : (
-            <Link href="/health/settings/integrations" style={{ textDecoration: "none" }}>
-              <div
-                style={{
-                  background: "var(--color-bg-raised)",
-                  border: "1.5px dashed var(--color-line)",
-                  borderRadius: 14,
-                  padding: "18px 18px",
-                }}
-              >
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", marginBottom: 12 }}>
-                  Connect your devices
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {[
-                    { icon: "💍", label: "Oura Ring", desc: "Sleep · readiness · HRV" },
-                    { icon: "⌚", label: "Apple Watch", desc: "Activity · workouts · heart rate" },
-                    { icon: "⚖️", label: "Withings Scale", desc: "Weight · body composition" },
-                  ].map(({ icon, label, desc }) => (
-                    <div key={label} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ fontSize: 22, flexShrink: 0, width: 32, textAlign: "center" }}>{icon}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)" }}>{label}</div>
-                        <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>{desc}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ marginTop: 14, fontSize: 12, fontWeight: 500, color: "var(--color-accent)", textAlign: "right" }}>
-                  Set up integrations →
-                </div>
-              </div>
-            </Link>
-          )}
-        </div>
-
-        {/* 30-day trends */}
-        <MetricTrendsCard metrics={trendMetrics} />
-
-        {/* Nutrition summary */}
-        <Link href="/health/nutrition" style={{ textDecoration: "none" }}>
-          <div
-            style={{
-              background: "var(--color-bg-raised)",
-              border: "1px solid var(--color-line)",
-              borderRadius: 14,
-              padding: "16px 18px",
-              boxShadow: "var(--shadow-card)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 500,
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  color: "var(--color-ink-3)",
-                }}
-              >
-                Today&apos;s Nutrition
-              </div>
-              <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>Log meals →</span>
-            </div>
-            {mealCount > 0 ? (
-              <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-                <div>
-                  <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1, color: "var(--color-ink)" }}>
-                    {todayCalories.toLocaleString()}
-                  </div>
-                  <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 2 }}>kcal logged</div>
-                </div>
-                <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
-                  {mealCount} meal{mealCount !== 1 ? "s" : ""} today
-                </div>
-              </div>
-            ) : (
-              <div style={{ fontSize: 13, color: "var(--color-ink-4)" }}>
-                No meals logged yet today. Tap to add.
-              </div>
-            )}
-          </div>
-        </Link>
-
-        {/* Health chat */}
-        <div
-          style={{
-            background: "var(--color-bg-raised)",
-            border: "1px solid var(--color-line)",
-            borderRadius: 14,
-            padding: "16px",
-            boxShadow: "var(--shadow-card)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 500,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: "var(--color-ink-3)",
-              marginBottom: 12,
-            }}
-          >
-            Health coach
-          </div>
-          <ChatWidget
-            systemContext={healthSystemContext}
-            placeholder="Ask about nutrition, recovery, fitness…"
-            welcomeMessage="Hi! Ask me anything about nutrition, workouts, recovery, or your health data."
-            compact
-          />
-        </div>
-
-        {/* Activity — combined days-active grid + recent workouts */}
-        <ActivityHistoryCard workouts={recentWorkouts} now={now} />
-
-      </div>
+      <div style={{ height: 12 }} />
     </div>
   );
 }

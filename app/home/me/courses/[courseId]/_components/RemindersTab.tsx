@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import type { ComponentType, SVGProps } from "react";
+import { Icons } from "@/components/ios";
 
 interface Reminder {
   id: string;
@@ -22,12 +24,34 @@ interface RemindersTabProps {
 }
 
 const REMINDER_TYPES = [
-  { id: "test", label: "📝 Test", color: "#ef4444" },
-  { id: "assignment", label: "📄 Assignment", color: "#f59e0b" },
-  { id: "quiz", label: "❓ Quiz", color: "#3b82f6" },
-  { id: "practice", label: "🎯 Practice", color: "#10b981" },
-  { id: "extra_credit", label: "⭐ Extra Credit", color: "#8b5cf6" },
+  { id: "test", label: "Test", color: "var(--ios-red)" },
+  { id: "assignment", label: "Assignment", color: "var(--ios-orange)" },
+  { id: "quiz", label: "Quiz", color: "var(--ios-tint)" },
+  { id: "practice", label: "Practice", color: "var(--ios-green)" },
+  { id: "extra_credit", label: "Extra Credit", color: "#AF52DE" },
 ];
+
+const TYPE_ICON: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
+  test: Icons.ComposeIcon,
+  assignment: Icons.ChecklistIcon,
+  quiz: Icons.BookIcon,
+  practice: Icons.ChartIcon,
+  extra_credit: Icons.SparkleIcon,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "11px 14px",
+  borderRadius: 10,
+  border: "var(--ios-hair) solid var(--ios-separator)",
+  background: "var(--ios-cell)",
+  color: "var(--ios-label)",
+  fontSize: 16,
+  outline: "none",
+  fontFamily: "inherit",
+  boxSizing: "border-box",
+  colorScheme: "light dark",
+};
 
 export default function RemindersTab({
   courseId,
@@ -113,7 +137,7 @@ export default function RemindersTab({
       if (!response.ok) {
         setSmsMessage(`Error: ${data.error}`);
       } else {
-        setSmsMessage("✓ SMS sent successfully!");
+        setSmsMessage("SMS sent successfully");
         setTimeout(() => setSmsMessage(null), 3000);
       }
     } catch (err) {
@@ -129,200 +153,46 @@ export default function RemindersTab({
     return today.toISOString().split("T")[0];
   };
 
+  const submitDisabled = loading || !formData.title || !formData.due_date;
+
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Assignment & Test Tracker</h2>
-        <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          style={{
-            padding: "6px 14px",
-            borderRadius: 6,
-            border: "none",
-            background: "var(--color-accent-dark)",
-            color: "white",
-            fontSize: 12,
-            cursor: "pointer",
-            fontWeight: 500,
-          }}
-        >
-          + Add Reminder
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <h2 className="ios-title-3" style={{ margin: 0 }}>Assignments & Tests</h2>
+        <button type="button" className="ios-btn--plain" onClick={() => setShowAddForm(true)} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <Icons.PlusIcon style={{ width: 17, height: 17 }} />
+          Add
         </button>
       </div>
 
-      {showAddForm && (
-        <div
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 8,
-            padding: 20,
-            marginBottom: 20,
-          }}
-        >
-          <form onSubmit={handleAddReminder}>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
-                Type
-              </label>
-              <select
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid var(--color-rule)",
-                  borderRadius: 6,
-                  fontSize: 13,
-                }}
-              >
-                {REMINDER_TYPES.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
-                Title *
-              </label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                required
-                placeholder="e.g., Midterm Exam"
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid var(--color-rule)",
-                  borderRadius: 6,
-                  fontSize: 13,
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
-                  Due Date *
-                </label>
-                <input
-                  type="date"
-                  value={formData.due_date}
-                  onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                  required
-                  min={getTodayDate()}
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    border: "1px solid var(--color-rule)",
-                    borderRadius: 6,
-                    fontSize: 13,
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
-                  Due Time (optional)
-                </label>
-                <input
-                  type="time"
-                  value={formData.due_time}
-                  onChange={(e) => setFormData({ ...formData, due_time: e.target.value })}
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    border: "1px solid var(--color-rule)",
-                    borderRadius: 6,
-                    fontSize: 13,
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
-                Description
-              </label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="e.g., Covers chapters 1-5, bring ID..."
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid var(--color-rule)",
-                  borderRadius: 6,
-                  fontSize: 13,
-                  boxSizing: "border-box",
-                  minHeight: 60,
-                  resize: "vertical",
-                }}
-              />
-            </div>
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setShowAddForm(false)}
-                style={{
-                  flex: 1,
-                  padding: "8px 12px",
-                  borderRadius: 6,
-                  border: "1px solid var(--color-rule)",
-                  background: "transparent",
-                  cursor: "pointer",
-                  fontSize: 12,
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading || !formData.title || !formData.due_date}
-                style={{
-                  flex: 1,
-                  padding: "8px 12px",
-                  borderRadius: 6,
-                  border: "none",
-                  background: loading || !formData.title || !formData.due_date ? "var(--color-paper-deep)" : "var(--color-accent-dark)",
-                  color: "white",
-                  cursor: loading || !formData.title || !formData.due_date ? "default" : "pointer",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  opacity: loading || !formData.title || !formData.due_date ? 0.6 : 1,
-                }}
-              >
-                {loading ? "Adding..." : "Add Reminder"}
-              </button>
-            </div>
-          </form>
-        </div>
+      {smsMessage && (
+        <p className="ios-footnote" style={{
+          padding: "8px 4px",
+          color: smsMessage.startsWith("Error") ? "var(--ios-red)" : "var(--ios-green)",
+        }}>
+          {smsMessage}
+        </p>
       )}
 
       {reminders.length === 0 ? (
-        <div
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 8,
-            padding: "32px 24px",
-            textAlign: "center",
-            color: "var(--color-ink-3)",
-          }}
-        >
-          <p>No reminders set. Add one to stay on top of your assignments!</p>
+        <div style={{
+          background: "var(--ios-cell)",
+          borderRadius: "var(--ios-radius-card)",
+          padding: "32px 24px",
+          textAlign: "center",
+        }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, color: "var(--ios-label-3)" }}>
+            <Icons.BellIcon style={{ width: 30, height: 30 }} />
+          </div>
+          <p className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
+            No reminders set. Add one to stay on top of your assignments.
+          </p>
         </div>
       ) : (
-        <div style={{ display: "grid", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {reminders.map((reminder) => {
             const reminderType = REMINDER_TYPES.find((t) => t.id === reminder.type);
+            const TypeIcon = TYPE_ICON[reminder.type] ?? Icons.BellIcon;
             const daysUntil = Math.ceil((new Date(reminder.due_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
             const isUrgent = daysUntil <= 2;
 
@@ -330,68 +200,53 @@ export default function RemindersTab({
               <div
                 key={reminder.id}
                 style={{
-                  background: isUrgent ? "rgba(239, 68, 68, 0.05)" : "var(--color-bg-card)",
-                  border: isUrgent ? "1px solid #fecaca" : "1px solid var(--color-rule)",
-                  borderRadius: 8,
-                  padding: "16px",
+                  background: "var(--ios-cell)",
+                  borderRadius: "var(--ios-radius-card)",
+                  border: isUrgent ? "1px solid var(--ios-red)" : undefined,
+                  padding: "14px 16px",
                   display: "flex",
                   justifyContent: "space-between",
-                  alignItems: "start",
+                  alignItems: "flex-start",
                   gap: 12,
                 }}
               >
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontSize: 16 }}>{reminderType?.label.charAt(0)}</span>
-                    <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "var(--color-ink)" }}>
-                      {reminder.title}
-                    </h3>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <TypeIcon style={{ width: 18, height: 18, color: reminderType?.color ?? "var(--ios-tint)" }} />
+                    <h3 className="ios-headline" style={{ margin: 0 }}>{reminder.title}</h3>
                   </div>
                   {reminder.description && (
-                    <p style={{ fontSize: 12, color: "var(--color-ink-3)", margin: "6px 0" }}>
+                    <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: "4px 0" }}>
                       {reminder.description}
                     </p>
                   )}
-                  <p style={{ fontSize: 12, color: isUrgent ? reminderType?.color : "var(--color-ink-3)", margin: 0, fontWeight: isUrgent ? 600 : 400 }}>
-                    📅 {new Date(reminder.due_date).toLocaleDateString()}
+                  <p className="ios-footnote ios-num" style={{
+                    color: isUrgent ? (reminderType?.color ?? "var(--ios-red)") : "var(--ios-label-2)",
+                    margin: 0,
+                    fontWeight: isUrgent ? 600 : 400,
+                  }}>
+                    {new Date(reminder.due_date).toLocaleDateString()}
                     {reminder.due_time && ` at ${reminder.due_time}`}
                     {" • "}
                     {daysUntil === 0 ? "Today" : daysUntil === 1 ? "Tomorrow" : `${daysUntil} days away`}
                   </p>
                 </div>
-                <div style={{ display: "flex", gap: 6 }}>
+                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                   <button
+                    type="button"
                     onClick={() => handleSendSMS(reminder.id)}
                     disabled={smsLoading === reminder.id}
-                    title="Send SMS reminder"
-                    style={{
-                      padding: "4px 8px",
-                      borderRadius: 4,
-                      border: "1px solid #bfdbfe",
-                      background: "#dbeafe",
-                      color: "#1e40af",
-                      fontSize: 11,
-                      cursor: smsLoading === reminder.id ? "default" : "pointer",
-                      fontWeight: 500,
-                      opacity: smsLoading === reminder.id ? 0.6 : 1,
-                    }}
+                    className="ios-footnote"
+                    style={{ color: "var(--ios-tint)", fontWeight: 600, opacity: smsLoading === reminder.id ? 0.5 : 1 }}
                   >
-                    {smsLoading === reminder.id ? "Sending…" : "📱 SMS"}
+                    {smsLoading === reminder.id ? "Sending…" : "SMS"}
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleDeleteReminder(reminder.id)}
                     disabled={deleteLoading === reminder.id}
-                    style={{
-                      padding: "4px 8px",
-                      borderRadius: 4,
-                      border: "1px solid #fecaca",
-                      background: "#fee2e2",
-                      color: "#991b1b",
-                      fontSize: 11,
-                      cursor: deleteLoading === reminder.id ? "default" : "pointer",
-                      fontWeight: 500,
-                      opacity: deleteLoading === reminder.id ? 0.6 : 1,
-                    }}
+                    className="ios-footnote"
+                    style={{ color: "var(--ios-red)", fontWeight: 600, opacity: deleteLoading === reminder.id ? 0.5 : 1 }}
                   >
                     Delete
                   </button>
@@ -400,6 +255,88 @@ export default function RemindersTab({
             );
           })}
         </div>
+      )}
+
+      {showAddForm && (
+        <>
+          <div className="ios-sheet-backdrop" onClick={() => setShowAddForm(false)} aria-hidden="true" />
+          <div className="ios-sheet" role="dialog" aria-modal="true" aria-label="Add reminder">
+            <div className="ios-grabber" />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <button type="button" className="ios-btn--plain" onClick={() => setShowAddForm(false)}>Cancel</button>
+              <span className="ios-headline">Add Reminder</span>
+              <span style={{ width: 52 }} />
+            </div>
+
+            <form onSubmit={handleAddReminder}>
+              <div className="ios-group-header" style={{ padding: "0 0 8px" }}>Type</div>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                style={inputStyle}
+              >
+                {REMINDER_TYPES.map((type) => (
+                  <option key={type.id} value={type.id}>{type.label}</option>
+                ))}
+              </select>
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>
+                Title <span style={{ color: "var(--ios-red)" }}>*</span>
+              </div>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                required
+                placeholder="e.g. Midterm Exam"
+                style={inputStyle}
+              />
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>
+                    Due Date <span style={{ color: "var(--ios-red)" }}>*</span>
+                  </div>
+                  <input
+                    type="date"
+                    value={formData.due_date}
+                    onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                    required
+                    min={getTodayDate()}
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Due Time</div>
+                  <input
+                    type="time"
+                    value={formData.due_time}
+                    onChange={(e) => setFormData({ ...formData, due_time: e.target.value })}
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Description</div>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="e.g. Covers chapters 1-5, bring ID…"
+                rows={2}
+                style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+              />
+
+              <button
+                type="submit"
+                disabled={submitDisabled}
+                className="ios-btn ios-btn--primary"
+                style={{ marginTop: 22, opacity: submitDisabled ? 0.5 : 1 }}
+              >
+                {loading ? "Adding…" : "Add Reminder"}
+              </button>
+            </form>
+          </div>
+        </>
       )}
     </div>
   );

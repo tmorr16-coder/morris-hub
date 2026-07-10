@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import type { ComponentType, SVGProps } from "react";
+import { Icons } from "@/components/ios";
 
 interface Course {
   color_tag: string;
@@ -26,12 +28,34 @@ interface ContentTabProps {
 }
 
 const CONTENT_TYPES = [
-  { id: "syllabus", label: "📋 Syllabus" },
-  { id: "book", label: "📖 Book" },
-  { id: "notes", label: "📝 Notes" },
-  { id: "resource", label: "🔗 Resource" },
-  { id: "other", label: "📎 Other" },
+  { id: "syllabus", label: "Syllabus" },
+  { id: "book", label: "Book" },
+  { id: "notes", label: "Notes" },
+  { id: "resource", label: "Resource" },
+  { id: "other", label: "Other" },
 ];
+
+const TYPE_ICON: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
+  syllabus: Icons.ChecklistIcon,
+  book: Icons.BookIcon,
+  notes: Icons.ComposeIcon,
+  resource: Icons.NewsIcon,
+  other: Icons.NewsIcon,
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "11px 14px",
+  borderRadius: 10,
+  border: "var(--ios-hair) solid var(--ios-separator)",
+  background: "var(--ios-cell)",
+  color: "var(--ios-label)",
+  fontSize: 16,
+  outline: "none",
+  fontFamily: "inherit",
+  boxSizing: "border-box",
+  colorScheme: "light dark",
+};
 
 export default function ContentTab({
   courseId,
@@ -121,65 +145,120 @@ export default function ContentTab({
     }
   };
 
+  const submitDisabled = loading || !formData.title || (!uploadFile && !formData.content_url);
+
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Course Materials</h2>
-        <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          style={{
-            padding: "6px 14px",
-            borderRadius: 6,
-            border: "none",
-            background: course.color_tag,
-            color: "white",
-            fontSize: 12,
-            cursor: "pointer",
-            fontWeight: 500,
-          }}
-        >
-          + Add Content
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <h2 className="ios-title-3" style={{ margin: 0 }}>Course Materials</h2>
+        <button type="button" className="ios-btn--plain" onClick={() => setShowAddForm(true)} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <Icons.PlusIcon style={{ width: 17, height: 17 }} />
+          Add
         </button>
       </div>
 
+      {content.length === 0 ? (
+        <div style={{
+          background: "var(--ios-cell)",
+          borderRadius: "var(--ios-radius-card)",
+          padding: "32px 24px",
+          textAlign: "center",
+        }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, color: "var(--ios-label-3)" }}>
+            <Icons.BookIcon style={{ width: 30, height: 30 }} />
+          </div>
+          <p className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
+            No content added yet. Upload course materials to get started.
+          </p>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {content.map((item) => {
+            const TypeIcon = TYPE_ICON[item.type] ?? Icons.NewsIcon;
+            return (
+              <div
+                key={item.id}
+                style={{
+                  background: "var(--ios-cell)",
+                  borderRadius: "var(--ios-radius-card)",
+                  padding: "14px 16px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  gap: 12,
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <TypeIcon style={{ width: 18, height: 18, color: course.color_tag }} />
+                    <h3 className="ios-headline" style={{ margin: 0 }}>{item.title}</h3>
+                  </div>
+                  {item.description && (
+                    <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: "4px 0 0" }}>
+                      {item.description}
+                    </p>
+                  )}
+                  <div className="ios-caption" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, color: "var(--ios-label-3)" }}>
+                    {item.is_uploaded ? (
+                      <>
+                        <span>Uploaded file</span>
+                        {item.file_size_kb && <span className="ios-num">• {item.file_size_kb} KB</span>}
+                      </>
+                    ) : (
+                      <span>External link</span>
+                    )}
+                  </div>
+                  {item.content_url && (
+                    <a
+                      href={item.content_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ios-footnote"
+                      style={{ color: "var(--ios-tint)", marginTop: 6, display: "inline-block", fontWeight: 600 }}
+                    >
+                      Open link →
+                    </a>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteContent(item.id)}
+                  disabled={deleteLoading === item.id}
+                  className="ios-footnote"
+                  style={{ color: "var(--ios-red)", fontWeight: 600, flexShrink: 0, opacity: deleteLoading === item.id ? 0.5 : 1 }}
+                >
+                  Delete
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {showAddForm && (
-        <div
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 8,
-            padding: 20,
-            marginBottom: 20,
-          }}
-        >
-          <form onSubmit={handleAddContent}>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
-                Type
-              </label>
+        <>
+          <div className="ios-sheet-backdrop" onClick={() => setShowAddForm(false)} aria-hidden="true" />
+          <div className="ios-sheet" role="dialog" aria-modal="true" aria-label="Add content">
+            <div className="ios-grabber" />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <button type="button" className="ios-btn--plain" onClick={() => setShowAddForm(false)}>Cancel</button>
+              <span className="ios-headline">Add Content</span>
+              <span style={{ width: 52 }} />
+            </div>
+
+            <form onSubmit={handleAddContent}>
+              <div className="ios-group-header" style={{ padding: "0 0 8px" }}>Type</div>
               <select
                 value={formData.type}
                 onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid var(--color-rule)",
-                  borderRadius: 6,
-                  fontSize: 13,
-                }}
+                style={inputStyle}
               >
                 {CONTENT_TYPES.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.label}
-                  </option>
+                  <option key={type.id} value={type.id}>{type.label}</option>
                 ))}
               </select>
-            </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
-                Upload File
-              </label>
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Upload File</div>
               <input
                 type="file"
                 onChange={(e) => {
@@ -193,217 +272,56 @@ export default function ContentTab({
                   }
                 }}
                 accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid var(--color-rule)",
-                  borderRadius: 6,
-                  fontSize: 13,
-                  boxSizing: "border-box",
-                }}
+                style={{ ...inputStyle, fontSize: 14 }}
               />
               {uploadFile && (
-                <p style={{ fontSize: 11, color: "var(--color-ink-3)", margin: "6px 0 0 0" }}>
-                  Selected: {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
+                <p className="ios-caption" style={{ color: "var(--ios-label-2)", margin: "6px 0 0" }}>
+                  Selected: {uploadFile.name} (<span className="ios-num">{(uploadFile.size / 1024).toFixed(1)}</span> KB)
                 </p>
               )}
-              <p style={{ fontSize: 11, color: "var(--color-ink-4)", margin: "6px 0 0 0" }}>
-                or
-              </p>
-            </div>
+              <p className="ios-caption" style={{ color: "var(--ios-label-3)", margin: "8px 0 0" }}>or</p>
 
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
-                Title {uploadFile ? "" : "*"}
-              </label>
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>
+                Title {uploadFile ? "" : <span style={{ color: "var(--ios-red)" }}>*</span>}
+              </div>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 required={!uploadFile}
-                placeholder={uploadFile ? uploadFile.name : "e.g., Lecture Notes Week 1"}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid var(--color-rule)",
-                  borderRadius: 6,
-                  fontSize: 13,
-                  boxSizing: "border-box",
-                }}
+                placeholder={uploadFile ? uploadFile.name : "e.g. Lecture Notes Week 1"}
+                style={inputStyle}
               />
-            </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
-                URL or Link
-              </label>
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>URL or Link</div>
               <input
                 type="url"
                 value={formData.content_url}
                 onChange={(e) => setFormData({ ...formData, content_url: e.target.value })}
-                placeholder="https://..."
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid var(--color-rule)",
-                  borderRadius: 6,
-                  fontSize: 13,
-                  boxSizing: "border-box",
-                }}
+                placeholder="https://…"
+                style={inputStyle}
               />
-            </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 6 }}>
-                Description
-              </label>
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Description</div>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Additional notes..."
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  border: "1px solid var(--color-rule)",
-                  borderRadius: 6,
-                  fontSize: 13,
-                  boxSizing: "border-box",
-                  minHeight: 60,
-                  resize: "vertical",
-                }}
+                placeholder="Additional notes…"
+                rows={2}
+                style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
               />
-            </div>
 
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setShowAddForm(false)}
-                style={{
-                  flex: 1,
-                  padding: "8px 12px",
-                  borderRadius: 6,
-                  border: "1px solid var(--color-rule)",
-                  background: "transparent",
-                  cursor: "pointer",
-                  fontSize: 12,
-                }}
-              >
-                Cancel
-              </button>
               <button
                 type="submit"
-                disabled={loading || !formData.title || (!uploadFile && !formData.content_url)}
-                style={{
-                  flex: 1,
-                  padding: "8px 12px",
-                  borderRadius: 6,
-                  border: "none",
-                  background: loading || !formData.title || (!uploadFile && !formData.content_url) ? "var(--color-paper-deep)" : course.color_tag,
-                  color: "white",
-                  cursor: loading || !formData.title || (!uploadFile && !formData.content_url) ? "default" : "pointer",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  opacity: loading || !formData.title || (!uploadFile && !formData.content_url) ? 0.6 : 1,
-                }}
+                disabled={submitDisabled}
+                className="ios-btn ios-btn--primary"
+                style={{ marginTop: 22, opacity: submitDisabled ? 0.5 : 1 }}
               >
-                {loading ? "Adding..." : "Add"}
+                {loading ? "Adding…" : "Add"}
               </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {content.length === 0 ? (
-        <div
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 8,
-            padding: "32px 24px",
-            textAlign: "center",
-            color: "var(--color-ink-3)",
-          }}
-        >
-          <p>No content added yet. Upload course materials to get started!</p>
-        </div>
-      ) : (
-        <div style={{ display: "grid", gap: 12 }}>
-          {content.map((item) => {
-            const contentType = CONTENT_TYPES.find((t) => t.id === item.type);
-            return (
-              <div
-                key={item.id}
-                style={{
-                  background: "var(--color-bg-card)",
-                  border: "1px solid var(--color-rule)",
-                  borderRadius: 8,
-                  padding: "16px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "start",
-                  gap: 12,
-                }}
-              >
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontSize: 16 }}>{contentType?.label.charAt(0)}</span>
-                    <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: "var(--color-ink)" }}>
-                      {item.title}
-                    </h3>
-                  </div>
-                  {item.description && (
-                    <p style={{ fontSize: 12, color: "var(--color-ink-3)", margin: "6px 0 0 0" }}>
-                      {item.description}
-                    </p>
-                  )}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 11, color: "var(--color-ink-4)" }}>
-                    {item.is_uploaded ? (
-                      <>
-                        <span>📄 Uploaded file</span>
-                        {item.file_size_kb && <span>• {item.file_size_kb} KB</span>}
-                      </>
-                    ) : (
-                      <span>🔗 External link</span>
-                    )}
-                  </div>
-                  {item.content_url && (
-                    <a
-                      href={item.content_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        fontSize: 12,
-                        color: course.color_tag,
-                        textDecoration: "none",
-                        marginTop: 6,
-                        display: "inline-block",
-                      }}
-                    >
-                      Open link →
-                    </a>
-                  )}
-                </div>
-                <button
-                  onClick={() => handleDeleteContent(item.id)}
-                  disabled={deleteLoading === item.id}
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 4,
-                    border: "1px solid #fecaca",
-                    background: "#fee2e2",
-                    color: "#991b1b",
-                    fontSize: 11,
-                    cursor: deleteLoading === item.id ? "default" : "pointer",
-                    fontWeight: 500,
-                    opacity: deleteLoading === item.id ? 0.6 : 1,
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-            );
-          })}
-        </div>
+            </form>
+          </div>
+        </>
       )}
     </div>
   );

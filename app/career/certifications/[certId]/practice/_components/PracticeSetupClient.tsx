@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Segmented, Chip, Cell } from "@/components/ios";
 
 interface Domain {
   id: string;
@@ -37,6 +38,36 @@ const MODE_OPTIONS = [
 ];
 
 const PRESET_COUNTS = [10, 20, 40] as const;
+const TIME_PRESETS = [15, 30, 45, 60, 90];
+
+// Uppercase grouped-list-style section header, no horizontal inset (parent pads).
+const sectionHeader: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 400,
+  lineHeight: "18px",
+  color: "var(--ios-label-2)",
+  textTransform: "uppercase",
+  letterSpacing: "0.02em",
+  marginBottom: 8,
+};
+
+function Check() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="var(--ios-tint)"
+      strokeWidth={3}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
 
 export default function PracticeSetupClient({
   certId,
@@ -115,166 +146,83 @@ export default function PracticeSetupClient({
     });
   }
 
+  const selectedModeDesc = MODE_OPTIONS.find((o) => o.value === mode)?.desc;
+  const startDisabled = isPending || availableTotal === 0;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
       {/* Mode selector */}
       <section>
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            color: "var(--color-ink-3)",
-            marginBottom: 12,
-          }}
-        >
-          Session Mode
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {MODE_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setMode(opt.value)}
-              style={{
-                padding: "14px 18px",
-                borderRadius: 10,
-                textAlign: "left",
-                border: `2px solid ${mode === opt.value ? "var(--color-accent)" : "var(--color-rule)"}`,
-                background:
-                  mode === opt.value
-                    ? "var(--color-accent-soft)"
-                    : "var(--color-bg-card)",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 12,
-              }}
-            >
-              <div
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: "50%",
-                  border: `2px solid ${mode === opt.value ? "var(--color-accent)" : "var(--color-ink-4)"}`,
-                  background:
-                    mode === opt.value ? "var(--color-accent)" : "transparent",
-                  flexShrink: 0,
-                  marginTop: 2,
-                }}
-              />
-              <div>
-                <div
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: "var(--color-ink)",
-                  }}
-                >
-                  {opt.label}
-                </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "var(--color-ink-3)",
-                    marginTop: 2,
-                  }}
-                >
-                  {opt.desc}
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
+        <div style={sectionHeader}>Session Mode</div>
+        <Segmented
+          options={MODE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+          value={mode}
+          onChange={setMode}
+          ariaLabel="Session mode"
+        />
+        {selectedModeDesc && (
+          <div
+            className="ios-footnote"
+            style={{ color: "var(--ios-label-2)", marginTop: 8, lineHeight: 1.5 }}
+          >
+            {selectedModeDesc}
+          </div>
+        )}
       </section>
 
       {/* Time limit — only for timed_mock */}
       {mode === "timed_mock" && (
         <section>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              color: "var(--color-ink-3)",
-              marginBottom: 12,
-            }}
-          >
-            Time Limit
-          </div>
+          <div style={sectionHeader}>Time Limit</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {[15, 30, 45, 60, 90].map((min) => (
-              <button
+            {TIME_PRESETS.map((min) => (
+              <Chip
                 key={min}
+                selected={timeLimitMin === min}
                 onClick={() => setTimeLimitMin(min)}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  border: `1px solid ${timeLimitMin === min ? "var(--color-accent)" : "var(--color-rule)"}`,
-                  background:
-                    timeLimitMin === min
-                      ? "var(--color-accent-soft)"
-                      : "transparent",
-                  color:
-                    timeLimitMin === min
-                      ? "var(--color-accent)"
-                      : "var(--color-ink-2)",
-                  cursor: "pointer",
-                }}
               >
                 {min} min
-              </button>
+              </Chip>
             ))}
           </div>
         </section>
       )}
 
-      {/* Domain Drill — single domain dropdown */}
+      {/* Domain Drill — single domain picker */}
       {mode === "domain_drill" && (
         <section>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              color: "var(--color-ink-3)",
-              marginBottom: 12,
-            }}
-          >
-            Domain
-          </div>
+          <div style={sectionHeader}>Domain</div>
           {domains.length === 0 ? (
-            <p style={{ fontSize: 13, color: "var(--color-ink-3)" }}>
+            <p className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
               No domains defined for this exam yet.
             </p>
           ) : (
-            <select
-              value={drillDomainId}
-              onChange={(e) => setDrillDomainId(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px 14px",
-                borderRadius: 8,
-                border: "1px solid var(--color-rule)",
-                background: "var(--color-bg-card)",
-                color: "var(--color-ink)",
-                fontSize: 14,
-                fontFamily: "inherit",
-                cursor: "pointer",
-              }}
-            >
-              {domains.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                  {d.weight_pct ? ` (${d.weight_pct}%)` : ""} —{" "}
-                  {availableForDomain(d.id)} questions
-                </option>
-              ))}
-            </select>
+            <div className="ios-list" style={{ margin: 0 }}>
+              {domains.map((d) => {
+                const count = availableForDomain(d.id);
+                const selected = drillDomainId === d.id;
+                return (
+                  <Cell
+                    key={d.id}
+                    title={d.name}
+                    subtitle={d.weight_pct ? `${d.weight_pct}% of exam` : undefined}
+                    onClick={() => setDrillDomainId(d.id)}
+                    chevron={false}
+                    trailing={
+                      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span
+                          className="ios-footnote ios-num"
+                          style={{ color: "var(--ios-label-2)" }}
+                        >
+                          {count} q
+                        </span>
+                        {selected && <Check />}
+                      </span>
+                    }
+                  />
+                );
+              })}
+            </div>
           )}
         </section>
       )}
@@ -287,95 +235,50 @@ export default function PracticeSetupClient({
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              marginBottom: 12,
+              marginBottom: 8,
             }}
           >
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                color: "var(--color-ink-3)",
-              }}
-            >
+            <div style={sectionHeader}>
               Domains{" "}
-              <span style={{ fontWeight: 400, color: "var(--color-ink-4)" }}>
-                (leave empty = all)
-              </span>
+              <span style={{ color: "var(--ios-label-3)" }}>(leave empty = all)</span>
             </div>
             {selectedDomainIds.length > 0 && (
               <button
+                type="button"
                 onClick={() => setSelectedDomainIds([])}
-                style={{
-                  fontSize: 11,
-                  color: "var(--color-accent)",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                }}
+                className="ios-btn--plain"
+                style={{ padding: 0, fontSize: 13 }}
               >
                 Clear
               </button>
             )}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="ios-list" style={{ margin: 0 }}>
             {domains.map((d) => {
               const count = countByDomain[d.id] ?? 0;
               const checked = selectedDomainIds.includes(d.id);
+              const disabled = count === 0;
               return (
-                <label
+                <Cell
                   key={d.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "10px 14px",
-                    borderRadius: 8,
-                    border: `1px solid ${checked ? "var(--color-accent)" : "var(--color-rule)"}`,
-                    background: checked
-                      ? "var(--color-accent-soft)"
-                      : "var(--color-bg-card)",
-                    cursor: count === 0 ? "default" : "pointer",
-                    opacity: count === 0 ? 0.5 : 1,
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={count === 0}
-                    onChange={() => toggleDomain(d.id)}
-                    style={{ accentColor: "var(--color-accent)", width: 15, height: 15 }}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 500,
-                        color: "var(--color-ink)",
-                      }}
-                    >
-                      {d.name}
-                      {d.weight_pct ? (
-                        <span
-                          style={{
-                            marginLeft: 6,
-                            fontSize: 11,
-                            color: "var(--color-ink-3)",
-                            fontWeight: 400,
-                          }}
-                        >
-                          {d.weight_pct}% of exam
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                  <span
-                    style={{ fontSize: 11, color: "var(--color-ink-4)" }}
-                  >
-                    {count} q
-                  </span>
-                </label>
+                  title={d.name}
+                  subtitle={d.weight_pct ? `${d.weight_pct}% of exam` : undefined}
+                  onClick={disabled ? undefined : () => toggleDomain(d.id)}
+                  chevron={false}
+                  trailing={
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span
+                        className="ios-footnote ios-num"
+                        style={{
+                          color: disabled ? "var(--ios-label-3)" : "var(--ios-label-2)",
+                        }}
+                      >
+                        {count} q
+                      </span>
+                      {checked && <Check />}
+                    </span>
+                  }
+                />
               );
             })}
           </div>
@@ -384,45 +287,19 @@ export default function PracticeSetupClient({
 
       {/* Question count */}
       <section>
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            color: "var(--color-ink-3)",
-            marginBottom: 12,
-          }}
-        >
-          Number of Questions
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        <div style={sectionHeader}>Number of Questions</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
           {PRESET_COUNTS.map((n) => (
-            <button
+            <Chip
               key={n}
+              selected={effectiveCount === n && customCount === null}
               onClick={() => {
                 setQuestionCount(n);
                 setCustomCount(null);
               }}
-              style={{
-                padding: "8px 20px",
-                borderRadius: 8,
-                fontSize: 13,
-                fontWeight: 500,
-                border: `1px solid ${effectiveCount === n && customCount === null ? "var(--color-accent)" : "var(--color-rule)"}`,
-                background:
-                  effectiveCount === n && customCount === null
-                    ? "var(--color-accent-soft)"
-                    : "transparent",
-                color:
-                  effectiveCount === n && customCount === null
-                    ? "var(--color-accent)"
-                    : "var(--color-ink-2)",
-                cursor: "pointer",
-              }}
             >
               {n}
-            </button>
+            </Chip>
           ))}
         </div>
 
@@ -432,13 +309,17 @@ export default function PracticeSetupClient({
             style={{
               display: "flex",
               justifyContent: "space-between",
-              fontSize: 12,
-              color: "var(--color-ink-3)",
+              alignItems: "baseline",
               marginBottom: 6,
             }}
           >
-            <span>Custom</span>
-            <span style={{ fontWeight: 600, color: "var(--color-ink)" }}>
+            <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
+              Custom
+            </span>
+            <span
+              className="ios-headline ios-num"
+              style={{ color: "var(--ios-label)" }}
+            >
               {customCount !== null ? customCount : "—"}
             </span>
           </div>
@@ -448,14 +329,11 @@ export default function PracticeSetupClient({
             max={Math.max(availableTotal, 1)}
             value={customCount ?? effectiveCount}
             onChange={(e) => setCustomCount(Number(e.target.value))}
-            style={{ width: "100%", accentColor: "var(--color-accent)" }}
+            style={{ width: "100%", accentColor: "var(--ios-tint)" }}
           />
           <div
-            style={{
-              fontSize: 11,
-              color: "var(--color-ink-4)",
-              marginTop: 4,
-            }}
+            className="ios-footnote ios-num"
+            style={{ color: "var(--ios-label-3)", marginTop: 4 }}
           >
             {availableTotal} questions available
           </div>
@@ -464,13 +342,13 @@ export default function PracticeSetupClient({
 
       {error && (
         <div
+          className="ios-footnote"
           style={{
-            padding: "10px 14px",
-            background: "rgba(154,59,42,0.08)",
-            border: "1px solid var(--color-red)",
-            borderRadius: 8,
-            fontSize: 13,
-            color: "var(--color-red)",
+            padding: "11px 14px",
+            background: "var(--ios-fill)",
+            border: "var(--ios-hair) solid var(--ios-red)",
+            borderRadius: 12,
+            color: "var(--ios-red)",
           }}
         >
           {error}
@@ -479,13 +357,13 @@ export default function PracticeSetupClient({
 
       {availableTotal === 0 && (
         <div
+          className="ios-footnote"
           style={{
             padding: "12px 16px",
-            background: "rgba(184,138,46,0.08)",
-            border: "1px solid var(--color-amber)",
-            borderRadius: 8,
-            fontSize: 13,
-            color: "var(--color-amber)",
+            background: "var(--ios-fill)",
+            border: "var(--ios-hair) solid var(--ios-orange)",
+            borderRadius: 12,
+            color: "var(--ios-orange)",
           }}
         >
           No questions available yet. Generate questions from the certification
@@ -494,25 +372,11 @@ export default function PracticeSetupClient({
       )}
 
       <button
+        type="button"
         onClick={start}
-        disabled={isPending || availableTotal === 0}
-        style={{
-          padding: "14px",
-          borderRadius: 10,
-          background:
-            isPending || availableTotal === 0
-              ? "var(--color-rule)"
-              : "var(--color-accent)",
-          color:
-            isPending || availableTotal === 0
-              ? "var(--color-ink-4)"
-              : "#fff",
-          fontSize: 15,
-          fontWeight: 600,
-          cursor: isPending || availableTotal === 0 ? "default" : "pointer",
-          border: "none",
-          fontFamily: "inherit",
-        }}
+        disabled={startDisabled}
+        className="ios-btn ios-btn--primary"
+        style={{ opacity: startDisabled ? 0.4 : 1 }}
       >
         {isPending ? "Starting…" : "Start Session"}
       </button>

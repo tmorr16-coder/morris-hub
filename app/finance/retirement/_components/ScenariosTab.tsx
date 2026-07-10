@@ -47,26 +47,8 @@ export default function ScenariosTab({ profile, setProfile, scenario, setScenari
   return (
     <div>
       {/* Profile settings card */}
-      <div
-        style={{
-          background: "var(--color-paper-card)",
-          border: "1px solid var(--color-rule)",
-          borderRadius: 12,
-          padding: "20px 24px",
-          boxShadow: "var(--shadow-card)",
-          marginBottom: 24,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            color: "var(--color-ink-3)",
-            marginBottom: 16,
-          }}
-        >
+      <div className="ios-list" style={{ margin: "0 0 8px", padding: 18 }}>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 16 }}>
           Profile settings
         </div>
 
@@ -131,22 +113,22 @@ export default function ScenariosTab({ profile, setProfile, scenario, setScenari
         </div>
 
         {/* Spouse toggle */}
-        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--color-rule)" }}>
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--ios-separator)" }}>
           <label
+            className="ios-subhead"
             style={{
               display: "flex",
               alignItems: "center",
               gap: 10,
               cursor: "pointer",
-              fontSize: 13,
-              color: "var(--color-ink)",
+              color: "var(--ios-label)",
             }}
           >
             <input
               type="checkbox"
               checked={profile.spouse_enabled}
               onChange={(e) => updateProfile("spouse_enabled", e.target.checked)}
-              style={{ width: 16, height: 16, cursor: "pointer" }}
+              style={{ width: 18, height: 18, cursor: "pointer", accentColor: "var(--ios-tint)" }}
             />
             <span style={{ fontWeight: 500 }}>Include spouse in plan</span>
           </label>
@@ -206,16 +188,7 @@ export default function ScenariosTab({ profile, setProfile, scenario, setScenari
       </div>
 
       {/* Scenario picker */}
-      <div
-        style={{
-          fontSize: 11,
-          fontWeight: 600,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: "var(--color-ink-3)",
-          marginBottom: 14,
-        }}
-      >
+      <div className="ios-group-header" style={{ padding: "16px 0 7px" }}>
         Lifestyle scenario
       </div>
 
@@ -224,7 +197,7 @@ export default function ScenariosTab({ profile, setProfile, scenario, setScenari
           display: "grid",
           gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
           gap: 14,
-          marginBottom: 24,
+          marginBottom: 8,
         }}
       >
         {SCENARIO_CARDS.map((card) => {
@@ -234,30 +207,28 @@ export default function ScenariosTab({ profile, setProfile, scenario, setScenari
             <div
               key={card.key}
               onClick={() => updateScenario("selected_scenario", card.key)}
+              className="ios-list"
               style={{
-                background: "var(--color-paper-card)",
-                border: `2px solid ${active ? "var(--color-bronze)" : "var(--color-rule)"}`,
-                borderRadius: 12,
-                padding: "18px 20px",
+                margin: 0,
+                padding: "16px 18px",
                 cursor: "pointer",
-                boxShadow: active ? "var(--shadow-card)" : "none",
-                transition: "border-color 120ms",
+                boxShadow: active ? "inset 0 0 0 2px var(--ios-tint)" : "inset 0 0 0 1px var(--ios-separator)",
               }}
             >
               <div
+                className="ios-subhead"
                 style={{
-                  fontSize: 14,
                   fontWeight: 600,
-                  color: active ? "var(--color-bronze-dark)" : "var(--color-ink)",
+                  color: active ? "var(--ios-tint)" : "var(--ios-label)",
                   marginBottom: 6,
                 }}
               >
                 {card.label}
               </div>
-              <div className="mono" style={{ fontSize: 22, fontWeight: 500, color: "var(--color-ink)", marginBottom: 6 }}>
+              <div className="ios-num" style={{ fontSize: 22, fontWeight: 700, color: "var(--ios-label)", marginBottom: 6 }}>
                 {fmtMoney(monthlySpend)}/mo
               </div>
-              <div style={{ fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.5 }}>
+              <div className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}>
                 {card.description}
               </div>
               {card.key === "custom" && active && (
@@ -284,25 +255,8 @@ export default function ScenariosTab({ profile, setProfile, scenario, setScenari
       </div>
 
       {/* Additional scenario parameters */}
-      <div
-        style={{
-          background: "var(--color-paper-card)",
-          border: "1px solid var(--color-rule)",
-          borderRadius: 12,
-          padding: "20px 24px",
-          boxShadow: "var(--shadow-card)",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            color: "var(--color-ink-3)",
-            marginBottom: 16,
-          }}
-        >
+      <div className="ios-list" style={{ margin: "8px 0 0", padding: 18 }}>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 16 }}>
           Additional parameters
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
@@ -367,17 +321,8 @@ export default function ScenariosTab({ profile, setProfile, scenario, setScenari
         </div>
 
         {/* Scenario spend overrides */}
-        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--color-rule)" }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: "var(--color-ink-3)",
-              marginBottom: 12,
-            }}
-          >
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--ios-separator)" }}>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 12 }}>
             Adjust scenario spend levels
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
@@ -402,24 +347,23 @@ export default function ScenariosTab({ profile, setProfile, scenario, setScenari
 }
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  letterSpacing: "0.08em",
+  fontSize: 13,
+  fontWeight: 400,
+  letterSpacing: "0.02em",
   textTransform: "uppercase",
-  color: "var(--color-ink-3)",
+  color: "var(--ios-label-2)",
   display: "block",
   marginBottom: 6,
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "9px 12px",
-  border: "1px solid var(--color-rule)",
+  padding: "10px 12px",
+  border: "1px solid var(--ios-separator)",
   borderRadius: 8,
-  background: "var(--color-paper)",
-  color: "var(--color-ink)",
-  fontSize: 13,
-  fontFamily: "inherit",
+  background: "var(--ios-bg)",
+  color: "var(--ios-label)",
+  fontSize: 15,
   outline: "none",
   boxSizing: "border-box",
 };

@@ -37,7 +37,7 @@ export default function SparklineChart({
   }
 
   const isUp = positive ?? prices[prices.length - 1] >= prices[0];
-  const color = isUp ? "var(--color-green)" : "var(--color-red)";
+  const color = isUp ? "var(--ios-green)" : "var(--ios-red)";
 
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: "block", overflow: "visible" }}>

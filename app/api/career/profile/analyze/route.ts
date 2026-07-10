@@ -79,7 +79,7 @@ ${formattedResponses}
 
 Return ONLY valid JSON (no markdown fences) in this exact shape:
 {
-  "summary": "3-4 paragraphs of personalized career profile narrative",
+  "summary": ["paragraph1", "paragraph2", "paragraph3"],
   "strengths": ["strength1", "strength2", "strength3", "strength4", "strength5"],
   "growth_areas": ["area1", "area2", "area3"],
   "career_themes": ["theme1", "theme2", "theme3"],
@@ -93,7 +93,7 @@ Return ONLY valid JSON (no markdown fences) in this exact shape:
 }
 
 Rules:
-- summary: 3-4 paragraphs synthesizing their profile, motivations, and career identity
+- summary: an array of 3-4 strings, one per paragraph, synthesizing their profile, motivations, and career identity
 - strengths: 5-7 specific strengths inferred from their responses and background
 - growth_areas: 3-5 development areas they've identified or that would support their goals
 - career_themes: 3-5 overarching themes that characterize their career trajectory

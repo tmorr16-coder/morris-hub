@@ -91,8 +91,15 @@ async function syncOneUser(db: any, userId: string, token: string): Promise<numb
 
   if (activityResult.status === "fulfilled") {
     for (const item of activityResult.value.data) {
-      if (item.score == null) continue;
-      rows.push({ user_id: userId, timestamp: `${item.day}T00:00:00Z`, metric_name: "activity_score", value: item.score as number, unit: "score", source: "oura" });
+      const ts = `${item.day}T00:00:00Z`;
+      if (item.score != null)
+        rows.push({ user_id: userId, timestamp: ts, metric_name: "activity_score", value: item.score as number, unit: "score", source: "oura" });
+      // Steps + active calories (Apple Move equivalent) — used as a fallback
+      // source for the activity cards when Apple Health isn't delivering them.
+      if (item.steps != null)
+        rows.push({ user_id: userId, timestamp: ts, metric_name: "step_count", value: item.steps as number, unit: "count", source: "oura" });
+      if (item.active_calories != null)
+        rows.push({ user_id: userId, timestamp: ts, metric_name: "active_energy", value: item.active_calories as number, unit: "kcal", source: "oura" });
     }
   }
 
@@ -142,10 +149,23 @@ export async function GET(request: NextRequest) {
 
   let usersToSync: OuraTokenRow[] = (tokenRows as OuraTokenRow[] | null) ?? [];
 
-  // Fall back to env var token — write data to the requesting user's account
+  // Fall back to the shared env var token — but this is the OWNER's personal Oura
+  // token, so it may only ever write under the owner's own account, never a
+  // stranger's. Allow it for: the cron/global path (no specificUserId), the dev
+  // account, or an ADMIN syncing their own data (the owner relies on the env token
+  // and has no per-user oura_tokens row). A standard user gets zero rows from it.
   const envToken = process.env.OURA_ACCESS_TOKEN;
-  if (envToken && usersToSync.length === 0) {
-    usersToSync = [{ user_id: specificUserId ?? DEV_USER_ID, access_token: envToken }];
+  let envTokenAllowed = !specificUserId || specificUserId === DEV_USER_ID;
+  let envUserId = DEV_USER_ID;
+  if (!envTokenAllowed && specificUserId) {
+    const { data: prof } = await db.from("profiles").select("role").eq("id", specificUserId).maybeSingle();
+    if ((prof as { role?: string } | null)?.role === "admin") {
+      envTokenAllowed = true;
+      envUserId = specificUserId; // write the owner's Oura data under the owner's id
+    }
+  }
+  if (envToken && envTokenAllowed && usersToSync.length === 0) {
+    usersToSync = [{ user_id: envUserId, access_token: envToken }];
   }
 
   if (usersToSync.length === 0) {

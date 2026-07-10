@@ -86,23 +86,27 @@ export function renderWidget(widgetId: string, ctx: WidgetContext): ReactNode {
         </Suspense>
       );
     case "lly_news":
-      return (
+      // Company News is driven by the employer ticker — hide it entirely when
+      // the user hasn't set one (rather than showing an empty/broken card).
+      return prefs.employer_ticker ? (
         <Suspense key="lly_news" fallback={<WidgetSkeleton title="Company news" />}>
-          <CompanyNewsWidget ticker={prefs.employer_ticker ?? "LLY"} />
+          <CompanyNewsWidget ticker={prefs.employer_ticker} />
         </Suspense>
-      );
+      ) : null;
     case "news":
-      return (
+      // Hide until the user picks at least one news topic.
+      return prefs.news_topics?.length ? (
         <Suspense key="news" fallback={<WidgetSkeleton title="News" lines={4} />}>
           <NewsWidget topics={prefs.news_topics} />
         </Suspense>
-      );
+      ) : null;
     case "city_news":
-      return (
+      // Hide until the user adds at least one city.
+      return prefs.city_names?.length ? (
         <Suspense key="city_news" fallback={<WidgetSkeleton title="Local news" lines={4} />}>
           <CityNewsWidget cities={prefs.city_names} />
         </Suspense>
-      );
+      ) : null;
     case "news_subscriptions":
       return (
         <Suspense key="news_subscriptions" fallback={<WidgetSkeleton title="My subscriptions" lines={4} />}>

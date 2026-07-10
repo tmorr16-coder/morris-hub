@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import MarkdownMessage from "@/components/MarkdownMessage";
 interface ChatMessage { role: "user" | "assistant"; content: string; }
 
 interface Props {
@@ -52,6 +53,11 @@ export default function ChatWidget({
   const [enrichedContext, setEnrichedContext] = useState(systemContext);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Skip the auto-scroll on first render — otherwise scrollIntoView yanks the
+  // whole page down to this (often mid-page) chat on load. Only follow new
+  // messages the user actually generates, and scroll within the nearest
+  // scroll container rather than hijacking the page.
+  const didMountRef = useRef(false);
 
   useEffect(() => {
     if (!addProfileContext) return;
@@ -60,7 +66,11 @@ export default function ChatWidget({
   }, [systemContext, addProfileContext]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages]);
 
   async function send() {
@@ -103,6 +113,7 @@ export default function ChatWidget({
   }
 
   const chatHeight = compact ? 180 : 240;
+  const canSend = !!input.trim() && !loading;
 
   return (
     <div>
@@ -114,7 +125,7 @@ export default function ChatWidget({
             overflowY: "auto",
             display: "flex",
             flexDirection: "column",
-            gap: 10,
+            gap: 8,
             marginBottom: 12,
             paddingRight: 2,
           }}
@@ -122,51 +133,22 @@ export default function ChatWidget({
           {messages.map((msg, i) => (
             <div
               key={i}
-              style={{
-                display: "flex",
-                justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
-              }}
+              className={`ios-bubble ${msg.role === "user" ? "ios-bubble--me" : "ios-bubble--ai"}`}
+              style={msg.role === "user" ? { whiteSpace: "pre-wrap" } : undefined}
             >
-              <div
-                style={{
-                  maxWidth: "85%",
-                  padding: "9px 12px",
-                  borderRadius: msg.role === "user" ? "12px 12px 4px 12px" : "12px 12px 12px 4px",
-                  background:
-                    msg.role === "user"
-                      ? "var(--color-ink)"
-                      : "var(--color-bg-sunk)",
-                  color: msg.role === "user" ? "var(--color-bg)" : "var(--color-ink-2)",
-                  fontSize: 13,
-                  lineHeight: 1.5,
-                  whiteSpace: "pre-wrap",
-                }}
-              >
-                {msg.content}
-              </div>
+              {msg.role === "user" ? msg.content : <MarkdownMessage content={msg.content} />}
             </div>
           ))}
           {loading && (
-            <div style={{ display: "flex", justifyContent: "flex-start" }}>
-              <div
-                style={{
-                  padding: "9px 14px",
-                  borderRadius: "12px 12px 12px 4px",
-                  background: "var(--color-bg-sunk)",
-                  fontSize: 18,
-                  letterSpacing: 3,
-                  color: "var(--color-ink-4)",
-                }}
-              >
-                ···
-              </div>
+            <div className="ios-bubble ios-bubble--ai" style={{ letterSpacing: 3, color: "var(--ios-label-3)" }}>
+              ···
             </div>
           )}
           <div ref={bottomRef} />
         </div>
       )}
 
-      {/* Input row */}
+      {/* Composer */}
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
         <textarea
           ref={inputRef}
@@ -177,37 +159,31 @@ export default function ChatWidget({
           rows={1}
           style={{
             flex: 1,
-            padding: "10px 12px",
-            borderRadius: 10,
-            border: "1px solid var(--color-line)",
-            background: "var(--color-bg-sunk)",
-            color: "var(--color-ink)",
-            fontSize: 13,
+            minWidth: 0,
+            padding: "9px 14px",
+            borderRadius: 20,
+            border: "var(--ios-hair) solid var(--ios-separator)",
+            background: "var(--ios-cell)",
+            color: "var(--ios-label)",
+            fontSize: 16,
             fontFamily: "inherit",
             outline: "none",
             resize: "none",
-            lineHeight: 1.4,
+            lineHeight: "21px",
             boxSizing: "border-box",
           }}
         />
         <button
+          type="button"
           onClick={send}
-          disabled={!input.trim() || loading}
-          style={{
-            padding: "10px 14px",
-            borderRadius: 10,
-            border: "none",
-            background: input.trim() && !loading ? "var(--color-ink)" : "var(--color-bg-sunk)",
-            color: input.trim() && !loading ? "var(--color-bg)" : "var(--color-ink-4)",
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: input.trim() && !loading ? "pointer" : "not-allowed",
-            fontFamily: "inherit",
-            flexShrink: 0,
-            transition: "background 120ms",
-          }}
+          disabled={!canSend}
+          aria-label="Send"
+          className="ios-send"
+          style={{ opacity: canSend ? 1 : 0.4, cursor: canSend ? "pointer" : "not-allowed" }}
         >
-          ↑
+          <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M12 19V5M6 11l6-6 6 6" />
+          </svg>
         </button>
       </div>
     </div>

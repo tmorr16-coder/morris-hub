@@ -46,34 +46,43 @@ export default function FamilyCircleClient({ initialEveryone }: { initialEveryon
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       {/* Current circle */}
       <section>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 12 }}>
+        <div className="ios-group-header" style={{ padding: "0 4px 7px" }}>
           Your circle ({inCircle.length})
         </div>
         {inCircle.length === 0 ? (
-          <div style={{ fontSize: 14, color: "var(--color-ink-4)", padding: "20px 0" }}>
-            No one in your circle yet. Add people from the platform below.
+          <div className="ios-list" style={{ margin: 0 }}>
+            <div className="ios-cell">
+              <span className="ios-cell-body">
+                <span className="ios-cell-sub" style={{ marginTop: 0 }}>No one in your circle yet. Add people from the platform below.</span>
+              </span>
+            </div>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="ios-list" style={{ margin: 0 }}>
             {inCircle.map((p) => (
-              <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--color-accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "var(--color-accent)", flexShrink: 0 }}>
-                  {initials(p)}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>{p.full_name ?? "—"}</div>
-                  <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>{p.email}</div>
-                </div>
-                <button
-                  onClick={() => remove(p)}
-                  disabled={pending.has(p.id)}
-                  style={{ fontSize: 11, padding: "5px 12px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-3)", cursor: "pointer", fontFamily: "inherit", opacity: pending.has(p.id) ? 0.5 : 1 }}
-                >
-                  {pending.has(p.id) ? "…" : "Remove"}
-                </button>
+              <div key={p.id} className="ios-cell">
+                <span className="ios-cell-lead">
+                  <span style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--ios-fill)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "var(--ios-tint)", flexShrink: 0 }}>
+                    {initials(p)}
+                  </span>
+                </span>
+                <span className="ios-cell-body">
+                  <span className="ios-cell-title" style={{ fontWeight: 600 }}>{p.full_name ?? "—"}</span>
+                  <span className="ios-cell-sub">{p.email}</span>
+                </span>
+                <span className="ios-cell-trail">
+                  <button
+                    onClick={() => remove(p)}
+                    disabled={pending.has(p.id)}
+                    className="ios-chip ios-chip--sm"
+                    style={{ opacity: pending.has(p.id) ? 0.5 : 1 }}
+                  >
+                    {pending.has(p.id) ? "…" : "Remove"}
+                  </button>
+                </span>
               </div>
             ))}
           </div>
@@ -83,26 +92,31 @@ export default function FamilyCircleClient({ initialEveryone }: { initialEveryon
       {/* Add more */}
       {notInCircle.length > 0 && (
         <section>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 12 }}>
+          <div className="ios-group-header" style={{ padding: "0 4px 7px" }}>
             Add to circle
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="ios-list" style={{ margin: 0 }}>
             {notInCircle.map((p) => (
-              <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--color-bg-deep)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "var(--color-ink-3)", flexShrink: 0 }}>
-                  {initials(p)}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, color: "var(--color-ink)" }}>{p.full_name ?? "—"}</div>
-                  <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>{p.email}</div>
-                </div>
-                <button
-                  onClick={() => add(p)}
-                  disabled={pending.has(p.id)}
-                  style={{ fontSize: 11, fontWeight: 600, padding: "5px 14px", borderRadius: 8, border: "none", background: "var(--color-accent)", color: "#FFFDF8", cursor: "pointer", fontFamily: "inherit", opacity: pending.has(p.id) ? 0.5 : 1 }}
-                >
-                  {pending.has(p.id) ? "Adding…" : "+ Add"}
-                </button>
+              <div key={p.id} className="ios-cell">
+                <span className="ios-cell-lead">
+                  <span style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--ios-fill)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "var(--ios-label-2)", flexShrink: 0 }}>
+                    {initials(p)}
+                  </span>
+                </span>
+                <span className="ios-cell-body">
+                  <span className="ios-cell-title">{p.full_name ?? "—"}</span>
+                  <span className="ios-cell-sub">{p.email}</span>
+                </span>
+                <span className="ios-cell-trail">
+                  <button
+                    onClick={() => add(p)}
+                    disabled={pending.has(p.id)}
+                    className="ios-chip ios-chip--sm is-selected"
+                    style={{ opacity: pending.has(p.id) ? 0.5 : 1 }}
+                  >
+                    {pending.has(p.id) ? "Adding…" : "Add"}
+                  </button>
+                </span>
               </div>
             ))}
           </div>
@@ -110,13 +124,13 @@ export default function FamilyCircleClient({ initialEveryone }: { initialEveryon
       )}
 
       {people.length === 0 && (
-        <div style={{ fontSize: 14, color: "var(--color-ink-4)", textAlign: "center", padding: "40px 0" }}>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textAlign: "center", padding: "40px 0" }}>
           No other platform members found.
         </div>
       )}
 
-      <div style={{ padding: "14px 16px", background: "var(--color-bg-deep)", borderRadius: 10, fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.6 }}>
-        <strong style={{ color: "var(--color-ink-2)" }}>How family circles work:</strong> Adding someone to your circle lets you share specific accounts or data with them when you choose. Each person controls what they share — adding them here doesn't give them access to anything automatically.
+      <div className="ios-footnote" style={{ padding: "14px 16px", background: "var(--ios-fill-2)", borderRadius: "var(--ios-radius-card)", color: "var(--ios-label-2)", lineHeight: 1.5 }}>
+        <strong style={{ color: "var(--ios-label)" }}>How family circles work:</strong> Adding someone to your circle lets you share specific accounts or data with them when you choose. Each person controls what they share — adding them here doesn&rsquo;t give them access to anything automatically.
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { Chip } from "@/components/ios";
 import { findConflicts, type TimelineItem } from "./timelineConflicts";
 
 export type { TimelineItem };
@@ -20,7 +21,7 @@ interface Props {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 export const MODULE_DOT: Record<string, string> = {
-  hub:              "var(--color-accent)",
+  hub:              "var(--ios-tint)",
   family:           "#E07B39",   // Phase 2b: assigned household tasks
   health:           "#4D6B3A",
   finance:          "#8B6A47",
@@ -29,13 +30,13 @@ export const MODULE_DOT: Record<string, string> = {
   children:         "#C97A9B",
   career:           "#2A6049",
   bible:            "#7B5EA7",
-  appointment:      "var(--color-accent)",
+  appointment:      "var(--ios-tint)",
   medication:       "#4D6B3A",
   workout:          "#C97A3A",
-  bill:             "var(--color-amber)",
-  todo:             "var(--color-ink-4)",
-  general:          "var(--color-ink-3)",
-  personal:         "var(--color-ink-3)",
+  bill:             "var(--ios-orange)",
+  todo:             "var(--ios-label-3)",
+  general:          "var(--ios-label-2)",
+  personal:         "var(--ios-label-2)",
 };
 
 export const MODULE_BADGE: Record<string, string> = {
@@ -69,18 +70,12 @@ export default function FamilyTimeline({ items, members }: Props) {
 
   if (items.length === 0) {
     return (
-      <div
-        style={{
-          background: "var(--color-bg-card)",
-          border: "1px solid var(--color-rule)",
-          borderRadius: 12,
-          padding: "20px 24px",
-          boxShadow: "var(--shadow-card)",
-          color: "var(--color-ink-4)",
-          fontSize: 13,
-          fontFamily: "var(--font-geist, system-ui), sans-serif",
-        }}
-      >
+      <div style={{
+        background: "var(--ios-cell)",
+        borderRadius: "var(--ios-radius-card)",
+        padding: "20px 16px",
+        color: "var(--ios-label-2)",
+      }} className="ios-subhead">
         Nothing scheduled for today.
       </div>
     );
@@ -89,112 +84,36 @@ export default function FamilyTimeline({ items, members }: Props) {
   return (
     <div>
       {/* Filter chips */}
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          flexWrap: "wrap",
-          marginBottom: 12,
-        }}
-      >
-        {allChips.map((chip) => {
-          const active = filter === chip.id;
-          return (
-            <button
-              key={chip.id}
-              onClick={() => setFilter(chip.id)}
-              aria-pressed={active}
-              style={{
-                padding: "4px 12px",
-                borderRadius: 20,
-                border: active
-                  ? "1.5px solid var(--color-accent)"
-                  : "1px solid var(--color-rule)",
-                background: active ? "var(--color-accent-soft)" : "var(--color-bg-card)",
-                color: active ? "var(--color-accent)" : "var(--color-ink-3)",
-                fontSize: 12,
-                fontWeight: active ? 600 : 500,
-                cursor: "pointer",
-                fontFamily: "var(--font-geist, system-ui), sans-serif",
-                transition: "all 100ms",
-              }}
-            >
-              {chip.label}
-            </button>
-          );
-        })}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        {allChips.map((chip) => (
+          <Chip key={chip.id} small selected={filter === chip.id} onClick={() => setFilter(chip.id)}>
+            {chip.label}
+          </Chip>
+        ))}
       </div>
 
       {/* Timeline rows */}
-      <div
-        style={{
-          background: "var(--color-bg-card)",
-          border: "1px solid var(--color-rule)",
-          borderRadius: 12,
-          boxShadow: "var(--shadow-card)",
-          overflow: "hidden",
-        }}
-      >
-        {filtered.map((item, idx) => {
+      <div className="ios-list" style={{ margin: 0 }}>
+        {filtered.map((item) => {
           const hasConflict = conflicts.has(item.id);
           const dotColor =
-            MODULE_DOT[item.category] ?? MODULE_DOT[item.module] ?? "var(--color-ink-3)";
+            MODULE_DOT[item.category] ?? MODULE_DOT[item.module] ?? "var(--ios-label-2)";
           // For family household items, show the person's name as the badge
           const badge = item.personLabel ?? MODULE_BADGE[item.module] ?? MODULE_BADGE[item.category];
 
-          const row = (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "11px 20px",
-                borderBottom:
-                  idx < filtered.length - 1
-                    ? "1px solid var(--color-rule-soft)"
-                    : "none",
-                background: hasConflict
-                  ? "rgba(184,138,46,0.04)"
-                  : "transparent",
-              }}
-            >
+          const inner = (
+            <>
               {/* Time */}
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 500,
-                  color: "var(--color-ink-4)",
-                  minWidth: 60,
-                  fontFamily: "var(--font-geist, system-ui), sans-serif",
-                  letterSpacing: "0.02em",
-                  flexShrink: 0,
-                }}
-              >
+              <span className="ios-cell-lead ios-caption ios-num" style={{ color: "var(--ios-label-2)", minWidth: 58, justifyContent: "flex-start" }}>
                 {item.timeLabel}
               </span>
 
               {/* Category dot */}
-              <span
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: dotColor,
-                  flexShrink: 0,
-                }}
-              />
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
 
               {/* Label */}
-              <span
-                style={{
-                  fontSize: 13,
-                  color: "var(--color-ink-2)",
-                  fontFamily: "var(--font-geist, system-ui), sans-serif",
-                  lineHeight: 1.4,
-                  flex: 1,
-                }}
-              >
-                {item.label}
+              <span className="ios-cell-body">
+                <span className="ios-cell-title ios-subhead">{item.label}</span>
               </span>
 
               {/* Conflict warning */}
@@ -202,14 +121,8 @@ export default function FamilyTimeline({ items, members }: Props) {
                 <span
                   aria-label="Schedule conflict"
                   title="This event overlaps with another within 30 minutes"
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    color: "var(--color-amber)",
-                    flexShrink: 0,
-                  }}
+                  className="ios-caption"
+                  style={{ fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--ios-orange)", flexShrink: 0 }}
                 >
                   Conflict
                 </span>
@@ -218,31 +131,19 @@ export default function FamilyTimeline({ items, members }: Props) {
               {/* Module badge */}
               {badge && !hasConflict && (
                 <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    letterSpacing: "0.06em",
-                    textTransform: "uppercase",
-                    color: dotColor,
-                    flexShrink: 0,
-                  }}
+                  className="ios-caption"
+                  style={{ fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase", color: dotColor, flexShrink: 0 }}
                 >
                   {badge}
                 </span>
               )}
-            </div>
+            </>
           );
 
           return item.href ? (
-            <a
-              key={item.id}
-              href={item.href}
-              style={{ display: "block", textDecoration: "none" }}
-            >
-              {row}
-            </a>
+            <a key={item.id} href={item.href} className="ios-cell">{inner}</a>
           ) : (
-            <div key={item.id}>{row}</div>
+            <div key={item.id} className="ios-cell">{inner}</div>
           );
         })}
       </div>

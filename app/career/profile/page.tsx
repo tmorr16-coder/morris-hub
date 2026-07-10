@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { LargeTitle } from "@/components/ios";
 import CareerProfileClient from "./_components/CareerProfileClient";
 
 export default async function CareerProfilePage() {
@@ -21,5 +22,9 @@ export default async function CareerProfilePage() {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  return <CareerProfileClient profile={profile} />;
+  return (
+    <div className="ios-scroll">      <LargeTitle title="Profile" subtitle="Your resume, title & career assessment" />
+      <CareerProfileClient profile={profile} />
+    </div>
+  );
 }

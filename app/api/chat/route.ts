@@ -4,12 +4,18 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
 import { fetchWeather } from "@/lib/weather";
 import { fetchQuotes } from "@/lib/stocks";
+import { getAllUpcomingReminders } from "@/lib/reminders";
 import { logEvent } from "@/lib/usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const client = new Anthropic();
+
+// The unscoped "Ask Morris" runs on Sonnet 5 — it reasons across the whole
+// platform. Scoped assistants (Career Advisor, Health, LSAT, Bible, etc.) live
+// in their own routes and keep their own branding + models.
+const ASK_MORRIS_MODEL = "claude-sonnet-5";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -51,18 +57,17 @@ function checkRateLimit(userId: string): boolean {
 }
 
 // Stable instructions — cached as part of the prefix.
-const SYSTEM_INSTRUCTIONS = `You are a personal assistant for the Morris family, helping Terry with daily life and productivity.
+const SYSTEM_INSTRUCTIONS = `You are Morris, the AI at the center of morrisai.family — Terry's personal & family platform. You are the single assistant that spans everything in the app: his day, to-dos & reminders, family circle, health & fitness, finances & net worth, investments, career & goals, Bible reading, and news.
 
-You have access to Terry's current state: today's weather forecast, his to-do list, his stock watchlist with live prices, and his news preferences.
+You have access to a live snapshot of Terry's state across these areas, provided below. Use it to answer anything he asks about his life in the app.
 
 Rules:
 - Be concise: 2-4 sentences for most answers. Use bullet points only when listing 3+ items.
-- Reference the actual data provided below — never invent numbers, weather conditions, or to-do items.
-- For weather, currency is Fahrenheit. For stocks, currency is USD.
-- For dates, infer "today", "tomorrow", "this week" relative to the current date in the data context.
-- If asked about something not in the data (e.g. health data, finance data, calendar), say so plainly and suggest the right app — for finance questions point to finance.morrisai.family, for health point to health.morrisai.family.
-- Helpful but not chatty. Skip pleasantries unless the user is being conversational.
-- Never mention API keys, system internals, or how data was collected.
+- Reference the actual data provided below — never invent numbers, weather, to-dos, reminders, balances, or health figures.
+- You cover the WHOLE platform. Don't tell Terry to "go to another app" — you are that app. If a detail isn't in the snapshot, say what you do know and point him to the relevant section in-app (e.g. Health, Finance, Career, Bible, Tasks) by name.
+- Weather is Fahrenheit; money is USD. Infer "today/tomorrow/this week" from the current date in the snapshot.
+- Helpful but not chatty. Skip pleasantries unless Terry is being conversational.
+- Never mention API keys, system internals, models, or how data was collected.
 `;
 
 interface Todo {
@@ -79,6 +84,11 @@ function buildContext(args: {
   stocksSummary: string;
   newsTopics: string[];
   todayIso: string;
+  remindersSummary: string;
+  financeSummary: string;
+  healthSummary: string;
+  careerSummary: string;
+  familySummary: string;
 }): string {
   const openTodos = args.todos.filter((t) => !t.completed);
   const todoLines = openTodos.length === 0
@@ -108,6 +118,21 @@ Open (${openTodos.length}):
 ${todoLines}
 
 Recently completed: ${completedCount}
+
+## Reminders (upcoming)
+${args.remindersSummary}
+
+## Family
+${args.familySummary}
+
+## Health & fitness
+${args.healthSummary}
+
+## Finances
+${args.financeSummary}
+
+## Career & goals
+${args.careerSummary}
 
 ## Stocks (today's quotes)
 ${args.stocksSummary}
@@ -182,6 +207,32 @@ export async function POST(req: NextRequest) {
     prefs.stock_tickers.length > 0 ? fetchQuotes(prefs.stock_tickers).catch(() => []) : Promise.resolve([]),
   ]);
 
+  // Broader cross-app snapshot — each source is independently defensive so a
+  // missing table/module never breaks the chat.
+  const [reminders, netRow, stepsRows, weightRow, careerGoals, familyRows] = await Promise.all([
+    getAllUpcomingReminders(user.id).catch(() => []),
+    service.schema("finance").from("net_position_snapshots")
+      .select("net_position, captured_at").eq("user_id", user.id)
+      .order("captured_at", { ascending: false }).limit(1).maybeSingle()
+      .then((r: { data: unknown }) => r.data).catch(() => null),
+    service.from("apple_health_metrics")
+      .select("value").eq("user_id", user.id)
+      .in("metric_name", ["step_count", "steps", "Step Count", "Steps"])
+      .gte("timestamp", new Date(Date.now() - 26 * 3_600_000).toISOString())
+      .then((r: { data: unknown[] }) => r.data ?? []).catch(() => []),
+    service.from("apple_health_metrics")
+      .select("value, timestamp").eq("user_id", user.id)
+      .in("metric_name", ["body_mass", "weight", "Weight", "Body Mass"])
+      .order("timestamp", { ascending: false }).limit(1).maybeSingle()
+      .then((r: { data: unknown }) => r.data).catch(() => null),
+    service.schema("career").from("career_goals")
+      .select("title, status, progress_pct, target_date").eq("user_id", user.id).eq("status", "active").limit(8)
+      .then((r: { data: unknown[] }) => r.data ?? []).catch(() => []),
+    service.schema("hub").from("family_members")
+      .select("display_name, nickname, role").eq("user_id", user.id).limit(20)
+      .then((r: { data: unknown[] }) => r.data ?? []).catch(() => []),
+  ]);
+
   // Build summaries for the LLM
   let weatherSummary = "(weather unavailable)";
   if (weatherResult) {
@@ -203,6 +254,39 @@ export async function POST(req: NextRequest) {
           )
           .join("\n");
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const remindersSummary = (reminders as any[]).length === 0
+    ? "  (no upcoming reminders)"
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    : (reminders as any[]).slice(0, 8).map((r) => `  - ${r.title}${r.category ? ` [${r.category}]` : ""}${r.due_at ? ` (due ${new Date(r.due_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })})` : ""}`).join("\n");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const net = (netRow as any)?.net_position;
+  const financeSummary = typeof net === "number"
+    ? `Net worth: ${net.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} (latest snapshot).`
+    : "(no net-worth snapshot yet)";
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const stepsToday = (stepsRows as any[]).reduce((s, r) => s + (Number(r.value) || 0), 0);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const weightVal = (weightRow as any)?.value;
+  const healthParts: string[] = [];
+  if (stepsToday > 0) healthParts.push(`Steps today: ${Math.round(stepsToday).toLocaleString()}`);
+  if (typeof weightVal === "number") healthParts.push(`Latest weight: ${weightVal.toFixed(1)} lb`);
+  const healthSummary = healthParts.length > 0 ? healthParts.join(". ") + "." : "(no recent health data)";
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const careerSummary = (careerGoals as any[]).length === 0
+    ? "(no active goals)"
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    : (careerGoals as any[]).map((g) => `  - ${g.title}${typeof g.progress_pct === "number" ? ` (${g.progress_pct}%)` : ""}${g.target_date ? ` — target ${g.target_date}` : ""}`).join("\n");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const familySummary = (familyRows as any[]).length === 0
+    ? "(no family members added)"
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    : (familyRows as any[]).map((m) => `${m.display_name ?? m.nickname ?? "Member"}${m.role === "child" ? " (child)" : ""}`).join(", ");
+
   const context = buildContext({
     locationName: prefs.location_name ?? "Unknown",
     weatherSummary,
@@ -210,12 +294,17 @@ export async function POST(req: NextRequest) {
     stocksSummary,
     newsTopics: prefs.news_topics,
     todayIso: new Date().toISOString().slice(0, 10),
+    remindersSummary,
+    financeSummary,
+    healthSummary,
+    careerSummary,
+    familySummary,
   });
 
   let response;
   try {
     response = await client.messages.create({
-      model: "claude-haiku-4-5",
+      model: ASK_MORRIS_MODEL,
       max_tokens: 1024,
       system: [
         { type: "text", text: SYSTEM_INSTRUCTIONS },
@@ -243,7 +332,7 @@ export async function POST(req: NextRequest) {
     userId: user.id,
     tokensIn: response.usage?.input_tokens ?? 0,
     tokensOut: response.usage?.output_tokens ?? 0,
-    metadata: { model: "claude-haiku-4-5", source: "hub" },
+    metadata: { model: ASK_MORRIS_MODEL, source: "hub" },
   });
 
   return NextResponse.json({ reply });

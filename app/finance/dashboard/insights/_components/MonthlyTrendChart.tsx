@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Segmented } from "@/components/ios";
 
 export interface MonthTx {
   id: string;
@@ -37,9 +38,9 @@ export default function MonthlyTrendChart({ data }: { data: MonthPoint[] }) {
 
   if (data.length === 0) {
     return (
-      <div style={card}>
-        <h2 className="serif" style={{ fontSize: 20, marginBottom: 10 }}>Monthly trend</h2>
-        <p style={{ fontSize: 13, color: "var(--color-ink-4)", textAlign: "center", padding: "40px 0" }}>
+      <div className="ios-list" style={{ margin: 0, padding: "18px 16px" }}>
+        <h2 className="ios-title-3">Monthly trend</h2>
+        <p className="ios-footnote" style={{ color: "var(--ios-label-2)", textAlign: "center", padding: "40px 0" }}>
           Not enough data yet
         </p>
       </div>
@@ -70,19 +71,19 @@ export default function MonthlyTrendChart({ data }: { data: MonthPoint[] }) {
   );
 
   return (
-    <div style={card}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
-        <h2 className="serif" style={{ fontSize: 20 }}>Monthly trend</h2>
-        <div style={{ display: "flex", gap: 14, fontSize: 11 }}>
-          <span style={{ color: "var(--color-ink-3)", display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 10, height: 10, background: "var(--color-red)", borderRadius: 2, display: "inline-block" }} />
+    <div className="ios-list" style={{ margin: 0, padding: "18px 16px" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12, gap: 12, flexWrap: "wrap" }}>
+        <h2 className="ios-title-3">Monthly trend</h2>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", display: "flex", gap: 14, alignItems: "center" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ width: 10, height: 10, background: "var(--ios-red)", borderRadius: 3, display: "inline-block" }} />
             Outflow
           </span>
-          <span style={{ color: "var(--color-ink-3)", display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 10, height: 10, background: "var(--color-green)", borderRadius: 2, display: "inline-block" }} />
+          <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ width: 10, height: 10, background: "var(--ios-green)", borderRadius: 3, display: "inline-block" }} />
             Inflow
           </span>
-          <span style={{ color: "var(--color-ink-4)", fontStyle: "italic" }}>click month to drill in</span>
+          <span style={{ color: "var(--ios-label-3)" }}>tap a month</span>
         </div>
       </div>
 
@@ -105,33 +106,33 @@ export default function MonthlyTrendChart({ data }: { data: MonthPoint[] }) {
           const y = padT + (innerH * i) / 3;
           return (
             <g key={i}>
-              <line x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--color-rule-soft)" strokeWidth="1" />
-              <text x={padL - 8} y={y + 3} fontSize="10" fill="#8C857C" textAnchor="end" fontFamily="JetBrains Mono, monospace">
+              <line x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--ios-separator)" strokeWidth="1" />
+              <text x={padL - 8} y={y + 3} fontSize="11" fill="var(--ios-label-2)" textAnchor="end" style={{ fontVariantNumeric: "tabular-nums" }}>
                 {fmtMoney(tick)}
               </text>
             </g>
           );
         })}
 
-        <path d={outflowArea} fill="var(--color-red)" fillOpacity="0.1" />
-        <path d={outflowPath} fill="none" stroke="var(--color-red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        <path d={inflowPath} fill="none" stroke="var(--color-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={outflowArea} fill="var(--ios-red)" fillOpacity="0.1" />
+        <path d={outflowPath} fill="none" stroke="var(--ios-red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={inflowPath} fill="none" stroke="var(--ios-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
 
         {data.map((d, i) => {
           const isSelected = d.key === selectedMonth;
           return (
             <g key={d.key}>
               {isSelected && (
-                <line x1={xFor(i)} y1={padT} x2={xFor(i)} y2={h - padB} stroke="var(--color-bronze)" strokeWidth="1" strokeDasharray="4 3" />
+                <line x1={xFor(i)} y1={padT} x2={xFor(i)} y2={h - padB} stroke="var(--ios-finance)" strokeWidth="1" strokeDasharray="4 3" />
               )}
               <circle cx={xFor(i)} cy={yFor(d.outflow)} r={isSelected ? 5 : 3.5}
-                fill={isSelected ? "var(--color-red)" : "#FBF8F1"} stroke="var(--color-red)" strokeWidth="1.5" />
+                fill={isSelected ? "var(--ios-red)" : "var(--ios-cell)"} stroke="var(--ios-red)" strokeWidth="1.5" />
               <circle cx={xFor(i)} cy={yFor(d.inflow)} r={isSelected ? 5 : 3.5}
-                fill={isSelected ? "var(--color-green)" : "#FBF8F1"} stroke="var(--color-green)" strokeWidth="1.5" />
-              <text x={xFor(i)} y={h - padB + 16} fontSize="10"
-                fill={isSelected ? "var(--color-ink)" : "#8C857C"}
-                fontWeight={isSelected ? "700" : "400"}
-                textAnchor="middle" fontFamily="Geist, system-ui">
+                fill={isSelected ? "var(--ios-green)" : "var(--ios-cell)"} stroke="var(--ios-green)" strokeWidth="1.5" />
+              <text x={xFor(i)} y={h - padB + 16} fontSize="11"
+                fill={isSelected ? "var(--ios-label)" : "var(--ios-label-2)"}
+                fontWeight={isSelected ? "600" : "400"}
+                textAnchor="middle">
                 {d.label}
               </text>
             </g>
@@ -141,44 +142,37 @@ export default function MonthlyTrendChart({ data }: { data: MonthPoint[] }) {
 
       {/* Selected month transaction list */}
       {selectedData && (
-        <div style={{ marginTop: 16, borderTop: "1px solid var(--color-rule)", paddingTop: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div>
-              <span className="serif" style={{ fontSize: 16, color: "var(--color-ink)" }}>{selectedData.label}</span>
-              <span style={{ fontSize: 11, color: "var(--color-ink-3)", marginLeft: 10 }}>
-                {fmtMoney(selectedData.outflow)} out · {fmtMoney(selectedData.inflow)} in
+        <div style={{ marginTop: 16, borderTop: "1px solid var(--ios-separator)", paddingTop: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+              <span className="ios-headline">{selectedData.label}</span>
+              <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
+                <span className="ios-num">{fmtMoney(selectedData.outflow)}</span> out · <span className="ios-num">{fmtMoney(selectedData.inflow)}</span> in
               </span>
             </div>
-            <div style={{ display: "flex", gap: 4 }}>
-              {(["all","out","in"] as const).map((f) => (
-                <button key={f} onClick={() => setFilter(f)} style={{
-                  padding: "4px 10px", borderRadius: 12, fontSize: 11, fontFamily: "inherit", cursor: "pointer",
-                  border: `1px solid ${filter === f ? "var(--color-bronze)" : "var(--color-rule)"}`,
-                  background: filter === f ? "var(--color-bronze)" : "transparent",
-                  color: filter === f ? "#fff" : "var(--color-ink-3)", fontWeight: 600,
-                }}>
-                  {f === "all" ? "All" : f === "out" ? "Out" : "In"}
-                </button>
-              ))}
-              <button onClick={() => setSelectedMonth(null)} style={{
-                padding: "4px 10px", borderRadius: 12, fontSize: 11, fontFamily: "inherit", cursor: "pointer",
-                border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-4)",
-              }}>✕</button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <Segmented
+                options={[{ value: "all", label: "All" }, { value: "out", label: "Out" }, { value: "in", label: "In" }]}
+                value={filter}
+                onChange={setFilter}
+                ariaLabel="Filter transactions"
+              />
+              <button type="button" className="ios-btn ios-btn--plain" onClick={() => setSelectedMonth(null)}>Close</button>
             </div>
           </div>
 
           {selectedTxns.length === 0 ? (
-            <p style={{ fontSize: 12, color: "var(--color-ink-4)", textAlign: "center", padding: "16px 0" }}>No transactions match this filter</p>
+            <p className="ios-footnote" style={{ color: "var(--ios-label-2)", textAlign: "center", padding: "16px 0" }}>No transactions match this filter</p>
           ) : (
             <div style={{ maxHeight: 320, overflowY: "auto", display: "flex", flexDirection: "column" }}>
               {selectedTxns.map((tx) => (
-                <div key={tx.id} style={{ display: "grid", gridTemplateColumns: "70px 1fr auto", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--color-rule-soft)", alignItems: "center" }}>
-                  <div className="mono" style={{ fontSize: 11, color: "var(--color-ink-4)" }}>{fmtDate(tx.date)}</div>
+                <div key={tx.id} style={{ display: "grid", gridTemplateColumns: "70px 1fr auto", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--ios-separator)", alignItems: "center" }}>
+                  <div className="ios-num ios-footnote" style={{ color: "var(--ios-label-2)" }}>{fmtDate(tx.date)}</div>
                   <div>
-                    <div style={{ fontSize: 13, color: "var(--color-ink)", fontWeight: 500 }}>{tx.merchant}</div>
-                    <div style={{ fontSize: 10, color: "var(--color-ink-4)" }}>{tx.category}</div>
+                    <div className="ios-subhead" style={{ fontWeight: 500 }}>{tx.merchant}</div>
+                    <div className="ios-caption" style={{ color: "var(--ios-label-2)" }}>{tx.category}</div>
                   </div>
-                  <div className="mono" style={{ fontSize: 13, fontWeight: 500, color: tx.isIncome ? "var(--color-green)" : "var(--color-ink)", textAlign: "right" }}>
+                  <div className="ios-num ios-subhead" style={{ fontWeight: 600, color: tx.isIncome ? "var(--ios-green)" : "var(--ios-label)", textAlign: "right" }}>
                     {tx.isIncome ? "+" : "−"}{fmtMoneyExact(Math.abs(tx.amount))}
                   </div>
                 </div>
@@ -190,11 +184,3 @@ export default function MonthlyTrendChart({ data }: { data: MonthPoint[] }) {
     </div>
   );
 }
-
-const card: React.CSSProperties = {
-  background: "var(--color-paper-card)",
-  border: "1px solid var(--color-rule)",
-  borderRadius: 12,
-  padding: "20px 24px",
-  boxShadow: "var(--shadow-card)",
-};

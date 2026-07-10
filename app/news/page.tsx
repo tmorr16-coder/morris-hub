@@ -1,9 +1,10 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
+import { getUserTimezone } from "@/lib/timezone";
+import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 import { renderWidget } from "@/app/home/_lib/renderWidget";
 import { WIDGET_LABELS } from "@/app/home/settings/_components/SettingsForm";
 
@@ -21,53 +22,47 @@ export default async function NewsPage() {
     prefs,
     todos: [],
     reminders: null,
-    userTz: "America/Indiana/Indianapolis",
+    userTz: getUserTimezone(user.user_metadata),
     activeCareerGoals: 0,
     user,
   };
 
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: "32px 20px 100px" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 28 }}>
-        <div>
-          <h1 className="serif" style={{ fontSize: 36, marginBottom: 8, margin: "0 0 8px" }}>News</h1>
-          <p style={{ fontSize: 14, color: "var(--color-ink-3)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-            Your topics, subscriptions, sports, and company news.
-          </p>
-        </div>
-        <Link href="/home/settings" style={{
-          fontSize: 12, color: "var(--color-ink-3)", textDecoration: "none",
-          border: "1px solid var(--color-rule)", borderRadius: 8, padding: "7px 14px",
-          fontFamily: "var(--font-geist, system-ui), sans-serif",
-        }}>
-          Customize →
-        </Link>
-      </div>
+    <div className="ios-scroll">
+      <LargeTitle brand title="News" subtitle="Topics, subscriptions, sports & company" />
 
       {newsWids.length === 0 ? (
-        <div style={{
-          background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 12,
-          padding: "24px 28px", textAlign: "center",
-        }}>
-          <p style={{ fontSize: 14, color: "var(--color-ink-3)", marginBottom: 14, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-            You&apos;ve turned off all news widgets.
-          </p>
-          <Link href="/home/settings" style={{
-            fontSize: 13, fontWeight: 600, color: "var(--color-accent)", textDecoration: "none",
-            fontFamily: "var(--font-geist, system-ui), sans-serif",
-          }}>
-            Enable some in Settings →
-          </Link>
-        </div>
+        <Group header="Your feed" footer="You've turned off all news widgets.">
+          <Cell
+            lead={<IconBadge color="#9A3B2A"><Icons.NewsIcon /></IconBadge>}
+            title="Enable news widgets"
+            subtitle="Choose topics, sources & sports"
+            href="/home/settings"
+          />
+        </Group>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {newsWids.map((widgetId) => (
-            <section key={widgetId} aria-label={WIDGET_LABELS[widgetId]}>
-              {renderWidget(widgetId, ctx)}
+        newsWids.map((widgetId) => {
+          const widget = renderWidget(widgetId, ctx);
+          if (!widget) return null;
+          return (
+            <section key={widgetId} aria-label={WIDGET_LABELS[widgetId]} style={{ marginTop: 18 }}>
+              <h2 className="ios-group-header">{WIDGET_LABELS[widgetId]}</h2>
+              <div style={{ padding: "0 16px" }}>{widget}</div>
             </section>
-          ))}
-        </div>
+          );
+        })
       )}
-    </main>
+
+      <Group header="Following">
+        <Cell
+          lead={<IconBadge color="#9A3B2A"><Icons.NewsIcon /></IconBadge>}
+          title="Manage sources & topics"
+          subtitle="Customize your feed"
+          href="/home/settings"
+        />
+      </Group>
+
+      <div style={{ height: 12 }} />
+    </div>
   );
 }

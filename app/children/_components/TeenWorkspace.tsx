@@ -1,7 +1,10 @@
 "use client";
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { LargeTitle, Segmented, Group, Cell } from "@/components/ios";
 import type { ChildWorkspaceData, ChildActivity, ChildHealthNote } from "../_lib/children";
 import AddActivityForm from "./AddActivityForm";
 import AddHealthNoteForm from "./AddHealthNoteForm";
@@ -9,11 +12,36 @@ import AddHealthNoteForm from "./AddHealthNoteForm";
 const TABS = ["Today", "Assignments", "Activities", "Responsibilities", "Goals", "Wellness"] as const;
 type Tab = (typeof TABS)[number];
 
+function Checkbox({ checked, onClick, label }: { checked: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      style={{
+        width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+        border: `2px solid ${checked ? "var(--ios-tint)" : "var(--ios-separator)"}`,
+        background: checked ? "var(--ios-tint)" : "transparent",
+        display: "flex", alignItems: "center", justifyContent: "center", color: "#fff",
+      }}
+    >
+      {checked && (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+function EmptyNote({ children }: { children: React.ReactNode }) {
+  return <p className="ios-footnote" style={{ padding: "4px var(--ios-gutter)", color: "var(--ios-label-2)" }}>{children}</p>;
+}
+
 export default function TeenWorkspace({ data, viewerUserId }: { data: ChildWorkspaceData; viewerUserId: string }) {
   const [activeTab, setActiveTab] = useState<Tab>("Today");
   const [activities, setActivities] = useState<ChildActivity[]>(data.activities);
   const [healthNotes, setHealthNotes] = useState<ChildHealthNote[]>(data.healthNotes);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createClient() as any;
 
   async function toggle(id: string, completed: boolean) {
@@ -32,88 +60,83 @@ export default function TeenWorkspace({ data, viewerUserId }: { data: ChildWorks
 
   function renderList(items: ChildActivity[]) {
     if (items.length === 0) {
-      return <div style={{ fontSize: 13, color: "var(--color-ink-4)" }}>Nothing here yet.</div>;
+      return <EmptyNote>Nothing here yet.</EmptyNote>;
     }
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <Group>
         {items.map((a) => (
-          <div key={a.id} style={{
-            display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
-            background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 8,
-            opacity: a.completed ? 0.55 : 1,
-          }}>
-            <button onClick={() => toggle(a.id, a.completed)} aria-label={a.completed ? "Mark incomplete" : "Mark complete"} style={{
-              width: 18, height: 18, borderRadius: 5, flexShrink: 0, cursor: "pointer",
-              border: `2px solid ${a.completed ? "var(--color-accent)" : "var(--color-rule)"}`,
-              background: a.completed ? "var(--color-accent)" : "transparent",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              {a.completed && <span style={{ color: "#fff", fontSize: 11 }}>✓</span>}
-            </button>
-            <span style={{ flex: 1, fontSize: 13, color: "var(--color-ink-2)", textDecoration: a.completed ? "line-through" : "none" }}>{a.title}</span>
-            {a.dueAt && <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>{new Date(a.dueAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>}
-          </div>
+          <Cell
+            key={a.id}
+            chevron={false}
+            lead={<Checkbox checked={a.completed} onClick={() => toggle(a.id, a.completed)} label={a.completed ? "Mark incomplete" : "Mark complete"} />}
+            title={<span style={{ textDecoration: a.completed ? "line-through" : "none", opacity: a.completed ? 0.55 : 1 }}>{a.title}</span>}
+            trailing={a.dueAt ? <span className="ios-num" style={{ fontSize: 13 }}>{new Date(a.dueAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span> : undefined}
+          />
         ))}
-      </div>
+      </Group>
     );
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: "32px 20px 100px" }}>
-      <h1 className="serif" style={{ fontSize: 32, marginBottom: 8 }}>{data.name}</h1>
+    <>
+      <LargeTitle title={data.name} />
 
-      <div style={{
-        background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10, padding: 4,
-        display: "flex", gap: 2, marginBottom: 24, flexWrap: "wrap",
-      }}>
-        {TABS.map((tab) => (
-          <button key={tab} onClick={() => setActiveTab(tab)} style={{
-            padding: "7px 12px", borderRadius: 7, border: "none", fontSize: 12, cursor: "pointer",
-            background: activeTab === tab ? "var(--color-accent)" : "transparent",
-            color: activeTab === tab ? "#FFFDF8" : "var(--color-ink-2)",
-            fontWeight: activeTab === tab ? 600 : 400,
-          }}>
-            {tab}
-          </button>
-        ))}
+      <div style={{ padding: "0 var(--ios-gutter)" }}>
+        <Segmented
+          ariaLabel="Section"
+          value={activeTab}
+          onChange={(v: Tab) => setActiveTab(v)}
+          options={TABS.map((t) => ({ value: t, label: t }))}
+        />
       </div>
 
-      {activeTab === "Today" && renderList(dueToday)}
-      {activeTab === "Assignments" && (
-        <div>
-          {renderList(assignments)}
-          <div style={{ marginTop: 10 }}>
-            <AddActivityForm childId={data.childId} viewerUserId={viewerUserId} defaultCategory="school" onAdded={(a) => setActivities((prev) => [...prev, a])} />
-          </div>
-        </div>
-      )}
-      {activeTab === "Activities" && (
-        <div>
-          {renderList(otherActivities)}
-          <div style={{ marginTop: 10 }}>
-            <AddActivityForm childId={data.childId} viewerUserId={viewerUserId} defaultCategory="sports" onAdded={(a) => setActivities((prev) => [...prev, a])} />
-          </div>
-        </div>
-      )}
-      {activeTab === "Responsibilities" && <div style={{ fontSize: 13, color: "var(--color-ink-4)" }}>Household responsibilities appear on the Family calendar.</div>}
-      {activeTab === "Goals" && <div style={{ fontSize: 13, color: "var(--color-ink-4)" }}>No goals set yet.</div>}
-      {activeTab === "Wellness" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {healthNotes.filter((h) => !h.resolved).length === 0 ? (
-            <div style={{ fontSize: 13, color: "var(--color-ink-4)" }}>No notes for your next visit.</div>
-          ) : healthNotes.filter((h) => !h.resolved).map((h) => (
-            <div key={h.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 13, color: "var(--color-ink-2)", padding: "10px 14px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 8 }}>
-              <span style={{ flex: 1 }}>{h.note}{h.targetVisitDate ? ` · ${new Date(`${h.targetVisitDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}</span>
-              <button onClick={() => resolveNote(h.id)} style={{ fontSize: 11, color: "var(--color-ink-4)", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}>
-                Resolve
-              </button>
+      <div style={{ marginTop: 16 }}>
+        {activeTab === "Today" && renderList(dueToday)}
+        {activeTab === "Assignments" && (
+          <>
+            {renderList(assignments)}
+            <div style={{ margin: "12px var(--ios-gutter) 0" }}>
+              <AddActivityForm childId={data.childId} viewerUserId={viewerUserId} defaultCategory="school" onAdded={(a) => setActivities((prev) => [...prev, a])} />
             </div>
-          ))}
-          <div style={{ marginTop: 4 }}>
-            <AddHealthNoteForm childId={data.childId} viewerUserId={viewerUserId} onAdded={(h) => setHealthNotes((prev) => [...prev, h])} />
-          </div>
-        </div>
-      )}
-    </main>
+          </>
+        )}
+        {activeTab === "Activities" && (
+          <>
+            {renderList(otherActivities)}
+            <div style={{ margin: "12px var(--ios-gutter) 0" }}>
+              <AddActivityForm childId={data.childId} viewerUserId={viewerUserId} defaultCategory="sports" onAdded={(a) => setActivities((prev) => [...prev, a])} />
+            </div>
+          </>
+        )}
+        {activeTab === "Responsibilities" && <EmptyNote>Household responsibilities appear on the Family calendar.</EmptyNote>}
+        {activeTab === "Goals" && <EmptyNote>No goals set yet.</EmptyNote>}
+        {activeTab === "Wellness" && (
+          <>
+            {healthNotes.filter((h) => !h.resolved).length === 0 ? (
+              <EmptyNote>No notes for your next visit.</EmptyNote>
+            ) : (
+              <Group>
+                {healthNotes.filter((h) => !h.resolved).map((h) => (
+                  <Cell
+                    key={h.id}
+                    chevron={false}
+                    title={h.note}
+                    subtitle={h.targetVisitDate ? new Date(`${h.targetVisitDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : undefined}
+                    trailing={
+                      <button type="button" className="ios-btn--plain" onClick={() => resolveNote(h.id)} style={{ fontSize: 15 }}>
+                        Resolve
+                      </button>
+                    }
+                  />
+                ))}
+              </Group>
+            )}
+            <div style={{ margin: "12px var(--ios-gutter) 0" }}>
+              <AddHealthNoteForm childId={data.childId} viewerUserId={viewerUserId} onAdded={(h) => setHealthNotes((prev) => [...prev, h])} />
+            </div>
+          </>
+        )}
+      </div>
+    </>
   );
 }

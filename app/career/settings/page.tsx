@@ -1,12 +1,12 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { LargeTitle, Icons } from "@/components/ios";
 import CareerSettingsClient from "./_components/CareerSettingsClient";
 import LsatSettingsClient from "./_components/LsatSettingsClient";
 
-// Career layout already provides PlatformMenu + CareerSubNav + container padding
+// Career layout provides the iOS scope + tab bar; this page returns iOS content
 export default async function CareerSettingsPage({ searchParams }: { searchParams: Promise<{ linkedin?: string }> }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -28,12 +28,7 @@ export default async function CareerSettingsPage({ searchParams }: { searchParam
   const linkedinStatus = params.linkedin;
 
   return (
-    <div style={{ maxWidth: 620 }}>
-      <Link href="/career" style={{ fontSize: 12, color: "var(--color-ink-3)", textDecoration: "none", marginBottom: 20, display: "inline-block" }}>← Career</Link>
-      <h1 className="serif" style={{ fontSize: 32, marginBottom: 6 }}>Career Settings</h1>
-      <p style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 32 }}>
-        Manage LinkedIn, notifications, and privacy for your career module.
-      </p>
+    <div className="ios-scroll">      <LargeTitle title="Settings" subtitle="LinkedIn, notifications & privacy" trailing={<Icons.GearIcon style={{ width: 26, height: 26, color: "var(--ios-label-2)" }} />} />
       <CareerSettingsClient
         linkedinConnected={!!profile?.linkedin_connected}
         linkedinName={profile?.linkedin_name ?? null}

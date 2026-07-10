@@ -1,14 +1,17 @@
 "use client";
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Chip, Icons } from "@/components/ios";
 import type { ChildActivity } from "../_lib/children";
 
-const CATEGORIES: { value: ChildActivity["category"]; label: string; emoji: string }[] = [
-  { value: "school", label: "School", emoji: "📚" },
-  { value: "sports", label: "Sports", emoji: "⚽" },
-  { value: "church", label: "Church", emoji: "🕊️" },
-  { value: "other", label: "Other", emoji: "⭐" },
+const CATEGORIES: { value: ChildActivity["category"]; label: string }[] = [
+  { value: "school", label: "School" },
+  { value: "sports", label: "Sports" },
+  { value: "church", label: "Church" },
+  { value: "other", label: "Other" },
 ];
 
 interface Props {
@@ -24,7 +27,6 @@ export default function AddActivityForm({ childId, viewerUserId, defaultCategory
   const [category, setCategory] = useState<ChildActivity["category"]>(defaultCategory ?? "school");
   const [dueAt, setDueAt] = useState("");
   const [saving, setSaving] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createClient() as any;
 
   async function submit(e: React.FormEvent) {
@@ -57,67 +59,69 @@ export default function AddActivityForm({ childId, viewerUserId, defaultCategory
     }
   }
 
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} style={{
-        fontSize: 12, fontWeight: 600, color: "var(--color-accent)", background: "none",
-        border: "1px dashed var(--color-rule)", borderRadius: 8, padding: "8px 14px",
-        cursor: "pointer", fontFamily: "var(--font-geist, system-ui), sans-serif", width: "100%", textAlign: "left",
-      }}>
-        + Add activity
-      </button>
-    );
-  }
+  const inputStyle: React.CSSProperties = {
+    width: "100%", padding: "11px 12px", borderRadius: 10,
+    border: "var(--ios-hair) solid var(--ios-separator)", background: "var(--ios-fill-2)",
+    color: "var(--ios-label)", fontSize: 16, fontFamily: "inherit", boxSizing: "border-box",
+  };
 
   return (
-    <form onSubmit={submit} style={{
-      display: "flex", flexDirection: "column", gap: 8, padding: "12px 14px",
-      background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10,
-    }}>
-      <input
-        autoFocus
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="What's the activity?"
-        style={{ padding: "8px 10px", border: "1px solid var(--color-rule)", borderRadius: 7, fontSize: 13, fontFamily: "inherit" }}
-      />
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {CATEGORIES.map((c) => (
-          <button
-            key={c.value}
-            type="button"
-            onClick={() => setCategory(c.value)}
-            style={{
-              padding: "5px 11px", borderRadius: 7, fontSize: 12, cursor: "pointer",
-              border: category === c.value ? "1.5px solid var(--color-accent)" : "1px solid var(--color-rule)",
-              background: category === c.value ? "var(--color-accent-soft)" : "transparent",
-              color: category === c.value ? "var(--color-accent)" : "var(--color-ink-3)",
-            }}
-          >
-            {c.emoji} {c.label}
-          </button>
-        ))}
-      </div>
-      <input
-        type="date"
-        value={dueAt}
-        onChange={(e) => setDueAt(e.target.value)}
-        style={{ padding: "8px 10px", border: "1px solid var(--color-rule)", borderRadius: 7, fontSize: 13, fontFamily: "inherit", maxWidth: 160 }}
-      />
-      <div style={{ display: "flex", gap: 8 }}>
-        <button type="submit" disabled={saving || !title.trim()} style={{
-          padding: "7px 16px", borderRadius: 8, border: "none", background: "var(--color-accent)",
-          color: "#FFFDF8", fontSize: 12, fontWeight: 600, cursor: "pointer",
-        }}>
-          {saving ? "Adding…" : "Add"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} style={{
-          padding: "7px 16px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "transparent",
-          color: "var(--color-ink-3)", fontSize: 12, cursor: "pointer",
-        }}>
-          Cancel
-        </button>
-      </div>
-    </form>
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        style={{
+          display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "12px 14px",
+          background: "var(--ios-fill)", border: "none", borderRadius: 12, cursor: "pointer",
+          color: "var(--ios-tint)", fontSize: 15, fontWeight: 600, fontFamily: "inherit", textAlign: "left",
+        }}
+      >
+        <Icons.PlusIcon style={{ width: 15, height: 15 }} />
+        Add activity
+      </button>
+
+      {open && (
+        <div className="ios-sheet-backdrop" onClick={() => setOpen(false)}>
+          <div className="ios-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="ios-grabber" />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <button type="button" className="ios-btn--plain" onClick={() => setOpen(false)}>Cancel</button>
+              <span className="ios-headline">New activity</span>
+              <span style={{ width: 52 }} />
+            </div>
+
+            <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <input
+                autoFocus
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="What's the activity?"
+                style={inputStyle}
+              />
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {CATEGORIES.map((c) => (
+                  <Chip key={c.value} small selected={category === c.value} onClick={() => setCategory(c.value)}>
+                    {c.label}
+                  </Chip>
+                ))}
+              </div>
+              <input
+                type="date"
+                value={dueAt}
+                onChange={(e) => setDueAt(e.target.value)}
+                style={{ ...inputStyle, maxWidth: 180, colorScheme: "light dark" }}
+              />
+              <button
+                type="submit"
+                disabled={saving || !title.trim()}
+                className="ios-btn ios-btn--primary"
+                style={{ opacity: saving || !title.trim() ? 0.5 : 1, marginTop: 4 }}
+              >
+                {saving ? "Adding…" : "Add activity"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

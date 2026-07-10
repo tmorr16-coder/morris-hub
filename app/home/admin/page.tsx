@@ -1,15 +1,15 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import PlatformMenu from "@/components/PlatformMenu";
+import { IOSScreen, LargeTitle, Group, Cell, IconBadge, TabBar, Icons } from "@/components/ios";
 import AdminClient, {
   type AdminUser,
   type Invitation,
   type IntegrationRequest,
   type PendingUser,
   type SupportTicket,
+  type AccessRequest,
 } from "./_components/AdminClient";
 
 export default async function AdminPage() {
@@ -150,62 +150,63 @@ export default async function AdminPage() {
     }));
   } catch { /* ignore */ }
 
-  const menuUser = {
-    name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-    email: user.email,
-    avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
-  };
+  // Access requests (public landing-page waitlist → hub.waitlist).
+  // Degrade gracefully: if the table is missing we surface an empty state note
+  // rather than crashing the whole admin page.
+  type WaitlistRow = { id: string; name: string | null; email: string; note: string | null; created_at: string };
+  let accessRequests: AccessRequest[] = [];
+  let waitlistAvailable = true;
+  try {
+    const { data: waitlistRows, error: waitlistError } = await db
+      .schema("hub")
+      .from("waitlist")
+      .select("id, name, email, note, created_at")
+      .order("created_at", { ascending: true });
+    if (waitlistError) {
+      waitlistAvailable = false;
+    } else {
+      accessRequests = ((waitlistRows as WaitlistRow[]) ?? []).map((r) => ({
+        id: r.id,
+        name: r.name ?? "",
+        email: r.email,
+        note: r.note ?? "",
+        createdAt: r.created_at,
+      }));
+    }
+  } catch {
+    waitlistAvailable = false;
+  }
 
   return (
-    <div>
-      <PlatformMenu currentApp="hub" user={menuUser} />
+    <IOSScreen>      <LargeTitle
+        title="Admin"
+        subtitle="Users, per-app access, support tickets & integration requests"
+        trailing={<Icons.GearIcon style={{ width: 26, height: 26, color: "var(--ios-label-2)" }} />}
+      />
 
-      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 28px 100px" }}>
-        <Link
-          href="/home"
-          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--color-ink-3)", textDecoration: "none", marginBottom: 16 }}
-        >
-          ← Home
-        </Link>
-
-        <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>
-          Platform
-        </div>
-        <h1 className="serif" style={{ fontSize: 40, lineHeight: 1.05, marginBottom: 6 }}>
-          Admin<span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>.</span>
-        </h1>
-        <p style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 18 }}>
-          Manage users, per-app access, support tickets, and integration requests.
-        </p>
-
-        <Link
+      <Group header="Platform">
+        <Cell
+          lead={<IconBadge color="var(--ios-tint)"><Icons.ChartIcon /></IconBadge>}
+          title="Usage & costs"
+          subtitle="Daily activity trends & cost breakdown"
           href="/home/admin/analytics"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 13,
-            fontWeight: 500,
-            color: "var(--color-ink-2)",
-            textDecoration: "none",
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 10,
-            padding: "8px 14px",
-            marginBottom: 24,
-          }}
-        >
-          Usage &amp; costs →
-        </Link>
+        />
+      </Group>
 
+      <div style={{ padding: "8px 16px 0" }}>
         <AdminClient
           users={users}
           invitations={invitations}
           integrationRequests={integrationRequests}
           pendingUsers={pendingUsers}
           supportTickets={supportTickets}
+          accessRequests={accessRequests}
+          waitlistAvailable={waitlistAvailable}
         />
-      </main>
-    </div>
+      </div>
+
+      <div style={{ height: 12 }} />
+      <TabBar current="more" currentUserId={user.id} sourceApp="hub" />
+    </IOSScreen>
   );
 }

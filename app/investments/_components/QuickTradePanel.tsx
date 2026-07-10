@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import type { Stock } from "@/lib/stock-research";
+import { Chip } from "@/components/ios";
 
 interface QuickTradePanelProps {
   stock: Stock;
@@ -22,6 +23,27 @@ type Side = "buy" | "sell";
 type OrderType = "market" | "limit";
 type Tif = "day" | "gtc";
 
+const fieldStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "12px 14px",
+  borderRadius: 10,
+  border: "none",
+  background: "var(--ios-fill-2)",
+  fontSize: 17,
+  fontFamily: "inherit",
+  color: "var(--ios-label)",
+  outline: "none",
+  boxSizing: "border-box",
+};
+
+function Label({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 7 }}>
+      {children}
+    </div>
+  );
+}
+
 export default function QuickTradePanel({ stock, onClose }: QuickTradePanelProps) {
   const [visible, setVisible] = useState(false);
   const [side, setSide] = useState<Side>("buy");
@@ -38,13 +60,14 @@ export default function QuickTradePanel({ stock, onClose }: QuickTradePanelProps
 
   const handleClose = () => {
     setVisible(false);
-    setTimeout(onClose, 220);
+    setTimeout(onClose, 240);
   };
 
   const quantity = parseInt(qty) || 0;
   const lp = parseFloat(limitPrice) || (stock.price ?? 0);
   const estimatedCost = quantity * (orderType === "limit" ? lp : (stock.price ?? 0));
   const isUp = (stock.changeDirection ?? "neutral") !== "down";
+  const sideColor = side === "buy" ? "var(--ios-green)" : "var(--ios-red)";
 
   const handlePlace = async () => {
     if (!quantity || quantity <= 0) { setError("Enter a valid quantity"); return; }
@@ -76,140 +99,177 @@ export default function QuickTradePanel({ stock, onClose }: QuickTradePanelProps
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", pointerEvents: "auto" }}>
-      <div onClick={handleClose} style={{ flex: 1, background: "rgba(0,0,0,0.2)", transition: "opacity 0.22s", opacity: visible ? 1 : 0 }} />
-      <div style={{ width: 360, maxWidth: "90vw", height: "100%", background: "var(--color-bg-card)", borderLeft: "1px solid var(--color-rule)", display: "flex", flexDirection: "column", transform: visible ? "translateX(0)" : "translateX(100%)", transition: "transform 0.22s cubic-bezier(0.4,0,0.2,1)", boxShadow: "-8px 0 32px rgba(0,0,0,0.08)" }}>
+    <>
+      <div
+        className="ios-sheet-backdrop"
+        onClick={handleClose}
+        style={{ opacity: visible ? 1 : 0, transition: "opacity 0.24s", animation: "none" }}
+      />
+      <div
+        className="ios-sheet"
+        style={{
+          transform: visible ? "translateY(0)" : "translateY(100%)",
+          transition: "transform 0.28s cubic-bezier(0.32,0.72,0,1)",
+          animation: "none",
+        }}
+      >
+        <div className="ios-grabber" />
+
         {/* Header */}
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--color-rule)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0 0 4px" }}>
           <div>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-accent)", marginBottom: 2 }}>Paper Trade · Alpaca</div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: "var(--color-ink)" }}>
-              {stock.ticker}
-              <span style={{ fontSize: 13, fontWeight: 400, color: "var(--color-ink-3)", marginLeft: 8 }}>${(stock.price ?? 0).toFixed(2)}</span>
-              <span style={{ fontSize: 12, marginLeft: 6, color: isUp ? "var(--color-green)" : "var(--color-red)" }}>
-                {isUp ? "+" : ""}{(stock.change ?? 0).toFixed(2)}%
+            <div className="ios-title-3">{stock.ticker}</div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
+              <span className="ios-num">${(stock.price ?? 0).toFixed(2)}</span>
+              <span style={{ color: isUp ? "var(--ios-green)" : "var(--ios-red)", marginLeft: 6 }}>
+                {isUp ? "▲" : "▼"} {Math.abs(stock.change ?? 0).toFixed(2)}%
               </span>
+              {" · Paper trade"}
             </div>
           </div>
-          <button onClick={handleClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "var(--color-ink-3)", padding: "4px 8px" }}>✕</button>
+          <button onClick={handleClose} aria-label="Close" style={{ color: "var(--ios-label-3)", padding: 4, display: "flex" }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <circle cx="12" cy="12" r="11" />
+              <path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="var(--ios-bg-elevated)" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
-          {placed ? (
-            <div style={{ textAlign: "center", padding: "32px 0" }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>✅</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--color-ink)", marginBottom: 8 }}>Order submitted</div>
-              <div style={{ fontSize: 13, color: "var(--color-ink-2)", marginBottom: 4 }}>
-                {placed.side.toUpperCase()} {placed.qty} {placed.symbol} · {placed.type}
-              </div>
-              <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginBottom: 4 }}>Status: {placed.status}</div>
-              <div style={{ fontSize: 10, color: "var(--color-ink-4)" }}>Order ID: {placed.id.slice(0, 8)}…</div>
-              <button onClick={() => { setPlaced(null); setQty("10"); }} style={{ marginTop: 20, padding: "8px 20px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-2)", fontSize: 13, fontFamily: "inherit", cursor: "pointer" }}>
-                New order
-              </button>
+        {placed ? (
+          <div style={{ textAlign: "center", padding: "28px 0 12px" }}>
+            <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="var(--ios-green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 12px" }} aria-hidden>
+              <circle cx="12" cy="12" r="10" />
+              <path d="M8 12.5l2.5 2.5L16 9" />
+            </svg>
+            <div className="ios-title-3" style={{ marginBottom: 6 }}>Order submitted</div>
+            <div className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>
+              {placed.side.toUpperCase()} {placed.qty} {placed.symbol} · {placed.type}
             </div>
-          ) : (
-            <>
-              {/* Buy / Sell */}
-              <div style={{ display: "flex", gap: 0, marginBottom: 20, borderRadius: 10, overflow: "hidden", border: "1px solid var(--color-rule)" }}>
-                {(["buy", "sell"] as Side[]).map((s) => (
-                  <button key={s} onClick={() => { setSide(s); setError(null); }}
-                    style={{ flex: 1, padding: "12px 0", border: "none", fontFamily: "inherit", fontSize: 14, fontWeight: 700, cursor: "pointer", background: side === s ? (s === "buy" ? "var(--color-green)" : "var(--color-red)") : "transparent", color: side === s ? "#FFFDF8" : "var(--color-ink-3)", transition: "all 0.15s", textTransform: "uppercase" }}>
-                    {s}
-                  </button>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-3)", marginTop: 4 }}>Status: {placed.status}</div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>Order ID: {placed.id.slice(0, 8)}…</div>
+            <button
+              className="ios-btn ios-btn--primary"
+              style={{ marginTop: 20 }}
+              onClick={() => { setPlaced(null); setQty("10"); }}
+            >
+              New order
+            </button>
+          </div>
+        ) : (
+          <div style={{ paddingTop: 8 }}>
+            {/* Buy / Sell */}
+            <div className="ios-segmented" role="tablist" aria-label="Side" style={{ margin: "0 0 18px" }}>
+              {(["buy", "sell"] as Side[]).map((s) => (
+                <button
+                  key={s}
+                  role="tab"
+                  aria-selected={side === s}
+                  onClick={() => { setSide(s); setError(null); }}
+                  style={{
+                    textTransform: "uppercase", fontWeight: 700,
+                    background: side === s ? (s === "buy" ? "var(--ios-green)" : "var(--ios-red)") : "transparent",
+                    color: side === s ? "#fff" : "var(--ios-label)",
+                    boxShadow: "none",
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+
+            {/* Shares */}
+            <div style={{ marginBottom: 16 }}>
+              <Label>Shares</Label>
+              <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+                {QTY_PRESETS.map((p) => (
+                  <Chip key={p} small selected={qty === String(p)} onClick={() => setQty(String(p))}>{p}</Chip>
                 ))}
               </div>
+              <input type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} style={fieldStyle} />
+            </div>
 
-              {/* Qty */}
+            {/* Order type */}
+            <div style={{ marginBottom: 16 }}>
+              <Label>Order type</Label>
+              <div style={{ display: "flex", gap: 6 }}>
+                {(["market", "limit"] as OrderType[]).map((t) => (
+                  <Chip key={t} selected={orderType === t} onClick={() => setOrderType(t)}>
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+
+            {orderType === "limit" && (
               <div style={{ marginBottom: 16 }}>
-                <label style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-3)", display: "block", marginBottom: 6 }}>Shares</label>
-                <div style={{ display: "flex", gap: 5, marginBottom: 8 }}>
-                  {QTY_PRESETS.map((p) => (
-                    <button key={p} onClick={() => setQty(String(p))}
-                      style={{ flex: 1, padding: "5px 0", borderRadius: 6, border: `1px solid ${qty === String(p) ? "var(--color-accent)" : "var(--color-rule)"}`, background: qty === String(p) ? "var(--color-accent-soft)" : "transparent", color: qty === String(p) ? "var(--color-accent)" : "var(--color-ink-3)", fontSize: 11, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
-                      {p}
-                    </button>
-                  ))}
-                </div>
-                <input type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "var(--color-bg)", fontSize: 16, fontFamily: "inherit", color: "var(--color-ink)", outline: "none", boxSizing: "border-box" }} />
+                <Label>Limit price</Label>
+                <input type="number" step="0.01" value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)} style={fieldStyle} />
               </div>
+            )}
 
-              {/* Order type */}
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-3)", display: "block", marginBottom: 6 }}>Type</label>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {(["market", "limit"] as OrderType[]).map((t) => (
-                    <button key={t} onClick={() => setOrderType(t)}
-                      style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: `1px solid ${orderType === t ? "var(--color-accent)" : "var(--color-rule)"}`, background: orderType === t ? "var(--color-accent-soft)" : "transparent", color: orderType === t ? "var(--color-accent)" : "var(--color-ink-3)", fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", textTransform: "uppercase" }}>
-                      {t}
-                    </button>
-                  ))}
-                </div>
+            {/* Duration */}
+            <div style={{ marginBottom: 18 }}>
+              <Label>Duration</Label>
+              <div style={{ display: "flex", gap: 6 }}>
+                {([{ v: "day", l: "Day" }, { v: "gtc", l: "GTC" }] as { v: Tif; l: string }[]).map(({ v, l }) => (
+                  <Chip key={v} selected={tif === v} onClick={() => setTif(v)}>{l}</Chip>
+                ))}
               </div>
+            </div>
 
-              {orderType === "limit" && (
-                <div style={{ marginBottom: 16 }}>
-                  <label style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-3)", display: "block", marginBottom: 6 }}>Limit Price</label>
-                  <input type="number" step="0.01" value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "var(--color-bg)", fontSize: 14, fontFamily: "inherit", color: "var(--color-ink)", outline: "none", boxSizing: "border-box" }} />
-                </div>
-              )}
-
-              {/* Duration */}
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--color-ink-3)", display: "block", marginBottom: 6 }}>Duration</label>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {([{ v: "day", l: "Day" }, { v: "gtc", l: "GTC" }] as { v: Tif; l: string }[]).map(({ v, l }) => (
-                    <button key={v} onClick={() => setTif(v)}
-                      style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: `1px solid ${tif === v ? "var(--color-accent)" : "var(--color-rule)"}`, background: tif === v ? "var(--color-accent-soft)" : "transparent", color: tif === v ? "var(--color-accent)" : "var(--color-ink-3)", fontSize: 11, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>
-                      {l}
-                    </button>
-                  ))}
-                </div>
+            {/* Estimated cost */}
+            <div className="ios-list" style={{ margin: "0 0 16px", padding: "12px 16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }} className="ios-footnote">
+                <span style={{ color: "var(--ios-label-2)" }}>{quantity || 0} × {orderType === "limit" ? `$${lp.toFixed(2)}` : `~$${(stock.price ?? 0).toFixed(2)}`}</span>
+                <span style={{ color: "var(--ios-label-3)" }}>Commission $0</span>
               </div>
-
-              {/* Estimated cost */}
-              <div style={{ padding: "12px 14px", background: "var(--color-bg-deep)", borderRadius: 8, marginBottom: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--color-ink-3)", marginBottom: 4 }}>
-                  <span>{quantity || 0} shares × {orderType === "limit" ? `$${lp.toFixed(2)}` : `~$${(stock.price ?? 0).toFixed(2)}`}</span>
-                  <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>Commission: $0</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <span style={{ fontSize: 11, color: "var(--color-ink-3)" }}>Estimated {side === "buy" ? "cost" : "proceeds"}</span>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: "var(--color-ink)" }}>{quantity > 0 ? "$" + estimatedCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}</span>
-                </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 6 }}>
+                <span className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>Estimated {side === "buy" ? "cost" : "proceeds"}</span>
+                <span className="ios-num" style={{ fontSize: 22, fontWeight: 700, color: "var(--ios-label)" }}>
+                  {quantity > 0 ? "$" + estimatedCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                </span>
               </div>
+            </div>
 
-              {error && <div style={{ padding: "10px 12px", background: "rgba(154,59,42,0.06)", border: "1px solid rgba(154,59,42,0.2)", borderRadius: 8, fontSize: 12, color: "var(--color-red)", marginBottom: 16 }}>{error}</div>}
+            {error && (
+              <div className="ios-footnote" style={{ color: "var(--ios-red)", margin: "0 4px 14px" }}>{error}</div>
+            )}
 
-              {!confirming ? (
-                <button onClick={() => { if (quantity > 0) { setConfirming(true); setError(null); } else setError("Enter a valid quantity"); }}
-                  disabled={!quantity}
-                  style={{ width: "100%", padding: "13px 0", borderRadius: 10, border: "none", background: side === "buy" ? "var(--color-green)" : "var(--color-red)", color: "#FFFDF8", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: !quantity ? "not-allowed" : "pointer", opacity: !quantity ? 0.5 : 1 }}>
-                  Review {side.toUpperCase()} {quantity || 0} {stock.ticker}
-                </button>
-              ) : (
-                <div>
-                  <div style={{ padding: "12px 14px", background: "rgba(59,92,127,0.06)", border: "1px solid rgba(59,92,127,0.2)", borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
-                    <div style={{ fontWeight: 600, color: "var(--color-ink)", marginBottom: 6 }}>Confirm paper order</div>
-                    <div style={{ color: "var(--color-ink-2)" }}>{side.toUpperCase()} {quantity} {stock.ticker} · {orderType.toUpperCase()} · {tif.toUpperCase()}</div>
-                    {orderType === "limit" && <div style={{ color: "var(--color-ink-3)", fontSize: 12, marginTop: 3 }}>Limit: ${lp.toFixed(2)}</div>}
-                    <div style={{ color: "var(--color-ink-3)", fontSize: 12, marginTop: 3 }}>Est. {side === "buy" ? "cost" : "proceeds"}: ${estimatedCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            {!confirming ? (
+              <button
+                onClick={() => { if (quantity > 0) { setConfirming(true); setError(null); } else setError("Enter a valid quantity"); }}
+                disabled={!quantity}
+                className="ios-btn ios-btn--primary"
+                style={{ background: sideColor, opacity: !quantity ? 0.5 : 1 }}
+              >
+                Review {side.toUpperCase()} {quantity || 0} {stock.ticker}
+              </button>
+            ) : (
+              <div>
+                <div className="ios-list" style={{ margin: "0 0 12px", padding: "12px 16px" }}>
+                  <div className="ios-headline" style={{ marginBottom: 6 }}>Confirm paper order</div>
+                  <div className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>
+                    {side.toUpperCase()} {quantity} {stock.ticker} · {orderType.toUpperCase()} · {tif.toUpperCase()}
                   </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => setConfirming(false)} style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-2)", fontSize: 13, fontWeight: 500, fontFamily: "inherit", cursor: "pointer" }}>Edit</button>
-                    <button onClick={handlePlace} disabled={placing} style={{ flex: 2, padding: "12px 0", borderRadius: 10, border: "none", background: side === "buy" ? "var(--color-green)" : "var(--color-red)", color: "#FFFDF8", fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: placing ? "wait" : "pointer", opacity: placing ? 0.6 : 1 }}>
-                      {placing ? "Placing…" : `Place ${side.toUpperCase()} Order`}
-                    </button>
+                  {orderType === "limit" && <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 3 }}>Limit: ${lp.toFixed(2)}</div>}
+                  <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 3 }}>
+                    Est. {side === "buy" ? "cost" : "proceeds"}: ${estimatedCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                 </div>
-              )}
-              <div style={{ marginTop: 12, fontSize: 10, color: "var(--color-ink-4)", textAlign: "center" }}>Paper trading · Alpaca Markets · No real money</div>
-            </>
-          )}
-        </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={() => setConfirming(false)} className="ios-btn" style={{ flex: 1, background: "var(--ios-fill)", color: "var(--ios-label)" }}>Edit</button>
+                  <button onClick={handlePlace} disabled={placing} className="ios-btn ios-btn--primary" style={{ flex: 2, background: sideColor, opacity: placing ? 0.6 : 1 }}>
+                    {placing ? "Placing…" : `Place ${side.toUpperCase()} order`}
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="ios-caption" style={{ marginTop: 12, color: "var(--ios-label-3)", textAlign: "center" }}>
+              Paper trading · Alpaca Markets · No real money
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </>
   );
 }

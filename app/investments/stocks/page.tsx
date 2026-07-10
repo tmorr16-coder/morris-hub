@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getPreferences } from "@/lib/prefs";
+import { getAlpacaStatus } from "@/lib/alpaca";
 import ResearchLayout from "../_components/ResearchLayout";
 
 export default async function InvestmentsStocksPage() {
@@ -17,5 +18,12 @@ export default async function InvestmentsStocksPage() {
     redirect("/home");
   }
 
-  return <ResearchLayout watchedTickers={prefs.watched_stocks ?? []} />;
+  const alpaca = await getAlpacaStatus(user.id).catch(() => ({ connected: false, isPaper: true }));
+
+  return (
+    <ResearchLayout
+      watchedTickers={prefs.watched_stocks ?? []}
+      brokerageConnected={alpaca.connected}
+    />
+  );
 }

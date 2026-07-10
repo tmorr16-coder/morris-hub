@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Sparkline, BarRows, Chip } from "@/components/ios";
 
 export interface DailyCount {
   date: string;
@@ -40,12 +41,12 @@ const EVENT_LABELS: Record<string, string> = {
 };
 
 const EVENT_COLORS: Record<string, string> = {
-  chat: "#1a1a1a",
+  chat: "#356FB0",
   email: "#6366f1",
-  signup: "#10b981",
-  oura_sync: "#f59e0b",
+  signup: "#34C759",
+  oura_sync: "#FF9F0A",
   withings_sync: "#3b82f6",
-  apple_sync: "#ef4444",
+  apple_sync: "#FF3B30",
   support_ticket: "#8b5cf6",
   integration_request: "#06b6d4",
 };
@@ -84,51 +85,31 @@ interface BarChartProps {
 function MiniBarChart({ dates, dateMap, selectedTypes }: BarChartProps) {
   if (!dates.length) {
     return (
-      <div style={{ padding: "40px 0", textAlign: "center", color: "var(--color-ink-4)", fontSize: 13 }}>
+      <div className="ios-footnote" style={{ padding: "40px 0", textAlign: "center", color: "var(--ios-label-3)" }}>
         No data yet
       </div>
     );
   }
 
-  const maxVal = Math.max(
-    1,
-    ...dates.map((d) => {
-      const row = dateMap.get(d) ?? {};
-      return selectedTypes.reduce((s, t) => s + (row[t] ?? 0), 0);
-    })
-  );
+  const points = dates.map((d) => {
+    const row = dateMap.get(d) ?? {};
+    return selectedTypes.reduce((s, t) => s + (row[t] ?? 0), 0);
+  });
+  const total = points.reduce((s, v) => s + v, 0);
+  const peak = Math.max(0, ...points);
+  const color = selectedTypes.length === 1
+    ? (EVENT_COLORS[selectedTypes[0]] ?? "var(--ios-tint)")
+    : "var(--ios-tint)";
 
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 80, padding: "0 4px" }}>
-      {dates.map((date) => {
-        const row = dateMap.get(date) ?? {};
-        const total = selectedTypes.reduce((s, t) => s + (row[t] ?? 0), 0);
-        const heightPct = (total / maxVal) * 100;
-        const label = date.slice(5);
-        return (
-          <div
-            key={date}
-            title={`${date}: ${total} events`}
-            style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "default" }}
-          >
-            <div
-              style={{
-                width: "100%",
-                height: `${Math.max(heightPct, total > 0 ? 4 : 0)}%`,
-                background: selectedTypes.length === 1
-                  ? (EVENT_COLORS[selectedTypes[0]] ?? "var(--color-ink-3)")
-                  : "var(--color-ink)",
-                borderRadius: 2,
-                transition: "height 0.2s",
-                minHeight: total > 0 ? 3 : 0,
-              }}
-            />
-            {dates.length <= 14 && (
-              <span style={{ fontSize: 8, color: "var(--color-ink-4)", whiteSpace: "nowrap" }}>{label}</span>
-            )}
-          </div>
-        );
-      })}
+    <div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8 }}>
+        <span className="ios-title-2 ios-num" style={{ color: "var(--ios-label)" }}>{total.toLocaleString()}</span>
+        <span className="ios-caption" style={{ color: "var(--ios-label-2)", marginLeft: "auto" }}>peak {peak.toLocaleString()}/day</span>
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <Sparkline points={points} color={color} width={320} height={64} />
+      </div>
     </div>
   );
 }
@@ -192,6 +173,13 @@ export default function AnalyticsClient({
 
   const allTypes = Array.from(new Set(dailyCounts.map((d) => d.event_type)));
 
+  const totalItems = eventTotals.map((row) => ({
+    label: EVENT_LABELS[row.event_type] ?? row.event_type,
+    value: row.count,
+    display: row.count.toLocaleString(),
+    color: EVENT_COLORS[row.event_type] ?? "var(--ios-label-2)",
+  }));
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingBottom: 40 }}>
 
@@ -199,19 +187,21 @@ export default function AnalyticsClient({
       {alerts.map((a, i) => (
         <div
           key={i}
+          className="ios-footnote"
           style={{
-            background: a.level === "critical" ? "#fff1f0" : "#fffbeb",
-            border: `1px solid ${a.level === "critical" ? "#fca5a5" : "#fcd34d"}`,
-            borderRadius: 12,
+            background: "var(--ios-cell)",
+            boxShadow: `inset 0 0 0 1px ${a.level === "critical" ? "var(--ios-red)" : "var(--ios-orange)"}`,
+            borderRadius: "var(--ios-radius-card)",
             padding: "12px 16px",
-            fontSize: 13,
-            color: a.level === "critical" ? "#991b1b" : "#78350f",
+            color: "var(--ios-label)",
             display: "flex",
             alignItems: "flex-start",
             gap: 10,
           }}
         >
-          <span style={{ fontSize: 16, lineHeight: 1.3 }}>{a.level === "critical" ? "⚠️" : "ℹ️"}</span>
+          <span style={{ color: a.level === "critical" ? "var(--ios-red)" : "var(--ios-orange)", flexShrink: 0, display: "flex" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /></svg>
+          </span>
           {a.message}
         </div>
       ))}
@@ -224,11 +214,11 @@ export default function AnalyticsClient({
       </div>
 
       {/* Cost section */}
-      <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 16, padding: "20px 20px 16px" }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 16 }}>
+      <div style={{ background: "var(--ios-cell)", borderRadius: "var(--ios-radius-card)", padding: "16px 18px" }}>
+        <div className="ios-group-header" style={{ padding: "0 0 14px" }}>
           Variable costs — this month to date
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
           <CostRow
             label="Anthropic (Haiku)"
             amount={fmtCurrency(anthropicCost)}
@@ -241,84 +231,45 @@ export default function AnalyticsClient({
           />
         </div>
         <div style={{
-          borderTop: "1px solid var(--color-line)",
+          borderTop: "var(--ios-hair) solid var(--ios-separator)",
           paddingTop: 12,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "baseline",
         }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>Total</span>
-          <span style={{ fontSize: 20, fontWeight: 600, fontFamily: "var(--font-display)", color: "var(--color-ink)", letterSpacing: "-0.02em" }}>
+          <span className="ios-subhead" style={{ fontWeight: 600 }}>Total</span>
+          <span className="ios-title-3 ios-num" style={{ color: "var(--ios-label)" }}>
             {fmtCurrency(totalCost)}
           </span>
         </div>
       </div>
 
       {/* Activity chart */}
-      <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 16, padding: "20px 20px 16px" }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 12 }}>
+      <div style={{ background: "var(--ios-cell)", borderRadius: "var(--ios-radius-card)", padding: "16px 18px" }}>
+        <div className="ios-group-header" style={{ padding: "0 0 12px" }}>
           Daily activity — last 30 days
         </div>
         {allTypes.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-            {allTypes.map((t) => {
-              const active = selectedTypes.includes(t);
-              return (
-                <button
-                  key={t}
-                  onClick={() => toggleType(t)}
-                  style={{
-                    padding: "3px 10px",
-                    borderRadius: 20,
-                    border: `1px solid ${active ? (EVENT_COLORS[t] ?? "var(--color-ink)") : "var(--color-line)"}`,
-                    background: active ? (EVENT_COLORS[t] ?? "var(--color-ink)") : "transparent",
-                    color: active ? "#fff" : "var(--color-ink-3)",
-                    fontSize: 11,
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {EVENT_LABELS[t] ?? t}
-                </button>
-              );
-            })}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+            {allTypes.map((t) => (
+              <Chip key={t} small selected={selectedTypes.includes(t)} onClick={() => toggleType(t)}>
+                {EVENT_LABELS[t] ?? t}
+              </Chip>
+            ))}
           </div>
         )}
         <MiniBarChart dates={dates} dateMap={dateMap} selectedTypes={selectedTypes} />
       </div>
 
-      {/* Event totals table */}
-      <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 16, padding: "20px 20px 4px" }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 14 }}>
+      {/* Event totals */}
+      <div style={{ background: "var(--ios-cell)", borderRadius: "var(--ios-radius-card)", padding: "16px 0 2px" }}>
+        <div className="ios-group-header" style={{ padding: "0 18px 4px" }}>
           All-time totals
         </div>
         {eventTotals.length === 0 ? (
-          <p style={{ fontSize: 13, color: "var(--color-ink-4)", paddingBottom: 16 }}>No events logged yet.</p>
+          <p className="ios-footnote" style={{ color: "var(--ios-label-3)", padding: "0 18px 16px" }}>No events logged yet.</p>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <tbody>
-              {eventTotals.map((row, i) => (
-                <tr key={row.event_type} style={{ borderTop: i > 0 ? "1px solid var(--color-line)" : undefined }}>
-                  <td style={{ padding: "10px 0", color: "var(--color-ink-3)" }}>
-                    <span style={{
-                      display: "inline-block",
-                      width: 8,
-                      height: 8,
-                      borderRadius: 2,
-                      background: EVENT_COLORS[row.event_type] ?? "var(--color-ink-4)",
-                      marginRight: 8,
-                    }} />
-                    {EVENT_LABELS[row.event_type] ?? row.event_type}
-                  </td>
-                  <td style={{ padding: "10px 0", textAlign: "right", fontWeight: 600, color: "var(--color-ink)" }}>
-                    {row.count.toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <BarRows items={totalItems} />
         )}
       </div>
 
@@ -329,15 +280,14 @@ export default function AnalyticsClient({
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div style={{
-      background: "var(--color-bg-raised)",
-      border: "1px solid var(--color-line)",
-      borderRadius: 14,
+      background: "var(--ios-cell)",
+      borderRadius: "var(--ios-radius-tile)",
       padding: "14px 16px",
     }}>
-      <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 4 }}>
+      <div className="ios-caption" style={{ fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase", color: "var(--ios-label-2)", marginBottom: 4 }}>
         {label}
       </div>
-      <div style={{ fontSize: 26, fontWeight: 600, fontFamily: "var(--font-display)", color: "var(--color-ink)", letterSpacing: "-0.02em" }}>
+      <div className="ios-title-1 ios-num" style={{ color: "var(--ios-label)" }}>
         {value}
       </div>
     </div>
@@ -347,14 +297,13 @@ function StatCard({ label, value }: { label: string; value: string }) {
 function CostRow({ label, amount, sub }: { label: string; amount: string; sub: string }) {
   return (
     <div style={{
-      background: "var(--color-bg)",
-      border: "1px solid var(--color-line)",
+      background: "var(--ios-bg)",
       borderRadius: 10,
       padding: "10px 14px",
     }}>
-      <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 600, color: "var(--color-ink)", fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}>{amount}</div>
-      <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 2 }}>{sub}</div>
+      <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginBottom: 2 }}>{label}</div>
+      <div className="ios-headline ios-num" style={{ color: "var(--ios-label)" }}>{amount}</div>
+      <div className="ios-caption ios-num" style={{ color: "var(--ios-label-3)", marginTop: 2 }}>{sub}</div>
     </div>
   );
 }

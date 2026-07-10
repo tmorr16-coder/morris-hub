@@ -3,11 +3,24 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BibleVersion } from "@/lib/bible-api";
+import { Chip, List, Icons } from "@/components/ios";
 
 const TOPIC_SUGGESTIONS = [
   "faith", "hope", "love", "prayer", "forgiveness", "grace", "salvation",
   "wisdom", "peace", "strength", "joy", "fear not", "trust", "eternal life",
 ];
+
+// ── Local inline icons (shared stroke style) ─────────────────────────────────
+
+function MagnifierIcon({ style }: { style?: React.CSSProperties }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7}
+      strokeLinecap="round" strokeLinejoin="round" style={style}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.5-3.5" />
+    </svg>
+  );
+}
 
 interface SearchResult {
   id: string;
@@ -96,79 +109,139 @@ export default function SearchClient({ versions, defaultBibleId }: Props) {
     return "#";
   }
 
+  const selectStyle: React.CSSProperties = {
+    flexShrink: 0,
+    padding: "9px 12px",
+    borderRadius: 999,
+    border: "var(--ios-hair) solid var(--ios-separator)",
+    background: "var(--ios-cell)",
+    color: "var(--ios-label)",
+    fontSize: 15,
+    fontFamily: "inherit",
+    outline: "none",
+    appearance: "none",
+    WebkitAppearance: "none",
+  };
+
   return (
-    <div>
-      {/* Translation + search */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+    <div style={{ maxWidth: 640, margin: "0 auto" }}>
+      {/* Translation + search field */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "0 var(--ios-gutter)" }}>
         <select
           value={bibleId}
           onChange={(e) => setBibleId(e.target.value)}
-          style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "var(--color-bg-card)", color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", outline: "none", flexShrink: 0 }}
+          aria-label="Translation"
+          style={selectStyle}
         >
           {versions.map((v) => <option key={v.id} value={v.id}>{v.abbreviation}</option>)}
         </select>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") search(); }}
-          placeholder="Search scripture, topic, or phrase…"
-          style={{ flex: 1, padding: "10px 14px", borderRadius: 8, border: "1px solid var(--color-rule)", background: "var(--color-bg-card)", color: "var(--color-ink)", fontSize: 14, fontFamily: "inherit", outline: "none" }}
-        />
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "9px 14px",
+            borderRadius: 999,
+            background: "var(--ios-cell)",
+            border: "var(--ios-hair) solid var(--ios-separator)",
+          }}
+        >
+          <MagnifierIcon style={{ width: 17, height: 17, color: "var(--ios-label-3)", flexShrink: 0 }} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") search(); }}
+            placeholder="Search scripture, topic, or phrase…"
+            style={{
+              flex: 1, minWidth: 0, border: "none", outline: "none",
+              background: "transparent", color: "var(--ios-label)",
+              fontSize: 16, fontFamily: "inherit",
+            }}
+          />
+        </div>
         <button
           onClick={() => search()}
           disabled={searching}
-          style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap" }}
+          aria-label="Search"
+          className="ios-send"
+          style={{ opacity: searching ? 0.5 : 1, cursor: searching ? "wait" : "pointer" }}
         >
-          {searching ? "…" : "Search"}
+          <MagnifierIcon style={{ width: 17, height: 17 }} />
         </button>
       </div>
 
       {/* Topic chips */}
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", padding: "14px var(--ios-gutter) 4px" }}>
         {TOPIC_SUGGESTIONS.map((t) => (
-          <button key={t} onClick={() => { setQuery(t); search(t); }}
-            style={{ fontSize: 11, padding: "4px 10px", borderRadius: 16, border: "1px solid var(--color-rule)", background: "var(--color-bg-card)", color: "var(--color-ink-3)", cursor: "pointer", fontFamily: "inherit" }}>
-            {t}
-          </button>
+          <Chip key={t} small onClick={() => { setQuery(t); search(t); }}>{t}</Chip>
         ))}
       </div>
 
       {/* Go to reference */}
-      <form onSubmit={handleGoTo} style={{ display: "flex", gap: 8, marginBottom: 24, padding: "14px 16px", background: "var(--color-bg-deep)", borderRadius: 10, border: "1px solid var(--color-rule)" }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>Go to reference</div>
-          <input
-            value={goTo}
-            onChange={(e) => { setGoTo(e.target.value); setGoToError(""); }}
-            placeholder="e.g. John 3:16  ·  Psalms 23  ·  Romans 8:28"
-            style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `1px solid ${goToError ? "var(--color-red)" : "var(--color-rule)"}`, background: "var(--color-bg)", color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
-          />
-          {goToError && <div style={{ fontSize: 11, color: "var(--color-red)", marginTop: 3 }}>{goToError}</div>}
-        </div>
-        <button type="submit" style={{ alignSelf: "flex-end", padding: "9px 14px", borderRadius: 8, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 12, fontWeight: 600, fontFamily: "inherit", cursor: "pointer" }}>Go →</button>
-      </form>
+      <div style={{ marginTop: 20 }}>
+        <h2 className="ios-group-header">Go to reference</h2>
+        <form
+          onSubmit={handleGoTo}
+          style={{
+            margin: "0 var(--ios-gutter)", padding: "12px 14px",
+            background: "var(--ios-cell)", borderRadius: "var(--ios-radius-card)",
+            display: "flex", flexDirection: "column", gap: 8,
+          }}
+        >
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              value={goTo}
+              onChange={(e) => { setGoTo(e.target.value); setGoToError(""); }}
+              placeholder="e.g. John 3:16  ·  Psalms 23  ·  Romans 8:28"
+              style={{
+                flex: 1, minWidth: 0, padding: "9px 12px", borderRadius: 8,
+                border: `var(--ios-hair) solid ${goToError ? "var(--ios-red)" : "var(--ios-separator)"}`,
+                background: "var(--ios-bg)", color: "var(--ios-label)",
+                fontSize: 15, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+              }}
+            />
+            <button
+              type="submit"
+              className="ios-btn ios-btn--plain"
+              style={{ display: "inline-flex", alignItems: "center", gap: 2, fontWeight: 600, whiteSpace: "nowrap" }}
+            >
+              Go
+              <Icons.ChevronRight style={{ width: 16, height: 16 }} />
+            </button>
+          </div>
+          {goToError && (
+            <div className="ios-footnote" style={{ color: "var(--ios-red)" }}>{goToError}</div>
+          )}
+        </form>
+      </div>
 
       {/* Results */}
       {searched && results.length === 0 && (
-        <div style={{ textAlign: "center", padding: "32px 0", color: "var(--color-ink-4)", fontSize: 14 }}>
-          No results found for &ldquo;{query}&rdquo;
+        <div style={{ textAlign: "center", padding: "40px 24px", color: "var(--ios-label-2)" }}>
+          <MagnifierIcon style={{ width: 30, height: 30, color: "var(--ios-label-3)", margin: "0 auto 10px" }} />
+          <div className="ios-subhead">No results found for &ldquo;{query}&rdquo;</div>
         </div>
       )}
       {results.length > 0 && (
-        <div>
-          <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginBottom: 12 }}>{results.length} result{results.length !== 1 ? "s" : ""}</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ marginTop: 20 }}>
+          <h2 className="ios-group-header">{results.length} result{results.length !== 1 ? "s" : ""}</h2>
+          <List>
             {results.map((r, i) => (
-              <a key={r.id || i} href={resultHref(r)}
-                style={{ display: "block", padding: "12px 14px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10, textDecoration: "none", transition: "box-shadow 0.1s" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(0,0,0,0.07)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = ""; }}
-              >
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--color-accent)", marginBottom: 4 }}>{r.reference}</div>
-                <div style={{ fontSize: 14, color: "var(--color-ink)", lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: r.text }} />
+              <a key={r.id || i} href={resultHref(r)} className="ios-cell" style={{ alignItems: "flex-start" }}>
+                <span className="ios-cell-body">
+                  <span className="ios-footnote" style={{ fontWeight: 600, color: "var(--ios-tint)", marginBottom: 3 }}>
+                    {r.reference}
+                  </span>
+                  <span
+                    style={{ fontSize: 16, color: "var(--ios-label)", lineHeight: 1.55 }}
+                    dangerouslySetInnerHTML={{ __html: r.text }}
+                  />
+                </span>
+                <Icons.ChevronRight className="ios-chevron" style={{ marginTop: 3 }} />
               </a>
             ))}
-          </div>
+          </List>
         </div>
       )}
     </div>

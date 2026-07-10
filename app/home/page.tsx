@@ -3,25 +3,19 @@ export const maxDuration = 60;
 
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { getPreferences } from "@/lib/prefs";
-import PlatformMenu from "@/components/PlatformMenu";
-import HubChat from "./_components/HubChat";
 import { getAllUpcomingReminders, getAssignedReminders } from "@/lib/reminders";
-import TodosWidget from "./_components/TodosWidget";
-import { renderWidget, SectionHeader } from "./_lib/renderWidget";
-import FamilyTimeline from "./_components/FamilyTimeline";
 import { findConflicts, type TimelineItem } from "./_components/timelineConflicts";
-import FamilyStatus from "./_components/FamilyStatus";
-import ModeSection from "./_components/ModeSection";
 import { getFamilyCalendarEvents } from "@/lib/familyCalendar";
 import type { Todo } from "./actions";
-
-// My Priorities: todos (personal tasks) + reminders (includes household task toggle)
-const PRIORITY_WIDGETS = new Set(["todos", "reminders"]);
-// At a glance: ambient context surfaced above the fold, not buried in a collapsed section
-const PROMOTED_WIDGETS = new Set(["weather", "stocks"]);
-// News/subscriptions/sports/company news now live on their own /news page
-const NEWS_PAGE_WIDGETS = new Set(["news", "city_news", "lly_news", "news_subscriptions", "sports"]);
+import { Suspense } from "react";
+import { getPreferences } from "@/lib/prefs";
+import { fetchWeather } from "@/lib/weather";
+import { getUserTimezone } from "@/lib/timezone";
+import HomeClient from "./HomeClient";
+import QuickActions from "./_components/QuickActions";
+import TodayMarkets from "./_components/TodayMarkets";
+import TodayNews from "./_components/TodayNews";
+import MoneyGlanceValue from "./_components/MoneyGlanceValue";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -31,7 +25,10 @@ export default async function HomePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
 
-  // Gate: redirect new users to onboarding
+  // Gate: redirect new users to onboarding.
+  // NOTE: redirect() throws NEXT_REDIRECT, so it must run OUTSIDE the try/catch —
+  // otherwise the catch swallows the redirect and it silently never happens.
+  let needsOnboarding = false;
   try {
     const { data: onboardingCheck } = await service
       .schema("hub")
@@ -39,20 +36,18 @@ export default async function HomePage() {
       .select("onboarding_completed")
       .eq("user_id", user.id)
       .maybeSingle();
-    if (onboardingCheck && onboardingCheck.onboarding_completed === false) {
-      redirect("/onboarding");
-    }
+    needsOnboarding = onboardingCheck?.onboarding_completed === false;
   } catch {
     // Column doesn't exist yet — skip
   }
+  if (needsOnboarding) redirect("/onboarding");
 
   // Compute early so workouts query can filter by today's date
-  const userTz = "America/Indiana/Indianapolis";
+  const userTz = getUserTimezone(user.user_metadata);
   const today = new Date();
   const todayStr = today.toLocaleDateString("sv", { timeZone: userTz }); // YYYY-MM-DD
 
-  const [prefs, todoResult, reminders, profileResult, careerGoalsResult, workoutsResult, assignedReminders, circleResult] = await Promise.all([
-    getPreferences(user.id),
+  const [todoResult, reminders, workoutsResult, assignedReminders, circleResult] = await Promise.all([
     service
       .schema("hub")
       .from("todos")
@@ -62,15 +57,6 @@ export default async function HomePage() {
       .order("created_at", { ascending: false })
       .limit(100),
     getAllUpcomingReminders(user.id),
-    service.from("profiles").select("role").eq("id", user.id).maybeSingle(),
-    service
-      .schema("career")
-      .from("career_goals")
-      .select("id, title, target_date, horizon, category")
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .order("sort_order", { ascending: true })
-      .limit(5),
     service
       .from("scheduled_workouts")
       .select("id, label, scheduled_time")
@@ -86,13 +72,28 @@ export default async function HomePage() {
   ]);
 
   const todos = (todoResult.data ?? []) as Todo[];
-  const isAdmin = (profileResult.data as { role?: string } | null)?.role === "admin";
 
-  // Family circle members for FamilyTimeline filter chips + household reminders
+  // Family circle members for FamilyTimeline filter chips + household reminders.
+  // Resolve names the same way the Family page does: display_name/nickname, then
+  // the member's auth full name — otherwise account-holders with no nickname set
+  // (e.g. Maya, Alicia) render as a generic "Member" on Today.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const circleMembers = ((circleResult.data ?? []) as any[]).map((m) => ({
+  const rawCircle = (circleResult.data ?? []) as any[];
+  const circleAuthIds = rawCircle.map((m) => m.member_user_id).filter(Boolean) as string[];
+  const circleNames = new Map<string, string>();
+  if (circleAuthIds.length > 0) {
+    try {
+      const { data: usersList } = await service.auth.admin.listUsers({ perPage: 200 });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const u of (usersList?.users ?? []) as any[]) {
+        const nm = u.user_metadata?.full_name ?? u.user_metadata?.name ?? u.email ?? null;
+        if (nm) circleNames.set(u.id, nm);
+      }
+    } catch { /* auth admin unavailable — fall back to "Member" */ }
+  }
+  const circleMembers = rawCircle.map((m) => ({
     id: m.member_user_id as string,
-    label: (m.display_name ?? m.nickname ?? "Member") as string,
+    label: (m.display_name ?? m.nickname ?? (m.member_user_id ? circleNames.get(m.member_user_id) : null) ?? "Member") as string,
     role: (m.role ?? "adult") as string,
   }));
   const memberIds = circleMembers.map((m) => m.id);
@@ -146,9 +147,6 @@ export default async function HomePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const unownedTodos = (unownedTodosResult.data ?? []) as any[];
   const circleLabel = (id: string) => (id === user.id ? "You" : circleMembers.find((m) => m.id === id)?.label ?? "Family");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const careerGoals = (careerGoalsResult.data ?? []) as Array<{ id: string; title: string; target_date: string | null; horizon: string; category: string }>;
-  const activeCareerGoals = careerGoals.length;
 
   const name = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email ?? "there";
   const firstName = name.split(" ")[0];
@@ -168,7 +166,6 @@ export default async function HomePage() {
   // todayStr already computed above before queries
 
   // Declare early — used in Needs Attention, My Priorities, and timeline
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const scheduledWorkouts = (workoutsResult.data ?? []) as { id: string; label: string; scheduled_time: string | null }[];
 
   // ── Needs Attention — structured items with severity, context, actions ──────
@@ -251,14 +248,12 @@ export default async function HomePage() {
         person: "me",
       })),
     // Household reminders from family circle members (visible via Phase 2b RLS)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ...familyHouseholdReminders
-      .filter((r: any) => {
+      .filter((r) => {
         const localDate = new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz });
         return localDate === todayStr;
       })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((r: any) => {
+      .map((r) => {
         const owner = circleMembers.find((m) => m.id === r.user_id);
         return {
           id: `family-hw-${r.id}`,
@@ -296,7 +291,6 @@ export default async function HomePage() {
     bill: "Bill", medication: "Medication", appointment: "Appointment",
     workout: "Workout", personal: "Personal", general: "Reminder",
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const MODULE_ACTION_HREF: Record<string, string> = {
     health: "/health", finance: "/finance/dashboard",
     investments: "/investments", "student-success": "/home/me/courses",
@@ -362,7 +356,7 @@ export default async function HomePage() {
       title: t.title,
       context: `Overdue task · was due ${fmtDueDate(t.due_date!)}`,
       who: "You",
-      primaryAction: { label: "Open task", href: "/home" },
+      primaryAction: { label: "Open task", href: "/home/tasks" },
     })),
     // Bills due today → Today
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -382,7 +376,7 @@ export default async function HomePage() {
       title: r.title,
       context: `${CATEGORY_CONTEXT[r.category] ?? "Reminder"} · was due ${fmtDueDate(new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz }))}`,
       who: "You",
-      primaryAction: { label: "View", href: MODULE_ACTION_HREF[r.source_app as string] ?? "/home" },
+      primaryAction: { label: "View", href: MODULE_ACTION_HREF[r.source_app as string] ?? "/home/tasks" },
     })),
     // High-priority todos → Today or This week
     ...urgentTodos.slice(0, 1).map((t) => ({
@@ -391,7 +385,7 @@ export default async function HomePage() {
       title: t.title,
       context: `High priority${t.due_date ? ` · due ${fmtDueDate(t.due_date)}` : ""}`,
       who: "You",
-      primaryAction: { label: "Open task", href: "/home" },
+      primaryAction: { label: "Open task", href: "/home/tasks" },
     })),
   ].sort((a, b) => {
     const ord: Record<string, number> = { Urgent: 0, Today: 1, "This week": 2, Informational: 3 };
@@ -400,121 +394,8 @@ export default async function HomePage() {
 
   // Personal mode only ever shows items that concern you — not household-wide
   // or other family members' items.
-  const personalAttentionItemsSorted = sortedAttentionItems.filter(
-    (i) => i.person === "me" || (!i.person && i.who === "You")
-  );
-  const attentionItems = sortedAttentionItems.slice(0, 5);
-  const personalAttentionItems = personalAttentionItemsSorted.slice(0, 5);
-
-  // Track total for "View all" link
-  const totalAttentionCount = overdueTodos.length + overdueReminders.length + billsDueToday.length + urgentTodos.length
-    + (todayConflicts.size > 0 ? 1 : 0) + courseAttentionItems.length + missedWorkouts.length
-    + unownedReminders.length + unownedTodos.length;
 
   // ── My Priorities — four categories, one item each ──────────────────────────
-  interface MyPriority {
-    category: "career" | "health" | "family" | "wellness";
-    icon: string;
-    title: string;
-    why: string;
-    href: string;
-    action: string;
-  }
-
-  const myPriorities: MyPriority[] = [];
-
-  // Career: first active goal
-  if (careerGoals.length > 0) {
-    const g = careerGoals[0];
-    myPriorities.push({
-      category: "career",
-      icon: "🎯",
-      title: g.title,
-      why: `Active career goal${g.target_date ? ` · due ${fmtDueDate(g.target_date)}` : ""}`,
-      href: "/career/goals",
-      action: "View goal",
-    });
-  } else if (activeCareerGoals === 0) {
-    // No goals — surface the opportunity
-    myPriorities.push({
-      category: "career",
-      icon: "🎯",
-      title: "Set a career goal",
-      why: "No active goals — define your next milestone",
-      href: "/career/goals/new",
-      action: "Add goal",
-    });
-  }
-
-  // Health: next scheduled workout or health reminder
-  const nextWorkout = scheduledWorkouts[0] as { id: string; label: string; scheduled_time: string | null } | undefined;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const healthReminder = (reminders as any[]).find(
-    (r) => r.source_app === "health" && !r.completed_at
-  );
-  if (nextWorkout) {
-    myPriorities.push({
-      category: "health",
-      icon: "💪",
-      title: nextWorkout.label || "Workout",
-      why: `Scheduled for today${nextWorkout.scheduled_time ? ` at ${new Date(`${todayStr}T${nextWorkout.scheduled_time}`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: userTz })}` : ""}`,
-      href: "/health/train",
-      action: "Start workout",
-    });
-  } else if (healthReminder) {
-    myPriorities.push({
-      category: "health",
-      icon: "💊",
-      title: healthReminder.title,
-      why: "Health reminder for today",
-      href: "/health",
-      action: "View",
-    });
-  }
-
-  // Family: next reminder with family context, or top incomplete non-overdue todo
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const familyReminder = (reminders as any[]).find(
-    (r) => !r.completed_at && ["appointment", "general"].includes(r.category) && r.source_app === "hub"
-  );
-  const familyTodo = todos.find(
-    (t) => !t.completed && t.priority === "medium" && !overdueTodos.find((o) => o.id === t.id)
-  );
-  if (familyReminder) {
-    myPriorities.push({
-      category: "family",
-      icon: "👨‍👩‍👧",
-      title: familyReminder.title,
-      why: `Upcoming · ${new Date(familyReminder.due_at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: userTz })}`,
-      href: "/home",
-      action: "View",
-    });
-  } else if (familyTodo) {
-    myPriorities.push({
-      category: "family",
-      icon: "👨‍👩‍👧",
-      title: familyTodo.title,
-      why: "From your priorities",
-      href: "/home",
-      action: "Open task",
-    });
-  }
-
-  // Wellness: personal reminder or first low-priority todo
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const wellnessReminder = (reminders as any[]).find(
-    (r) => !r.completed_at && ["personal", "medication"].includes(r.category)
-  );
-  if (wellnessReminder) {
-    myPriorities.push({
-      category: "wellness",
-      icon: "🧘",
-      title: wellnessReminder.title,
-      why: `${CATEGORY_CONTEXT[wellnessReminder.category] ?? "Reminder"} · surfaced because it's upcoming`,
-      href: "/home",
-      action: "View",
-    });
-  }
 
   // ── Family Status — one compact row per family member ───────────────────────
   const weekEndStr = new Date(today.getTime() + 6 * 86_400_000).toLocaleDateString("sv", { timeZone: userTz });
@@ -551,356 +432,159 @@ export default async function HomePage() {
     };
   });
 
-  const menuUser = {
-    name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-    email: user.email,
-    avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
-    isAdmin,
-    appAccess: prefs.app_access ?? null,
-  };
 
-  // todos/reminders → My Priorities; weather/stocks → At a glance;
-  // news/subscriptions/sports/company news → /news page; everything else → Insights
-  const priorityWids = prefs.visible_widgets.filter((w) => PRIORITY_WIDGETS.has(w));
-  const promotedWids = prefs.visible_widgets.filter((w) => PROMOTED_WIDGETS.has(w));
-  const insightWids  = prefs.visible_widgets.filter(
-    (w) => !PRIORITY_WIDGETS.has(w) && !PROMOTED_WIDGETS.has(w) && !NEWS_PAGE_WIDGETS.has(w)
-  );
 
-  function renderAttentionSection(items: AttentionItem[], totalCount: number, idSuffix: string) {
-    if (items.length === 0) return null;
-    return (
-      <section aria-label="Needs attention" style={{ marginBottom: 28 }}>
-        <SectionHeader id={`needs-attention-heading-${idSuffix}`}>Needs attention</SectionHeader>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {items.map((item) => {
-            const severityColor =
-              item.severity === "Urgent" ? "var(--color-red)"
-              : item.severity === "Today" ? "var(--color-amber)"
-              : item.severity === "This week" ? "var(--color-ink-3)"
-              : "var(--color-ink-4)";
-            return (
-              <div
-                key={item.id}
-                style={{
-                  background: "var(--color-bg-card)",
-                  border: `1px solid var(--color-rule)`,
-                  borderLeft: `3px solid ${severityColor}`,
-                  borderRadius: 10,
-                  padding: "12px 16px",
-                  boxShadow: "var(--shadow-card)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 6,
-                }}
-              >
-                {/* Title row with severity badge */}
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span
-                    style={{
-                      fontSize: 9,
-                      fontWeight: 700,
-                      letterSpacing: "0.1em",
-                      textTransform: "uppercase",
-                      color: severityColor,
-                      flexShrink: 0,
-                      fontFamily: "var(--font-geist, system-ui), sans-serif",
-                    }}
-                    aria-label={`Severity: ${item.severity}`}
-                  >
-                    {item.severity}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "var(--color-ink)",
-                      fontFamily: "var(--font-geist, system-ui), sans-serif",
-                      flex: 1,
-                    }}
-                  >
-                    {item.title}
-                  </span>
-                  <span style={{ fontSize: 11, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif", flexShrink: 0 }}>
-                    {item.who}
-                  </span>
-                </div>
-                {/* Context */}
-                <div style={{ fontSize: 12, color: "var(--color-ink-3)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-                  {item.context}
-                </div>
-                {/* Actions */}
-                <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
-                  <a
-                    href={item.primaryAction.href}
-                    style={{
-                      fontSize: 12, fontWeight: 600, padding: "5px 12px",
-                      borderRadius: 7, background: "var(--color-accent)", color: "#FFFDF8",
-                      textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif",
-                    }}
-                  >
-                    {item.primaryAction.label}
-                  </a>
-                  {item.secondaryAction && (
-                    <a
-                      href={item.secondaryAction.href}
-                      style={{
-                        fontSize: 12, fontWeight: 500, padding: "5px 12px",
-                        borderRadius: 7, border: "1px solid var(--color-rule)",
-                        color: "var(--color-ink-2)", textDecoration: "none",
-                        fontFamily: "var(--font-geist, system-ui), sans-serif",
-                        background: "transparent",
-                      }}
-                    >
-                      {item.secondaryAction.label}
-                    </a>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-          {totalCount > 5 && (
-            <a
-              href="/home"
-              style={{ fontSize: 12, color: "var(--color-ink-3)", textDecoration: "none", fontFamily: "var(--font-geist, system-ui), sans-serif", padding: "4px 0" }}
-            >
-              View all {totalCount} items →
-            </a>
-          )}
-        </div>
-      </section>
-    );
+
+  // ══ iOS-native Today hub — maps this page's real data into TodayHubIOS ═══════
+  const iosSev = (s: string): "urgent" | "today" | "week" =>
+    s === "Urgent" ? "urgent" : s === "Today" ? "today" : "week";
+  const attnCat = (href: string): string =>
+    href.includes("/health") ? "workout"
+    : href.includes("/finance") ? "bill"
+    : href.includes("/courses") ? "course"
+    : href.includes("/family") ? "family"
+    : "general";
+  const iosAttention = sortedAttentionItems.slice(0, 6).map((a) => ({
+    id: a.id, severity: iosSev(a.severity), title: a.title,
+    context: a.context, category: attnCat(a.primaryAction.href), href: a.primaryAction.href,
+  }));
+  const iosTimeline = timelineItems.map((t) => ({ id: t.id, time: t.timeLabel, label: t.label, category: t.category }));
+  const iosPriorities = [
+    ...todos.filter((t) => !t.completed).map((t) => ({ id: t.id, title: t.title, done: false, flag: t.priority === "high" ? "High priority" : undefined })),
+    ...todos.filter((t) => t.completed).slice(0, 2).map((t) => ({ id: t.id, title: t.title, done: true, flag: undefined as string | undefined })),
+  ];
+  const IOS_FAM_COLORS = ["var(--ios-tint)", "#B565A7", "#E8607A", "#34A56F", "#C97A3A", "#5E5CE6"];
+  const iosFamily = familyStatusRows.map((r, i) => ({
+    id: r.id,
+    name: r.id === "me" ? `${r.name} (you)` : r.name,
+    status: r.nextEvent ? `${r.nextEvent.title} · ${r.nextEvent.timeLabel}` : (r.status ?? "All clear"),
+    color: IOS_FAM_COLORS[i % IOS_FAM_COLORS.length],
+    initial: (r.name?.[0] ?? "?").toUpperCase(),
+    href: r.id === "me" ? "/home/me" : "/home/family",
+  }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const iosUpcoming = (reminders as any[]).filter((r) => !r.completed_at);
+  // Health + Money glance — light lookups (steps today, latest net-worth snapshot)
+  const homeTz = getUserTimezone(user.user_metadata);
+  const homeTodayKey = new Intl.DateTimeFormat("en-CA", { timeZone: homeTz }).format(new Date());
+  const [stepsRes, netRes] = await Promise.all([
+    service.from("apple_health_metrics")
+      .select("value, source, timestamp")
+      .eq("user_id", user.id)
+      .in("metric_name", ["step_count", "steps", "Step Count", "Steps"])
+      .gte("timestamp", new Date(new Date().getTime() - 7 * 86_400_000).toISOString()),
+    service.schema("finance").from("net_position_snapshots")
+      .select("net_position, captured_at").eq("user_id", user.id)
+      .order("captured_at", { ascending: false }).limit(30),
+  ]);
+  // Most recent day with step data — Apple (Watch) preferred per day, Oura the
+  // fallback; today if present, else the latest available day (labeled).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const stepRows = (stepsRes.data ?? []) as any[];
+  const homeTzFmt = new Intl.DateTimeFormat("en-CA", { timeZone: homeTz });
+  const stepByDay = new Map<string, { apple: number; oura: number; hasApple: boolean; hasOura: boolean }>();
+  for (const r of stepRows) {
+    // Oura stores a daily summary at UTC-midnight (use its date); Apple stores
+    // instantaneous UTC timestamps (convert to the user's tz).
+    const day = r.source === "oura" ? String(r.timestamp ?? "").slice(0, 10) : homeTzFmt.format(new Date(r.timestamp ?? 0));
+    if (!day) continue;
+    const d = stepByDay.get(day) ?? { apple: 0, oura: 0, hasApple: false, hasOura: false };
+    if (r.source === "oura") { d.oura += Number(r.value) || 0; d.hasOura = true; }
+    else { d.apple += Number(r.value) || 0; d.hasApple = true; }
+    stepByDay.set(day, d);
+  }
+  let stepsToday = 0; let stepsDayKey: string | null = null;
+  for (const day of [...stepByDay.keys()].sort().reverse()) {
+    const d = stepByDay.get(day)!;
+    if (d.hasApple) { stepsToday = d.apple; stepsDayKey = day; break; }
+    if (d.hasOura) { stepsToday = d.oura; stepsDayKey = day; break; }
+  }
+  const stepsIsToday = stepsDayKey === homeTodayKey;
+  const stepsDayShort = stepsDayKey ? new Date(`${stepsDayKey}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "";
+  const netSnaps = (netRes.data ?? []) as { net_position?: number }[];
+  const netWorth: number | null = netSnaps[0]?.net_position ?? null;
+  // % change vs the oldest snapshot in the window. The Today glance shows only
+  // this METRIC — never the actual balance, since it's a very glanceable spot.
+  const netPrev: number | null = netSnaps.length > 1 ? (netSnaps[netSnaps.length - 1]?.net_position ?? null) : null;
+  const netPct: number | null = netWorth != null && netPrev != null && netPrev !== 0
+    ? ((netWorth - netPrev) / Math.abs(netPrev)) * 100 : null;
+
+  const homePrefs = await getPreferences(user.id).catch(() => null);
+
+  // When a finance PIN is set, the money glance must not reveal anything (even the
+  // trend %) in the clear — mirror the PIN that guards the finance section itself.
+  let financeLocked = false;
+  try {
+    const { data: financePinRow } = await service
+      .schema("hub")
+      .from("preferences")
+      .select("finance_pin")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    financeLocked = !!((financePinRow as any)?.finance_pin);
+  } catch {
+    // finance_pin column not present / query failed — leave unlocked
   }
 
+  // Weather now leads the glance (replacing the calendar tile). Today's high
+  // and current condition, from the user's saved location.
+  let weatherGlance: { value: React.ReactNode; sub: React.ReactNode; href: string } | null = null;
+  if (homePrefs?.latitude && homePrefs?.longitude) {
+    const wx = await fetchWeather(homePrefs.latitude, homePrefs.longitude).catch(() => null);
+    if (wx) {
+      const today = wx.periods.find((p) => p.isDaytime) ?? wx.periods[0];
+      const temp = wx.current.temperature ?? today?.temperature ?? null;
+      const cond = wx.current.description || today?.shortForecast || "—";
+      weatherGlance = {
+        value: temp != null ? `${Math.round(temp)}°` : "—",
+        sub: [cond, today ? `H ${today.temperature}°` : null].filter(Boolean).join(" · "),
+        href: "/news",
+      };
+    }
+  }
+
+  const iosGlance = {
+    ...(weatherGlance ? { weather: weatherGlance } : {}),
+    reminders: iosUpcoming.length > 0
+      ? { value: `${iosUpcoming.length} due`, sub: iosUpcoming[0].title as string, badge: iosUpcoming.length, href: "/home/tasks" }
+      : { value: "None", sub: "All caught up", href: "/home/tasks" },
+    health: { value: stepsToday > 0 ? Math.round(stepsToday).toLocaleString() : "—", sub: stepsToday > 0 ? (stepsIsToday ? "steps today" : `steps · ${stepsDayShort}`) : "no data yet", href: "/health" },
+    ...(netWorth != null
+      ? {
+          money: {
+            value: <MoneyGlanceValue pct={netPct} locked={financeLocked} />,
+            sub: "net worth trend",
+            href: "/finance/dashboard",
+          },
+        }
+      : {}),
+  };
+
   return (
-    <div>
-      <PlatformMenu currentApp="hub" user={menuUser} />
-
-      <main
-        style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 20px 100px" }}
-        id="main-content"
-      >
-        {/* ── Greeting ── */}
-        <section aria-label="Greeting" style={{ marginBottom: 36 }}>
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 500,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: "var(--color-ink-3)",
-              marginBottom: 10,
-              fontFamily: "var(--font-geist, system-ui), sans-serif",
-            }}
-          >
-            {todayDisplay}
-          </div>
-          <h1
-            className="serif"
-            style={{ fontSize: 44, lineHeight: 1.05, margin: 0 }}
-          >
-            {greeting},
-            <br />
-            <span style={{ fontStyle: "italic", color: "var(--color-accent-dark)" }}>
-              {firstName}.
-            </span>
-          </h1>
-        </section>
-
-        {/* ══ SECTION 1: Needs Attention — Family shows everyone, Personal shows only you ══ */}
-        <ModeSection
-          family={renderAttentionSection(attentionItems, totalAttentionCount, "family")}
-          personal={renderAttentionSection(personalAttentionItems, personalAttentionItemsSorted.length, "personal")}
-        />
-
-        {/* ══ SECTION 1.5: At a glance — Weather + Stocks, always visible ══ */}
-        {promotedWids.length > 0 && (
-          <section aria-labelledby="glance-heading" style={{ marginBottom: 28 }}>
-            <SectionHeader id="glance-heading">At a glance</SectionHeader>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
-              {promotedWids.map((widgetId) => (
-                <div key={widgetId}>
-                  {renderWidget(widgetId, { todos, reminders, prefs, userTz, activeCareerGoals, user })}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* ══ SECTION 2: Today's Plan ════════════════════════════════════════════ */}
-        <section aria-labelledby="today-plan-heading" style={{ marginBottom: 28 }}>
-          <SectionHeader id="today-plan-heading">Today&apos;s plan</SectionHeader>
-          <FamilyTimeline items={timelineItems} members={circleMembers} />
-        </section>
-
-        {/* ══ SECTION 3: Family Status (Family mode) / Personal quick links (Personal mode) ══ */}
-        <ModeSection
-          family={circleMembers.length > 0 && (
-            <section aria-labelledby="family-heading" style={{ marginBottom: 28 }}>
-              <SectionHeader id="family-heading">Family</SectionHeader>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <FamilyStatus rows={familyStatusRows} />
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  {prefs.app_access?.includes("student-success") && (
-                    <a href="/home/me/courses" style={{ ...summaryChipStyle, borderColor: "#6B5B95", color: "#6B5B95" }}>
-                      Kids →
-                    </a>
-                  )}
-                  {prefs.app_access?.includes("health") && (
-                    <a href="/health" style={{ ...summaryChipStyle, borderColor: "#4D6B3A", color: "#4D6B3A" }}>
-                      Health →
-                    </a>
-                  )}
-                  {(prefs.app_access?.includes("finance") || prefs.app_access?.includes("investments")) && (
-                    <a href="/finance/dashboard" style={{ ...summaryChipStyle, borderColor: "#8B6A47", color: "#8B6A47" }}>
-                      Finance →
-                    </a>
-                  )}
-                  {activeCareerGoals > 0 && prefs.app_access?.includes("career") && (
-                    <a href="/career/goals" style={{ ...summaryChipStyle, borderColor: "#2A6049", color: "#2A6049" }}>
-                      {activeCareerGoals} career goal{activeCareerGoals !== 1 ? "s" : ""} →
-                    </a>
-                  )}
-                  <a href="/home/settings/family" style={summaryChipStyle}>
-                    Manage circle →
-                  </a>
-                </div>
-              </div>
-            </section>
-          )}
-          personal={
-            <section aria-labelledby="personal-heading" style={{ marginBottom: 28 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                <SectionHeader id="personal-heading">Personal</SectionHeader>
-                <span style={{
-                  fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-                  padding: "2px 8px", borderRadius: 8, background: "rgba(59,92,127,0.1)", color: "var(--color-accent)",
-                  fontFamily: "var(--font-geist, system-ui), sans-serif", marginBottom: 12,
-                }}>
-                  🔒 Private to you
-                </span>
-              </div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {prefs.app_access?.includes("career") && (
-                  <a href="/career" style={{ ...summaryChipStyle, borderColor: "#2A6049", color: "#2A6049" }}>Career →</a>
-                )}
-                {prefs.app_access?.includes("health") && (
-                  <a href="/health" style={{ ...summaryChipStyle, borderColor: "#4D6B3A", color: "#4D6B3A" }}>Health →</a>
-                )}
-                {prefs.app_access?.includes("health") && (
-                  <a href="/health/wellness" style={{ ...summaryChipStyle, borderColor: "#4D6B3A", color: "#4D6B3A" }}>Mental wellness →</a>
-                )}
-                {prefs.app_access?.includes("bible") && (
-                  <a href="/bible/dashboard" style={{ ...summaryChipStyle, borderColor: "#7B5EA7", color: "#7B5EA7" }}>Spiritual development →</a>
-                )}
-                <a href="/home/journal" style={summaryChipStyle}>Journal →</a>
-                {(prefs.app_access?.includes("finance") || prefs.app_access?.includes("investments")) && (
-                  <a href="/finance/dashboard" style={{ ...summaryChipStyle, borderColor: "#8B6A47", color: "#8B6A47" }}>Personal finances →</a>
-                )}
-              </div>
-            </section>
-          }
-        />
-
-        {/* ══ SECTION 4: My Priorities ══════════════════════════════════════════ */}
-        <section aria-labelledby="priorities-heading" style={{ marginBottom: 28 }}>
-          <SectionHeader id="priorities-heading">My priorities</SectionHeader>
-
-          {/* TodosWidget — always present, core My Priorities tool */}
-          <div style={{ marginBottom: 14 }}>
-            <TodosWidget initialTodos={todos} />
-          </div>
-
-          {/* RemindersWidget — includes 🏠 household task toggle */}
-          {priorityWids.filter((w) => w !== "todos").map((widgetId) => (
-            <div key={widgetId} style={{ marginBottom: 14 }}>
-              {renderWidget(widgetId, { todos, reminders, prefs, userTz, activeCareerGoals })}
-            </div>
-          ))}
-
-          {/* Compact goal/health/family/wellness summary cards */}
-          {myPriorities.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {myPriorities.map((p) => (
-                <div
-                  key={`${p.category}-${p.title}`}
-                  style={{
-                    background: "var(--color-bg-card)",
-                    border: "1px solid var(--color-rule)",
-                    borderRadius: 10,
-                    padding: "12px 16px",
-                    boxShadow: "var(--shadow-card)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
-                  <span style={{ fontSize: 20, flexShrink: 0 }}>{p.icon}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-                      {p.title}
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 2, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-                      {p.why}
-                    </div>
-                  </div>
-                  <a
-                    href={p.href}
-                    style={{
-                      fontSize: 12, fontWeight: 500, padding: "5px 12px",
-                      borderRadius: 7, border: "1px solid var(--color-rule)",
-                      color: "var(--color-ink-2)", textDecoration: "none",
-                      fontFamily: "var(--font-geist, system-ui), sans-serif",
-                      background: "transparent", flexShrink: 0,
-                    }}
-                  >
-                    {p.action}
-                  </a>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* ══ SECTION 5: Insights ═══════════════════════════════════════════════ */}
-        {insightWids.length > 0 && (
-          <section aria-labelledby="insights-heading" style={{ marginBottom: 28 }}>
-            <SectionHeader id="insights-heading">Insights</SectionHeader>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-                gap: 14,
-                alignItems: "stretch",
-              }}
-            >
-              {insightWids.map((widgetId) =>
-                renderWidget(widgetId, { todos, reminders, prefs, userTz, activeCareerGoals, user })
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Ask Morris — compact, below all sections */}
-        <section aria-label="Ask Morris" style={{ marginTop: 32 }}>
-          <HubChat firstName={firstName} />
-        </section>
-      </main>
-    </div>
+    <HomeClient
+      firstName={firstName}
+      dateLabel={todayDisplay}
+      greeting={greeting}
+      glance={iosGlance}
+      attention={iosAttention}
+      timeline={iosTimeline}
+      priorities={iosPriorities}
+      family={iosFamily}
+      members={circleMembers.map((m) => ({ id: m.id, label: m.label }))}
+      currentUserId={user.id}
+      quickActions={<QuickActions />}
+      slot={
+        <>
+          <Suspense fallback={null}><TodayMarkets ticker={homePrefs?.employer_ticker ?? null} /></Suspense>
+          <Suspense fallback={null}><TodayNews sources={homePrefs?.news_sources ?? []} topics={homePrefs?.news_topics ?? []} /></Suspense>
+        </>
+      }
+    />
   );
+
 }
 
-const summaryChipStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 500,
-  padding: "5px 12px",
-  borderRadius: 20,
-  border: "1px solid var(--color-rule)",
-  color: "var(--color-ink-3)",
-  textDecoration: "none",
-  fontFamily: "var(--font-geist, system-ui), sans-serif",
-  background: "var(--color-bg-card)",
-};
 
 // ── Timeline module hrefs (used by timelineItems builder above) ───────────────
 

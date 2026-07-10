@@ -2,8 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Group, Segmented, Chip, IconBadge, Icons } from "@/components/ios";
 
 const LEARNING_TYPES = ["course", "conference", "book", "workshop", "other"];
+const STATUS_OPTIONS = ["planned", "in_progress", "completed", "paused"];
 
 interface Goal {
   id: string;
@@ -25,30 +27,23 @@ function formatDate(dateStr: string | null): string {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function labelStyle(): React.CSSProperties {
-  return {
-    display: "block",
-    fontSize: 12,
-    fontWeight: 500,
-    color: "var(--color-ink-3)",
-    marginBottom: 5,
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-  };
+function titleCase(s: string): string {
+  return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function inputStyle(): React.CSSProperties {
-  return {
-    width: "100%",
-    background: "var(--color-bg)",
-    border: "1px solid var(--color-rule)",
-    borderRadius: 6,
-    padding: "8px 10px",
-    fontSize: 14,
-    color: "var(--color-ink)",
-    outline: "none",
-  };
-}
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "11px 14px",
+  borderRadius: 10,
+  border: "var(--ios-hair) solid var(--ios-separator)",
+  background: "var(--ios-cell)",
+  color: "var(--ios-label)",
+  fontSize: 16,
+  outline: "none",
+  fontFamily: "inherit",
+  boxSizing: "border-box",
+  colorScheme: "light dark",
+};
 
 export default function LearningPageClient({
   learningItems,
@@ -65,6 +60,7 @@ export default function LearningPageClient({
   const [editItemId, setEditItemId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<typeof form | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<string>("all");
 
   const [form, setForm] = useState({
     title: "",
@@ -78,6 +74,7 @@ export default function LearningPageClient({
     notes: "",
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function openEditItem(item: any) {
     setEditItemId(item.id);
     setEditForm({ title: item.title ?? "", learning_type: item.learning_type ?? "course", provider: item.provider ?? "", start_date: item.start_date ?? "", end_date: item.end_date ?? "", status: item.status ?? "planned", url: item.url ?? "", linked_goal_ids: item.linked_goal_ids ?? [], notes: item.notes ?? "" });
@@ -162,325 +159,251 @@ export default function LearningPageClient({
     }
   }
 
+  const statusesPresent = Array.from(
+    new Set(learningItems.map((i) => i.status ?? "planned"))
+  );
+  const filterOptions = [
+    { value: "all", label: "All" },
+    ...statusesPresent.map((s) => ({ value: s, label: titleCase(s) })),
+  ];
+  const visible = learningItems.filter(
+    (i) => filter === "all" || (i.status ?? "planned") === filter
+  );
+
   return (
     <section>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 14,
-          gap: 12,
-        }}
-      >
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: "var(--color-ink)", margin: 0 }}>
-          Courses, Books &amp; Conferences
-        </h2>
+      {/* Header + add */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "0 16px 10px" }}>
+        <h2 className="ios-title-3" style={{ margin: 0 }}>Courses, Books &amp; Conferences</h2>
         <button
-          onClick={() => setShowForm((v) => !v)}
-          style={{
-            background: "var(--color-accent)",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            padding: "7px 16px",
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: "pointer",
-          }}
+          type="button"
+          onClick={() => setShowForm(true)}
+          className="ios-btn--plain"
+          style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: 0 }}
         >
-          {showForm ? "Cancel" : "+ Add Learning"}
+          <Icons.PlusIcon style={{ width: 16, height: 16 }} /> Add
         </button>
       </div>
 
-      {/* Add Learning form */}
-      {showForm && (
-        <form
-          onSubmit={handleSubmit}
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 12,
-            padding: "22px",
-            marginBottom: 24,
-          }}
-        >
-          <h3 style={{ margin: "0 0 18px", fontSize: 15, fontWeight: 600, color: "var(--color-ink)" }}>
-            Add Learning Item
-          </h3>
-          {error && (
-            <div
-              style={{
-                background: "#FEF2F2",
-                border: "1px solid #FCA5A5",
-                borderRadius: 6,
-                padding: "8px 12px",
-                color: "#9A3B2A",
-                fontSize: 13,
-                marginBottom: 14,
-              }}
-            >
-              {error}
-            </div>
-          )}
-          <div style={{ display: "grid", gap: 14, gridTemplateColumns: "1fr 1fr" }}>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle()}>Title *</label>
-              <input
-                name="title"
-                value={form.title}
-                onChange={handleChange}
-                required
-                placeholder="e.g. Deep Work by Cal Newport"
-                style={inputStyle()}
-              />
-            </div>
-            <div>
-              <label style={labelStyle()}>Type</label>
-              <select name="learning_type" value={form.learning_type} onChange={handleChange} style={inputStyle()}>
-                {LEARNING_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle()}>Provider / Author</label>
-              <input name="provider" value={form.provider} onChange={handleChange} placeholder="e.g. Coursera, O&apos;Reilly" style={inputStyle()} />
-            </div>
-            <div>
-              <label style={labelStyle()}>Start Date</label>
-              <input type="date" name="start_date" value={form.start_date} onChange={handleChange} style={inputStyle()} />
-            </div>
-            <div>
-              <label style={labelStyle()}>End / Target Date</label>
-              <input type="date" name="end_date" value={form.end_date} onChange={handleChange} style={inputStyle()} />
-            </div>
-            <div>
-              <label style={labelStyle()}>Status</label>
-              <select name="status" value={form.status} onChange={handleChange} style={inputStyle()}>
-                <option value="planned">Planned</option>
-                <option value="in_progress">In Progress</option>
-                <option value="completed">Completed</option>
-                <option value="paused">Paused</option>
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle()}>URL</label>
-              <input name="url" value={form.url} onChange={handleChange} type="url" placeholder="https://..." style={inputStyle()} />
-            </div>
-            {goals.length > 0 && (
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={labelStyle()}>Link to Goals</label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {goals.map((g) => {
-                    const selected = form.linked_goal_ids.includes(g.id);
-                    return (
-                      <button
-                        key={g.id}
-                        type="button"
-                        onClick={() => toggleGoal(g.id)}
-                        style={{
-                          border: `1px solid ${selected ? "var(--color-accent)" : "var(--color-rule)"}`,
-                          background: selected ? "var(--color-accent-soft)" : "transparent",
-                          color: selected ? "var(--color-accent-dark)" : "var(--color-ink-2)",
-                          borderRadius: 6,
-                          padding: "4px 10px",
-                          fontSize: 13,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {g.title}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={labelStyle()}>Notes</label>
-              <textarea
-                name="notes"
-                value={form.notes}
-                onChange={handleChange}
-                rows={2}
-                placeholder="Why are you taking this? Key things to learn..."
-                style={{ ...inputStyle(), resize: "vertical" }}
-              />
-            </div>
-          </div>
-          <div style={{ marginTop: 18, display: "flex", gap: 10 }}>
-            <button
-              type="submit"
-              disabled={submitting}
-              style={{
-                background: "var(--color-accent)",
-                color: "#fff",
-                border: "none",
-                borderRadius: 8,
-                padding: "8px 18px",
-                fontSize: 14,
-                fontWeight: 500,
-                cursor: submitting ? "wait" : "pointer",
-                opacity: submitting ? 0.7 : 1,
-              }}
-            >
-              {submitting ? "Saving…" : "Add Learning"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              style={{
-                background: "transparent",
-                border: "1px solid var(--color-rule)",
-                borderRadius: 8,
-                padding: "8px 14px",
-                fontSize: 14,
-                color: "var(--color-ink-2)",
-                cursor: "pointer",
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
+      {/* Status filter */}
+      {filterOptions.length > 2 && (
+        <div style={{ padding: "0 16px 4px" }}>
+          <Segmented options={filterOptions} value={filter} onChange={setFilter} ariaLabel="Filter by status" />
+        </div>
       )}
 
-      {/* Learning item list */}
-      {learningItems.length === 0 ? (
-        <div
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 10,
-            padding: "24px",
-            textAlign: "center",
-            color: "var(--color-ink-3)",
-            fontSize: 14,
-          }}
-        >
-          No courses, books, or conferences tracked yet. Click &ldquo;+ Add Learning&rdquo; to start.
-        </div>
+      {/* Add sheet */}
+      {showForm && (
+        <>
+          <div className="ios-sheet-backdrop" onClick={() => setShowForm(false)} aria-hidden="true" />
+          <div className="ios-sheet" role="dialog" aria-modal="true" aria-label="Add learning item">
+            <div className="ios-grabber" />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <button type="button" className="ios-btn--plain" onClick={() => setShowForm(false)}>Cancel</button>
+              <span className="ios-headline">Add learning</span>
+              <span style={{ width: 52 }} />
+            </div>
+
+            <form onSubmit={handleSubmit} style={{ overflowY: "auto" }}>
+              {error && (
+                <p className="ios-footnote" style={{ padding: "0 0 12px", color: "var(--ios-red)" }}>{error}</p>
+              )}
+
+              <div className="ios-group-header" style={{ padding: "0 0 8px" }}>
+                Title <span style={{ color: "var(--ios-red)" }}>*</span>
+              </div>
+              <input name="title" value={form.title} onChange={handleChange} required placeholder="e.g. Deep Work by Cal Newport" style={inputStyle} />
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Type</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {LEARNING_TYPES.map((t) => (
+                  <Chip key={t} small selected={form.learning_type === t} onClick={() => setForm((p) => ({ ...p, learning_type: t }))}>
+                    {titleCase(t)}
+                  </Chip>
+                ))}
+              </div>
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Status</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {STATUS_OPTIONS.map((s) => (
+                  <Chip key={s} small selected={form.status === s} onClick={() => setForm((p) => ({ ...p, status: s }))}>
+                    {titleCase(s)}
+                  </Chip>
+                ))}
+              </div>
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Provider / Author</div>
+              <input name="provider" value={form.provider} onChange={handleChange} placeholder="e.g. Coursera, O&apos;Reilly" style={inputStyle} />
+
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Start date</div>
+                  <input type="date" name="start_date" value={form.start_date} onChange={handleChange} style={inputStyle} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>End / target</div>
+                  <input type="date" name="end_date" value={form.end_date} onChange={handleChange} style={inputStyle} />
+                </div>
+              </div>
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>URL</div>
+              <input name="url" value={form.url} onChange={handleChange} type="url" placeholder="https://…" style={inputStyle} />
+
+              {goals.length > 0 && (
+                <>
+                  <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Link to goals</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {goals.map((g) => (
+                      <Chip key={g.id} small selected={form.linked_goal_ids.includes(g.id)} onClick={() => toggleGoal(g.id)}>
+                        {g.title}
+                      </Chip>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Notes</div>
+              <textarea name="notes" value={form.notes} onChange={handleChange} rows={2} placeholder="Why are you taking this? Key things to learn…" style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} />
+
+              <button type="submit" disabled={submitting} className="ios-btn ios-btn--primary" style={{ marginTop: 22, opacity: submitting ? 0.5 : 1 }}>
+                {submitting ? "Saving…" : "Add Learning"}
+              </button>
+            </form>
+          </div>
+        </>
+      )}
+
+      {/* Edit sheet */}
+      {editItemId && editForm && (
+        <>
+          <div className="ios-sheet-backdrop" onClick={() => setEditItemId(null)} aria-hidden="true" />
+          <div className="ios-sheet" role="dialog" aria-modal="true" aria-label="Edit learning item">
+            <div className="ios-grabber" />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <button type="button" className="ios-btn--plain" onClick={() => setEditItemId(null)}>Cancel</button>
+              <span className="ios-headline">Edit learning</span>
+              <span style={{ width: 52 }} />
+            </div>
+
+            <form onSubmit={saveEditItem} style={{ overflowY: "auto" }}>
+              <div className="ios-group-header" style={{ padding: "0 0 8px" }}>Title</div>
+              <input required value={editForm.title} onChange={(e) => setEditForm((f) => f ? { ...f, title: e.target.value } : f)} style={inputStyle} />
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Type</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {LEARNING_TYPES.map((t) => (
+                  <Chip key={t} small selected={editForm.learning_type === t} onClick={() => setEditForm((f) => f ? { ...f, learning_type: t } : f)}>
+                    {titleCase(t)}
+                  </Chip>
+                ))}
+              </div>
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Status</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {["planned", "in_progress", "completed"].map((s) => (
+                  <Chip key={s} small selected={editForm.status === s} onClick={() => setEditForm((f) => f ? { ...f, status: s } : f)}>
+                    {titleCase(s)}
+                  </Chip>
+                ))}
+              </div>
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Provider</div>
+              <input value={editForm.provider} onChange={(e) => setEditForm((f) => f ? { ...f, provider: e.target.value } : f)} style={inputStyle} />
+
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>Start date</div>
+                  <input type="date" value={editForm.start_date} onChange={(e) => setEditForm((f) => f ? { ...f, start_date: e.target.value } : f)} style={inputStyle} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>End date</div>
+                  <input type="date" value={editForm.end_date} onChange={(e) => setEditForm((f) => f ? { ...f, end_date: e.target.value } : f)} style={inputStyle} />
+                </div>
+              </div>
+
+              <div className="ios-group-header" style={{ padding: "18px 0 8px" }}>URL</div>
+              <input type="url" value={editForm.url} onChange={(e) => setEditForm((f) => f ? { ...f, url: e.target.value } : f)} placeholder="https://" style={inputStyle} />
+
+              <button type="submit" disabled={submitting} className="ios-btn ios-btn--primary" style={{ marginTop: 22, opacity: submitting ? 0.5 : 1 }}>
+                {submitting ? "Saving…" : "Save"}
+              </button>
+            </form>
+          </div>
+        </>
+      )}
+
+      {/* Learning list */}
+      {visible.length === 0 ? (
+        <Group footer="Track the courses, books, and conferences you're learning from.">
+          <button type="button" className="ios-cell" onClick={() => setShowForm(true)} style={{ color: "var(--ios-tint)" }}>
+            <span className="ios-cell-lead">
+              <IconBadge color="var(--ios-tint)"><Icons.PlusIcon /></IconBadge>
+            </span>
+            <span className="ios-cell-body">
+              <span className="ios-cell-title" style={{ color: "var(--ios-tint)" }}>Add a learning item</span>
+            </span>
+          </button>
+        </Group>
       ) : (
-        <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
-          {learningItems.map((item) => {
+        <div className="ios-list" style={{ margin: "12px 16px 0" }}>
+          {visible.map((item) => {
             const typeColor = typeColors[item.learning_type ?? "other"] ?? typeColors.other;
-            const statusColor = statusColors[item.status ?? "planned"] ?? "#8A8278";
+            const statusColor = statusColors[item.status ?? "planned"] ?? "var(--ios-label-2)";
             return (
-              <div
-                key={item.id}
-                style={{
-                  background: "var(--color-bg-card)",
-                  border: "1px solid var(--color-rule)",
-                  borderRadius: 10,
-                  padding: "15px 16px",
-                  borderLeft: `4px solid ${typeColor}`,
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
-                  <span
-                    style={{
-                      background: `${typeColor}18`,
-                      color: typeColor,
-                      border: `1px solid ${typeColor}44`,
-                      borderRadius: 4,
-                      padding: "1px 7px",
-                      fontSize: 11,
-                      fontWeight: 600,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.03em",
-                    }}
-                  >
-                    {item.learning_type ?? "other"}
+              <div key={item.id} className="ios-cell" style={{ flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                  <span className="ios-cell-lead">
+                    <IconBadge color={typeColor}><Icons.BookIcon /></IconBadge>
                   </span>
-                  <span
-                    style={{
-                      background: `${statusColor}18`,
-                      color: statusColor,
-                      border: `1px solid ${statusColor}44`,
-                      borderRadius: 4,
-                      padding: "1px 7px",
-                      fontSize: 11,
-                      fontWeight: 500,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {(item.status ?? "planned").replace(/_/g, " ")}
-                  </span>
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", marginBottom: 2 }}>
-                  {item.url ? (
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ color: "var(--color-ink)", textDecoration: "none" }}
-                    >
-                      {item.title}
-                    </a>
-                  ) : (
-                    item.title
-                  )}
-                </div>
-                {item.provider && (
-                  <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginBottom: 4 }}>
-                    {item.provider}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span className="ios-caption" style={{ textTransform: "uppercase", letterSpacing: "0.02em", fontWeight: 600, color: typeColor }}>
+                        {item.learning_type ?? "other"}
+                      </span>
+                      <span className="ios-caption" style={{ fontWeight: 600, color: statusColor }}>
+                        {titleCase(item.status ?? "planned")}
+                      </span>
+                    </div>
+                    <div className="ios-headline" style={{ marginTop: 2 }}>
+                      {item.url ? (
+                        <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--ios-label)", textDecoration: "none" }}>
+                          {item.title}
+                        </a>
+                      ) : item.title}
+                    </div>
+                    {item.provider && (
+                      <div className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>{item.provider}</div>
+                    )}
+                    {(item.start_date || item.end_date) && (
+                      <div className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>
+                        {item.start_date && formatDate(item.start_date)}
+                        {item.start_date && item.end_date && " – "}
+                        {item.end_date && formatDate(item.end_date)}
+                      </div>
+                    )}
                   </div>
-                )}
-                {(item.start_date || item.end_date) && (
-                  <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginBottom: 4 }}>
-                    {item.start_date && formatDate(item.start_date)}
-                    {item.start_date && item.end_date && " – "}
-                    {item.end_date && formatDate(item.end_date)}
-                  </div>
-                )}
+                </div>
+
                 {(item.linked_goal_ids ?? []).length > 0 && (
-                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 6 }}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {(item.linked_goal_ids ?? []).map((gid: string) =>
                       goalsMap[gid] ? (
-                        <span key={gid} style={{ background: "var(--color-bg-deep)", color: "var(--color-ink-2)", borderRadius: 4, padding: "1px 6px", fontSize: 11 }}>{goalsMap[gid]}</span>
+                        <span key={gid} className="ios-caption" style={{ background: "var(--ios-fill)", color: "var(--ios-label-2)", borderRadius: 6, padding: "2px 8px" }}>
+                          {goalsMap[gid]}
+                        </span>
                       ) : null
                     )}
                   </div>
                 )}
-                {/* Edit / Delete buttons */}
-                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                  <button onClick={() => editItemId === item.id ? setEditItemId(null) : openEditItem(item)} style={{ padding: "4px 12px", borderRadius: 5, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-3)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
-                    {editItemId === item.id ? "Cancel" : "Edit"}
+
+                <div style={{ display: "flex", gap: 16 }}>
+                  <button type="button" onClick={() => editItemId === item.id ? setEditItemId(null) : openEditItem(item)} className="ios-btn--plain" style={{ padding: 0, fontSize: 15 }}>
+                    Edit
                   </button>
-                  <button onClick={() => deleteItem(item.id)} disabled={deletingId === item.id} style={{ padding: "4px 12px", borderRadius: 5, border: "1px solid rgba(154,59,42,0.3)", background: "rgba(154,59,42,0.05)", color: "var(--color-red, #9a3b2a)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
+                  <button type="button" onClick={() => deleteItem(item.id)} disabled={deletingId === item.id} className="ios-btn--plain" style={{ padding: 0, fontSize: 15, color: "var(--ios-red)" }}>
                     {deletingId === item.id ? "…" : "Remove"}
                   </button>
                 </div>
-                {/* Inline edit form */}
-                {editItemId === item.id && editForm && (
-                  <form onSubmit={saveEditItem} style={{ marginTop: 12, padding: "14px", background: "var(--color-bg-sunk, #f3f1ec)", borderRadius: 8, display: "flex", flexDirection: "column", gap: 10 }}>
-                    <div><label style={{ display:"block", fontSize:11, fontWeight:600, color:"var(--color-ink-3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>Title</label><input required value={editForm.title} onChange={e => setEditForm(f => f ? {...f, title: e.target.value} : f)} style={{ width:"100%", padding:"7px 10px", border:"1px solid var(--color-rule)", borderRadius:6, fontSize:13, fontFamily:"inherit", background:"var(--color-bg)", color:"var(--color-ink)", boxSizing:"border-box" }} /></div>
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
-                      <div><label style={{ display:"block", fontSize:11, fontWeight:600, color:"var(--color-ink-3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>Type</label>
-                        <select value={editForm.learning_type} onChange={e => setEditForm(f => f ? {...f, learning_type: e.target.value} : f)} style={{ width:"100%", padding:"7px 10px", border:"1px solid var(--color-rule)", borderRadius:6, fontSize:13, fontFamily:"inherit", background:"var(--color-bg)", color:"var(--color-ink)" }}>
-                          {["course","conference","book","workshop","other"].map(t => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                      </div>
-                      <div><label style={{ display:"block", fontSize:11, fontWeight:600, color:"var(--color-ink-3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>Status</label>
-                        <select value={editForm.status} onChange={e => setEditForm(f => f ? {...f, status: e.target.value} : f)} style={{ width:"100%", padding:"7px 10px", border:"1px solid var(--color-rule)", borderRadius:6, fontSize:13, fontFamily:"inherit", background:"var(--color-bg)", color:"var(--color-ink)" }}>
-                          {["planned","in_progress","completed"].map(s => <option key={s} value={s}>{s.replace("_"," ")}</option>)}
-                        </select>
-                      </div>
-                      <div><label style={{ display:"block", fontSize:11, fontWeight:600, color:"var(--color-ink-3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>Provider</label><input value={editForm.provider} onChange={e => setEditForm(f => f ? {...f, provider: e.target.value} : f)} style={{ width:"100%", padding:"7px 10px", border:"1px solid var(--color-rule)", borderRadius:6, fontSize:13, fontFamily:"inherit", background:"var(--color-bg)", color:"var(--color-ink)", boxSizing:"border-box" }} /></div>
-                    </div>
-                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-                      <div><label style={{ display:"block", fontSize:11, fontWeight:600, color:"var(--color-ink-3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>Start date</label><input type="date" value={editForm.start_date} onChange={e => setEditForm(f => f ? {...f, start_date: e.target.value} : f)} style={{ width:"100%", padding:"7px 10px", border:"1px solid var(--color-rule)", borderRadius:6, fontSize:13, fontFamily:"inherit", background:"var(--color-bg)", color:"var(--color-ink)" }} /></div>
-                      <div><label style={{ display:"block", fontSize:11, fontWeight:600, color:"var(--color-ink-3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>End date</label><input type="date" value={editForm.end_date} onChange={e => setEditForm(f => f ? {...f, end_date: e.target.value} : f)} style={{ width:"100%", padding:"7px 10px", border:"1px solid var(--color-rule)", borderRadius:6, fontSize:13, fontFamily:"inherit", background:"var(--color-bg)", color:"var(--color-ink)" }} /></div>
-                    </div>
-                    <div><label style={{ display:"block", fontSize:11, fontWeight:600, color:"var(--color-ink-3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>URL</label><input type="url" value={editForm.url} onChange={e => setEditForm(f => f ? {...f, url: e.target.value} : f)} placeholder="https://" style={{ width:"100%", padding:"7px 10px", border:"1px solid var(--color-rule)", borderRadius:6, fontSize:13, fontFamily:"inherit", background:"var(--color-bg)", color:"var(--color-ink)", boxSizing:"border-box" }} /></div>
-                    <div style={{ display:"flex", gap:8 }}>
-                      <button type="submit" disabled={submitting} style={{ padding:"7px 18px", borderRadius:7, border:"none", background:"var(--color-accent,#3B5C7F)", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>{submitting ? "Saving…" : "Save"}</button>
-                      <button type="button" onClick={() => setEditItemId(null)} style={{ padding:"7px 14px", borderRadius:7, border:"1px solid var(--color-rule)", background:"transparent", color:"var(--color-ink-3)", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
-                    </div>
-                  </form>
-                )}
               </div>
             );
           })}

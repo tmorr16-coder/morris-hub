@@ -1,6 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { Icons } from "@/components/ios";
+
+function CheckMark() {
+  return (
+    <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 12.5l4 4L19 6.5" />
+    </svg>
+  );
+}
 
 export default function StartFamilyPlanButton({
   planId,
@@ -31,8 +40,8 @@ export default function StartFamilyPlanButton({
 
   if (done) {
     return (
-      <span style={{ fontSize: 11, color: "var(--color-green)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-        ✓ Family plan created
+      <span className="ios-footnote" style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--ios-green)" }}>
+        <CheckMark /> Family plan created
       </span>
     );
   }
@@ -41,14 +50,11 @@ export default function StartFamilyPlanButton({
     return (
       <button
         onClick={(e) => { e.preventDefault(); setOpen(true); }}
-        style={{
-          fontSize: 11, padding: "4px 10px", borderRadius: 7,
-          border: "1px solid var(--color-rule)", background: "transparent",
-          color: "var(--color-ink-3)", cursor: "pointer",
-          fontFamily: "var(--font-geist, system-ui), sans-serif",
-        }}
+        className="ios-btn ios-btn--plain"
+        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: 0 }}
       >
-        👨‍👩‍👧 Start family plan
+        <Icons.PeopleIcon style={{ width: 17, height: 17 }} aria-hidden />
+        Start family plan
       </button>
     );
   }
@@ -57,40 +63,32 @@ export default function StartFamilyPlanButton({
     <form
       onSubmit={handleCreate}
       onClick={(e) => e.preventDefault()}
-      style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}
+      style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
     >
       <input
         autoFocus
         value={name}
         onChange={(e) => setName(e.target.value)}
         style={{
-          fontSize: 12, padding: "5px 10px", borderRadius: 7,
-          border: "1.5px solid var(--color-accent)", outline: "none",
-          fontFamily: "var(--font-geist, system-ui), sans-serif",
-          width: 180,
+          fontSize: 15, padding: "8px 12px", borderRadius: "var(--ios-radius-card)",
+          background: "var(--ios-cell)", color: "var(--ios-label)",
+          border: "1.5px solid var(--ios-tint)", outline: "none",
+          fontFamily: "inherit", width: 200,
         }}
       />
       <button
         type="submit"
         disabled={loading || !name.trim()}
-        style={{
-          fontSize: 11, padding: "5px 12px", borderRadius: 7, border: "none",
-          background: "var(--color-accent)", color: "#FFFDF8",
-          cursor: loading ? "wait" : "pointer",
-          fontFamily: "var(--font-geist, system-ui), sans-serif",
-        }}
+        className="ios-btn ios-btn--plain"
+        style={{ padding: "6px 4px", fontWeight: 600 }}
       >
         {loading ? "Creating…" : "Create"}
       </button>
       <button
         type="button"
         onClick={(e) => { e.preventDefault(); setOpen(false); }}
-        style={{
-          fontSize: 11, padding: "5px 10px", borderRadius: 7,
-          border: "1px solid var(--color-rule)", background: "transparent",
-          color: "var(--color-ink-4)", cursor: "pointer",
-          fontFamily: "var(--font-geist, system-ui), sans-serif",
-        }}
+        className="ios-btn ios-btn--plain"
+        style={{ padding: "6px 4px", color: "var(--ios-label-2)" }}
       >
         Cancel
       </button>

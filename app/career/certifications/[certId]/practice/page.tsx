@@ -1,9 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
+import { LargeTitle } from "@/components/ios";
 import PracticeSetupClient from "./_components/PracticeSetupClient";
 
 export default async function CertPracticeSetupPage({
@@ -54,28 +54,9 @@ export default async function CertPracticeSetupPage({
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
-      <main style={{ maxWidth: 720, margin: "0 auto", padding: "40px 28px 100px" }}>
-        <Link
-          href={`/career/certifications/${certId}`}
-          style={{ fontSize: 12, color: "var(--color-accent)", textDecoration: "none" }}
-        >
-          ← {exam.name}
-        </Link>
-        <h1
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: 28,
-            fontWeight: 400,
-            margin: "12px 0 4px",
-          }}
-        >
-          New Practice Session
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--color-ink-3)", marginBottom: 32 }}>
-          Configure your session and start practicing.
-        </p>
-
+    <div className="ios-scroll">
+      <LargeTitle title="New Practice Session" subtitle="Configure your session and start practicing." />
+      <div style={{ padding: "4px 16px 40px" }}>
         <PracticeSetupClient
           certId={certId}
           examName={exam.name}
@@ -83,7 +64,7 @@ export default async function CertPracticeSetupPage({
           countByDomain={countByDomain}
           totalQuestions={totalQuestions}
         />
-      </main>
+      </div>
     </div>
   );
 }

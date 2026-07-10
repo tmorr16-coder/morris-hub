@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Cell, Chip, Sparkline, BarRows, RadialGauge } from "@/components/ios";
 import type { RetirementProfile, RetirementAccount, RetirementIncome, RetirementScenario } from "../types";
 
 interface Props {
@@ -228,11 +229,11 @@ function projectForScenario(
 }
 
 const SERIES = [
-  { key: "portfolio" as const, label: "Portfolio balance", color: "#C97A3A" },
-  { key: "jobIncome" as const, label: "Job / bridge income", color: "#4D6B3A" },
-  { key: "ss" as const, label: "Social Security", color: "#3B5C7F" },
-  { key: "pension" as const, label: "Pension", color: "#6B5B95" },
-  { key: "expenses" as const, label: "Annual expenses", color: "#9A3B2A" },
+  { key: "portfolio" as const, label: "Portfolio balance", color: "var(--ios-finance)" },
+  { key: "jobIncome" as const, label: "Job / bridge income", color: "var(--ios-green)" },
+  { key: "ss" as const, label: "Social Security", color: "var(--ios-tint)" },
+  { key: "pension" as const, label: "Pension", color: "var(--ios-orange)" },
+  { key: "expenses" as const, label: "Annual expenses", color: "var(--ios-red)" },
 ];
 
 export default function ProjectionTab({ profile, accounts, incomes, scenario }: Props) {
@@ -355,117 +356,112 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
     profile.life_expectancy,
   ].filter((a, idx, arr) => a >= profile.current_age && a <= profile.life_expectancy && arr.indexOf(a) === idx);
 
+  // Health hue for the headline sparkline / gauge — red when the portfolio runs
+  // dry within the plan, green when it outlives the plan.
+  const healthColor = depletionAge != null ? "var(--ios-red)" : "var(--ios-green)";
+
+  // Plan-confidence ratio: share of retirement years the portfolio survives.
+  const retirementSpan = profile.life_expectancy - profile.retirement_age;
+  const survivedSpan =
+    depletionAge != null ? Math.max(0, depletionAge - profile.retirement_age) : retirementSpan;
+  const survivalRatio = retirementSpan > 0 ? Math.min(1, survivedSpan / retirementSpan) : 1;
+
   return (
     <div>
-      {/* Metric cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-          gap: 14,
-          marginBottom: 24,
-        }}
-      >
-        <MetricCard
-          label="Nest egg at retirement"
-          value={fmtLarge(nestEgg)}
-          sub={`at age ${profile.retirement_age}`}
-        />
-        <MetricCard
-          label="Safe monthly withdrawal"
-          value={fmtMoney(safeMonthlyWithdrawal)}
-          sub="4% rule"
-        />
-        <MetricCard
-          label="Portfolio depletion"
-          value={depletionAge != null ? `Age ${depletionAge}` : "Outlives plan"}
-          sub={depletionAge != null ? "funds exhausted" : "surplus at end of life"}
-          valueColor={depletionAge != null ? "var(--color-red)" : "var(--color-green)"}
-        />
-        <MetricCard
-          label="Retirement runway"
-          value={runway === "lifetime" ? "Lifetime" : `${runway} years`}
-          sub={runway === "lifetime" ? "portfolio survives" : "from retirement"}
-        />
+      {/* Hero — projected nest egg + plan-confidence gauge + projection curve */}
+      <div className="ios-list" style={{ margin: "0 0 8px", padding: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              Projected nest egg
+            </div>
+            <div className="ios-num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.01em", marginTop: 2 }}>
+              {fmtLarge(nestEgg)}
+            </div>
+            <div className="ios-subhead" style={{ marginTop: 2, color: healthColor }}>
+              At age {profile.retirement_age} ·{" "}
+              {depletionAge != null ? `funds run out at ${depletionAge}` : "outlives your plan"}
+            </div>
+          </div>
+          <RadialGauge
+            value={survivalRatio}
+            color={healthColor}
+            size={72}
+            label="Plan confidence"
+            center={
+              <span className="ios-num" style={{ fontSize: 17, fontWeight: 700 }}>
+                {Math.round(survivalRatio * 100)}%
+              </span>
+            }
+          />
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <Sparkline points={values} color={healthColor} width={320} height={52} />
+        </div>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 6 }}>
+          Age {profile.current_age} → {profile.life_expectancy}
+        </div>
       </div>
 
-      {/* Gap / surplus alert */}
+      {/* Gap / surplus callout */}
       {nestEgg > 0 && (
-        <div
-          style={{
-            padding: "12px 18px",
-            borderRadius: 10,
-            background:
-              gap > 0
-                ? "rgba(180, 130, 40, 0.08)"
-                : "rgba(60, 130, 80, 0.08)",
-            border: `1px solid ${gap > 0 ? "rgba(180,130,40,0.3)" : "rgba(60,130,80,0.3)"}`,
-            marginBottom: 24,
-            fontSize: 13,
-            color: gap > 0 ? "#8B6A00" : "var(--color-green)",
-            lineHeight: 1.5,
-          }}
-        >
-          {gap > 0 ? (
-            <>
-              <strong>Gap: {fmtMoney(gapMonthly)}/mo</strong> — your projected safe withdrawal falls short of your planned spend.
-              Consider extending contributions, reducing scenario spend, or delaying retirement.
-            </>
-          ) : (
-            <>
-              <strong>Surplus: {fmtMoney(Math.abs(gapMonthly))}/mo</strong> — your plan is on track. The 4% rule supports your lifestyle scenario.
-            </>
-          )}
+        <div className="ios-list" style={{ margin: "0 0 8px", padding: 16 }}>
+          <div className="ios-subhead" style={{ color: "var(--ios-label)", lineHeight: 1.5 }}>
+            {gap > 0 ? (
+              <>
+                <strong style={{ color: "var(--ios-orange)" }}>Gap: {fmtMoney(gapMonthly)}/mo</strong> — your projected safe
+                withdrawal falls short of your planned spend. Consider extending contributions, reducing scenario spend, or
+                delaying retirement.
+              </>
+            ) : (
+              <>
+                <strong style={{ color: "var(--ios-green)" }}>Surplus: {fmtMoney(Math.abs(gapMonthly))}/mo</strong> — your plan is
+                on track. The 4% rule supports your lifestyle scenario.
+              </>
+            )}
+          </div>
         </div>
       )}
 
-      {/* SVG Chart */}
-      <div
-        style={{
-          background: "var(--color-paper-card)",
-          border: "1px solid var(--color-rule)",
-          borderRadius: 12,
-          padding: "20px",
-          boxShadow: "var(--shadow-card)",
-          marginBottom: 24,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            color: "var(--color-ink-3)",
-            marginBottom: 12,
-          }}
-        >
-          Portfolio projection
-        </div>
+      {/* Summary metrics */}
+      <div className="ios-group-header" style={{ padding: "16px 0 7px" }}>SUMMARY</div>
+      <div className="ios-list" style={{ margin: 0 }}>
+        <Cell
+          chevron={false}
+          title="Safe monthly withdrawal"
+          subtitle="4% rule"
+          trailing={<span className="ios-num">{fmtMoney(safeMonthlyWithdrawal)}</span>}
+        />
+        <Cell
+          chevron={false}
+          title="Portfolio depletion"
+          subtitle={depletionAge != null ? "funds exhausted" : "surplus at end of life"}
+          trailing={
+            <span className="ios-num" style={{ color: depletionAge != null ? "var(--ios-red)" : "var(--ios-green)" }}>
+              {depletionAge != null ? `Age ${depletionAge}` : "Outlives plan"}
+            </span>
+          }
+        />
+        <Cell
+          chevron={false}
+          title="Retirement runway"
+          subtitle={runway === "lifetime" ? "portfolio survives" : "from retirement"}
+          trailing={<span className="ios-num">{runway === "lifetime" ? "Lifetime" : `${runway} years`}</span>}
+        />
+      </div>
 
+      {/* Portfolio projection chart */}
+      <div className="ios-group-header" style={{ padding: "16px 0 7px" }}>PORTFOLIO PROJECTION</div>
+      <div className="ios-list" style={{ margin: 0, padding: 18 }}>
         {/* ── Series toggle chips ── */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
           {SERIES.map((s) => (
-            <button
-              key={s.key}
-              onClick={() => toggle(s.key)}
-              aria-pressed={!!shown[s.key]}
-              style={{
-                padding: "4px 11px",
-                borderRadius: 20,
-                fontSize: 11,
-                fontWeight: 500,
-                border: shown[s.key] ? `1.5px solid ${s.color}` : "1px solid var(--color-rule)",
-                background: shown[s.key] ? `${s.color}22` : "var(--color-bg)",
-                color: shown[s.key] ? s.color : "var(--color-ink-4)",
-                cursor: "pointer",
-                fontFamily: "var(--font-geist, system-ui), sans-serif",
-                transition: "all 100ms",
-              }}
-            >
-              {s.label}
-            </button>
+            <Chip key={s.key} small selected={!!shown[s.key]} onClick={() => toggle(s.key)}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 4, background: s.color, display: "inline-block" }} />
+                {s.label}
+              </span>
+            </Chip>
           ))}
         </div>
 
@@ -492,7 +488,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
                   y1={y}
                   x2={W - PADDING.right}
                   y2={y}
-                  stroke="var(--color-rule)"
+                  stroke="var(--ios-separator)"
                   strokeWidth="1"
                   strokeDasharray={i === 0 ? undefined : "4,4"}
                 />
@@ -501,8 +497,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
                   y={parseFloat(y) + 4}
                   textAnchor="end"
                   fontSize="10"
-                  fill="var(--color-ink-3)"
-                  fontFamily="var(--font-geist-mono, monospace)"
+                  fill="var(--ios-label-2)"
                 >
                   {fmtLarge(val)}
                 </text>
@@ -519,7 +514,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
                   y1={PADDING.top}
                   x2={xPos(profile.retirement_age).toFixed(1)}
                   y2={H - PADDING.bottom}
-                  stroke="var(--color-bronze)"
+                  stroke="var(--ios-finance)"
                   strokeWidth="1.5"
                   strokeDasharray="6,4"
                   opacity="0.7"
@@ -528,8 +523,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
                   x={xPos(profile.retirement_age) + 4}
                   y={PADDING.top + 12}
                   fontSize="10"
-                  fill="var(--color-bronze-dark)"
-                  fontFamily="var(--font-geist, system-ui)"
+                  fill="var(--ios-finance)"
                 >
                   Retire {profile.retirement_age}
                 </text>
@@ -539,8 +533,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
                     x={xPos(profile.retirement_age) + 4}
                     y={PADDING.top + 24}
                     fontSize="9"
-                    fill="var(--color-bronze)"
-                    fontFamily="var(--font-geist, system-ui)"
+                    fill="var(--ios-finance)"
                   >
                     +{fmtLarge(windfallAmount)} windfall
                   </text>
@@ -551,36 +544,36 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
           {/* All data lines clipped to chart area */}
           <g clipPath="url(#chartArea)">
 
-          {/* Path: pre-retirement (green) */}
+          {/* Path: pre-retirement (accumulation) */}
           {shown["portfolio"] && preRetirementPoints.length > 1 && (
             <path
               d={toPath(preRetirementPoints)}
               fill="none"
-              stroke="var(--color-green)"
+              stroke="var(--ios-green)"
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           )}
 
-          {/* Path: retirement healthy (bronze) */}
+          {/* Path: retirement healthy (drawdown) */}
           {shown["portfolio"] && healthyRetiredPoints.length > 1 && (
             <path
               d={toPath(healthyRetiredPoints)}
               fill="none"
-              stroke="var(--color-bronze)"
+              stroke="var(--ios-finance)"
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           )}
 
-          {/* Path: depleted (red) */}
+          {/* Path: depleted */}
           {shown["portfolio"] && depletedPoints.length > 1 && (
             <path
               d={toPath(depletedPoints)}
               fill="none"
-              stroke="var(--color-red)"
+              stroke="var(--ios-red)"
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -592,7 +585,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
             <path
               d={toIncomePath(jobIncomeByAge)}
               fill="none"
-              stroke="#4D6B3A"
+              stroke="var(--ios-green)"
               strokeWidth="1.5"
               strokeDasharray="5 3"
               strokeLinecap="round"
@@ -602,7 +595,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
             <path
               d={toIncomePath(ssIncomeByAge)}
               fill="none"
-              stroke="#3B5C7F"
+              stroke="var(--ios-tint)"
               strokeWidth="1.5"
               strokeLinecap="round"
             />
@@ -611,7 +604,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
             <path
               d={toIncomePath(pensionIncomeByAge)}
               fill="none"
-              stroke="#6B5B95"
+              stroke="var(--ios-orange)"
               strokeWidth="1.5"
               strokeLinecap="round"
             />
@@ -620,7 +613,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
             <path
               d={toIncomePath(expensesByAge)}
               fill="none"
-              stroke="#9A3B2A"
+              stroke="var(--ios-red)"
               strokeWidth="1.5"
               strokeDasharray="7 3"
               strokeLinecap="round"
@@ -639,8 +632,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
                   x={W - PADDING.right + 6}
                   y={+y + 4}
                   fontSize="9"
-                  fill="var(--color-ink-4)"
-                  fontFamily="var(--font-geist, system-ui)"
+                  fill="var(--ios-label-3)"
                 >
                   {fmtLarge(val)}
                 </text>
@@ -651,8 +643,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
             x={W - 10}
             y={PADDING.top + chartH / 2}
             fontSize="9"
-            fill="var(--color-ink-4)"
-            fontFamily="var(--font-geist, system-ui)"
+            fill="var(--ios-label-3)"
             textAnchor="middle"
             transform={`rotate(-90, ${W - 10}, ${PADDING.top + chartH / 2})`}
           >
@@ -669,8 +660,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
                 y={H - PADDING.bottom + 16}
                 textAnchor="middle"
                 fontSize="10"
-                fill="var(--color-ink-3)"
-                fontFamily="var(--font-geist, system-ui)"
+                fill="var(--ios-label-2)"
               >
                 {a}
               </text>
@@ -684,7 +674,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
                 cx={xPos(profile.retirement_age).toFixed(1)}
                 cy={yPos(portfolioByAge.get(profile.retirement_age) ?? 0).toFixed(1)}
                 r="4"
-                fill="var(--color-bronze)"
+                fill="var(--ios-finance)"
               />
             )}
 
@@ -694,7 +684,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
               cx={xPos(depletionAge).toFixed(1)}
               cy={yPos(0).toFixed(1)}
               r="4"
-              fill="var(--color-red)"
+              fill="var(--ios-red)"
             />
           )}
 
@@ -714,18 +704,18 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
           {/* Tooltip */}
           {hoveredAge != null && (() => {
             const tooltipLines: { label: string; val: string; color: string }[] = [
-              { label: "Portfolio", val: fmtLarge(hoveredPortfolio ?? 0), color: "#C97A3A" },
+              { label: "Portfolio", val: fmtLarge(hoveredPortfolio ?? 0), color: "var(--ios-finance)" },
               ...(shown["jobIncome"] && (hoveredJobIncome ?? 0) > 0
-                ? [{ label: "Job income", val: fmtLarge(hoveredJobIncome ?? 0), color: "#4D6B3A" }]
+                ? [{ label: "Job income", val: fmtLarge(hoveredJobIncome ?? 0), color: "var(--ios-green)" }]
                 : []),
               ...(shown["ss"] && (hoveredSS ?? 0) > 0
-                ? [{ label: "Soc. Sec.", val: fmtLarge(hoveredSS ?? 0), color: "#3B5C7F" }]
+                ? [{ label: "Soc. Sec.", val: fmtLarge(hoveredSS ?? 0), color: "var(--ios-tint)" }]
                 : []),
               ...(shown["pension"] && (hoveredPension ?? 0) > 0
-                ? [{ label: "Pension", val: fmtLarge(hoveredPension ?? 0), color: "#6B5B95" }]
+                ? [{ label: "Pension", val: fmtLarge(hoveredPension ?? 0), color: "var(--ios-orange)" }]
                 : []),
               ...(shown["expenses"] && (hoveredExpenses ?? 0) > 0
-                ? [{ label: "Expenses", val: fmtLarge(hoveredExpenses ?? 0), color: "#9A3B2A" }]
+                ? [{ label: "Expenses", val: fmtLarge(hoveredExpenses ?? 0), color: "var(--ios-red)" }]
                 : []),
             ];
             const tx = Math.min(xPos(hoveredAge) + 8, W - PADDING.right - 140);
@@ -738,20 +728,20 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
                   y1={PADDING.top}
                   x2={xPos(hoveredAge).toFixed(1)}
                   y2={H - PADDING.bottom}
-                  stroke="var(--color-ink-3)"
+                  stroke="var(--ios-label-3)"
                   strokeWidth="1"
                   strokeDasharray="3,3"
                   opacity="0.5"
                 />
                 <rect x={tx} y={ty} width={138} height={boxH} rx="6"
-                  fill="var(--color-paper-card)" stroke="var(--color-rule)" strokeWidth="1" opacity="0.96" />
+                  fill="var(--ios-cell)" stroke="var(--ios-separator)" strokeWidth="1" opacity="0.96" />
                 <text x={tx + 10} y={ty + 12} fontSize="10" fontWeight="600"
-                  fill="var(--color-ink)" fontFamily="var(--font-geist, system-ui)">
+                  fill="var(--ios-label)">
                   Age {hoveredAge}
                 </text>
                 {tooltipLines.map((line, li) => (
                   <text key={li} x={tx + 10} y={ty + 24 + li * 15} fontSize="10"
-                    fill={line.color} fontFamily="var(--font-geist-mono, monospace)">
+                    fill={line.color}>
                     {line.label}: {line.val}
                   </text>
                 ))}
@@ -761,18 +751,18 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
         </svg>
 
         {/* Legend */}
-        <div style={{ display: "flex", gap: 20, marginTop: 10, fontSize: 11, color: "var(--color-ink-3)" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 16, height: 3, background: "var(--color-green)", display: "inline-block", borderRadius: 2 }} />
+        <div style={{ display: "flex", gap: 20, marginTop: 12, flexWrap: "wrap" }}>
+          <span className="ios-footnote" style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ios-label-2)" }}>
+            <span style={{ width: 16, height: 3, background: "var(--ios-green)", display: "inline-block", borderRadius: 2 }} />
             Accumulation
           </span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 16, height: 3, background: "var(--color-bronze)", display: "inline-block", borderRadius: 2 }} />
+          <span className="ios-footnote" style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ios-label-2)" }}>
+            <span style={{ width: 16, height: 3, background: "var(--ios-finance)", display: "inline-block", borderRadius: 2 }} />
             Drawdown
           </span>
           {depletionAge != null && (
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ width: 16, height: 3, background: "var(--color-red)", display: "inline-block", borderRadius: 2 }} />
+            <span className="ios-footnote" style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ios-label-2)" }}>
+              <span style={{ width: 16, height: 3, background: "var(--ios-red)", display: "inline-block", borderRadius: 2 }} />
               Depleted
             </span>
           )}
@@ -781,250 +771,77 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
 
       {/* Bridge job note */}
       {hasBridgeJob && (
-        <div
-          style={{
-            fontSize: 12,
-            color: "var(--color-ink-4)",
-            marginBottom: 16,
-            padding: "8px 14px",
-            borderRadius: 8,
-            background: "var(--color-paper-deep)",
-            border: "1px solid var(--color-rule)",
-          }}
-        >
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "7px 4px 0", lineHeight: 1.4 }}>
           Part-time / consulting income is modeled as a bridge job reducing portfolio withdrawals.
         </div>
       )}
 
       {/* Scenario comparison */}
-      <div
-        style={{
-          background: "var(--color-paper-card)",
-          border: "1px solid var(--color-rule)",
-          borderRadius: 12,
-          padding: "20px 24px",
-          boxShadow: "var(--shadow-card)",
-          marginBottom: 24,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            color: "var(--color-ink-3)",
-            marginBottom: 16,
-          }}
-        >
-          Scenario comparison
-        </div>
-        {(
-          [
-            { key: "lean", label: "Lean & Purposeful", result: leanResult },
-            { key: "balanced", label: "Balanced Living", result: balancedResult },
-            { key: "abundant", label: "Abundant & Active", result: abundantResult },
-          ] as const
-        ).map(({ key, label, result: r }) => {
-          const retirementYears = profile.life_expectancy - profile.retirement_age;
-          const survivedYears =
-            r.depletionAge != null
-              ? Math.max(0, r.depletionAge - profile.retirement_age)
-              : retirementYears;
-          const pct = retirementYears > 0 ? (survivedYears / retirementYears) * 100 : 0;
-          const active = scenario.selected_scenario === key;
+      <div className="ios-group-header" style={{ padding: "16px 0 7px" }}>SCENARIO COMPARISON</div>
+      <div className="ios-list" style={{ margin: 0 }}>
+        <BarRows
+          items={(
+            [
+              { key: "lean", label: "Lean & Purposeful", result: leanResult },
+              { key: "balanced", label: "Balanced Living", result: balancedResult },
+              { key: "abundant", label: "Abundant & Active", result: abundantResult },
+            ] as const
+          ).map(({ key, label, result: r }) => {
+            const retirementYears = profile.life_expectancy - profile.retirement_age;
+            const survivedYears =
+              r.depletionAge != null
+                ? Math.max(0, r.depletionAge - profile.retirement_age)
+                : retirementYears;
+            const active = scenario.selected_scenario === key;
+            return {
+              label: active ? `${label} · Current` : label,
+              value: survivedYears,
+              display:
+                r.depletionAge != null
+                  ? `Depletes age ${r.depletionAge}`
+                  : `Survives to ${profile.life_expectancy}`,
+              color: r.depletionAge != null ? "var(--ios-finance)" : "var(--ios-green)",
+            };
+          })}
+        />
+      </div>
+
+      {/* Key age table */}
+      <div className="ios-group-header" style={{ padding: "16px 0 7px" }}>PORTFOLIO AT KEY AGES</div>
+      <div className="ios-list" style={{ margin: 0 }}>
+        {tableAges.map((age) => {
+          const val = portfolioByAge.get(age) ?? 0;
+          const isRetired = age >= profile.retirement_age;
+          const isDepleted = depletionAge != null && age >= depletionAge;
           return (
-            <div key={key} style={{ marginBottom: 14 }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: 12,
-                  color: active ? "var(--color-ink)" : "var(--color-ink-3)",
-                  fontWeight: active ? 600 : 400,
-                  marginBottom: 5,
-                }}
-              >
-                <span>{label}</span>
-                <span className="mono">
-                  {r.depletionAge != null
-                    ? `Depletes age ${r.depletionAge}`
-                    : "Survives to " + profile.life_expectancy}
+            <Cell
+              key={age}
+              chevron={false}
+              title={
+                <span className="ios-num">
+                  Age {age}
+                  {age === profile.retirement_age && (
+                    <span className="ios-caption" style={{ color: "var(--ios-finance)", marginLeft: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      retire
+                    </span>
+                  )}
                 </span>
-              </div>
-              <div
-                style={{
-                  height: 10,
-                  borderRadius: 5,
-                  background: "var(--color-paper-deep)",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${Math.min(100, pct)}%`,
-                    borderRadius: 5,
-                    background: r.depletionAge != null ? "var(--color-bronze)" : "var(--color-green)",
-                    transition: "width 300ms",
-                  }}
-                />
-              </div>
-            </div>
+              }
+              subtitle={isRetired ? "Retirement" : "Accumulation"}
+              trailing={
+                <span
+                  className="ios-num"
+                  style={{ color: isDepleted ? "var(--ios-red)" : val > 0 ? "var(--ios-label)" : "var(--ios-label-2)" }}
+                >
+                  {isDepleted ? "Depleted" : fmtLarge(val)}
+                </span>
+              }
+            />
           );
         })}
       </div>
 
-      {/* Key age table */}
-      <div
-        style={{
-          background: "var(--color-paper-card)",
-          border: "1px solid var(--color-rule)",
-          borderRadius: 12,
-          padding: "20px 24px",
-          boxShadow: "var(--shadow-card)",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            color: "var(--color-ink-3)",
-            marginBottom: 14,
-          }}
-        >
-          Portfolio at key ages
-        </div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th
-                style={{
-                  textAlign: "left",
-                  fontSize: 10,
-                  fontWeight: 600,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  color: "var(--color-ink-3)",
-                  paddingBottom: 8,
-                  borderBottom: "1px solid var(--color-rule)",
-                }}
-              >
-                Age
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  fontSize: 10,
-                  fontWeight: 600,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  color: "var(--color-ink-3)",
-                  paddingBottom: 8,
-                  borderBottom: "1px solid var(--color-rule)",
-                }}
-              >
-                Phase
-              </th>
-              <th
-                style={{
-                  textAlign: "right",
-                  fontSize: 10,
-                  fontWeight: 600,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  color: "var(--color-ink-3)",
-                  paddingBottom: 8,
-                  borderBottom: "1px solid var(--color-rule)",
-                }}
-              >
-                Portfolio value
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {tableAges.map((age) => {
-              const val = portfolioByAge.get(age) ?? 0;
-              const isRetired = age >= profile.retirement_age;
-              const isDepleted = depletionAge != null && age >= depletionAge;
-              return (
-                <tr key={age} style={{ borderBottom: "1px solid var(--color-rule)" }}>
-                  <td className="mono" style={{ padding: "10px 0", fontSize: 14, color: "var(--color-ink)", fontWeight: age === profile.retirement_age ? 600 : 400 }}>
-                    {age}
-                    {age === profile.retirement_age && (
-                      <span style={{ fontSize: 9, color: "var(--color-bronze-dark)", marginLeft: 6, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                        retire
-                      </span>
-                    )}
-                  </td>
-                  <td style={{ padding: "10px 0", fontSize: 12, color: "var(--color-ink-3)" }}>
-                    {isRetired ? "Retirement" : "Accumulation"}
-                  </td>
-                  <td
-                    className="mono"
-                    style={{
-                      padding: "10px 0",
-                      fontSize: 14,
-                      textAlign: "right",
-                      fontWeight: 500,
-                      color: isDepleted
-                        ? "var(--color-red)"
-                        : val > 0
-                        ? "var(--color-ink)"
-                        : "var(--color-ink-3)",
-                    }}
-                  >
-                    {isDepleted ? "Depleted" : fmtLarge(val)}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  sub,
-  valueColor = "var(--color-ink)",
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  valueColor?: string;
-}) {
-  return (
-    <div
-      style={{
-        background: "var(--color-paper-card)",
-        border: "1px solid var(--color-rule)",
-        borderRadius: 12,
-        padding: "18px 20px",
-        boxShadow: "var(--shadow-card)",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 600,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: "var(--color-ink-3)",
-          marginBottom: 8,
-        }}
-      >
-        {label}
-      </div>
-      <div className="mono" style={{ fontSize: 24, fontWeight: 500, color: valueColor, lineHeight: 1.2 }}>
-        {value}
-      </div>
-      <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 4 }}>{sub}</div>
+      <div style={{ height: 12 }} />
     </div>
   );
 }

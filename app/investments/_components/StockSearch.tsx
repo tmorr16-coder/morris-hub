@@ -1,10 +1,19 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { Stock } from "@/lib/stock-research";
 
 interface StockSearchProps {
   onSelectStock: (stock: Stock) => void;
+}
+
+function SearchGlyph() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.2-3.2" />
+    </svg>
+  );
 }
 
 export default function StockSearch({ onSelectStock }: StockSearchProps) {
@@ -12,6 +21,7 @@ export default function StockSearch({ onSelectStock }: StockSearchProps) {
   const [results, setResults] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notConfigured, setNotConfigured] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const searchTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
 
@@ -38,6 +48,7 @@ export default function StockSearch({ onSelectStock }: StockSearchProps) {
 
       const data = await response.json();
       setResults(data.stocks || []);
+      setNotConfigured(!!data.notConfigured);
       setShowResults(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Search error");
@@ -76,138 +87,124 @@ export default function StockSearch({ onSelectStock }: StockSearchProps) {
   };
 
   return (
-    <div style={{ position: "relative" }}>
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => handleQueryChange(e.target.value)}
-            placeholder="Search any stock, ETF or topic (e.g., NVDA, AI semiconductors, dividend ETFs)..."
-            style={{
-              flex: 1,
-              padding: "10px 14px",
-              border: "1px solid var(--color-rule)",
-              borderRadius: 8,
-              fontSize: 14,
-              fontFamily: "inherit",
-              outline: "none",
-              color: "var(--color-ink)",
-              background: "var(--color-bg)",
-            }}
-            autoComplete="off"
-          />
-        </div>
-
-        {error && (
-          <div
-            style={{
-              padding: "10px 12px",
-              background: "rgba(154,59,42,0.08)",
-              border: "1px solid #9A3B2A",
-              borderRadius: 6,
-              fontSize: 12,
-              color: "#9A3B2A",
-              marginBottom: 12,
-            }}
+    <div style={{ position: "relative", margin: "12px var(--ios-gutter) 0" }}>
+      {/* iOS search field */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 7,
+          padding: "9px 12px",
+          borderRadius: 10,
+          background: "var(--ios-fill)",
+          color: "var(--ios-label-2)",
+        }}
+      >
+        <SearchGlyph />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => handleQueryChange(e.target.value)}
+          placeholder="Search stocks, ETFs or a topic"
+          autoComplete="off"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            border: "none",
+            outline: "none",
+            background: "transparent",
+            fontSize: 17,
+            color: "var(--ios-label)",
+          }}
+        />
+        {query && (
+          <button
+            onClick={() => { setQuery(""); setResults([]); setShowResults(false); }}
+            aria-label="Clear search"
+            style={{ display: "flex", color: "var(--ios-label-3)", padding: 0 }}
           >
-            {error}
-          </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <circle cx="12" cy="12" r="10" />
+              <path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="var(--ios-cell)" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
         )}
       </div>
 
+      {error && (
+        <p className="ios-footnote" style={{ color: "var(--ios-red)", margin: "6px 4px 0" }}>
+          {error}
+        </p>
+      )}
+
       {showResults && (
         <div
+          className="ios-list"
           style={{
             position: "absolute",
             top: "100%",
             left: 0,
             right: 0,
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-rule)",
-            borderRadius: 8,
-            boxShadow: "var(--shadow-card)",
-            maxHeight: 400,
+            margin: "6px 0 0",
+            maxHeight: 380,
             overflowY: "auto",
-            zIndex: 10,
-            marginTop: 4,
+            zIndex: 20,
+            boxShadow: "0 8px 28px rgba(0,0,0,0.18)",
           }}
         >
           {loading && (
-            <div
-              style={{
-                padding: 16,
-                textAlign: "center",
-                fontSize: 13,
-                color: "var(--color-ink-3)",
-              }}
-            >
-              Searching...
+            <div className="ios-cell" style={{ justifyContent: "center", color: "var(--ios-label-2)" }}>
+              Searching…
             </div>
           )}
 
-          {!loading && results.length === 0 && (
-            <div
-              style={{
-                padding: 16,
-                textAlign: "center",
-                fontSize: 13,
-                color: "var(--color-ink-3)",
-              }}
-            >
+          {!loading && results.length === 0 && notConfigured && (
+            <div className="ios-cell" style={{ justifyContent: "center", textAlign: "center", color: "var(--ios-label-2)" }}>
+              Live quotes aren&apos;t configured — try a multi-word topic search
+            </div>
+          )}
+
+          {!loading && results.length === 0 && !notConfigured && (
+            <div className="ios-cell" style={{ justifyContent: "center", color: "var(--ios-label-2)" }}>
               No stocks found
             </div>
           )}
 
           {!loading &&
-            results.map((stock) => (
-              <button
-                key={stock.ticker}
-                onClick={() => handleSelectStock(stock)}
-                style={{
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "12px 16px",
-                  border: "none",
-                  borderBottom: "1px solid var(--color-rule)",
-                  background: "transparent",
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontFamily: "inherit",
-                  color: "var(--color-ink)",
-                  transition: "background 0.1s",
-                }}
-                onMouseEnter={(e) => {
-                  (
-                    e.currentTarget as HTMLElement
-                  ).style.background = "var(--color-bg)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.background =
-                    "transparent";
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <span style={{ fontWeight: 600 }}>{stock.ticker}</span>
-                  <span style={{ fontSize: 12, color: stock.changeDirection === "up" ? "var(--color-green)" : stock.changeDirection === "down" ? "var(--color-red)" : "var(--color-ink-3)" }}>
-                    ${(stock.price ?? 0).toFixed(2)} {stock.changeDirection === "up" ? "↑" : "↓"} {Math.abs(stock.change ?? 0).toFixed(2)}%
+            results.map((stock) => {
+              const dir = stock.changeDirection;
+              const chgColor = dir === "up" ? "var(--ios-green)" : dir === "down" ? "var(--ios-red)" : "var(--ios-label-2)";
+              return (
+                <button
+                  key={stock.ticker}
+                  onClick={() => handleSelectStock(stock)}
+                  className="ios-cell"
+                >
+                  <span className="ios-cell-body">
+                    <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                      <span className="ios-cell-title" style={{ fontWeight: 600 }}>{stock.ticker}</span>
+                      <span className="ios-num" style={{ color: chgColor, fontSize: 15 }}>
+                        ${(stock.price ?? 0).toFixed(2)} {dir === "up" ? "▲" : dir === "down" ? "▼" : "•"} {Math.abs(stock.change ?? 0).toFixed(2)}%
+                      </span>
+                    </span>
+                    {stock.reason ? (
+                      <span className="ios-cell-sub">
+                        <span style={{ color: "var(--ios-label)", fontWeight: 500 }}>{stock.name}</span>
+                        {" · "}{stock.reason}
+                      </span>
+                    ) : (
+                      <span className="ios-cell-sub" style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stock.name}</span>
+                        <span style={{ whiteSpace: "nowrap", flexShrink: 0 }}>
+                          {stock.sector}
+                          {stock.peRatio ? `${stock.sector ? " · " : ""}PE ${stock.peRatio.toFixed(1)}` : ""}
+                        </span>
+                      </span>
+                    )}
                   </span>
-                </div>
-                {/* Topic search reason */}
-                {stock.reason ? (
-                  <div style={{ fontSize: 11, color: "var(--color-ink-3)", lineHeight: 1.4 }}>
-                    <span style={{ fontWeight: 500, color: "var(--color-ink-2)" }}>{stock.name}</span>
-                    {" · "}{stock.reason}
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--color-ink-3)", gap: 8 }}>
-                    <span>{stock.name}</span>
-                    {stock.sector && <span style={{ whiteSpace: "nowrap" }}>{stock.sector}</span>}
-                    {stock.peRatio && <span style={{ whiteSpace: "nowrap" }}>PE: {stock.peRatio.toFixed(1)}</span>}
-                  </div>
-                )}
-              </button>
-            ))}
+                </button>
+              );
+            })}
         </div>
       )}
     </div>

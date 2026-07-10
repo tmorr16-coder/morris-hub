@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useTransition, type ReactNode } from "react";
 import type { Exercise, SetLog } from "../exercise-library";
 
 interface Props {
@@ -11,14 +11,42 @@ interface Props {
 }
 
 const eyebrow: React.CSSProperties = {
-  fontSize: 9, fontWeight: 500, letterSpacing: "0.14em",
-  textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6,
+  fontSize: 13, fontWeight: 600, color: "var(--ios-label-2)", marginBottom: 8,
 };
 
 function formatTime(sec: number) {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function ProteinIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 15c-2-2-2-6 1-8s7-2 9 0 2 6 0 8-6 3-8 1M8 12l2 2M11 9l2 2" />
+    </svg>
+  );
+}
+function DropletIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3c3 4 6 7 6 10a6 6 0 0 1-12 0c0-3 3-6 6-10Z" />
+    </svg>
+  );
+}
+function FlameIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 2c1 3-2 4-2 7a2 2 0 0 0 4 0c2 2 3 4 3 6a5 5 0 0 1-10 0c0-4 3-6 5-13Z" />
+    </svg>
+  );
+}
+function MoonIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 14a8 8 0 1 1-9-11 6 6 0 0 0 9 8Z" />
+    </svg>
+  );
 }
 
 export default function PostWorkoutSummary({ exercises, setLogs, sessionElapsed, onDone }: Props) {
@@ -55,11 +83,17 @@ export default function PostWorkoutSummary({ exercises, setLogs, sessionElapsed,
 
   const muscleGroups = [...new Set(exercises.flatMap((ex) => ex.muscles))];
 
+  const recovery: { Icon: () => ReactNode; label: string; val: string; note: string; priority?: boolean }[] = [
+    { Icon: ProteinIcon, label: "Protein",  val: "165g today",  note: "~40g in next 90 min", priority: true },
+    { Icon: DropletIcon, label: "Hydrate",  val: "+24oz",       note: "Within 1hr post" },
+    { Icon: FlameIcon,   label: "Sauna",    val: "25 min",      note: "Tonight or tomorrow" },
+    { Icon: MoonIcon,    label: "Sleep",    val: "8+ hours",    note: "Critical for recovery" },
+  ];
+
   return (
     <div
       style={{
-        fontFamily: "var(--font-sans)",
-        color: "var(--color-ink)",
+        color: "var(--ios-label)",
         padding: "20px 16px 32px",
         maxWidth: 540,
         margin: "0 auto",
@@ -69,39 +103,38 @@ export default function PostWorkoutSummary({ exercises, setLogs, sessionElapsed,
       {/* ── Hero ───────────────────────────────────────────────────────────── */}
       <div
         style={{
-          background: "var(--color-ink)",
-          borderRadius: 16,
+          background: "var(--ios-tint)",
+          borderRadius: "var(--ios-radius-tile)",
           padding: "24px 20px",
           textAlign: "center",
           marginBottom: 14,
         }}
       >
-        <div style={{ ...eyebrow, color: "rgba(244,241,236,0.5)", marginBottom: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.7)", marginBottom: 8 }}>
           Workout complete
         </div>
         <div
           style={{
-            fontFamily: "var(--font-display)",
             fontSize: 30,
-            fontWeight: 400,
+            fontWeight: 700,
             letterSpacing: "-0.02em",
-            lineHeight: 1,
-            color: "var(--color-bg)",
+            lineHeight: 1.05,
+            color: "#fff",
             marginBottom: 6,
           }}
         >
           Lower Body Power
         </div>
-        <div style={{ fontSize: 14, color: "rgba(244,241,236,0.6)", marginBottom: prCount > 0 ? 6 : 0 }}>
+        <div className="ios-num" style={{ fontSize: 15, color: "rgba(255,255,255,0.75)", marginBottom: prCount > 0 ? 6 : 0 }}>
           {formatTime(sessionElapsed)}
         </div>
         {prCount > 0 && (
-          <div style={{ fontSize: 13, color: "var(--color-moss)", fontWeight: 600 }}>
-            {prCount} PR{prCount > 1 ? "s" : ""} today 🎉
+          <div className="ios-subhead" style={{ color: "#fff", fontWeight: 600 }}>
+            {prCount} PR{prCount > 1 ? "s" : ""} today
           </div>
         )}
         {volDeltaPct !== null && (
-          <div style={{ fontSize: 12, color: parseFloat(volDeltaPct) >= 0 ? "var(--color-moss)" : "var(--color-accent)", marginTop: 4 }}>
+          <div className="ios-num" style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", marginTop: 4 }}>
             {parseFloat(volDeltaPct) >= 0 ? "↑" : "↓"}{Math.abs(parseFloat(volDeltaPct))}% volume vs last session
           </div>
         )}
@@ -118,25 +151,25 @@ export default function PostWorkoutSummary({ exercises, setLogs, sessionElapsed,
           <div
             key={label}
             style={{
-              background: "var(--color-bg-raised)",
-              border: "1px solid var(--color-line)",
-              borderRadius: 12,
+              background: "var(--ios-cell)",
+              borderRadius: "var(--ios-radius-card)",
               padding: "14px 14px",
             }}
           >
             <div style={eyebrow}>{label}</div>
             <div
+              className="ios-num"
               style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 22,
-                fontWeight: 400,
-                color: "var(--color-ink)",
+                fontSize: 24,
+                fontWeight: 700,
+                color: "var(--ios-label)",
                 lineHeight: 1,
+                letterSpacing: "-0.02em",
               }}
             >
               {value}
             </div>
-            <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 2 }}>{unit}</div>
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 3 }}>{unit}</div>
           </div>
         ))}
       </div>
@@ -144,9 +177,8 @@ export default function PostWorkoutSummary({ exercises, setLogs, sessionElapsed,
       {/* ── Exercise breakdown ──────────────────────────────────────────────── */}
       <div
         style={{
-          background: "var(--color-bg-raised)",
-          border: "1px solid var(--color-line)",
-          borderRadius: 14,
+          background: "var(--ios-cell)",
+          borderRadius: "var(--ios-radius-card)",
           padding: "16px",
           marginBottom: 14,
         }}
@@ -157,52 +189,52 @@ export default function PostWorkoutSummary({ exercises, setLogs, sessionElapsed,
             <div
               key={ex.name}
               style={{
-                background: "var(--color-bg-sunk)",
+                background: "var(--ios-bg)",
                 borderRadius: 10,
                 padding: "12px 14px",
-                border: `1px solid ${ex.isPR ? "var(--color-moss)" : "var(--color-line)"}`,
+                border: `1px solid ${ex.isPR ? "var(--ios-green)" : "transparent"}`,
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>
+                  <div className="ios-subhead" style={{ fontWeight: 600, color: "var(--ios-label)" }}>
                     {ex.name}
                     {ex.isPR && (
-                      <span style={{ marginLeft: 6, fontSize: 10, color: "var(--color-moss)", fontWeight: 700 }}>PR</span>
+                      <span className="ios-caption" style={{ marginLeft: 6, color: "var(--ios-green)", fontWeight: 700 }}>PR</span>
                     )}
                   </div>
                   {ex.topSet && (
-                    <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 1, fontFamily: "var(--font-mono)" }}>
+                    <div className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)", marginTop: 1 }}>
                       Top: {ex.topSet.weight}lb × {ex.topSet.reps}
                     </div>
                   )}
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 15, fontWeight: 700, color: ex.isPR ? "var(--color-moss)" : "var(--color-ink)" }}>
+                  <div className="ios-num" style={{ fontSize: 16, fontWeight: 700, color: ex.isPR ? "var(--ios-green)" : "var(--ios-label)" }}>
                     {ex.thisVol > 0 ? ex.thisVol.toLocaleString() : "—"}
                   </div>
-                  <div style={{ fontSize: 9, color: "var(--color-ink-4)" }}>lbs vol</div>
+                  <div className="ios-caption" style={{ color: "var(--ios-label-3)" }}>lbs vol</div>
                 </div>
               </div>
               {/* Volume bars */}
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {[
-                  { label: "Last",  vol: ex.lastVol,  color: "var(--color-ink-4)" },
-                  { label: "Today", vol: ex.thisVol,  color: ex.isPR ? "var(--color-moss)" : "var(--color-slate)" },
+                  { label: "Last",  vol: ex.lastVol,  color: "var(--ios-label-3)" },
+                  { label: "Today", vol: ex.thisVol,  color: ex.isPR ? "var(--ios-green)" : "var(--ios-tint)" },
                 ].map(({ label, vol, color }) => (
-                  <div key={label} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 10 }}>
-                    <span style={{ color: "var(--color-ink-4)", width: 32, flexShrink: 0 }}>{label}</span>
-                    <div style={{ flex: 1, height: 4, background: "var(--color-line)", borderRadius: 2, overflow: "hidden" }}>
+                  <div key={label} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <span className="ios-caption" style={{ color: "var(--ios-label-3)", width: 32, flexShrink: 0 }}>{label}</span>
+                    <div style={{ flex: 1, height: 5, background: "var(--ios-fill)", borderRadius: 3, overflow: "hidden" }}>
                       <div
                         style={{
                           width: `${(vol / Math.max(ex.thisVol, ex.lastVol, 1)) * 100}%`,
                           height: "100%",
                           background: color,
-                          borderRadius: 2,
+                          borderRadius: 3,
                         }}
                       />
                     </div>
-                    <span style={{ fontFamily: "var(--font-mono)", color: "var(--color-ink-3)", width: 36, textAlign: "right", flexShrink: 0 }}>
+                    <span className="ios-caption ios-num" style={{ color: "var(--ios-label-2)", width: 36, textAlign: "right", flexShrink: 0 }}>
                       {vol || "—"}
                     </span>
                   </div>
@@ -216,36 +248,30 @@ export default function PostWorkoutSummary({ exercises, setLogs, sessionElapsed,
       {/* ── Recovery ───────────────────────────────────────────────────────── */}
       <div
         style={{
-          background: "var(--color-bg-raised)",
-          border: "1px solid var(--color-line)",
-          borderRadius: 14,
+          background: "var(--ios-cell)",
+          borderRadius: "var(--ios-radius-card)",
           padding: "16px",
           marginBottom: 20,
         }}
       >
         <div style={eyebrow}>Recovery</div>
-        <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginBottom: 12, lineHeight: 1.5 }}>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginBottom: 12, lineHeight: 1.5 }}>
           You just stressed {muscleGroups.slice(0, 4).join(", ")}. Prioritize the items below in the next 24h.
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {[
-            { icon: "🥩", label: "Protein",  val: "165g today",  note: "~40g in next 90 min", priority: true  },
-            { icon: "💧", label: "Hydrate",  val: "+24oz",        note: "Within 1hr post"                     },
-            { icon: "🔥", label: "Sauna",    val: "25 min",       note: "Tonight or tomorrow"                  },
-            { icon: "😴", label: "Sleep",    val: "8+ hours",     note: "Critical for recovery"                },
-          ].map((r) => (
+          {recovery.map((r) => (
             <div
               key={r.label}
               style={{
-                background: "var(--color-bg-sunk)",
+                background: "var(--ios-bg)",
                 borderRadius: 10,
                 padding: "12px",
-                border: r.priority ? "1px solid var(--color-accent)" : "1px solid var(--color-line)",
+                border: r.priority ? "1px solid var(--ios-tint)" : "1px solid transparent",
               }}
             >
-              <div style={{ fontSize: 22, marginBottom: 4 }}>{r.icon}</div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink)", marginBottom: 1 }}>{r.val}</div>
-              <div style={{ fontSize: 10, color: "var(--color-ink-4)", lineHeight: 1.4 }}>{r.note}</div>
+              <div style={{ display: "flex", color: "var(--ios-tint)", marginBottom: 6 }}><r.Icon /></div>
+              <div className="ios-footnote" style={{ fontWeight: 600, color: "var(--ios-label)", marginBottom: 1 }}>{r.val}</div>
+              <div className="ios-caption" style={{ color: "var(--ios-label-3)", lineHeight: 1.4 }}>{r.note}</div>
             </div>
           ))}
         </div>
@@ -255,16 +281,10 @@ export default function PostWorkoutSummary({ exercises, setLogs, sessionElapsed,
       <button
         onClick={() => startTransition(() => { onDone(); })}
         disabled={isPending}
+        className="ios-btn ios-btn--full"
         style={{
-          width: "100%",
-          padding: "16px",
-          borderRadius: 12,
-          border: "none",
-          background: isPending ? "var(--color-bg-sunk)" : "var(--color-ink)",
-          color: isPending ? "var(--color-ink-3)" : "var(--color-bg)",
-          fontFamily: "inherit",
-          fontSize: 15,
-          fontWeight: 700,
+          background: isPending ? "var(--ios-fill)" : "var(--ios-tint)",
+          color: isPending ? "var(--ios-label-3)" : "#fff",
           cursor: isPending ? "not-allowed" : "pointer",
         }}
       >

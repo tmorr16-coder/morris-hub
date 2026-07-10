@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { LargeTitle } from "@/components/ios";
 import CareerAdvisorClient from "./_components/CareerAdvisorClient";
 
 export default async function CareerAdvisorPage() {
@@ -50,11 +51,13 @@ export default async function CareerAdvisorPage() {
       profile.assessment_completed);
 
   return (
-    <CareerAdvisorClient
-      profile={profile}
-      goals={goals}
-      learningItems={learningItems}
-      hasProfile={!!hasProfile}
-    />
+    <div className="ios-scroll">      <LargeTitle title="Advisor" subtitle="AI coaching on your goals & resume" />
+      <CareerAdvisorClient
+        profile={profile}
+        goals={goals}
+        learningItems={learningItems}
+        hasProfile={!!hasProfile}
+      />
+    </div>
   );
 }

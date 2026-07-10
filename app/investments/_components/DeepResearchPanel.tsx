@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { Stock } from "@/lib/stock-research";
 import { addToThesis } from "../actions";
 import FullReportPanel from "./FullReportPanel";
+import { Group, Cell, RadialGauge } from "@/components/ios";
 
 interface DeepResearch {
   recommendation: "BUY" | "HOLD" | "SELL";
@@ -21,50 +22,15 @@ interface DeepResearchPanelProps {
   stock: Stock;
 }
 
-function ConvictionGauge({ value }: { value: number }) {
-  const radius = 28;
-  const stroke = 5;
-  const circumference = 2 * Math.PI * radius;
-  const arc = (value / 100) * circumference;
-
-  return (
-    <svg width={70} height={70} viewBox="0 0 70 70">
-      <circle
-        cx={35}
-        cy={35}
-        r={radius}
-        fill="none"
-        stroke="var(--color-rule)"
-        strokeWidth={stroke}
-      />
-      <circle
-        cx={35}
-        cy={35}
-        r={radius}
-        fill="none"
-        stroke="var(--color-accent)"
-        strokeWidth={stroke}
-        strokeDasharray={`${arc} ${circumference - arc}`}
-        strokeDashoffset={circumference / 4}
-        strokeLinecap="round"
-        transform="rotate(-90 35 35)"
-        style={{ transform: "rotate(-90deg)", transformOrigin: "35px 35px" }}
-      />
-      <text x={35} y={32} textAnchor="middle" fontSize={14} fontWeight={700} fill="var(--color-ink)">
-        {value}%
-      </text>
-      <text x={35} y={44} textAnchor="middle" fontSize={8} fill="var(--color-ink-3)" letterSpacing="0.08em">
-        CONV
-      </text>
-    </svg>
-  );
-}
-
-const REC_COLORS = {
-  BUY: { bg: "rgba(74,107,58,0.12)", color: "var(--color-green)", border: "rgba(74,107,58,0.3)" },
-  HOLD: { bg: "rgba(184,138,46,0.12)", color: "var(--color-amber)", border: "rgba(184,138,46,0.3)" },
-  SELL: { bg: "rgba(154,59,42,0.12)", color: "var(--color-red)", border: "rgba(154,59,42,0.3)" },
+const REC_COLOR: Record<DeepResearch["recommendation"], string> = {
+  BUY: "var(--ios-green)",
+  HOLD: "var(--ios-orange)",
+  SELL: "var(--ios-red)",
 };
+
+function Dot({ color }: { color: string }) {
+  return <span style={{ display: "block", width: 8, height: 8, borderRadius: "50%", background: color }} />;
+}
 
 export default function DeepResearchPanel({ stock }: DeepResearchPanelProps) {
   const [research, setResearch] = useState<DeepResearch | null>(null);
@@ -119,385 +85,175 @@ export default function DeepResearchPanel({ stock }: DeepResearchPanelProps) {
     fetchResearch();
   }, [stock.ticker]);
 
-  const recStyle = research ? REC_COLORS[research.recommendation] : null;
+  const recColor = research ? REC_COLOR[research.recommendation] : "var(--ios-tint)";
   const target = research?.priceTarget12m ?? 0;
   const changeVsLast =
     research && target && stock.price
       ? (((target - stock.price) / stock.price) * 100).toFixed(1)
       : null;
+  const changeNum = changeVsLast != null ? parseFloat(changeVsLast) : 0;
 
   return (
-    <div
-      style={{
-        background: "var(--color-bg-card)",
-        border: "1px solid var(--color-rule)",
-        borderRadius: 12,
-        padding: "20px 24px",
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 16,
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontSize: 9,
-              fontWeight: 700,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: "var(--color-accent)",
-              marginBottom: 2,
-            }}
-          >
-            ◆ Deep Research
-          </div>
-          <h3
-            style={{
-              fontSize: 16,
-              fontWeight: 600,
-              margin: 0,
-              color: "var(--color-ink)",
-            }}
-          >
-            Analyst Recommendation
-          </h3>
-        </div>
+    <div>
+      {/* Run / re-run */}
+      <div style={{ padding: "4px 16px 0" }}>
         <button
+          className="ios-btn ios-btn--primary"
           onClick={fetchResearch}
           disabled={loading}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "6px 12px",
-            borderRadius: 8,
-            border: "1px solid var(--color-rule)",
-            background: "transparent",
-            color: "var(--color-ink-3)",
-            fontSize: 12,
-            fontFamily: "inherit",
-            cursor: loading ? "wait" : "pointer",
-            opacity: loading ? 0.5 : 1,
-          }}
+          style={{ opacity: loading ? 0.6 : 1 }}
         >
-          ↻ Re-run
+          {loading ? "Researching…" : research ? "Re-run deep research" : "Run deep research"}
         </button>
       </div>
 
       {loading && (
         <div
-          style={{
-            padding: "40px 0",
-            textAlign: "center",
-            fontSize: 13,
-            color: "var(--color-ink-3)",
-          }}
+          className="ios-subhead"
+          style={{ padding: "40px 16px", textAlign: "center", color: "var(--ios-label-2)" }}
         >
-          Researching {stock.ticker} across earnings, news & analyst data…
+          Researching {stock.ticker} across earnings, news &amp; analyst data…
         </div>
       )}
 
       {error && !loading && (
-        <div
-          style={{
-            padding: "16px",
-            background: "rgba(154,59,42,0.06)",
-            borderRadius: 8,
-            fontSize: 13,
-            color: "var(--color-red)",
-          }}
-        >
-          {error}
+        <div className="ios-group" style={{ marginTop: 16 }}>
+          <div
+            className="ios-list ios-subhead"
+            style={{ padding: 16, color: "var(--ios-red)" }}
+          >
+            {error}
+          </div>
         </div>
       )}
 
       {research && !loading && (
         <>
-          {/* Summary row: gauge + recommendation + targets */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "auto auto 1fr 1fr",
-              gap: 24,
-              alignItems: "center",
-              paddingBottom: 16,
-              borderBottom: "1px solid var(--color-rule)",
-              marginBottom: 16,
-            }}
+          {/* Recommendation hero */}
+          <Group
+            header="Recommendation"
+            footer={`Synthesized from ${research.evidenceBase} sources · filings, transcripts & news · Not investment advice`}
           >
-            <ConvictionGauge value={research.conviction} />
-
-            <div
-              style={{
-                padding: "10px 18px",
-                borderRadius: 10,
-                background: recStyle?.bg,
-                border: `1px solid ${recStyle?.border}`,
-                textAlign: "center",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 22,
-                  fontWeight: 800,
-                  color: recStyle?.color,
-                  letterSpacing: "-0.02em",
-                }}
-              >
-                {research.recommendation}
-              </div>
-              <div style={{ fontSize: 9, color: "var(--color-ink-4)", marginTop: 2 }}>
-                12-month view
-              </div>
-            </div>
-
-            <div>
-              <div style={{ fontSize: 9, color: "var(--color-ink-3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
-                12-Mo Price Target
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: "var(--color-ink)" }}>
-                {target ? `$${target.toFixed(0)}` : "—"}
-              </div>
-              {changeVsLast && (
-                <div style={{ fontSize: 11, color: parseFloat(changeVsLast) >= 0 ? "var(--color-green)" : "var(--color-red)" }}>
-                  {parseFloat(changeVsLast) >= 0 ? "+" : ""}{changeVsLast}% vs last
+            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: 16 }}>
+              <RadialGauge
+                value={research.conviction / 100}
+                color={recColor}
+                size={76}
+                label="Conviction"
+                center={
+                  <span className="ios-num" style={{ fontSize: 18, fontWeight: 700, color: "var(--ios-label)" }}>
+                    {research.conviction}%
+                  </span>
+                }
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span
+                  className="ios-chip ios-chip--sm"
+                  style={{
+                    background: `color-mix(in srgb, ${recColor} 16%, transparent)`,
+                    color: recColor,
+                    fontWeight: 700,
+                    letterSpacing: "0.02em",
+                  }}
+                >
+                  {research.recommendation}
+                </span>
+                <div
+                  className="ios-footnote"
+                  style={{ color: "var(--ios-label-2)", marginTop: 12, textTransform: "uppercase", letterSpacing: "0.04em" }}
+                >
+                  12-mo price target
                 </div>
-              )}
+                <div className="ios-num" style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.01em" }}>
+                  {target ? `$${target.toFixed(0)}` : "—"}
+                  {changeVsLast && (
+                    <span
+                      className="ios-num"
+                      style={{ fontSize: 14, fontWeight: 600, marginLeft: 8, color: changeNum >= 0 ? "var(--ios-green)" : "var(--ios-red)" }}
+                    >
+                      {changeNum >= 0 ? "+" : ""}{changeVsLast}%
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-
-            <div>
-              <div style={{ fontSize: 9, color: "var(--color-ink-3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
-                Evidence Base
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: "var(--color-ink)" }}>
-                {research.evidenceBase}
-              </div>
-              <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
-                filings · transcripts · news
-              </div>
-            </div>
-          </div>
+          </Group>
 
           {/* Summary */}
-          <p
-            style={{
-              fontSize: 13,
-              lineHeight: 1.65,
-              color: "var(--color-ink-2)",
-              margin: "0 0 16px 0",
-            }}
-          >
-            {research.summary}
-          </p>
+          <Group header="Summary">
+            <div className="ios-subhead" style={{ padding: 16, lineHeight: 1.6, color: "var(--ios-label)" }}>
+              {research.summary}
+            </div>
+          </Group>
 
-          {/* Bull / Bear */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 12,
-              marginBottom: 16,
-            }}
-          >
-            <div
-              style={{
-                background: "rgba(74,107,58,0.05)",
-                border: "1px solid rgba(74,107,58,0.2)",
-                borderRadius: 8,
-                padding: "12px 14px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: "var(--color-green)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                  marginBottom: 8,
-                }}
-              >
-                ● Bull Case
-              </div>
+          {/* Bull case */}
+          {research.bullCase.length > 0 && (
+            <Group header="Bull case">
               {research.bullCase.map((point, i) => (
-                <div
-                  key={i}
-                  style={{
-                    fontSize: 12,
-                    color: "var(--color-ink-2)",
-                    lineHeight: 1.5,
-                    marginBottom: 4,
-                    paddingLeft: 10,
-                    borderLeft: "2px solid rgba(74,107,58,0.3)",
-                  }}
-                >
-                  {point}
-                </div>
+                <Cell key={i} chevron={false} lead={<Dot color="var(--ios-green)" />} title={<span className="ios-subhead">{point}</span>} />
               ))}
-            </div>
+            </Group>
+          )}
 
-            <div
+          {/* Bear case */}
+          {research.bearCase.length > 0 && (
+            <Group header="Bear case">
+              {research.bearCase.map((point, i) => (
+                <Cell key={i} chevron={false} lead={<Dot color="var(--ios-red)" />} title={<span className="ios-subhead">{point}</span>} />
+              ))}
+            </Group>
+          )}
+
+          {/* Catalysts */}
+          {research.catalysts.length > 0 && (
+            <Group header="Catalysts to watch">
+              {research.catalysts.map((c, i) => (
+                <Cell key={i} chevron={false} lead={<Dot color="var(--ios-tint)" />} title={<span className="ios-subhead">{c}</span>} />
+              ))}
+            </Group>
+          )}
+
+          {/* Risks */}
+          {research.risks.length > 0 && (
+            <Group header="Key risks">
+              {research.risks.map((r, i) => (
+                <Cell key={i} chevron={false} lead={<Dot color="var(--ios-orange)" />} title={<span className="ios-subhead">{r}</span>} />
+              ))}
+            </Group>
+          )}
+
+          {/* Actions */}
+          <div style={{ padding: "22px 16px 0", display: "flex", flexDirection: "column", gap: 10 }}>
+            <button
+              className="ios-btn ios-btn--primary"
+              onClick={handleAddToThesis}
+              disabled={thesisState === "saving" || thesisState === "saved"}
               style={{
-                background: "rgba(154,59,42,0.05)",
-                border: "1px solid rgba(154,59,42,0.2)",
-                borderRadius: 8,
-                padding: "12px 14px",
+                background:
+                  thesisState === "saved" ? "var(--ios-green)" : thesisState === "error" ? "var(--ios-red)" : undefined,
+                opacity: thesisState === "saving" ? 0.7 : 1,
               }}
             >
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: "var(--color-red)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                  marginBottom: 8,
-                }}
-              >
-                ● Bear Case
-              </div>
-              {research.bearCase.map((point, i) => (
-                <div
-                  key={i}
-                  style={{
-                    fontSize: 12,
-                    color: "var(--color-ink-2)",
-                    lineHeight: 1.5,
-                    marginBottom: 4,
-                    paddingLeft: 10,
-                    borderLeft: "2px solid rgba(154,59,42,0.3)",
-                  }}
-                >
-                  {point}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Catalysts + Risks */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div>
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: "var(--color-ink-3)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                  marginBottom: 8,
-                }}
-              >
-                Catalysts to Watch
-              </div>
-              {research.catalysts.map((c, i) => (
-                <div
-                  key={i}
-                  style={{
-                    fontSize: 12,
-                    color: "var(--color-ink-2)",
-                    marginBottom: 4,
-                    display: "flex",
-                    gap: 6,
-                  }}
-                >
-                  <span style={{ color: "var(--color-accent)", flexShrink: 0 }}>›</span>
-                  {c}
-                </div>
-              ))}
-            </div>
-
-            <div>
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: "var(--color-ink-3)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                  marginBottom: 8,
-                }}
-              >
-                Key Risks
-              </div>
-              {research.risks.map((r, i) => (
-                <div
-                  key={i}
-                  style={{
-                    fontSize: 12,
-                    color: "var(--color-ink-2)",
-                    marginBottom: 4,
-                    display: "flex",
-                    gap: 6,
-                  }}
-                >
-                  <span style={{ color: "var(--color-red)", flexShrink: 0 }}>!</span>
-                  {r}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div
-            style={{
-              marginTop: 16,
-              paddingTop: 12,
-              borderTop: "1px solid var(--color-rule)",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <span style={{ fontSize: 10, color: "var(--color-ink-4)" }}>
-              Synthesized from {research.evidenceBase} sources · Not investment advice
-            </span>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => setShowFullReport(true)}
-                style={{
-                  padding: "7px 14px",
-                  borderRadius: 8,
-                  border: "1px solid var(--color-rule)",
-                  background: "transparent",
-                  color: "var(--color-ink-2)",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                }}
-              >
-                Full report
-              </button>
-              <button
-                onClick={handleAddToThesis}
-                disabled={thesisState === "saving" || thesisState === "saved"}
-                style={{
-                  padding: "7px 14px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: thesisState === "saved" ? "var(--color-green)" : thesisState === "error" ? "var(--color-red)" : "var(--color-accent)",
-                  color: "#FFFDF8",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  fontFamily: "inherit",
-                  cursor: thesisState === "saving" ? "wait" : "pointer",
-                  opacity: thesisState === "saving" ? 0.7 : 1,
-                }}
-              >
-                {thesisState === "saving" ? "Saving…" : thesisState === "saved" ? "✓ Saved to Ideas" : thesisState === "error" ? "Failed" : "Add to thesis"}
-              </button>
-            </div>
+              {thesisState === "saving"
+                ? "Saving…"
+                : thesisState === "saved"
+                ? "Saved to Ideas"
+                : thesisState === "error"
+                ? "Failed — try again"
+                : "Add to thesis"}
+            </button>
+            <button
+              className="ios-btn ios-btn--plain"
+              onClick={() => setShowFullReport(true)}
+              style={{ alignSelf: "center" }}
+            >
+              View full report
+            </button>
           </div>
         </>
       )}
 
-      {/* Full Report Slide-over */}
+      {/* Full report bottom sheet */}
       {showFullReport && (
         <FullReportPanel stock={stock} onClose={() => setShowFullReport(false)} />
       )}

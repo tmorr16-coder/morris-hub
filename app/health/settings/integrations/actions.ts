@@ -3,6 +3,7 @@
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
+import { serverBaseUrl, publicOrigin } from "@/lib/site-url";
 import { revalidatePath } from "next/cache";
 import { logEvent } from "@/lib/usage";
 
@@ -47,7 +48,7 @@ export async function disconnectWithings(): Promise<{ error?: string }> {
 }
 
 export async function triggerSync(): Promise<{ inserted?: number; error?: string }> {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL!;
+  const siteUrl = serverBaseUrl();
   const cronSecret = process.env.CRON_SECRET;
   const userId = await getCurrentUserId();
 
@@ -67,7 +68,7 @@ export async function triggerSync(): Promise<{ inserted?: number; error?: string
 }
 
 export async function triggerOuraSync(): Promise<{ inserted?: number; error?: string }> {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL!;
+  const siteUrl = serverBaseUrl();
   const cronSecret = process.env.CRON_SECRET;
   const userId = await getCurrentUserId();
 
@@ -126,7 +127,7 @@ export async function requestIntegration(data: {
       if (adminEmails.length > 0) {
         const resend = new Resend(process.env.RESEND_API_KEY);
         const fromEmail = process.env.RESEND_FROM_EMAIL ?? "noreply@resend.dev";
-        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+        const siteUrl = publicOrigin();
 
         await resend.emails.send({
           from: fromEmail,
@@ -153,7 +154,7 @@ export async function requestIntegration(data: {
                 </tr>` : ""}
               </table>
 
-              <a href="https://morrisai.family/home/admin" style="display: inline-block; padding: 10px 18px; background: #1a1a1a; color: #fff; text-decoration: none; border-radius: 8px; font-size: 13px; font-weight: 600;">View in admin panel →</a>
+              <a href="${siteUrl}/home/admin" style="display: inline-block; padding: 10px 18px; background: #1a1a1a; color: #fff; text-decoration: none; border-radius: 8px; font-size: 13px; font-weight: 600;">View in admin panel →</a>
             </div>
           `,
         });

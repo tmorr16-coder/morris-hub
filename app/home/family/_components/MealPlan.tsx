@@ -11,22 +11,31 @@ interface Meal {
   notes: string | null;
   created_by: string;
   created_at: string;
+  assigned_to?: string | null;
 }
 
 const MEAL_TYPE_LABEL: Record<Meal["meal_type"], string> = {
   breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner", snack: "Snack",
 };
 
+const memberSelectStyle: React.CSSProperties = {
+  padding: "10px 12px", border: "var(--ios-hair) solid var(--ios-separator)",
+  borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 15,
+};
+
 export default function MealPlan({
-  initialMeals, userId,
+  initialMeals, userId, nameMap, members,
 }: {
   initialMeals: Meal[];
   userId: string;
+  nameMap: Record<string, string>;
+  members: { id: string; name: string }[];
 }) {
   const [meals, setMeals] = useState(initialMeals);
   const [name, setName] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [mealType, setMealType] = useState<Meal["meal_type"]>("dinner");
+  const [assignTo, setAssignTo] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,14 +45,18 @@ export default function MealPlan({
     e.preventDefault();
     if (!name.trim()) return;
     setSaving(true);
-    const { data, error } = await db.schema("hub").from("meal_plan")
-      .insert({ date, meal_type: mealType, name: name.trim(), circle_owner_id: userId, created_by: userId })
-      .select("id, date, meal_type, name, notes, created_by, created_at")
-      .single();
+    const fields = { date, meal_type: mealType, name: name.trim(), circle_owner_id: userId, created_by: userId };
+    let res = await db.schema("hub").from("meal_plan")
+      .insert({ ...fields, assigned_to: assignTo || null }).select("*").single();
+    if (res.error && /assigned_to/.test(res.error.message)) {
+      res = await db.schema("hub").from("meal_plan")
+        .insert({ ...fields }).select("*").single();
+    }
     setSaving(false);
-    if (!error && data) {
-      setMeals((prev) => [...prev, data].sort((a, b) => a.date.localeCompare(b.date)));
+    if (!res.error && res.data) {
+      setMeals((prev) => [...prev, res.data].sort((a, b) => a.date.localeCompare(b.date)));
       setName("");
+      setAssignTo("");
       setFormOpen(false);
     }
   }
@@ -60,54 +73,57 @@ export default function MealPlan({
   }
 
   return (
-    <div style={{ marginBottom: 28 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <h2 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", margin: 0, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-          🍽️ Meal plan
-        </h2>
-        <button onClick={() => setFormOpen((o) => !o)}
-          style={{ fontSize: 11, padding: "4px 10px", borderRadius: 7, border: "1px solid var(--color-rule)", background: "transparent", color: "var(--color-ink-3)", cursor: "pointer" }}>
-          {formOpen ? "Cancel" : "+ Plan a meal"}
+    <section className="ios-group">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 var(--ios-gutter) 7px" }}>
+        <h2 className="ios-group-header" style={{ padding: 0 }}>Meal plan</h2>
+        <button onClick={() => setFormOpen((o) => !o)} className="ios-subhead" style={{ color: "var(--ios-tint)", fontWeight: 500 }}>
+          {formOpen ? "Cancel" : "Plan a meal"}
         </button>
       </div>
       {formOpen && (
-        <form onSubmit={addMeal} style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+        <form onSubmit={addMeal} style={{ display: "flex", gap: 8, margin: "0 var(--ios-gutter) 10px", flexWrap: "wrap" }}>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-            style={{ padding: "8px 10px", border: "1px solid var(--color-rule)", borderRadius: 8, fontSize: 13, fontFamily: "inherit" }} />
+            style={{ padding: "10px 12px", border: "var(--ios-hair) solid var(--ios-separator)", borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 15 }} />
           <select value={mealType} onChange={(e) => setMealType(e.target.value as Meal["meal_type"])}
-            style={{ padding: "8px 10px", border: "1px solid var(--color-rule)", borderRadius: 8, fontSize: 13, fontFamily: "inherit" }}>
+            style={{ padding: "10px 12px", border: "var(--ios-hair) solid var(--ios-separator)", borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 15 }}>
             {Object.entries(MEAL_TYPE_LABEL).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
           </select>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Tacos"
-            style={{ flex: 1, minWidth: 140, padding: "8px 12px", border: "1px solid var(--color-rule)", borderRadius: 8, fontSize: 13, fontFamily: "inherit" }} />
-          <button type="submit" disabled={saving || !name.trim()}
-            style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--color-accent)", color: "#FFFDF8", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+            style={{ flex: 1, minWidth: 140, padding: "10px 14px", border: "var(--ios-hair) solid var(--ios-separator)", borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 16 }} />
+          <select value={assignTo} onChange={(e) => setAssignTo(e.target.value)} aria-label="Assign to" style={memberSelectStyle}>
+            <option value="">Everyone</option>
+            {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+          <button type="submit" disabled={saving || !name.trim()} className="ios-btn ios-btn--primary" style={{ width: "auto", minHeight: 0, padding: "10px 18px", fontSize: 15, opacity: saving || !name.trim() ? 0.5 : 1 }}>
             Save
           </button>
         </form>
       )}
       {meals.length === 0 ? (
-        <div style={{ fontSize: 13, color: "var(--color-ink-4)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>Nothing planned yet.</div>
+        <p className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "0 var(--ios-gutter)" }}>Nothing planned yet.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {[...byDay.entries()].map(([d, dayMeals]) => (
             <div key={d}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--color-ink-4)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              <h3 className="ios-group-header">
                 {new Date(`${d}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              </h3>
+              <div className="ios-list">
                 {dayMeals.map((m) => (
-                  <div key={m.id} style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "7px 14px",
-                    background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 8,
-                  }}>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: "var(--color-ink-4)", width: 62, flexShrink: 0, textTransform: "uppercase" }}>
+                  <div key={m.id} className="ios-cell">
+                    <span className="ios-caption" style={{ color: "var(--ios-label-2)", width: 62, flexShrink: 0, textTransform: "uppercase", letterSpacing: "0.03em", fontWeight: 600 }}>
                       {MEAL_TYPE_LABEL[m.meal_type]}
                     </span>
-                    <span style={{ flex: 1, fontSize: 13, color: "var(--color-ink-2)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>{m.name}</span>
-                    <button onClick={() => remove(m.id)} aria-label="Remove"
-                      style={{ background: "none", border: "none", color: "var(--color-ink-4)", cursor: "pointer", fontSize: 13, flexShrink: 0 }}>
-                      ✕
+                    <span className="ios-cell-body">
+                      <span className="ios-cell-title ios-subhead">{m.name}</span>
+                      {m.assigned_to && (
+                        <span className="ios-chip ios-chip--sm ios-caption" style={{ marginTop: 4, alignSelf: "flex-start", color: "var(--ios-tint)" }}>
+                          for {nameMap[m.assigned_to] ?? "Member"}
+                        </span>
+                      )}
+                    </span>
+                    <button onClick={() => remove(m.id)} aria-label="Remove" className="ios-cell-trail" style={{ color: "var(--ios-label-3)" }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
                     </button>
                   </div>
                 ))}
@@ -116,6 +132,6 @@ export default function MealPlan({
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }

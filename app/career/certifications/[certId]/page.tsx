@@ -2,8 +2,10 @@ export const dynamic = "force-dynamic";
 
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
+import { LargeTitle } from "@/components/ios";
 import CertDetailClient from "./_components/CertDetailClient";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export default async function CertDetailPage({
   params,
@@ -18,7 +20,6 @@ export default async function CertDetailPage({
 
   const { certId } = await params;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
 
   const { data: exam, error: examErr } = await db
@@ -105,99 +106,12 @@ export default async function CertDetailPage({
   );
 
   return (
-    <div style={{ background: "var(--color-bg)", minHeight: "100vh" }}>
-      {/* Header band */}
-      <div
-        style={{
-          background: `linear-gradient(135deg, ${exam.color_tag}18 0%, ${exam.color_tag}06 100%)`,
-          borderBottom: `2px solid ${exam.color_tag}`,
-          padding: "20px 28px",
-        }}
-      >
-        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-          <Link
-            href="/career/certifications"
-            style={{
-              color: "var(--color-accent-dark)",
-              textDecoration: "none",
-              fontSize: 13,
-              marginBottom: 12,
-              display: "inline-block",
-            }}
-          >
-            ← Back to Certifications
-          </Link>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-            {/* Color dot */}
-            <div
-              style={{
-                width: 16,
-                height: 16,
-                borderRadius: "50%",
-                background: exam.color_tag,
-                flexShrink: 0,
-              }}
-            />
-
-            <h1
-              className="serif"
-              style={{ fontSize: 32, margin: 0, color: exam.color_tag, lineHeight: 1.1 }}
-            >
-              {exam.name}
-            </h1>
-
-            {/* Exam code badge */}
-            {exam.exam_code && (
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  padding: "3px 10px",
-                  borderRadius: 6,
-                  background: exam.color_tag + "20",
-                  border: `1px solid ${exam.color_tag}50`,
-                  color: exam.color_tag,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  letterSpacing: "0.05em",
-                  fontFamily: "monospace",
-                }}
-              >
-                {exam.exam_code}
-              </span>
-            )}
-
-            {/* Vendor */}
-            {exam.vendor && (
-              <span
-                style={{
-                  fontSize: 13,
-                  color: "var(--color-ink-3)",
-                }}
-              >
-                {exam.vendor}
-              </span>
-            )}
-          </div>
-
-          {exam.description && (
-            <p
-              style={{
-                color: "var(--color-ink-3)",
-                margin: "10px 0 0 30px",
-                fontSize: 13,
-                lineHeight: 1.5,
-                maxWidth: 700,
-              }}
-            >
-              {exam.description}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 28px 100px" }}>
+    <div className="ios-scroll">
+      <LargeTitle
+        title={exam.name}
+        subtitle={[exam.exam_code, exam.vendor].filter(Boolean).join(" · ") || undefined}
+      />
+      <div style={{ padding: "4px 16px 40px" }}>
         <CertDetailClient
           exam={exam}
           domains={domains}
@@ -207,7 +121,7 @@ export default async function CertDetailPage({
           openSessions={openSessions}
           savedGuideSections={savedGuideSections}
         />
-      </main>
+      </div>
     </div>
   );
 }

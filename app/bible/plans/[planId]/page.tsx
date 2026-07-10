@@ -1,6 +1,8 @@
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import PlanProgress from "./PlanProgress";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 const BUILT_IN_PLAN_IDS = ["bible-in-a-year", "nt-in-90-days", "psalms-30-days", "gospels-40-days", "proverbs-31-days", "sermon-on-mount"];
 
@@ -14,12 +16,14 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ pla
 
   // Load plan — could be user plan or built-in
   let plan: any = null;
-  let isBuiltIn = BUILT_IN_PLAN_IDS.includes(planId);
+  const isBuiltIn = BUILT_IN_PLAN_IDS.includes(planId);
 
   if (!isBuiltIn) {
     const { data } = await db.schema("bible").from("reading_plans").select("*").eq("id", planId).single();
     plan = data;
     if (!plan) redirect("/bible/plans");
+    // Don't let the RLS-bypassing service client leak another user's private plan.
+    if (plan && plan.user_id && !plan.is_public && plan.user_id !== user.id) notFound();
   }
 
   // Load enrollment
@@ -34,10 +38,8 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ pla
   const { data: completions } = isBuiltIn ? { data: [] } : await db.schema("bible").from("reading_completions")
     .select("*").eq("user_id", user.id).eq("plan_id", planId);
 
-  const menuUser = { email: user.email, name: user.user_metadata?.full_name ?? user.email, avatarUrl: user.user_metadata?.avatar_url ?? null };
-
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)", paddingBottom: 80 }}>
+    <div className="ios-scroll">
       <PlanProgress
         planId={planId}
         plan={plan}

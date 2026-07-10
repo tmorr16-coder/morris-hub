@@ -1,8 +1,10 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
+import { isCurrentUserAdmin } from "@/lib/supabase/auth-utils";
+import { publicOrigin } from "@/lib/site-url";
+import { LargeTitle } from "@/components/ios";
 import WithingsCard from "./_components/WithingsCard";
 import OuraCard from "./_components/OuraCard";
 import AppleHealthCard from "./_components/AppleHealthCard";
@@ -19,9 +21,10 @@ export default async function IntegrationsPage({
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const [userId, params] = await Promise.all([
+  const [userId, params, isAdmin] = await Promise.all([
     getCurrentUserId(),
     searchParams,
+    isCurrentUserAdmin(),
   ]);
 
   // Oura token fetched separately — table may not exist yet on some deployments
@@ -50,11 +53,14 @@ export default async function IntegrationsPage({
   const connected       = tokenRow !== null;
   const connectedAt     = (tokenRow as TokenRow | null)?.updated_at ?? null;
   const lastSyncAt      = (lastWithingsRow as { created_at: string } | null)?.created_at ?? null;
-  // Fall back to env var for backward compat (Terry's existing setup)
-  const ouraConfigured  = !!ouraToken || !!process.env.OURA_ACCESS_TOKEN;
+  // The shared OURA_ACCESS_TOKEN env var is the owner's personal token — only
+  // treat it as "connected" for an admin, never for a new/standard user.
+  const ouraConfigured  = !!ouraToken || (isAdmin && !!process.env.OURA_ACCESS_TOKEN);
   const ouraLastSyncAt  = (ouraLastRow as { created_at: string } | null)?.created_at ?? null;
   const appleLastSyncAt = (appleLastRow as { created_at: string } | null)?.created_at ?? null;
-  const siteUrl         = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  // Always the stable production origin — the webhook URL is pasted into the
+  // Health Auto Export app, so it must never be an ephemeral preview URL.
+  const siteUrl         = publicOrigin();
   // Per-user webhook URL — userId tells the endpoint whose data this is
   const webhookUrl      = `${siteUrl}/api/health/webhooks/apple-health?userId=${encodeURIComponent(userId)}`;
 
@@ -72,89 +78,39 @@ export default async function IntegrationsPage({
     : null;
 
   return (
-    <div style={{ padding: "20px 20px 0" }}>
+    <div className="ios-scroll">
 
-      {/* Back */}
-      <Link
-        href="/health/medications"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          fontSize: 13,
-          color: "var(--color-ink-3)",
-          textDecoration: "none",
-          marginBottom: 20,
-        }}
-      >
-        ← Health
-      </Link>
+      <LargeTitle
+        title="Data integrations"
+        subtitle="Connect devices and services to sync health data automatically."
+      />
 
-      {/* Eyebrow */}
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 500,
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-          color: "var(--color-ink-3)",
-          marginBottom: 6,
-        }}
-      >
-        Settings
-      </div>
+      <div style={{ padding: "8px 16px 0" }}>
 
-      {/* Display title */}
-      <div
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: 36,
-          fontWeight: 400,
-          letterSpacing: "-0.02em",
-          lineHeight: 1.1,
-          color: "var(--color-ink)",
-          marginBottom: 6,
-        }}
-      >
-        Data
-        <br />
-        integrations.
-      </div>
-      <div
-        style={{
-          fontSize: 13,
-          color: "var(--color-ink-3)",
-          marginBottom: 24,
-        }}
-      >
-        Connect devices and services to sync health data automatically.
-      </div>
+        {/* Error banner */}
+        {errorMessage && (
+          <div
+            className="ios-list"
+            style={{
+              margin: "0 0 16px",
+              padding: "12px 14px",
+              fontSize: 13,
+              color: "var(--ios-red)",
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
 
-      {/* Error banner */}
-      {errorMessage && (
-        <div
-          style={{
-            background: "var(--color-accent-soft)",
-            border: "1px solid var(--color-accent)",
-            borderRadius: 10,
-            padding: "12px 14px",
-            fontSize: 13,
-            color: "var(--color-accent)",
-            marginBottom: 16,
-          }}
-        >
-          {errorMessage}
-        </div>
-      )}
-
-      {/* Cards */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* Cards */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <AppleHealthCard
           configured={appleMetricsCount !== null && appleMetricsCount > 0}
           lastSyncAt={appleLastSyncAt}
           metricsCount={appleMetricsCount ?? 0}
           workoutsCount={appleWorkoutsCount ?? 0}
           webhookUrl={webhookUrl}
+          apiKey={isAdmin ? (process.env.HEALTH_AUTO_EXPORT_SECRET ?? "") : ""}
         />
         <WithingsCard
           connected={connected}
@@ -167,6 +123,7 @@ export default async function IntegrationsPage({
           lastSyncAt={ouraLastSyncAt}
         />
         <RequestIntegrationCard />
+        </div>
       </div>
 
     </div>

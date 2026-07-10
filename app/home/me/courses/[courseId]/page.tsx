@@ -2,9 +2,8 @@ export const dynamic = "force-dynamic";
 
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { Suspense } from "react";
-import PlatformMenu from "@/components/PlatformMenu";
+import { IOSScreen, LargeTitle, TabBar } from "@/components/ios";
 import CourseDetailClient from "./_components/CourseDetailClient";
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ courseId: string }> }) {
@@ -58,45 +57,12 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
   const reminders = remindersResult.data ?? [];
   const flashcardSets = flashcardSetsResult.data ?? [];
 
-  const menuUser = {
-    name: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-    email: user.email,
-    avatarUrl: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
-    isAdmin: false,
-  };
-
   return (
-    <div style={{ background: "var(--color-bg)" }}>
-      <PlatformMenu currentApp="health" user={menuUser} />
-      <div
-        style={{
-          background: `linear-gradient(135deg, ${course.color_tag}15 0%, ${course.color_tag}05 100%)`,
-          borderBottom: `2px solid ${course.color_tag}`,
-          padding: "20px",
-        }}
-      >
-        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-          <Link
-            href="/home/me/courses"
-            style={{
-              color: "var(--color-accent-dark)",
-              textDecoration: "none",
-              fontSize: 13,
-              marginBottom: 12,
-              display: "inline-block",
-            }}
-          >
-            ← Back to Courses
-          </Link>
-          <h1 className="serif" style={{ fontSize: 36, margin: "0 0 8px 0", color: course.color_tag }}>
-            {course.name}
-          </h1>
-          {course.instructor && <p style={{ color: "var(--color-ink-3)", margin: 0 }}>📚 {course.instructor}</p>}
-        </div>
-      </div>
+    <IOSScreen>
+      <LargeTitle title={course.name} subtitle={course.instructor ?? undefined} />
 
-      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "32px 28px 100px" }}>
-        <Suspense fallback={<div style={{ color: "var(--color-ink-3)" }}>Loading course details...</div>}>
+      <div style={{ padding: "0 16px" }}>
+        <Suspense fallback={<div style={{ color: "var(--ios-label-2)" }}>Loading course details...</div>}>
           <CourseDetailClient
             courseId={courseId}
             course={course}
@@ -106,7 +72,10 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ c
             userId={user.id}
           />
         </Suspense>
-      </main>
-    </div>
+      </div>
+
+      <div style={{ height: 12 }} />
+      <TabBar current="more" currentUserId={user.id} sourceApp="hub" />
+    </IOSScreen>
   );
 }

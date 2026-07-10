@@ -64,66 +64,76 @@ For EACH idea, provide a JSON object with these fields (required: category, titl
 
 Generate ideas that are specific, actionable, and realistic. Focus on diversified opportunities across different sub-sectors within each category. Return ONLY valid JSON.`;
 
-  const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 4096,
-    tools: [
-      {
-        type: "web_search_20250305",
-        name: "web_search",
-      },
-    ],
-    messages: [
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
-  });
+  // One model call → parsed ideas. `useTools` grounds the ideas with live web
+  // search (higher quality, but slower and occasionally times out).
+  async function callModel(useTools: boolean): Promise<InvestmentIdea[]> {
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 4096,
+      ...(useTools ? { tools: [{ type: "web_search_20250305", name: "web_search" }] } : {}),
+      messages: [{ role: "user", content: prompt }],
+    });
 
-  // Extract text from response
-  let fullText = "";
-  for (const block of response.content) {
-    if (block.type === "text") {
-      fullText += block.text + "\n";
+    // Extract text from response
+    let fullText = "";
+    for (const block of response.content) {
+      if (block.type === "text") {
+        fullText += block.text + "\n";
+      }
     }
+
+    // Parse JSON from response
+    const jsonMatch =
+      fullText.match(/```(?:json)?\s*({[\s\S]*?})\s*```/) ||
+      fullText.match(/{[\s\S]*"ideas"[\s\S]*}/);
+
+    if (!jsonMatch) {
+      console.error("Could not parse investment ideas response:", fullText.slice(0, 500));
+      return [];
+    }
+
+    let parsed: { ideas?: GeneratedIdea[] };
+    try {
+      parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+    } catch (err) {
+      console.error("Investment ideas JSON parse failed:", err);
+      return [];
+    }
+    const ideas = parsed.ideas || [];
+
+    // Transform to InvestmentIdea format
+    return ideas.map((idea: GeneratedIdea) => ({
+      id: crypto.randomUUID(),
+      userId: "", // Will be set by server action
+      category: (idea.category?.toLowerCase() || "other") as any,
+      title: idea.title,
+      rationale: idea.rationale || null,
+      riskLevel: (idea.riskLevel || null) as any,
+      timeHorizon: (idea.timeHorizon || null) as any,
+      capitalRequired: idea.capitalRequired || null,
+      expectedReturns: idea.expectedReturns || null,
+      relatedAssets: idea.relatedAssets || null,
+      actionItems: idea.actionItems || null,
+      isAiGenerated: true,
+      source: "claude",
+      rating: null,
+      status: "new",
+      isFavorite: false,
+      userNotes: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }));
   }
 
-  // Parse JSON from response
-  const jsonMatch =
-    fullText.match(/```(?:json)?\s*({[\s\S]*?})\s*```/) ||
-    fullText.match(/{[\s\S]*"ideas"[\s\S]*}/);
-
-  if (!jsonMatch) {
-    console.error("Could not parse investment ideas response:", fullText);
-    return [];
+  // Prefer web-search-grounded ideas, but fall back to a plain, fast generation
+  // if the search path errors or times out — a new user must still get results.
+  try {
+    const grounded = await callModel(true);
+    if (grounded.length) return grounded;
+  } catch (err) {
+    console.error("[investment-ideas] web-search generation failed, falling back:", err);
   }
-
-  const parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
-  const ideas = parsed.ideas || [];
-
-  // Transform to InvestmentIdea format
-  return ideas.map((idea: GeneratedIdea) => ({
-    id: crypto.randomUUID(),
-    userId: "", // Will be set by server action
-    category: (idea.category?.toLowerCase() || "other") as any,
-    title: idea.title,
-    rationale: idea.rationale || null,
-    riskLevel: (idea.riskLevel || null) as any,
-    timeHorizon: (idea.timeHorizon || null) as any,
-    capitalRequired: idea.capitalRequired || null,
-    expectedReturns: idea.expectedReturns || null,
-    relatedAssets: idea.relatedAssets || null,
-    actionItems: idea.actionItems || null,
-    isAiGenerated: true,
-    source: "claude",
-    rating: null,
-    status: "new",
-    isFavorite: false,
-    userNotes: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }));
+  return callModel(false);
 }
 
 // Wrap with cache: 24-hour TTL for daily refresh

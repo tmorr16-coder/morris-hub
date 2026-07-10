@@ -1,11 +1,12 @@
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/health/auth";
+import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 import ChatWidget from "../_components/ChatWidget";
 import WorkoutHistoryClient, { type UnifiedWorkout } from "./_components/WorkoutHistoryClient";
 import ScheduledWorkoutCard, { type ScheduledWorkout } from "./_components/ScheduledWorkoutCard";
+import ResumeWorkoutBanner from "./_components/ResumeWorkoutBanner";
 
 function toDateStr(d: Date): string {
   return d.toLocaleDateString("sv");
@@ -84,6 +85,9 @@ export default async function TrainPage() {
   }));
 
   // Normalise Apple Health workouts
+  // Dedupe duplicate Apple workout rows (same start + type) — re-exports can
+  // create duplicates since apple_health_workouts has no unique index.
+  const seenAppleWorkout = new Set<string>();
   const appleWorkouts: UnifiedWorkout[] = (
     (appleRows as {
       id: string;
@@ -93,7 +97,12 @@ export default async function TrainPage() {
       distance_m: number | null;
       calories: number | null;
     }[] | null) ?? []
-  ).map((w) => {
+  ).filter((w) => {
+    const k = `${w.timestamp}|${w.workout_type}`;
+    if (seenAppleWorkout.has(k)) return false;
+    seenAppleWorkout.add(k);
+    return true;
+  }).map((w) => {
     const distMi = w.distance_m ? `${(w.distance_m / 1609.344).toFixed(2)} mi` : null;
     const cal = w.calories ? `${Math.round(w.calories)} kcal` : null;
     const meta = [distMi, cal].filter(Boolean).join(" · ") || null;
@@ -146,145 +155,58 @@ export default async function TrainPage() {
   }
 
   return (
-    <div style={{ padding: "20px 20px 0" }}>
+    <div className="ios-scroll">
+      <LargeTitle title="Train" subtitle="Today's session" />
 
-      {/* Page header */}
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 500,
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-          color: "var(--color-ink-3)",
-          marginBottom: 6,
-        }}
-      >
-        Train
-      </div>
-      <div
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: 36,
-          fontWeight: 400,
-          letterSpacing: "-0.02em",
-          lineHeight: 1,
-          color: "var(--color-ink)",
-          marginBottom: 20,
-        }}
-      >
-        Today&apos;s session.
+      {/* Resume an in-progress workout (localStorage snapshot; client widget) */}
+      <div style={{ padding: "8px 16px 0" }}>
+        <ResumeWorkoutBanner />
       </div>
 
-      {/* Scheduled workouts */}
-      <ScheduledWorkoutCard workouts={scheduledWorkouts} />
-
-      {/* Custom workout — build the plan first (muscles, cardio, stretching)
-          before ever landing on the tracker; jumps straight to the body-part
-          picker, past the "repeat last workout" shortcut */}
-      <Link
-        href="/health/workout/builder#body-picker"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 8,
-          width: "100%",
-          padding: "14px 18px",
-          background: "var(--color-accent)",
-          color: "#fff",
-          textDecoration: "none",
-          fontSize: 14,
-          fontWeight: 600,
-          borderRadius: 14,
-          marginBottom: 10,
-        }}
-      >
-        + Custom Workout
-      </Link>
-
-      {/* Quick log */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginBottom: 20 }}>
-        <Link href="/health/workout/log" style={{ textDecoration: "none" }}>
-          <div
-            style={{
-              background: "var(--color-bg-raised)",
-              border: "1px solid var(--color-line)",
-              borderRadius: 14,
-              padding: "14px 16px",
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              boxShadow: "var(--shadow-card)",
-            }}
-          >
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                background: "var(--color-bg-sunk)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 18,
-                flexShrink: 0,
-              }}
-            >
-              ✓
-            </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", marginBottom: 1 }}>
-                Quick log
-              </div>
-              <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
-                Log today&apos;s workout
-              </div>
-            </div>
-          </div>
-        </Link>
+      {/* Scheduled workouts (client widget) */}
+      <div style={{ padding: "8px 16px 0" }}>
+        <ScheduledWorkoutCard workouts={scheduledWorkouts} />
       </div>
+
+      <Group header="Start a session">
+        {/* Custom workout — build the plan first (muscles, cardio, stretching)
+            before ever landing on the tracker; jumps straight to the body-part
+            picker, past the "repeat last workout" shortcut */}
+        <Cell
+          href="/health/workout/builder#body-picker"
+          lead={<IconBadge color="var(--ios-tint)"><Icons.DumbbellIcon /></IconBadge>}
+          title="Custom workout"
+          subtitle="Build a plan — muscles, cardio, stretching"
+        />
+        <Cell
+          href="/health/workout/log"
+          lead={<IconBadge color="var(--ios-green)"><Icons.ChecklistIcon /></IconBadge>}
+          title="Quick log"
+          subtitle="Log today's workout"
+        />
+      </Group>
 
       {/* Workout coach chat — above history */}
-      <div
-        style={{
-          background: "var(--color-bg-raised)",
-          border: "1px solid var(--color-line)",
-          borderRadius: 14,
-          padding: "16px 18px",
-          marginBottom: 20,
-          boxShadow: "var(--shadow-card)",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 10,
-            fontWeight: 500,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: "var(--color-ink-3)",
-            marginBottom: 12,
-          }}
-        >
-          Workout coach
+      <Group header="Workout coach">
+        <div style={{ padding: "14px 16px" }}>
+          <ChatWidget
+            systemContext={workoutCoachContext}
+            placeholder="Ask about sets, reps, form, programming…"
+            welcomeMessage="Ready to help with your training. What do you want to work on?"
+            addProfileContext
+          />
         </div>
-        <ChatWidget
-          systemContext={workoutCoachContext}
-          placeholder="Ask about sets, reps, form, programming…"
-          welcomeMessage="Ready to help with your training. What do you want to work on?"
-          addProfileContext
-        />
-      </div>
+      </Group>
 
       {/* Unified workout history */}
-      <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)" }}>
-            History · Last 30 days
-          </div>
-          <Link href="/health/workout/log?past=1" style={{ fontSize: 11, fontWeight: 500, color: "var(--color-ink-3)", textDecoration: "none", border: "1px solid var(--color-line)", borderRadius: 8, padding: "5px 10px" }}>
-            + Log past workout
-          </Link>
-        </div>
+      <Group header="History · Last 30 days">
+        <Cell
+          href="/health/workout/log?past=1"
+          lead={<IconBadge color="#8E8E93"><Icons.PlusIcon /></IconBadge>}
+          title="Log past workout"
+        />
+      </Group>
+      <div style={{ padding: "10px 16px 0" }}>
         <WorkoutHistoryClient groups={groups} />
       </div>
 

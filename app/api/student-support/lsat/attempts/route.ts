@@ -4,10 +4,23 @@ import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 
 export async function POST(req: NextRequest) {
   const userId = await getCurrentUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
 
   const { sessionId, questionId, selectedChoiceId, confidence, flagged, timeSpentS } = await req.json();
+
+  // Verify the session belongs to the caller before recording an attempt against it
+  const { data: session } = await db
+    .schema("student_support")
+    .from("lsat_practice_sessions")
+    .select("id, user_id")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (!session) return NextResponse.json({ error: "Session not found" }, { status: 404 });
+  if (session.user_id !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   // Verify the selected choice and get the correct answer
   const { data: choice } = await db

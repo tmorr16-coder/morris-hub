@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { notFound } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
+import { LargeTitle } from "@/components/ios";
 import PracticeSessionClient from "./_components/PracticeSessionClient";
 
 export default async function CertPracticeSessionPage({
@@ -94,6 +95,7 @@ export default async function CertPracticeSessionPage({
 
     if (unanswered.length > 0) {
       // Pseudo-random pick from first 5 unanswered to add variety
+      // eslint-disable-next-line react-hooks/purity -- async server component, not a React render
       const idx = Math.floor(Math.random() * Math.min(unanswered.length, 5));
       nextQuestion = unanswered[idx] as QuestionRow;
 
@@ -117,8 +119,9 @@ export default async function CertPracticeSessionPage({
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)" }}>
-      <main style={{ maxWidth: 800, margin: "0 auto", padding: "32px 28px 100px" }}>
+    <div className="ios-scroll">
+      <LargeTitle title="Practice Session" />
+      <div style={{ padding: "4px 16px 40px" }}>
         <PracticeSessionClient
           session={{
             id: session.id,
@@ -135,7 +138,7 @@ export default async function CertPracticeSessionPage({
           examName={exam.name}
           certId={certId}
         />
-      </main>
+      </div>
     </div>
   );
 }

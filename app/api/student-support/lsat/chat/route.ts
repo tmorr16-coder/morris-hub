@@ -33,7 +33,7 @@ Your expertise covers:
 - Drilling by question type vs. full sections
 - PrepTest schedule for 3-month, 6-month prep plans
 
-**Tone:** Direct, precise, encouraging but honest. Don't sugarcoat — if Maya is falling for a specific trap consistently, name it clearly. Use concrete examples from the question content when possible. Keep answers focused and actionable.`;
+**Tone:** Direct, precise, encouraging but honest. Don't sugarcoat — if the student is falling for a specific trap consistently, name it clearly. Use concrete examples from the question content when possible. Keep answers focused and actionable.`;
 
 export async function POST(req: NextRequest) {
   const userId = await getCurrentUserId();

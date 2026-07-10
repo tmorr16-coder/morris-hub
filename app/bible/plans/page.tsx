@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import Link from "next/link";
+import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 import PlanUploader from "./_components/PlanUploader";
 import StartFamilyPlanButton from "./_components/StartFamilyPlanButton";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 const BUILT_IN_PLANS = [
   { id: "bible-in-a-year",   title: "Bible in a Year",         description: "Read the entire Bible in 365 days — Old and New Testament together.", duration_days: 365 },
@@ -25,162 +27,115 @@ export default async function PlansPage() {
     db.schema("bible").from("reading_plans").select("*").eq("is_public", true).order("created_at", { ascending: false }).limit(20),
   ]);
 
-  // Graceful fallback if family_plans table not yet migrated
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // Graceful fallback if family_plans table not yet migrated.
+  // Scope to plans the user created OR belongs to — the service client bypasses
+  // RLS, so an unscoped query would surface other families' plans.
   let familyPlans: any[] = [];
   try {
-    const { data: fp } = await db.schema("bible").from("family_plans")
-      .select("*, plan:reading_plans(*), members:family_plan_members(user_id)").limit(10);
+    const { data: memberRows } = await db.schema("bible").from("family_plan_members")
+      .select("family_plan_id").eq("user_id", user.id);
+    const memberPlanIds = ((memberRows ?? []) as any[]).map((r) => r.family_plan_id as string);
+
+    let fpQuery = db.schema("bible").from("family_plans")
+      .select("*, plan:reading_plans(*), members:family_plan_members(user_id)");
+    fpQuery = memberPlanIds.length > 0
+      ? fpQuery.or(`created_by.eq.${user.id},id.in.(${memberPlanIds.join(",")})`)
+      : fpQuery.eq("created_by", user.id);
+
+    const { data: fp } = await fpQuery.limit(10);
     familyPlans = fp ?? [];
   } catch { /* table not yet created */ }
 
-  const menuUser = { email: user.email, name: user.user_metadata?.full_name ?? user.email, avatarUrl: user.user_metadata?.avatar_url ?? null };
   const enrolledIds = new Set((userPlans ?? []).map((up: any) => up.plan_id));
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)", paddingBottom: 80 }}>
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px 20px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-          <h1 style={{ fontFamily: "var(--font-instrument-serif, serif)", fontSize: 26, fontWeight: 400, margin: 0 }}>Reading Plans</h1>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <PlanUploader />
-            <Link href="/bible/plans/generate" style={{
-              padding: "8px 16px", background: "var(--color-accent)", color: "#fff",
-              borderRadius: 8, textDecoration: "none", fontSize: 13, fontWeight: 500,
-            }}>
-              ✨ Generate plan
-            </Link>
-          </div>
-        </div>
+    <div className="ios-scroll">
+      <LargeTitle title="Plans" subtitle="Reading plans" trailing={<PlanUploader />} />
 
-        {/* My active plans */}
-        {(userPlans ?? []).length > 0 && (
-          <div style={{ marginBottom: 28 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink-2)", marginBottom: 12 }}>My plans</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {(userPlans ?? []).map((up: any) => (
-                <div key={up.plan_id} style={{
-                  background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
-                  borderRadius: 12, padding: "16px 20px", boxShadow: "var(--shadow-card)",
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                    <Link href={`/bible/plans/${up.plan_id}`} style={{ textDecoration: "none", flex: 1 }}>
-                      <div style={{ fontWeight: 600, color: "var(--color-ink)", fontSize: 15 }}>{up.plan?.title}</div>
-                      <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 3 }}>{up.plan?.duration_days} days • Started {new Date(up.started_at).toLocaleDateString()}</div>
-                    </Link>
-                    <Link href={`/bible/plans/${up.plan_id}`} style={{ color: "var(--color-accent)", fontSize: 20, textDecoration: "none", marginLeft: 12 }}>›</Link>
-                  </div>
-                  {/* Start family plan for any enrolled plan */}
-                  <StartFamilyPlanButton planId={up.plan_id} planTitle={up.plan?.title ?? "Plan"} />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+      <Group header="Create">
+        <Cell
+          lead={<IconBadge color="var(--ios-tint)"><Icons.SparkleIcon /></IconBadge>}
+          title="Generate a plan with AI"
+          subtitle="Describe a goal and get a personalized schedule"
+          href="/bible/plans/generate"
+        />
+      </Group>
 
-        {/* Built-in plans */}
-        <div id="built-in" style={{ marginBottom: 28 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink-2)", marginBottom: 12 }}>Curated plans</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
-            {BUILT_IN_PLANS.map((plan) => (
-              <div key={plan.id} style={{
-                background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
-                borderRadius: 12, padding: "16px 20px", boxShadow: "var(--shadow-card)",
-              }}>
-                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{plan.title}</div>
-                <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginBottom: 12, lineHeight: 1.4 }}>{plan.description}</div>
-                <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginBottom: 12 }}>{plan.duration_days} days</div>
-                <EnrollButton planId={plan.id} planTitle={plan.title} userId={user.id} />
+      {(userPlans ?? []).length > 0 && (
+        <Group header="My plans">
+          {(userPlans ?? []).map((up: any) => (
+            <div key={up.plan_id}>
+              <Cell
+                lead={<IconBadge color="var(--ios-green)"><Icons.ChecklistIcon /></IconBadge>}
+                title={up.plan?.title ?? "Reading plan"}
+                subtitle={`${up.plan?.duration_days} days · Started ${new Date(up.started_at).toLocaleDateString()}`}
+                href={`/bible/plans/${up.plan_id}`}
+              />
+              <div className="ios-cell ios-cell--inset" style={{ paddingTop: 8, paddingBottom: 8 }}>
+                <StartFamilyPlanButton planId={up.plan_id} planTitle={up.plan?.title ?? "Plan"} />
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Community plans */}
-        {(publicPlans ?? []).length > 0 && (
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink-2)", marginBottom: 12 }}>Community plans</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {(publicPlans ?? []).filter((p: any) => !enrolledIds.has(p.id)).map((plan: any) => (
-                <div key={plan.id} style={{
-                  background: "var(--color-bg-card)", border: "1px solid var(--color-rule)",
-                  borderRadius: 12, padding: "16px 20px", boxShadow: "var(--shadow-card)",
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{plan.title}</div>
-                    <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 2 }}>{plan.duration_days} days</div>
-                  </div>
-                  <Link href={`/bible/plans/${plan.id}`} style={{
-                    padding: "6px 14px", background: "var(--color-accent-soft)",
-                    color: "var(--color-accent)", borderRadius: 8, textDecoration: "none",
-                    fontSize: 12, fontWeight: 500,
-                  }}>
-                    View
-                  </Link>
-                </div>
-              ))}
             </div>
-          </div>
-        )}
+          ))}
+        </Group>
+      )}
 
-        {/* Family Reading Plans */}
-        <div style={{ marginTop: 32 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink-2)" }}>👨‍👩‍👧 Family plans</div>
-          </div>
-          {familyPlans.length === 0 ? (
-            <div style={{ padding: "20px 16px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10 }}>
-              <div style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 6 }}>No family reading plans yet.</div>
-              <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginBottom: 12 }}>
-                Enroll in any reading plan below, then share it with your family to track progress together.
-              </div>
-              <a href="#built-in"
-                style={{ fontSize: 12, fontWeight: 600, color: "var(--color-accent)", textDecoration: "none" }}>
-                Browse plans below →
-              </a>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              {familyPlans.map((fp: any) => {
-                const memberCount = fp.members?.length ?? 0;
-                const myCompleted = fp.my_progress?.length ?? 0;
-                const totalDays = fp.plan?.duration_days ?? 1;
-                const pct = Math.round((myCompleted / totalDays) * 100);
-                return (
-                  <Link key={fp.id} href={`/bible/plans/${fp.plan_id}?familyPlanId=${fp.id}`}
-                    style={{ display: "block", padding: "14px 16px", background: "var(--color-bg-card)", border: "1px solid var(--color-rule)", borderRadius: 10, textDecoration: "none" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>{fp.name}</div>
-                      <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>{memberCount} member{memberCount !== 1 ? "s" : ""}</span>
-                    </div>
-                    <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginBottom: 8 }}>{fp.plan?.title} · {totalDays} days</div>
-                    <div style={{ height: 4, background: "var(--color-rule)", borderRadius: 2, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${pct}%`, background: "var(--color-accent)", borderRadius: 2, transition: "width 0.3s" }} />
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 4 }}>Your progress: {pct}%</div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </div>
+      <Group header="Curated plans" footer="Tap a plan to preview it and start reading.">
+        {BUILT_IN_PLANS.map((plan) => (
+          <Cell
+            key={plan.id}
+            lead={<IconBadge color="#3B5C7F"><Icons.BookIcon /></IconBadge>}
+            title={plan.title}
+            subtitle={plan.description}
+            trailing={<span className="ios-num" style={{ color: "var(--ios-label-2)" }}>{plan.duration_days}d</span>}
+            href={`/bible/plans/${plan.id}`}
+          />
+        ))}
+      </Group>
 
-      </div>
+      {(publicPlans ?? []).filter((p: any) => !enrolledIds.has(p.id)).length > 0 && (
+        <Group header="Community plans">
+          {(publicPlans ?? []).filter((p: any) => !enrolledIds.has(p.id)).map((plan: any) => (
+            <Cell
+              key={plan.id}
+              lead={<IconBadge color="#6B5B95"><Icons.PeopleIcon /></IconBadge>}
+              title={plan.title}
+              subtitle={`${plan.duration_days} days`}
+              href={`/bible/plans/${plan.id}`}
+            />
+          ))}
+        </Group>
+      )}
+
+      {familyPlans.length === 0 ? (
+        <Group header="Family plans" footer="Enroll in any plan, then share it with your family to track progress together.">
+          <Cell
+            lead={<IconBadge color="#E8607A"><Icons.PeopleIcon /></IconBadge>}
+            title="Browse curated plans"
+            subtitle="Start one, then start a family plan"
+            href="/bible/plans"
+          />
+        </Group>
+      ) : (
+        <Group header="Family plans">
+          {familyPlans.map((fp: any) => {
+            const memberCount = fp.members?.length ?? 0;
+            const myCompleted = fp.my_progress?.length ?? 0;
+            const totalDays = fp.plan?.duration_days ?? 1;
+            const pct = Math.round((myCompleted / totalDays) * 100);
+            return (
+              <Cell
+                key={fp.id}
+                lead={<IconBadge color="#E8607A"><Icons.PeopleIcon /></IconBadge>}
+                title={fp.name}
+                subtitle={`${fp.plan?.title} · ${memberCount} member${memberCount !== 1 ? "s" : ""} · ${pct}%`}
+                href={`/bible/plans/${fp.plan_id}?familyPlanId=${fp.id}`}
+              />
+            );
+          })}
+        </Group>
+      )}
+
+      <div style={{ height: 12 }} />
     </div>
-  );
-}
-
-// Server component button placeholder — enrollment happens via the plan detail page
-function EnrollButton({ planId, planTitle, userId }: { planId: string; planTitle: string; userId: string }) {
-  return (
-    <Link href={`/bible/plans/${planId}`} style={{
-      display: "inline-block", padding: "6px 14px",
-      background: "var(--color-accent)", color: "#fff",
-      borderRadius: 8, textDecoration: "none", fontSize: 12, fontWeight: 500,
-    }}>
-      Start plan
-    </Link>
   );
 }

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
+import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 import LearningPageClient from "./_components/LearningPageClient";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -75,154 +75,37 @@ export default async function TenPercentPage() {
   );
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{ marginBottom: 28 }}>
-        <h1
-          style={{
-            fontFamily: "var(--font-display, serif)",
-            fontSize: 28,
-            fontWeight: 400,
-            color: "var(--color-ink)",
-            margin: "0 0 6px",
-          }}
-        >
-          10% · Structured Learning
-        </h1>
-        <p style={{ fontSize: 14, color: "var(--color-ink-3)", margin: 0, maxWidth: 640 }}>
-          10% of career growth comes from structured, formal learning — courses, certifications,
-          conferences, and books that build your knowledge foundation.
-        </p>
-      </div>
+    <div className="ios-scroll">      <LargeTitle title="10% · Learning" subtitle="Structured learning — courses, certs & books" />
 
-      {/* Section 1: Active Certifications */}
-      <section style={{ marginBottom: 36 }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 14,
-            gap: 12,
-          }}
-        >
-          <h2
-            style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: "var(--color-ink)",
-              margin: 0,
-            }}
-          >
-            Active Certifications
-          </h2>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <Link
-              href="/career/certifications"
-              style={{
-                fontSize: 13,
-                color: "var(--color-accent)",
-                textDecoration: "none",
-                fontWeight: 500,
-              }}
-            >
-              Browse all certifications →
-            </Link>
-            <Link
-              href="/career/certifications/new"
-              style={{
-                background: "var(--color-accent)",
-                color: "#fff",
-                borderRadius: 8,
-                padding: "6px 14px",
-                fontSize: 13,
-                fontWeight: 500,
-                textDecoration: "none",
-              }}
-            >
-              + Add Certification
-            </Link>
-          </div>
-        </div>
+      {/* Active certifications */}
+      {certExams.length === 0 ? (
+        <Group header="Certifications" footer="Track a certification to plan your exam prep.">
+          <Cell
+            lead={<IconBadge color="var(--ios-orange)"><Icons.PlusIcon /></IconBadge>}
+            title="Add a certification"
+            href="/career/certifications/new"
+          />
+        </Group>
+      ) : (
+        <Group header="Certifications">
+          {certExams.map((cert) => (
+            <Cell
+              key={cert.id}
+              href={`/career/certifications/${cert.id}`}
+              lead={<IconBadge color={cert.color_tag ?? "var(--ios-orange)"}><Icons.BookIcon /></IconBadge>}
+              title={cert.name}
+              subtitle={[cert.exam_code, cert.vendor, cert.target_exam_date ? `Target ${formatDate(cert.target_exam_date)}` : null].filter(Boolean).join(" · ") || undefined}
+            />
+          ))}
+          <Cell
+            lead={<IconBadge color="#8E8E93"><Icons.ChecklistIcon /></IconBadge>}
+            title="All certifications"
+            href="/career/certifications"
+          />
+        </Group>
+      )}
 
-        {certExams.length === 0 ? (
-          <div
-            style={{
-              background: "var(--color-bg-card)",
-              border: "1px solid var(--color-rule)",
-              borderRadius: 10,
-              padding: "24px",
-              textAlign: "center",
-              color: "var(--color-ink-3)",
-              fontSize: 14,
-            }}
-          >
-            No certifications tracked yet.{" "}
-            <Link href="/career/certifications/new" style={{ color: "var(--color-accent)" }}>
-              Add one in Student Success
-            </Link>
-            .
-          </div>
-        ) : (
-          <div
-            style={{
-              display: "grid",
-              gap: 12,
-              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-            }}
-          >
-            {certExams.map((cert) => (
-              <Link
-                key={cert.id}
-                href={`/career/certifications/${cert.id}`}
-                style={{ textDecoration: "none" }}
-              >
-                <div
-                  style={{
-                    background: "var(--color-bg-card)",
-                    border: "1px solid var(--color-rule)",
-                    borderRadius: 10,
-                    padding: "16px 18px",
-                    borderLeft: "4px solid #9A3B2A",
-                    cursor: "pointer",
-                    transition: "border-color 0.15s",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", marginBottom: 2 }}>
-                        {cert.name}
-                      </div>
-                      {cert.exam_code && (
-                        <div style={{ fontSize: 12, color: "var(--color-ink-3)", fontFamily: "var(--font-mono)" }}>
-                          {cert.exam_code}
-                        </div>
-                      )}
-                      {cert.vendor && (
-                        <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 2 }}>
-                          {cert.vendor}
-                        </div>
-                      )}
-                    </div>
-                    {cert.exam_code && (
-                      <span style={{ background: `${cert.color_tag ?? "#9A3B2A"}18`, color: cert.color_tag ?? "#9A3B2A", border: `1px solid ${cert.color_tag ?? "#9A3B2A"}44`, borderRadius: 4, padding: "2px 8px", fontSize: 11, fontWeight: 500, whiteSpace: "nowrap" }}>
-                        {cert.exam_code}
-                      </span>
-                    )}
-                  </div>
-                  {cert.target_exam_date && (
-                    <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 8 }}>
-                      Target: {formatDate(cert.target_exam_date)}
-                    </div>
-                  )}
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Section 2 & 3: Courses/Books/Conferences + Add Learning (client) */}
+      {/* Courses / books / conferences + add learning (interactive client) */}
       <LearningPageClient
         learningItems={nonCertItems}
         goals={goals}
@@ -230,6 +113,8 @@ export default async function TenPercentPage() {
         statusColors={STATUS_COLORS}
         typeColors={TYPE_COLORS}
       />
+
+      <div style={{ height: 12 }} />
     </div>
   );
 }

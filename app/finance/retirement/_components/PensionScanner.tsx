@@ -42,15 +42,14 @@ export default function PensionScanner({ spouseEnabled, spouseName, onSelect }: 
   return (
     <div
       style={{
-        border: "1px solid var(--color-rule)",
         borderRadius: 10,
         padding: "16px 18px",
-        background: "var(--color-paper-deep)",
+        background: "var(--ios-fill-2)",
         marginTop: 4,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink-2)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        <div className="ios-subhead" style={{ fontWeight: 600, color: "var(--ios-label)" }}>
           Scan pension statement
         </div>
         {spouseEnabled && (
@@ -58,13 +57,12 @@ export default function PensionScanner({ spouseEnabled, spouseName, onSelect }: 
             value={owner}
             onChange={(e) => setOwner(e.target.value as "self" | "spouse")}
             style={{
-              padding: "5px 10px",
-              border: "1px solid var(--color-rule)",
-              borderRadius: 7,
-              background: "var(--color-paper)",
-              color: "var(--color-ink)",
-              fontSize: 12,
-              fontFamily: "inherit",
+              padding: "7px 10px",
+              border: "1px solid var(--ios-separator)",
+              borderRadius: 8,
+              background: "var(--ios-bg)",
+              color: "var(--ios-label)",
+              fontSize: 14,
             }}
           >
             <option value="self">My pension</option>
@@ -73,23 +71,22 @@ export default function PensionScanner({ spouseEnabled, spouseName, onSelect }: 
         )}
       </div>
 
-      <p style={{ fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.5, marginBottom: 12 }}>
+      <p className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5, marginBottom: 12 }}>
         Upload a photo or screenshot of your Lilly pension benefit statement. Morris will extract the payment options automatically.
       </p>
 
       {!result && (
         <label
+          className="ios-subhead"
           style={{
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
             gap: 8,
-            padding: "9px 16px",
-            borderRadius: 8,
-            border: "1px dashed var(--color-bronze)",
-            background: "rgba(139,106,71,0.05)",
-            color: "var(--color-bronze-dark)",
-            fontSize: 13,
-            fontWeight: 500,
+            padding: "10px 18px",
+            borderRadius: 999,
+            background: "var(--ios-tint)",
+            color: "var(--ios-on-tint)",
+            fontWeight: 600,
             cursor: scanning ? "wait" : "pointer",
             opacity: scanning ? 0.7 : 1,
             width: "fit-content",
@@ -109,13 +106,12 @@ export default function PensionScanner({ spouseEnabled, spouseName, onSelect }: 
 
       {error && (
         <div
+          className="ios-footnote"
           style={{
-            background: "rgba(154,59,42,0.08)",
-            border: "1px solid rgba(154,59,42,0.3)",
+            background: "var(--ios-fill)",
             borderRadius: 8,
             padding: "8px 12px",
-            fontSize: 12,
-            color: "var(--color-red)",
+            color: "var(--ios-red)",
             marginTop: 10,
           }}
         >
@@ -124,13 +120,9 @@ export default function PensionScanner({ spouseEnabled, spouseName, onSelect }: 
             onClick={() => { setError(null); fileRef.current?.click(); }}
             style={{
               marginLeft: 10,
-              border: "none",
-              background: "none",
-              color: "var(--color-bronze-dark)",
-              fontSize: 12,
+              color: "var(--ios-tint)",
+              fontSize: 13,
               cursor: "pointer",
-              fontFamily: "inherit",
-              textDecoration: "underline",
             }}
           >
             Try again
@@ -140,39 +132,26 @@ export default function PensionScanner({ spouseEnabled, spouseName, onSelect }: 
 
       {result && (
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", marginBottom: 10 }}>
+          <div className="ios-subhead" style={{ fontWeight: 600, color: "var(--ios-label)", marginBottom: 10 }}>
             {result.pension_name || "Pension options found"} — select one to add:
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="ios-list" style={{ margin: 0 }}>
             {result.options.map((opt, i) => (
               <button
                 key={i}
                 onClick={() => onSelect(opt, owner, result.pension_name || "Pension")}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "12px 16px",
-                  borderRadius: 9,
-                  border: "1px solid var(--color-rule)",
-                  background: "var(--color-paper)",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  textAlign: "left",
-                  transition: "border-color 0.15s",
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.borderColor = "var(--color-bronze)")}
-                onMouseOut={(e) => (e.currentTarget.style.borderColor = "var(--color-rule)")}
+                className="ios-cell"
+                style={{ justifyContent: "space-between", textAlign: "left" }}
               >
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", marginBottom: 2 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div className="ios-subhead" style={{ fontWeight: 600, color: "var(--ios-label)", marginBottom: 2 }}>
                     {opt.name}
                   </div>
                   {opt.notes && (
-                    <div style={{ fontSize: 11, color: "var(--color-ink-3)" }}>{opt.notes}</div>
+                    <div className="ios-caption" style={{ color: "var(--ios-label-2)" }}>{opt.notes}</div>
                   )}
                 </div>
-                <div className="mono" style={{ fontSize: 20, fontWeight: 500, color: "var(--color-ink)", flexShrink: 0, marginLeft: 16 }}>
+                <div className="ios-num" style={{ fontSize: 18, fontWeight: 700, color: "var(--ios-label)", flexShrink: 0, marginLeft: 16 }}>
                   ${opt.monthly_amount.toLocaleString()}/mo
                 </div>
               </button>
@@ -182,13 +161,9 @@ export default function PensionScanner({ spouseEnabled, spouseName, onSelect }: 
             onClick={() => setResult(null)}
             style={{
               marginTop: 10,
-              border: "none",
-              background: "none",
-              color: "var(--color-ink-3)",
-              fontSize: 12,
+              color: "var(--ios-tint)",
+              fontSize: 13,
               cursor: "pointer",
-              fontFamily: "inherit",
-              textDecoration: "underline",
             }}
           >
             Scan a different image

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import MarkdownMessage from "@/components/MarkdownMessage";
 
 interface Message {
   role: "user" | "assistant";
@@ -161,13 +162,16 @@ export default function BibleChat() {
                 lineHeight: 1.65,
                 border: m.role === "assistant" ? "1px solid var(--color-rule)" : "none",
                 boxShadow: "var(--shadow-card)",
-                whiteSpace: "pre-wrap",
+                whiteSpace: m.role === "user" ? "pre-wrap" : "normal",
                 fontFamily: m.role === "assistant" ? "var(--font-display)" : "inherit",
               }}>
-                {m.content || (loading && i === messages.length - 1
-                  ? <span style={{ color: "var(--color-ink-3)" }}>Searching Scripture…</span>
-                  : ""
-                )}
+                {m.role === "user"
+                  ? m.content
+                  : m.content
+                    ? <MarkdownMessage content={m.content} />
+                    : (loading && i === messages.length - 1
+                        ? <span style={{ color: "var(--color-ink-3)" }}>Searching Scripture…</span>
+                        : "")}
               </div>
             </div>
           ))}

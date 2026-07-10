@@ -7,14 +7,13 @@ export default async function NotesPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/");
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
   const { data: notes } = await db.schema("bible").from("notes")
     .select("*").eq("user_id", user.id).order("created_at", { ascending: false });
 
-  const menuUser = { email: user.email, name: user.user_metadata?.full_name ?? user.email, avatarUrl: user.user_metadata?.avatar_url ?? null };
-
   return (
-    <div style={{ minHeight: "100vh", background: "var(--color-bg)", paddingBottom: 80 }}>
+    <div className="ios-scroll">
       <NotesClient initialNotes={notes ?? []} userId={user.id} />
     </div>
   );
