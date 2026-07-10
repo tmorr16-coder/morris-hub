@@ -1,4 +1,4 @@
-import { plaidClient } from '@/lib/finance/plaid';
+import { getAccounts, getTransactions, healthCheck } from '@/lib/finance/simplefin';
 import { decrypt } from '@/lib/finance/encryption';
 import { createServiceClient } from '@/lib/supabase/server';
 
@@ -11,8 +11,8 @@ type SyncResult = {
 };
 
 /**
- * Syncs one Plaid item using /transactions/sync (cursor-based, incremental).
- * Updates transactions, refreshes balances, snapshots daily balance, logs to audit.
+ * Syncs one Simplefin Bridge item.
+ * Fetches transactions since last sync, refreshes balances, snapshots daily balance.
  */
 export async function syncItem(itemId: string): Promise<SyncResult> {
   const supabase = createServiceClient();
@@ -30,25 +30,21 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
 
   try {
     const accessToken = decrypt(item.access_token_encrypted);
-    let cursor: string | undefined = item.sync_cursor ?? undefined;
-    let hasMore = true;
-    const added: any[] = [];
-    const modified: any[] = [];
-    const removed: any[] = [];
 
-    while (hasMore) {
-      const { data } = await plaidClient.transactionsSync({
-        access_token: accessToken,
-        cursor,
-      });
-      added.push(...data.added);
-      modified.push(...data.modified);
-      removed.push(...data.removed);
-      hasMore = data.has_more;
-      cursor = data.next_cursor;
+    // Health check — verify token is still valid
+    const isHealthy = await healthCheck(accessToken);
+    if (!isHealthy) {
+      throw new Error('INVALID_ACCESS_TOKEN');
     }
 
-    // Map plaid_account_id -> internal account.id
+    // Get all accounts
+    const simplefinAccounts = await getAccounts(accessToken);
+
+    if (!simplefinAccounts.length) {
+      return { item_id: itemId, added: 0, modified: 0, removed: 0, error: 'no accounts found' };
+    }
+
+    // Map simplefin account id -> internal account id
     const { data: accounts } = await supabase
       .schema('finance')
       .from('accounts')
@@ -59,60 +55,61 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
       (accounts ?? []).map((a) => [a.plaid_account_id, a.id])
     );
 
-    // Upsert added + modified
-    const txRows = [...added, ...modified]
-      .map((tx) => ({
-        account_id: accountMap.get(tx.account_id),
-        plaid_transaction_id: tx.transaction_id,
-        amount: tx.amount,
-        iso_currency_code: tx.iso_currency_code,
-        date: tx.date,
-        authorized_date: tx.authorized_date,
-        merchant_name: tx.merchant_name,
-        name: tx.name,
-        payment_channel: tx.payment_channel,
-        pending: tx.pending,
-        category: tx.category,
-        personal_finance_category: tx.personal_finance_category,
-        location: tx.location,
-      }))
-      .filter((tx) => tx.account_id);
+    let totalAdded = 0;
 
-    if (txRows.length > 0) {
-      await supabase
-        .schema('finance')
-        .from('transactions')
-        .upsert(txRows, { onConflict: 'plaid_transaction_id' });
+    // Fetch transactions for each account since last sync
+    for (const sfAccount of simplefinAccounts) {
+      const internalId = accountMap.get(sfAccount.id);
+      if (!internalId) continue;
+
+      // Get transactions since last sync (default to 30 days ago)
+      const lastSync = item.last_synced_at ? new Date(item.last_synced_at) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const startDate = lastSync.toISOString().slice(0, 10);
+
+      const txs = await getTransactions(accessToken, sfAccount.id, startDate);
+
+      // Map Simplefin transactions to our schema
+      const txRows = txs
+        .map((tx) => ({
+          account_id: internalId,
+          plaid_transaction_id: tx.id, // Use Simplefin tx id as our transaction id
+          amount: Math.abs(tx.amount),
+          iso_currency_code: tx.currency ?? 'USD',
+          date: tx.posted.slice(0, 10), // YYYY-MM-DD
+          authorized_date: null,
+          merchant_name: tx.merchant ?? null,
+          name: tx.description,
+          payment_channel: tx.type ?? 'other',
+          pending: false, // Simplefin doesn't distinguish pending
+          category: tx.tags?.join(',') ?? null,
+          personal_finance_category: null,
+          location: null,
+        }))
+        .filter((tx) => tx.account_id);
+
+      if (txRows.length > 0) {
+        await supabase
+          .schema('finance')
+          .from('transactions')
+          .upsert(txRows, { onConflict: 'plaid_transaction_id' });
+
+        totalAdded += txRows.length;
+      }
     }
 
-    // Remove deleted transactions
-    if (removed.length > 0) {
-      await supabase
-        .schema('finance')
-        .from('transactions')
-        .delete()
-        .in(
-          'plaid_transaction_id',
-          removed.map((r) => r.transaction_id)
-        );
-    }
-
-    // Refresh balances + snapshot
-    const { data: balData } = await plaidClient.accountsBalanceGet({
-      access_token: accessToken,
-    });
+    // Update balances + snapshots
     const today = new Date().toISOString().slice(0, 10);
 
-    for (const acct of balData.accounts) {
-      const internalId = accountMap.get(acct.account_id);
+    for (const sfAccount of simplefinAccounts) {
+      const internalId = accountMap.get(sfAccount.id);
       if (!internalId) continue;
 
       await supabase
         .schema('finance')
         .from('accounts')
         .update({
-          current_balance: acct.balances.current,
-          available_balance: acct.balances.available,
+          current_balance: sfAccount.balance,
+          available_balance: sfAccount.available_balance ?? sfAccount.balance,
           balance_as_of: new Date().toISOString(),
         })
         .eq('id', internalId);
@@ -124,18 +121,18 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
           {
             account_id: internalId,
             snapshot_date: today,
-            current_balance: acct.balances.current,
-            available_balance: acct.balances.available,
+            current_balance: sfAccount.balance,
+            available_balance: sfAccount.available_balance ?? sfAccount.balance,
           },
           { onConflict: 'account_id,snapshot_date' }
         );
     }
 
-    // Update item cursor + last_synced_at
+    // Update last_synced_at
     await supabase
       .schema('finance')
       .from('plaid_items')
-      .update({ sync_cursor: cursor ?? null, last_synced_at: new Date().toISOString() })
+      .update({ last_synced_at: new Date().toISOString(), status: 'active' })
       .eq('id', item.id);
 
     // Audit
@@ -144,21 +141,21 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
       action: 'plaid_sync',
       resource_type: 'item',
       resource_id: item.id,
-      metadata: { added: added.length, modified: modified.length, removed: removed.length },
+      metadata: { added: totalAdded, modified: 0, removed: 0 },
     });
 
     return {
       item_id: item.id,
-      added: added.length,
-      modified: modified.length,
-      removed: removed.length,
+      added: totalAdded,
+      modified: 0,
+      removed: 0,
     };
   } catch (error: any) {
-    const msg = error?.response?.data?.error_code ?? error?.message ?? 'unknown';
+    const msg = error?.message ?? 'unknown';
     console.error(`[sync] item ${itemId} failed:`, msg);
 
-    // Mark item if Plaid says login is required
-    if (msg === 'ITEM_LOGIN_REQUIRED') {
+    // Mark item if auth failed
+    if (msg === 'INVALID_ACCESS_TOKEN') {
       await supabase
         .schema('finance')
         .from('plaid_items')

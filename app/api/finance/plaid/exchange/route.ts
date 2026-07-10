@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { plaidClient } from '@/lib/finance/plaid';
+import { exchangeSetupToken, getAccounts } from '@/lib/finance/simplefin';
 import { encrypt } from '@/lib/finance/encryption';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 
+/**
+ * Simplefin Bridge: Exchange setup token for access token
+ *
+ * Called after user authenticates at claim URL and is redirected with ?setup=SETUP_TOKEN
+ */
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const {
@@ -15,17 +20,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
-  const { public_token, institution } = await req.json();
+  const { setup_token, institution_name } = await req.json();
 
-  if (!public_token) {
-    return NextResponse.json({ error: 'public_token required' }, { status: 400 });
+  if (!setup_token) {
+    return NextResponse.json({ error: 'setup_token required' }, { status: 400 });
   }
 
   try {
-    // 1. Exchange public_token for long-lived access_token
-    const { data: exchange } = await plaidClient.itemPublicTokenExchange({ public_token });
-    const accessToken = exchange.access_token;
-    const itemId = exchange.item_id;
+    // 1. Exchange setup token for permanent access token
+    const { access_token: accessToken } = await exchangeSetupToken(setup_token);
 
     // 2. Store encrypted item record (service role — bypasses RLS for writes)
     const service = createServiceClient();
@@ -35,10 +38,11 @@ export async function POST(req: NextRequest) {
       .from('plaid_items')
       .insert({
         user_id: user.id,
-        plaid_item_id: itemId,
-        institution_id: institution?.institution_id ?? 'unknown',
-        institution_name: institution?.name ?? 'Unknown',
+        plaid_item_id: accessToken, // In Simplefin, access token serves as the item ID
+        institution_id: 'simplefin',
+        institution_name: institution_name ?? 'Bank Connection',
         access_token_encrypted: encrypt(accessToken),
+        status: 'active',
       })
       .select()
       .single();
@@ -46,19 +50,19 @@ export async function POST(req: NextRequest) {
     if (itemErr) throw itemErr;
 
     // 3. Pull initial accounts and store them
-    const { data: acctData } = await plaidClient.accountsGet({ access_token: accessToken });
+    const accounts = await getAccounts(accessToken);
 
-    const accountRows = acctData.accounts.map((a) => ({
+    const accountRows = accounts.map((a) => ({
       item_id: itemRow.id,
-      plaid_account_id: a.account_id,
+      plaid_account_id: a.id,
       name: a.name,
-      official_name: a.official_name ?? null,
+      official_name: a.name, // Simplefin doesn't have separate official name
       type: a.type,
-      subtype: a.subtype ?? null,
-      mask: a.mask ?? null,
-      current_balance: a.balances.current,
-      available_balance: a.balances.available,
-      iso_currency_code: a.balances.iso_currency_code ?? 'USD',
+      subtype: null, // Simplefin doesn't provide subtype
+      mask: null, // Simplefin doesn't provide mask
+      current_balance: a.balance,
+      available_balance: a.available_balance ?? a.balance,
+      iso_currency_code: a.currency ?? 'USD',
       balance_as_of: new Date().toISOString(),
     }));
 
@@ -72,13 +76,13 @@ export async function POST(req: NextRequest) {
       action: 'plaid_exchange',
       resource_type: 'item',
       resource_id: itemRow.id,
-      metadata: { institution: institution?.name, accounts: accountRows.length },
+      metadata: { institution: institution_name, accounts: accountRows.length },
     });
 
     return NextResponse.json({ success: true, item_id: itemRow.id, redirectTo: '/finance/dashboard' });
   } catch (error: unknown) {
-    const errObj = error as { response?: { data?: unknown }; message?: string };
-    console.error('[exchange]', errObj.response?.data ?? errObj.message);
-    return NextResponse.json({ error: 'failed to exchange token' }, { status: 500 });
+    const errObj = error as { message?: string };
+    console.error('[exchange]', errObj.message);
+    return NextResponse.json({ error: 'failed to exchange token: ' + errObj.message }, { status: 500 });
   }
 }

@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
-import { CountryCode, Products } from 'plaid';
-import { plaidClient } from '@/lib/finance/plaid';
+import { createClaimUrl } from '@/lib/finance/simplefin';
 import { createClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 
+/**
+ * Simplefin Bridge: Create claim URL for bank authentication
+ *
+ * Simplefin flow:
+ * 1. Create claim URL
+ * 2. User visits claim URL and authenticates with their bank
+ * 3. User is redirected back to our app with setup token
+ * 4. We exchange setup token for permanent access token
+ */
 export async function POST() {
   const supabase = await createClient();
   const {
@@ -16,27 +24,19 @@ export async function POST() {
   }
 
   try {
-    // OAuth institutions (Chase, Capital One) require redirect_uri to be
-    // registered in the Plaid dashboard, so we gate that behind PLAID_USE_OAUTH.
-    // Webhooks are NOT subject to that restriction in sandbox — we always pass
-    // the webhook URL so Plaid sends transaction-update events.
-    const useOAuth = process.env.PLAID_USE_OAUTH === 'true';
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
+    if (!appUrl) {
+      return NextResponse.json({ error: 'NEXT_PUBLIC_APP_URL not configured' }, { status: 500 });
+    }
 
-    const { data } = await plaidClient.linkTokenCreate({
-      user: { client_user_id: user.id },
-      client_name: 'morrisai.family',
-      products: [Products.Transactions],
-      country_codes: [CountryCode.Us],
-      language: 'en',
-      ...(appUrl ? { webhook: `${appUrl}/api/finance/plaid/webhook` } : {}),
-      ...(useOAuth && appUrl ? { redirect_uri: `${appUrl}/oauth-callback` } : {}),
-    });
+    // Create claim URL that user will visit to authenticate
+    const redirectUrl = `${appUrl}/finance/connect/callback`;
+    const { claim_url } = await createClaimUrl(redirectUrl);
 
-    return NextResponse.json({ link_token: data.link_token });
+    return NextResponse.json({ claim_url });
   } catch (error: unknown) {
-    const errObj = error as { response?: { data?: unknown }; message?: string };
-    console.error('[link-token]', errObj.response?.data ?? errObj.message);
-    return NextResponse.json({ error: 'failed to create link token' }, { status: 500 });
+    const errObj = error as { message?: string };
+    console.error('[link-token]', errObj.message);
+    return NextResponse.json({ error: 'failed to create claim URL' }, { status: 500 });
   }
 }
