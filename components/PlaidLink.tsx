@@ -1,8 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { usePlaidLink, type PlaidLinkOnSuccess } from 'react-plaid-link';
+import { useEffect, useState } from 'react';
 
+/**
+ * Simplefin Bridge connect button
+ *
+ * Redirects user to Simplefin claim URL where they authenticate with their bank.
+ * No embedded modal — user visits simplefin.org, then returns via callback.
+ */
 export function PlaidLink({
   onConnected,
   label = 'Connect a bank',
@@ -12,49 +17,30 @@ export function PlaidLink({
   label?: string;
   variant?: 'primary' | 'secondary';
 }) {
-  const [linkToken, setLinkToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch('/api/finance/plaid/link-token', { method: 'POST' })
-      .then(async (r) => {
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.error ?? 'unknown');
-        return d;
-      })
-      .then((d) => setLinkToken(d.link_token))
-      .catch((e) => {
-        console.error('link token fetch failed', e);
-        setError(e.message);
-      });
-  }, []);
+  async function handleConnect() {
+    setLoading(true);
+    setError(null);
 
-  const onSuccess = useCallback<PlaidLinkOnSuccess>(
-    async (public_token, metadata) => {
-      setLoading(true);
-      try {
-        const res = await fetch('/api/finance/plaid/exchange', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ public_token, institution: metadata.institution }),
-        });
-        if (!res.ok) {
-          const d = await res.json();
-          throw new Error(d.error ?? 'exchange failed');
-        }
-        onConnected?.();
-      } catch (e) {
-        setError((e as Error).message);
-      } finally {
-        setLoading(false);
+    try {
+      // Get claim URL from backend
+      const res = await fetch('/api/finance/plaid/link-token', { method: 'POST' });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error ?? 'Failed to create claim URL');
       }
-    },
-    [onConnected]
-  );
 
-  const { open, ready } = usePlaidLink({ token: linkToken, onSuccess });
-  const disabled = !ready || !linkToken || loading;
+      // Redirect to Simplefin — user authenticates, then is redirected back to /finance/connect/callback
+      window.location.href = data.claim_url;
+    } catch (e) {
+      console.error('Connect error:', e);
+      setError((e as Error).message);
+      setLoading(false);
+    }
+  }
 
   const primaryStyle: React.CSSProperties = {
     padding: '11px 22px',
@@ -65,8 +51,8 @@ export function PlaidLink({
     fontSize: 14,
     fontWeight: 500,
     fontFamily: 'inherit',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.5 : 1,
+    cursor: loading ? 'wait' : 'pointer',
+    opacity: loading ? 0.7 : 1,
     boxShadow: 'var(--shadow-card)',
     transition: 'opacity 120ms',
   };
@@ -80,22 +66,22 @@ export function PlaidLink({
     fontSize: 13,
     fontWeight: 500,
     fontFamily: 'inherit',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.5 : 1,
+    cursor: loading ? 'wait' : 'pointer',
+    opacity: loading ? 0.7 : 1,
   };
 
   return (
     <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
       <button
-        onClick={() => open()}
-        disabled={disabled}
+        onClick={handleConnect}
+        disabled={loading}
         style={variant === 'primary' ? primaryStyle : secondaryStyle}
       >
-        {loading ? 'Connecting…' : !ready && !error ? 'Loading…' : label}
+        {loading ? 'Redirecting…' : label}
       </button>
       {error && (
         <span style={{ fontSize: 12, color: 'var(--color-red)' }}>
-          Failed to load Plaid: {error}
+          {error}
         </span>
       )}
     </div>
