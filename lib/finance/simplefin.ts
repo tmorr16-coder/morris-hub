@@ -1,3 +1,5 @@
+import { mccToCategory } from "./mcc";
+
 /**
  * SimpleFIN bank-aggregation integration.
  *
@@ -202,7 +204,9 @@ export function mapSimpleFinTransaction(
     payment_channel: null as string | null,
     pending: !!t.pending,
     category: null as string | null,
-    personal_finance_category: null as unknown,
+    // SimpleFIN has no Plaid-style category; derive one from the MCC so the
+    // insights category breakdown works.
+    personal_finance_category: mccToCategory(t.mcc) as unknown,
     location: null as unknown,
   };
 }

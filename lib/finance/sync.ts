@@ -90,6 +90,7 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
         .schema('finance')
         .from('accounts')
         .update({
+          type: mapped.type, // keep category (cash/credit/loan/investment) in sync with inferType
           current_balance: mapped.current_balance,
           available_balance: mapped.available_balance,
           balance_as_of: mapped.balance_as_of,
