@@ -50,6 +50,15 @@ export default async function DashboardPage() {
     <div className="ios-scroll">
       <LargeTitle brand title="Bible" subtitle={`Good ${getTimeOfDay()}, ${firstName} · ${dateLabel}`} avatarInitial={firstName[0]?.toUpperCase()} />
 
+      {/* Quick access to reading — first thing in the module. */}
+      <Group header="Start reading">
+        <ResumeReadingButton />
+        <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.BookIcon /></IconBadge>} title="Continue where I left off" href="/bible/read" />
+        <Cell lead={<IconBadge color="#3B5C7F"><Icons.BookIcon /></IconBadge>} title={`${todayBook.name} 1`} subtitle="Today's book" href={`/bible/read/${todayBook.id}/1`} />
+        <Cell lead={<IconBadge color="#6B5B95"><Icons.BookIcon /></IconBadge>} title="John 3" href="/bible/read/JHN/3" />
+        <Cell lead={<IconBadge color="#8B6A47"><Icons.BookIcon /></IconBadge>} title="Psalms 23" href="/bible/read/PSA/23" />
+      </Group>
+
       {/* Streak hero — number + 10-week heatmap */}
       <div className="ios-list" style={{ margin: "8px 16px 0", padding: "16px 0 8px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px" }}>
@@ -61,14 +70,6 @@ export default async function DashboardPage() {
         </div>
         <HeatStrip days={heatDays} color="var(--ios-orange)" weeks={10} />
       </div>
-
-      <Group header="Start reading">
-        <ResumeReadingButton />
-        <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.BookIcon /></IconBadge>} title="Continue where I left off" href="/bible/read" />
-        <Cell lead={<IconBadge color="#3B5C7F"><Icons.BookIcon /></IconBadge>} title={`${todayBook.name} 1`} subtitle="Today's book" href={`/bible/read/${todayBook.id}/1`} />
-        <Cell lead={<IconBadge color="#6B5B95"><Icons.BookIcon /></IconBadge>} title="John 3" href="/bible/read/JHN/3" />
-        <Cell lead={<IconBadge color="#8B6A47"><Icons.BookIcon /></IconBadge>} title="Psalms 23" href="/bible/read/PSA/23" />
-      </Group>
 
       {userPlans.length > 0 ? (
         <Group header="Your plans">
