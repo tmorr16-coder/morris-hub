@@ -31,14 +31,13 @@ export async function POST(req: NextRequest) {
 
   try {
     // 1. Claim the setup token → access URL (embeds credentials; store encrypted).
+    //    A setup token is one-time, so once claimed we must persist the connection
+    //    BEFORE anything that could fail — otherwise a later error wastes the token.
     const accessUrl = await claimAccessUrl(setupToken);
-
-    // 2. Pull accounts + recent transactions once.
-    const { accounts } = await fetchSimpleFinAccounts(accessUrl);
 
     const service = createServiceClient() as any;
 
-    // 3. Store encrypted item record.
+    // 2. Store the connection immediately (encrypted access URL).
     const { data: itemRow, error: itemErr } = await service
       .schema('finance')
       .from('plaid_items')
@@ -46,7 +45,7 @@ export async function POST(req: NextRequest) {
         user_id: user.id,
         plaid_item_id: 'simplefin:' + randomUUID(),
         institution_id: 'simplefin',
-        institution_name: accounts[0]?.org?.name ?? 'SimpleFIN',
+        institution_name: 'SimpleFIN',
         access_token_encrypted: encrypt(accessUrl),
         status: 'active',
       })
@@ -55,9 +54,36 @@ export async function POST(req: NextRequest) {
 
     if (itemErr) throw itemErr;
 
+    // 3. Best-effort initial pull. If it fails, the connection is saved and
+    //    "Sync now" will retry — the token is not wasted.
+    try {
+      await pullAccounts(service, itemRow.id, user.id, accessUrl);
+    } catch (pullErr) {
+      console.error('[simplefin/claim] initial pull failed (connection saved, will sync):', (pullErr as { message?: string })?.message);
+    }
+
+    return NextResponse.json({ success: true, item_id: itemRow.id, redirectTo: '/finance/dashboard' });
+  } catch (error: unknown) {
+    // Never log the access URL or setup token.
+    const msg = (error as { message?: string })?.message ?? 'unknown';
+    console.error('[simplefin/claim]', msg);
+    return NextResponse.json({ error: 'failed to connect SimpleFIN' }, { status: 500 });
+  }
+}
+
+/** Fetch accounts + transactions and write them for a just-claimed connection. */
+async function pullAccounts(service: any, itemId: string, userId: string, accessUrl: string) {
+  {
+    const { accounts } = await fetchSimpleFinAccounts(accessUrl);
+
+    if (accounts[0]?.org?.name) {
+      await service.schema('finance').from('plaid_items')
+        .update({ institution_name: accounts[0].org.name }).eq('id', itemId);
+    }
+
     // 4. Insert accounts.
     const accountRows = accounts.map((a) => ({
-      item_id: itemRow.id,
+      item_id: itemId,
       ...mapSimpleFinAccount(a),
     }));
 
@@ -70,7 +96,7 @@ export async function POST(req: NextRequest) {
       .schema('finance')
       .from('accounts')
       .select('id, plaid_account_id')
-      .eq('item_id', itemRow.id);
+      .eq('item_id', itemId);
 
     const accountMap = new Map<string, string>(
       ((insertedAccounts ?? []) as { id: string; plaid_account_id: string }[]).map((a) => [
@@ -122,18 +148,11 @@ export async function POST(req: NextRequest) {
 
     // 8. Audit.
     await service.schema('finance').from('audit_log').insert({
-      user_id: user.id,
+      user_id: userId,
       action: 'simplefin_claim',
       resource_type: 'item',
-      resource_id: itemRow.id,
+      resource_id: itemId,
       metadata: { institution: accounts[0]?.org?.name ?? 'SimpleFIN', accounts: accountRows.length },
     });
-
-    return NextResponse.json({ success: true, item_id: itemRow.id, redirectTo: '/finance/dashboard' });
-  } catch (error: unknown) {
-    // Never log the access URL or setup token.
-    const msg = (error as { message?: string })?.message ?? 'unknown';
-    console.error('[simplefin/claim]', msg);
-    return NextResponse.json({ error: 'failed to connect SimpleFIN' }, { status: 500 });
   }
 }

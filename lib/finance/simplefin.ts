@@ -99,13 +99,29 @@ export async function fetchSimpleFinAccounts(
   accessUrl: string,
   startDateUnix?: number
 ): Promise<SimpleFinAccountsResponse> {
-  let url = `${accessUrl}/accounts`;
+  // The SimpleFIN access URL embeds credentials (https://user:pass@host/...).
+  // fetch()/undici REJECTS a URL with credentials, so split them out and send
+  // them as an Authorization: Basic header against a credential-free URL.
+  const parsed = new URL(accessUrl);
+  const username = decodeURIComponent(parsed.username);
+  const password = decodeURIComponent(parsed.password);
+  parsed.username = "";
+  parsed.password = "";
+  const base = parsed.toString().replace(/\/$/, "");
+
+  let url = `${base}/accounts`;
   if (startDateUnix != null) {
     url += `?start-date=${Math.floor(startDateUnix)}`;
   }
 
+  const headers: Record<string, string> = {};
+  if (username || password) {
+    headers.Authorization = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
+  }
+
   const res = await fetch(url, {
     method: "GET",
+    headers,
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 
