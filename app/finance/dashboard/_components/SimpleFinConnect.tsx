@@ -87,6 +87,20 @@ export default function SimpleFinConnect({ label }: { label?: string }) {
         <li>Paste the setup token above.</li>
         <li>Tap Connect — your accounts and transactions will sync automatically.</li>
       </ol>
+
+      {/* Adding more banks happens in the SimpleFIN Bridge; new accounts flow in on the next sync. */}
+      <a
+        href="https://bridge.simplefin.org"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="ios-btn"
+        style={{ margin: "8px 16px 0", width: "calc(100% - 32px)", background: "var(--ios-fill)", color: "var(--ios-tint)", textAlign: "center", textDecoration: "none", fontWeight: 600 }}
+      >
+        Add / manage banks at SimpleFIN ↗
+      </a>
+      <p className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "6px 16px 0", lineHeight: 1.5 }}>
+        Already connected? Add or remove banks in the SimpleFIN Bridge — new accounts appear here automatically the next time you tap <b style={{ fontWeight: 600 }}>Sync</b> (no new token needed).
+      </p>
     </div>
   );
 }
