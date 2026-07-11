@@ -323,7 +323,7 @@ export default function RetirementClient({
           <button
             onClick={handleRefreshBalances}
             disabled={refreshState === "refreshing"}
-            title="Pull the latest balances from your linked Plaid accounts"
+            title="Pull the latest balances from your linked accounts"
             style={{
               padding: "7px 14px",
               borderRadius: 999,

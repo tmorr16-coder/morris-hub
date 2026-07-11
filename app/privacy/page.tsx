@@ -84,7 +84,7 @@ export default function PrivacyPage() {
           <ul style={{ paddingLeft: 20, display: "flex", flexDirection: "column", gap: 6 }}>
             <li><strong>Account data:</strong> Name and email address via Google OAuth. We do not store passwords.</li>
             <li><strong>Health data:</strong> Body weight, body composition, workout logs, dose tracking (Zepbound/GLP-1), sleep and HRV metrics synced from Oura and Withings. Stored only for your own personal use.</li>
-            <li><strong>Financial data:</strong> Bank account balances, transaction history, and net worth via Plaid. Investment account data via Alpaca. Manually entered account balances.</li>
+            <li><strong>Financial data:</strong> Bank account balances, transaction history, and net worth via SimpleFIN. Investment account data via Alpaca. Manually entered account balances.</li>
             <li><strong>Academic data:</strong> LSAT practice scores, course progress, certification tracking, and study logs.</li>
             <li><strong>Career data:</strong> Resume text, career goals, learning logs, and professional contacts that you enter. Used solely to power the AI career advisor.</li>
             <li><strong>Preferences:</strong> Location, news topics, stock tickers, sports teams, and widget settings that personalise your home screen.</li>
@@ -95,7 +95,7 @@ export default function PrivacyPage() {
         <Section title="How we store and protect your data">
           <p>All data is stored in a dedicated Supabase (PostgreSQL) database. Row-Level Security (RLS) is enforced at the database level — every query is scoped to your user ID. No user can read another user&rsquo;s data unless you have explicitly shared it.</p>
           <p style={{ marginTop: 10 }}>Sensitive credentials (OAuth tokens, API keys, encryption keys) are stored as environment variables in Vercel and never committed to source code.</p>
-          <p style={{ marginTop: 10 }}>Financial account access tokens (Plaid) are encrypted at rest using AES-256-GCM before storage.</p>
+          <p style={{ marginTop: 10 }}>Financial account access tokens (SimpleFIN) are encrypted at rest using AES-256-GCM before storage.</p>
           <p style={{ marginTop: 10 }}>The platform is deployed on Vercel (US) with Supabase (US East) as the data store. Data does not leave US infrastructure except when sent to third-party APIs listed below.</p>
         </Section>
 
@@ -129,7 +129,7 @@ export default function PrivacyPage() {
             {[
               { name: "Anthropic (Claude API)", purpose: "AI features — chat, research, summaries, career coaching", data: "Your messages and relevant context (profile, account data you've provided)", training: "Not used for model training per Anthropic's API terms" },
               { name: "Google (OAuth)", purpose: "Authentication", data: "Name and email only", training: "N/A" },
-              { name: "Plaid", purpose: "Bank account connectivity", data: "Credentials exchanged directly with your bank — Plaid returns account/transaction data only", training: "N/A" },
+              { name: "SimpleFIN", purpose: "Bank account connectivity", data: "Bank credentials are handled by SimpleFIN — the platform receives read-only account and transaction data only", training: "N/A" },
               { name: "Alpaca Markets", purpose: "Investment research and paper trading", data: "Ticker searches, watchlist, paper orders", training: "N/A" },
               { name: "Finnhub, Yahoo Finance", purpose: "Real-time market data and charts", data: "Ticker symbols only — no personal data", training: "N/A" },
               { name: "Vercel", purpose: "Hosting and serverless compute", data: "Request logs (IP, path, timestamp)", training: "N/A" },
@@ -170,9 +170,9 @@ export default function PrivacyPage() {
           <ul style={{ paddingLeft: 20, display: "flex", flexDirection: "column", gap: 6 }}>
             <li><strong>Access:</strong> All your data is visible through the platform.</li>
             <li><strong>Export:</strong> Contact us to request a data export.</li>
-            <li><strong>Delete:</strong> Contact us to request full account and data deletion. Third-party connections (Plaid, Alpaca) should be disconnected from within the platform before requesting deletion.</li>
+            <li><strong>Delete:</strong> Contact us to request full account and data deletion. Third-party connections (SimpleFIN, Alpaca) should be disconnected from within the platform before requesting deletion.</li>
             <li><strong>Correction:</strong> You can update most data directly through the platform settings.</li>
-            <li><strong>Disconnect integrations:</strong> You can disconnect Plaid, Oura, Withings, or Alpaca at any time from the relevant settings pages. This removes our access tokens but does not delete historical data unless you also request deletion.</li>
+            <li><strong>Disconnect integrations:</strong> You can disconnect SimpleFIN, Oura, Withings, or Alpaca at any time from the relevant settings pages. This removes our access tokens but does not delete historical data unless you also request deletion.</li>
           </ul>
         </Section>
 

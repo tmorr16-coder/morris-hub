@@ -420,7 +420,7 @@ export default async function DashboardPage() {
       </div>
 
       {accounts.length + manualAccounts.length === 0 && (
-        <Group header="Get started" footer="Securely link a bank or brokerage with Plaid to pull in balances and transactions automatically.">
+        <Group header="Get started" footer="Securely link a bank or brokerage with SimpleFIN to pull in balances and transactions automatically.">
           <div className="ios-cell" style={{ padding: "14px 16px" }}>
             <SimpleFinConnect label="Connect a bank" />
           </div>
@@ -509,6 +509,7 @@ export default async function DashboardPage() {
       <Group header="More">
         <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.SparkleIcon /></IconBadge>} title="Insights" subtitle="AI analysis of your spending" href="/finance/dashboard/insights" />
         <Cell lead={<IconBadge color="#C97A3A"><Icons.TrendUpIcon /></IconBadge>} title="Investments" href="/investments" />
+        <Cell lead={<IconBadge color="var(--ios-green)"><Icons.ChartIcon /></IconBadge>} title="Retirement" subtitle="Model income, drawdown & scenarios" href="/finance/retirement" />
         <Cell lead={<IconBadge color="#8E8E93"><Icons.PlusIcon /></IconBadge>} title="Add or import accounts" href="/finance/dashboard/import" />
       </Group>
 

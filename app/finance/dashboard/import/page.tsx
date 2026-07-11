@@ -58,7 +58,7 @@ export default async function ImportPage() {
       {/* Plaid — automatic bank/brokerage sync */}
       <Group
         header="Connect a bank"
-        footer="Securely link a bank, card, or brokerage via Plaid to sync balances and transactions automatically."
+        footer="Securely link a bank, card, or brokerage via SimpleFIN to sync balances and transactions automatically."
       >
         <div style={{ padding: 16 }}>
           <SimpleFinConnect label="Connect with SimpleFIN" />

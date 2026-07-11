@@ -33,7 +33,7 @@ const MODULES = [
     icon: "$",
     headline: "Family finances, unified",
     description: "Connected accounts, net worth over time, shared visibility between family members, and AI spending insights.",
-    tags: ["Net worth", "Plaid sync", "Family sharing"],
+    tags: ["Net worth", "Bank sync", "Family sharing"],
   },
   {
     key: "investments",

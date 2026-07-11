@@ -263,7 +263,7 @@ export default function PortfolioClient({
             <AccountRow
               key={a.id}
               label={a.name}
-              sublabel={`${RETIREMENT_TYPE_LABELS[a.type] ?? a.type}${a.plaid_account_id ? " · Plaid-linked" : ""}${a.monthly_contribution > 0 ? ` · $${a.monthly_contribution.toLocaleString()}/mo contribution` : ""}`}
+              sublabel={`${RETIREMENT_TYPE_LABELS[a.type] ?? a.type}${a.plaid_account_id ? " · Linked" : ""}${a.monthly_contribution > 0 ? ` · $${a.monthly_contribution.toLocaleString()}/mo contribution` : ""}`}
               balance={a.balance}
               accent="var(--ios-tint)"
             />
@@ -278,7 +278,7 @@ export default function PortfolioClient({
             <AccountRow
               key={a.id}
               label={a.name}
-              sublabel={`${a.subtype ?? "Investment"}${a.mask ? ` ···${a.mask}` : ""}${a.name.includes("(shared)") ? " · Shared" : " · Plaid"}`}
+              sublabel={`${a.subtype ?? "Investment"}${a.mask ? ` ···${a.mask}` : ""}${a.name.includes("(shared)") ? " · Shared" : " · Linked"}`}
               balance={a.balance}
               accent="var(--ios-finance)"
             />
@@ -304,7 +304,7 @@ export default function PortfolioClient({
               Connect a brokerage (research &amp; paper trading) →
             </a>
             <a href="/finance/dashboard/import" className="ios-footnote" style={{ color: "var(--ios-tint)" }}>
-              Or connect via Plaid (E*TRADE, Fidelity, Schwab, etc.) →
+              Or connect via SimpleFIN (E*TRADE, Fidelity, Schwab, etc.) →
             </a>
           </div>
         </SectionCard>

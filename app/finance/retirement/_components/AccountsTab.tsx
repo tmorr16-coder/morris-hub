@@ -43,7 +43,7 @@ type Source = "custom" | "plaid" | "saved" | "shared";
 
 const SOURCES: { key: Source; label: string; description: string }[] = [
   { key: "custom",  label: "Custom",         description: "Enter account details manually" },
-  { key: "plaid",   label: "Plaid account",  description: "Link a Plaid-connected account" },
+  { key: "plaid",   label: "Linked account", description: "Use a bank/brokerage linked via SimpleFIN" },
   { key: "saved",   label: "Saved account",  description: "Import from your saved accounts" },
   { key: "shared",  label: "Shared with me", description: "Import an account shared by a family member" },
 ];
@@ -247,7 +247,7 @@ export default function AccountsTab({
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
                   <span className="ios-headline">{acct.name}</span>
                   <Pill color="var(--ios-finance)">{TYPE_LABELS[acct.type] ?? acct.type}</Pill>
-                  {acct.plaid_account_id && <Pill color="var(--ios-tint)">Plaid</Pill>}
+                  {acct.plaid_account_id && <Pill color="var(--ios-tint)">Linked</Pill>}
                 </div>
                 {/* Contribution — tap to quick-edit */}
                 <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--ios-label-2)", alignItems: "center", flexWrap: "wrap" }}>
@@ -401,7 +401,7 @@ export default function AccountsTab({
               {/* Source-specific pickers */}
               {source === "plaid" && plaidAccounts.length > 0 && (
                 <div style={{ marginTop: 12 }}>
-                  <label style={labelStyle}>Select Plaid account</label>
+                  <label style={labelStyle}>Select linked account</label>
                   <select
                     value={form.plaid_account_id}
                     onChange={(e) => handlePlaidSelect(e.target.value)}

@@ -27,7 +27,7 @@ export default function SettingsScreen({ onBack }: { onBack: () => void }) {
       <Group header="App">
         <Cell lead={<IconBadge color="#5E5CE6"><Icons.MoonIcon /></IconBadge>} title="Appearance" trailing="Automatic" href="/home/settings" />
         <Cell lead={<IconBadge color="var(--ios-red)"><Icons.BellIcon /></IconBadge>} title="Notifications" href="/home/settings" />
-        <Cell lead={<IconBadge color="var(--ios-finance)"><Icons.WalletIcon /></IconBadge>} title="Connected accounts" subtitle="Plaid · Oura · Withings" href="/health/settings/integrations" />
+        <Cell lead={<IconBadge color="var(--ios-finance)"><Icons.WalletIcon /></IconBadge>} title="Connected accounts" subtitle="SimpleFIN · Oura · Withings" href="/health/settings/integrations" />
         <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.HomeIcon /></IconBadge>} title="Home screen widgets" href="/home/settings" />
       </Group>
 

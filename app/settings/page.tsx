@@ -77,7 +77,7 @@ export default async function SettingsHubPage() {
 
       {/* Connected accounts */}
       <Group header="Connected accounts">
-        <Cell lead={<IconBadge color="var(--ios-finance)"><Icons.WalletIcon /></IconBadge>} title="Banks & finances" subtitle="Plaid · accounts, transactions" href="/finance/dashboard/settings" />
+        <Cell lead={<IconBadge color="var(--ios-finance)"><Icons.WalletIcon /></IconBadge>} title="Banks & finances" subtitle="SimpleFIN · accounts, transactions" href="/finance/dashboard/settings" />
         <Cell lead={<IconBadge color="#0077B5"><Icons.BriefcaseIcon /></IconBadge>} title="LinkedIn" subtitle="Career profile & experience" href="/career/settings" />
       </Group>
 

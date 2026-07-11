@@ -72,7 +72,7 @@ const PERSONA_ICON: Record<Persona, Glyph> = {
 
 const MODULES: { key: ModuleKey; label: string; dot: string; icon: string; description: string }[] = [
   { key: "health",          label: "Health",          dot: "#34C759", icon: "♡", description: "Body composition, workouts, GLP-1 tracking, Oura & Withings sync" },
-  { key: "finance",         label: "Finance",         dot: "#C58B4F", icon: "$", description: "Family accounts, net worth, Plaid-connected, family sharing" },
+  { key: "finance",         label: "Finance",         dot: "#C58B4F", icon: "$", description: "Family accounts, net worth, bank-connected via SimpleFIN, family sharing" },
   { key: "investments",     label: "Investments",     dot: "#FF9F0A", icon: "↗", description: "Stock research, AI deep analysis, live charts, paper trading" },
   { key: "career",          label: "Career",          dot: "#356FB0", icon: "◈", description: "AI advisor, goal tracking, learning log, relationship mapping" },
   { key: "student-success", label: "Courses",         dot: "#6B5B95", icon: "✦", description: "College course tracking, assignments, and grades — lives on your Me dashboard" },
@@ -94,7 +94,7 @@ const MODULE_ICON: Record<ModuleKey, Glyph> = {
 
 const INTEGRATIONS: Record<Persona, { key: string; label: string; description: string; icon: string; href: string; available: boolean }[]> = {
   parent: [
-    { key: "plaid",     label: "Plaid",     icon: "🏦", description: "Connect bank accounts and credit cards for automatic finance sync", href: "/finance/dashboard?connect=true", available: true },
+    { key: "plaid",     label: "SimpleFIN", icon: "🏦", description: "Connect bank accounts and credit cards via SimpleFIN for automatic finance sync", href: "/finance/dashboard/import", available: true },
     { key: "oura",      label: "Oura Ring", icon: "💍", description: "Sync sleep, HRV, and readiness scores from your Oura ring", href: "/health/settings/integrations", available: true},
     { key: "withings",  label: "Withings",  icon: "⚖️", description: "Connect your smart scale for body composition tracking", href: "/health/settings/integrations", available: true},
     { key: "alpaca",    label: "Alpaca",    icon: "📈", description: "Paper trade stocks while you learn — no real money needed", href: "/investments/stocks", available: true },
@@ -105,7 +105,7 @@ const INTEGRATIONS: Record<Persona, { key: string; label: string; description: s
     { key: "career",    label: "Career Profile", icon: "◈", description: "Upload your resume and complete the career assessment", href: "/career/profile", available: true },
   ],
   individual: [
-    { key: "plaid",     label: "Plaid",     icon: "🏦", description: "Connect bank accounts and credit cards for automatic finance sync", href: "/finance/dashboard?connect=true", available: true },
+    { key: "plaid",     label: "SimpleFIN", icon: "🏦", description: "Connect bank accounts and credit cards via SimpleFIN for automatic finance sync", href: "/finance/dashboard/import", available: true },
     { key: "oura",      label: "Oura Ring", icon: "💍", description: "Sync sleep, HRV, and readiness scores from your Oura ring", href: "/health/settings/integrations", available: true},
     { key: "alpaca",    label: "Alpaca",    icon: "📈", description: "Paper trade stocks while you learn — no real money needed", href: "/investments/stocks", available: true },
     { key: "career",    label: "Career Profile", icon: "◈", description: "Upload your resume and set your career goals to activate the AI advisor", href: "/career/profile", available: true },
