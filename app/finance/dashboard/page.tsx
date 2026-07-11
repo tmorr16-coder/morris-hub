@@ -279,10 +279,31 @@ export default async function DashboardPage() {
     return sum + (LIABILITY_ACCOUNT_TYPES.has(a.account_type) ? -Math.abs(bal) : bal);
   }, 0);
 
-  const netPosition = accounts.reduce((sum, a) => {
+  const ownLinkedTotal = accounts.reduce((sum, a) => {
     const bal = a.current_balance ?? 0;
     return sum + (a.type === "credit" || a.type === "loan" ? -bal : bal);
-  }, 0) + manualTotal + sharedPortfolioTotal;
+  }, 0);
+  const netPosition = ownLinkedTotal + manualTotal + sharedPortfolioTotal;
+
+  // High-level math for the net-position box: gross assets (+) vs liabilities (−)
+  // across ALL sources (linked, imported, shared) so nothing is hidden.
+  let grossAssets = 0;
+  let grossLiabilities = 0;
+  const addToSplit = (bal: number, isLiability: boolean) => {
+    if (isLiability) grossLiabilities += Math.abs(bal);
+    else grossAssets += bal;
+  };
+  for (const a of accounts) addToSplit(a.current_balance ?? 0, a.type === "credit" || a.type === "loan");
+  for (const a of manualAccounts) {
+    const linkedId = (a as ManualAccountRow & { plaid_account_id?: string }).plaid_account_id;
+    if (linkedId && plaidAccountIds.has(linkedId)) continue;
+    addToSplit(a.balance ?? 0, LIABILITY_ACCOUNT_TYPES.has(a.account_type));
+  }
+  for (const s of sharedWithMe) {
+    if (!s.include_in_portfolio || !s.account) continue;
+    addToSplit(s.account.current_balance ?? 0, s.account.type === "credit" || s.account.type === "loan");
+  }
+  const sharedCount = sharedWithMe.filter((s) => s.include_in_portfolio && s.account).length;
 
   // ── Net position delta via snapshots ──────────────────────────────────────
   // Read previous snapshot, then store today's so next load shows the delta.
@@ -365,6 +386,36 @@ export default async function DashboardPage() {
         )}
         <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 6 }}>
           {accounts.length + manualAccounts.length} accounts{lastSyncAcrossItems ? ` · synced ${relativeTime(lastSyncAcrossItems)}` : ""}
+        </div>
+
+        {/* High-level math — assets (+) minus liabilities (−), and every source that
+            feeds the total so imported and shared accounts are clearly counted. */}
+        <div style={{ marginTop: 12, borderTop: "1px solid var(--ios-separator)", paddingTop: 10, display: "flex", flexDirection: "column", gap: 5 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>Assets</span>
+            <span className="ios-num" style={{ color: "var(--ios-green)", fontWeight: 600 }}>+{fmtMoney(grossAssets)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>Liabilities</span>
+            <span className="ios-num" style={{ color: "var(--ios-red)", fontWeight: 600 }}>−{fmtMoney(grossLiabilities)}</span>
+          </div>
+          <div style={{ borderTop: "1px dashed var(--ios-separator)", margin: "5px 0 3px" }} />
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>Linked accounts</span>
+            <span className="ios-num ios-footnote" style={{ color: "var(--ios-label-2)" }}>{fmtMoney(ownLinkedTotal)}</span>
+          </div>
+          {manualAccounts.length > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>Imported · {manualAccounts.length}</span>
+              <span className="ios-num ios-footnote" style={{ color: "var(--ios-label-2)" }}>{fmtMoney(manualTotal)}</span>
+            </div>
+          )}
+          {sharedCount > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>Shared with me · {sharedCount}</span>
+              <span className="ios-num ios-footnote" style={{ color: "var(--ios-label-2)" }}>{fmtMoney(sharedPortfolioTotal)}</span>
+            </div>
+          )}
         </div>
       </div>
 
