@@ -141,25 +141,35 @@ export async function fetchSimpleFinAccounts(
  * credit-card-like names or a negative balance → "credit", else "depository".
  */
 export function inferType(a: SimpleFinAccount): string {
-  const hay = `${a.name ?? ""} ${a.org?.name ?? ""}`;
-  if (/credit|card/i.test(hay)) return "credit";
+  const hay = `${a.name ?? ""} ${a.org?.name ?? ""}`.toLowerCase();
+  if (/mortgage|\bloan\b|auto|heloc|line of credit/.test(hay)) return "loan";
+  if (/credit|card/.test(hay)) return "credit";
+  if (/brokerage|invest|401|\bira\b|roth|stock plan|\bhsa\b|retirement/.test(hay)) return "investment";
   const bal = parseFloat(a.balance);
-  if (!Number.isNaN(bal) && bal < 0) return "credit";
+  // A negative balance with no matching name is almost always a liability.
+  if (!Number.isNaN(bal) && bal < 0) return "loan";
   return "depository";
 }
 
 /** Map a SimpleFIN account to a `finance.accounts` row (item_id added by caller). */
 export function mapSimpleFinAccount(a: SimpleFinAccount) {
-  const available = a["available-balance"];
+  const type = inferType(a);
+  const isLiability = type === "credit" || type === "loan";
+  const rawBal = parseFloat(a.balance);
+  const availRaw = a["available-balance"] != null ? parseFloat(a["available-balance"]) : null;
   return {
     plaid_account_id: a.id,
     name: a.name,
     official_name: a.org?.name ?? null,
-    type: inferType(a),
+    type,
     subtype: null as string | null,
     mask: null as string | null,
-    current_balance: parseFloat(a.balance),
-    available_balance: available != null ? parseFloat(available) : null,
+    // Net-worth math negates credit/loan balances (Plaid's convention: a liability
+    // is a POSITIVE amount owed). SimpleFIN reports liabilities as NEGATIVE, so store
+    // the absolute value — otherwise a $634k mortgage gets ADDED instead of subtracted.
+    current_balance: isLiability && !Number.isNaN(rawBal) ? Math.abs(rawBal) : rawBal,
+    available_balance:
+      availRaw != null ? (isLiability ? Math.abs(availRaw) : availRaw) : null,
     iso_currency_code: a.currency ?? "USD",
     balance_as_of: new Date((a["balance-date"] ?? 0) * 1000).toISOString(),
   };
