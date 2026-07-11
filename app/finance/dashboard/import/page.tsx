@@ -7,7 +7,7 @@ import { LargeTitle, Group } from "@/components/ios";
 import ImportClient from "./_components/ImportClient";
 import QuickEntryForm from "./_components/QuickEntryForm";
 import ManualAccountsList from "./_components/ManualAccountsList";
-import ConnectSection from "../_components/ConnectSection";
+import SimpleFinConnect from "../_components/SimpleFinConnect";
 
 interface ManualAccount {
   id: string;
@@ -61,7 +61,7 @@ export default async function ImportPage() {
         footer="Securely link a bank, card, or brokerage via Plaid to sync balances and transactions automatically."
       >
         <div style={{ padding: 16 }}>
-          <ConnectSection label="Connect with Plaid" variant="primary" />
+          <SimpleFinConnect label="Connect with SimpleFIN" />
         </div>
       </Group>
 

@@ -1,154 +1,182 @@
 /**
- * Simplefin Bridge API client
- * Community instance: https://bridge.simplefin.org/
+ * SimpleFIN bank-aggregation integration.
  *
- * Simplefin uses a simpler auth model than Plaid:
- * 1. User creates a claim URL with their bank credentials
- * 2. User visits claim URL to authenticate
- * 3. Returns a setup token
- * 4. Setup token can be exchanged for access token
- * 5. Access token is used for all API calls
+ * SimpleFIN connections are stored in the SAME finance tables Plaid uses —
+ * a connection is a `finance.plaid_items` row tagged `institution_id='simplefin'`,
+ * with the SimpleFIN **access URL** (which embeds credentials) stored encrypted
+ * in `access_token_encrypted`. Never log or return the access URL or setup token.
+ *
+ * Protocol:
+ *  1. Setup token = base64 string that decodes to a one-time claim URL.
+ *  2. Claim: POST the claim URL (empty body) → response body is the access URL.
+ *  3. Fetch: GET {accessUrl}/accounts?start-date=<unixSeconds> → JSON.
+ *
+ * Sign convention differs from Plaid: SimpleFIN `amount` is negative for money
+ * leaving the account (debit/spend), positive for money in (deposit). The
+ * finance tables use Plaid's convention (positive = money OUT / expense), so
+ * transaction amounts are sign-flipped when mapped (see mapSimpleFinTransaction).
+ * Balances are stored as-is (NOT sign-flipped).
  */
 
-const SIMPLEFIN_URL = 'https://bridge.simplefin.org';
+const FETCH_TIMEOUT_MS = 15_000;
 
-export interface SimplefinAccount {
+export interface SimpleFinTransaction {
+  id: string;
+  posted?: number;
+  transacted_at?: number;
+  amount: string;
+  description?: string;
+  payee?: string;
+  memo?: string;
+  mcc?: string;
+  pending?: boolean;
+}
+
+export interface SimpleFinOrg {
+  name?: string;
+  domain?: string;
+  id?: string;
+}
+
+export interface SimpleFinAccount {
   id: string;
   name: string;
-  type: string; // "depository", "credit", etc
-  currency: string;
-  balance: number;
-  available_balance?: number;
-  status?: string;
+  currency?: string;
+  balance: string;
+  "available-balance"?: string;
+  "balance-date"?: number;
+  org?: SimpleFinOrg;
+  transactions?: SimpleFinTransaction[];
+  holdings?: unknown[];
 }
 
-export interface SimplefinTransaction {
-  id: string;
-  posted: string; // ISO date
-  transacted?: string; // ISO date
-  amount: number;
-  currency: string;
-  description: string;
-  merchant?: string;
-  tags?: string[];
-  type?: string;
-}
-
-export interface SimplefinInstitution {
-  id: string;
-  name: string;
-  products?: string[];
-  url?: string;
+export interface SimpleFinAccountsResponse {
+  errors: string[];
+  accounts: SimpleFinAccount[];
 }
 
 /**
- * Get list of supported financial institutions
+ * Base64-decode a setup token to its one-time claim URL, POST it (empty body),
+ * and return the resulting access URL. Throws on invalid token or non-2xx.
  */
-export async function getInstitutions(): Promise<SimplefinInstitution[]> {
-  try {
-    const res = await fetch(`${SIMPLEFIN_URL}/institutions`);
-    if (!res.ok) throw new Error(`Failed to fetch institutions: ${res.status}`);
-    return await res.json();
-  } catch (error) {
-    console.error('[simplefin] getInstitutions failed:', error);
-    throw error;
-  }
-}
+export async function claimAccessUrl(setupToken: string): Promise<string> {
+  const token = (setupToken ?? "").trim();
+  if (!token) throw new Error("Setup token is required");
 
-/**
- * Create a claim URL that user visits to authenticate
- * User logs in at that URL, then gets a setup token
- *
- * Returns: { claim_url: "https://...", redirect: "https://..." }
- */
-export async function createClaimUrl(redirectUrl: string): Promise<{ claim_url: string; redirect: string }> {
+  let claimUrl: string;
   try {
-    const res = await fetch(`${SIMPLEFIN_URL}/claim`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ redirect: redirectUrl }),
-    });
-    if (!res.ok) throw new Error(`Failed to create claim: ${res.status}`);
-    return await res.json();
-  } catch (error) {
-    console.error('[simplefin] createClaimUrl failed:', error);
-    throw error;
-  }
-}
-
-/**
- * Exchange setup token (from claim URL) for permanent access token
- * User is redirected with ?setup=SETUP_TOKEN after authenticating
- */
-export async function exchangeSetupToken(setupToken: string): Promise<{ access_token: string }> {
-  try {
-    const res = await fetch(`${SIMPLEFIN_URL}/setup/${setupToken}`);
-    if (!res.ok) throw new Error(`Failed to exchange setup token: ${res.status}`);
-    return await res.json();
-  } catch (error) {
-    console.error('[simplefin] exchangeSetupToken failed:', error);
-    throw error;
-  }
-}
-
-/**
- * Get accounts for an authenticated connection
- * Requires Basic auth with access_token:x
- */
-export async function getAccounts(accessToken: string): Promise<SimplefinAccount[]> {
-  try {
-    const auth = Buffer.from(`${accessToken}:x`).toString('base64');
-    const res = await fetch(`${SIMPLEFIN_URL}/accounts`, {
-      headers: { Authorization: `Basic ${auth}` },
-    });
-    if (!res.ok) throw new Error(`Failed to fetch accounts: ${res.status}`);
-    const data = await res.json();
-    return data.accounts || [];
-  } catch (error) {
-    console.error('[simplefin] getAccounts failed:', error);
-    throw error;
-  }
-}
-
-/**
- * Get transactions for an account
- * Optional: startDate in ISO format (YYYY-MM-DD)
- */
-export async function getTransactions(
-  accessToken: string,
-  accountId: string,
-  startDate?: string
-): Promise<SimplefinTransaction[]> {
-  try {
-    const auth = Buffer.from(`${accessToken}:x`).toString('base64');
-    let url = `${SIMPLEFIN_URL}/accounts/${accountId}/transactions`;
-    if (startDate) {
-      url += `?start=${startDate}`;
-    }
-
-    const res = await fetch(url, {
-      headers: { Authorization: `Basic ${auth}` },
-    });
-    if (!res.ok) throw new Error(`Failed to fetch transactions: ${res.status}`);
-    const data = await res.json();
-    return data.transactions || [];
-  } catch (error) {
-    console.error('[simplefin] getTransactions failed:', error);
-    throw error;
-  }
-}
-
-/**
- * Health check — verify access token is still valid
- */
-export async function healthCheck(accessToken: string): Promise<boolean> {
-  try {
-    const auth = Buffer.from(`${accessToken}:x`).toString('base64');
-    const res = await fetch(`${SIMPLEFIN_URL}/accounts`, {
-      headers: { Authorization: `Basic ${auth}` },
-    });
-    return res.ok;
+    claimUrl = Buffer.from(token, "base64").toString("utf8").trim();
   } catch {
-    return false;
+    throw new Error("Setup token is not valid base64");
   }
+
+  if (!/^https:\/\//i.test(claimUrl)) {
+    throw new Error("Setup token did not decode to a valid https claim URL");
+  }
+
+  const res = await fetch(claimUrl, {
+    method: "POST",
+    body: "",
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+
+  if (!res.ok) {
+    throw new Error(`SimpleFIN claim failed with status ${res.status}`);
+  }
+
+  const accessUrl = (await res.text()).trim();
+  if (!/^https:\/\//i.test(accessUrl)) {
+    throw new Error("SimpleFIN claim did not return a valid access URL");
+  }
+  return accessUrl;
+}
+
+/**
+ * Fetch accounts (and their recent transactions) from a SimpleFIN access URL.
+ * Pass startDateUnix (unix seconds) to bound the transaction window.
+ */
+export async function fetchSimpleFinAccounts(
+  accessUrl: string,
+  startDateUnix?: number
+): Promise<SimpleFinAccountsResponse> {
+  let url = `${accessUrl}/accounts`;
+  if (startDateUnix != null) {
+    url += `?start-date=${Math.floor(startDateUnix)}`;
+  }
+
+  const res = await fetch(url, {
+    method: "GET",
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+
+  if (!res.ok) {
+    throw new Error(`SimpleFIN accounts fetch failed with status ${res.status}`);
+  }
+
+  const json = (await res.json()) as Partial<SimpleFinAccountsResponse>;
+  return {
+    errors: json.errors ?? [],
+    accounts: json.accounts ?? [],
+  };
+}
+
+/**
+ * Infer an account type. SimpleFIN doesn't expose type/subtype, so we guess:
+ * credit-card-like names or a negative balance → "credit", else "depository".
+ */
+export function inferType(a: SimpleFinAccount): string {
+  const hay = `${a.name ?? ""} ${a.org?.name ?? ""}`;
+  if (/credit|card/i.test(hay)) return "credit";
+  const bal = parseFloat(a.balance);
+  if (!Number.isNaN(bal) && bal < 0) return "credit";
+  return "depository";
+}
+
+/** Map a SimpleFIN account to a `finance.accounts` row (item_id added by caller). */
+export function mapSimpleFinAccount(a: SimpleFinAccount) {
+  const available = a["available-balance"];
+  return {
+    plaid_account_id: a.id,
+    name: a.name,
+    official_name: a.org?.name ?? null,
+    type: inferType(a),
+    subtype: null as string | null,
+    mask: null as string | null,
+    current_balance: parseFloat(a.balance),
+    available_balance: available != null ? parseFloat(available) : null,
+    iso_currency_code: a.currency ?? "USD",
+    balance_as_of: new Date((a["balance-date"] ?? 0) * 1000).toISOString(),
+  };
+}
+
+/**
+ * Map a SimpleFIN transaction to a `finance.transactions` row.
+ *
+ * `plaid_transaction_id` is namespaced (`sf:<accountId>:<txId>`) so it can never
+ * collide with a Plaid transaction id. Amount is sign-flipped to Plaid's
+ * convention: SimpleFIN debit "-55.50" → stored +55.50 (expense); deposit
+ * "+2000" → stored -2000 (income).
+ */
+export function mapSimpleFinTransaction(
+  accountId: string,
+  acctCurrency: string,
+  t: SimpleFinTransaction
+) {
+  const postedSec = t.posted ?? t.transacted_at ?? 0;
+  return {
+    plaid_transaction_id: `sf:${accountId}:${t.id}`,
+    amount: -parseFloat(t.amount),
+    iso_currency_code: acctCurrency,
+    date: new Date(postedSec * 1000).toISOString().slice(0, 10),
+    authorized_date: t.transacted_at
+      ? new Date(t.transacted_at * 1000).toISOString().slice(0, 10)
+      : null,
+    merchant_name: t.payee ?? null,
+    name: t.description ?? t.memo ?? "",
+    payment_channel: null as string | null,
+    pending: !!t.pending,
+    category: null as string | null,
+    personal_finance_category: null as unknown,
+    location: null as unknown,
+  };
 }

@@ -1,4 +1,4 @@
-import { getAccounts, getTransactions, healthCheck } from '@/lib/finance/simplefin';
+import { fetchSimpleFinAccounts, mapSimpleFinAccount, mapSimpleFinTransaction } from '@/lib/finance/simplefin';
 import { decrypt } from '@/lib/finance/encryption';
 import { createServiceClient } from '@/lib/supabase/server';
 
@@ -11,11 +11,13 @@ type SyncResult = {
 };
 
 /**
- * Syncs one Simplefin Bridge item.
- * Fetches transactions since last sync, refreshes balances, snapshots daily balance.
+ * Syncs one SimpleFIN connection (stored as a finance.plaid_items row).
+ * Fetches a rolling 90-day window of accounts + embedded transactions from the
+ * SimpleFIN access URL, upserts transactions, refreshes balances, and snapshots.
  */
 export async function syncItem(itemId: string): Promise<SyncResult> {
-  const supabase = createServiceClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createServiceClient() as any;
 
   const { data: item, error: itemErr } = await supabase
     .schema('finance')
@@ -29,88 +31,68 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
   }
 
   try {
-    const accessToken = decrypt(item.access_token_encrypted);
+    const accessUrl = decrypt(item.access_token_encrypted);
+    const startDate = Math.floor(Date.now() / 1000) - 90 * 24 * 60 * 60;
+    const { accounts } = await fetchSimpleFinAccounts(accessUrl, startDate);
 
-    // Health check — verify token is still valid
-    const isHealthy = await healthCheck(accessToken);
-    if (!isHealthy) {
-      throw new Error('INVALID_ACCESS_TOKEN');
-    }
-
-    // Get all accounts
-    const simplefinAccounts = await getAccounts(accessToken);
-
-    if (!simplefinAccounts.length) {
-      return { item_id: itemId, added: 0, modified: 0, removed: 0, error: 'no accounts found' };
-    }
-
-    // Map simplefin account id -> internal account id
-    const { data: accounts } = await supabase
+    // Map SimpleFIN account id -> internal account id; insert any newly-appeared accounts.
+    const { data: existing } = await supabase
       .schema('finance')
       .from('accounts')
       .select('id, plaid_account_id')
       .eq('item_id', item.id);
 
     const accountMap = new Map<string, string>(
-      (accounts ?? []).map((a) => [a.plaid_account_id, a.id])
+      ((existing ?? []) as { id: string; plaid_account_id: string }[]).map((a) => [a.plaid_account_id, a.id])
     );
 
-    let totalAdded = 0;
+    for (const a of accounts) {
+      if (accountMap.has(a.id)) continue;
+      const { data: inserted } = await supabase
+        .schema('finance')
+        .from('accounts')
+        .insert({ item_id: item.id, ...mapSimpleFinAccount(a) })
+        .select('id')
+        .single();
+      if (inserted?.id) accountMap.set(a.id, inserted.id);
+    }
 
-    // Fetch transactions for each account since last sync
-    for (const sfAccount of simplefinAccounts) {
-      const internalId = accountMap.get(sfAccount.id);
+    // Upsert transactions (embedded in each account). Amounts are sign-flipped to
+    // this codebase's convention inside mapSimpleFinTransaction.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const txRows: any[] = [];
+    for (const a of accounts) {
+      const internalId = accountMap.get(a.id);
       if (!internalId) continue;
-
-      // Get transactions since last sync (default to 30 days ago)
-      const lastSync = item.last_synced_at ? new Date(item.last_synced_at) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const startDate = lastSync.toISOString().slice(0, 10);
-
-      const txs = await getTransactions(accessToken, sfAccount.id, startDate);
-
-      // Map Simplefin transactions to our schema
-      const txRows = txs
-        .map((tx) => ({
-          account_id: internalId,
-          plaid_transaction_id: tx.id, // Use Simplefin tx id as our transaction id
-          amount: Math.abs(tx.amount),
-          iso_currency_code: tx.currency ?? 'USD',
-          date: tx.posted.slice(0, 10), // YYYY-MM-DD
-          authorized_date: null,
-          merchant_name: tx.merchant ?? null,
-          name: tx.description,
-          payment_channel: tx.type ?? 'other',
-          pending: false, // Simplefin doesn't distinguish pending
-          category: tx.tags?.join(',') ?? null,
-          personal_finance_category: null,
-          location: null,
-        }))
-        .filter((tx) => tx.account_id);
-
-      if (txRows.length > 0) {
-        await supabase
-          .schema('finance')
-          .from('transactions')
-          .upsert(txRows, { onConflict: 'plaid_transaction_id' });
-
-        totalAdded += txRows.length;
+      const currency = a.currency ?? 'USD';
+      for (const t of a.transactions ?? []) {
+        txRows.push({ account_id: internalId, ...mapSimpleFinTransaction(a.id, currency, t) });
       }
     }
 
-    // Update balances + snapshots
-    const today = new Date().toISOString().slice(0, 10);
+    let totalAdded = 0;
+    if (txRows.length > 0) {
+      await supabase
+        .schema('finance')
+        .from('transactions')
+        .upsert(txRows, { onConflict: 'plaid_transaction_id' });
+      totalAdded = txRows.length;
+    }
 
-    for (const sfAccount of simplefinAccounts) {
-      const internalId = accountMap.get(sfAccount.id);
+    // Refresh balances + daily snapshot.
+    const today = new Date().toISOString().slice(0, 10);
+    for (const a of accounts) {
+      const internalId = accountMap.get(a.id);
       if (!internalId) continue;
+      const mapped = mapSimpleFinAccount(a);
 
       await supabase
         .schema('finance')
         .from('accounts')
         .update({
-          current_balance: sfAccount.balance,
-          available_balance: sfAccount.available_balance ?? sfAccount.balance,
-          balance_as_of: new Date().toISOString(),
+          current_balance: mapped.current_balance,
+          available_balance: mapped.available_balance,
+          balance_as_of: mapped.balance_as_of,
         })
         .eq('id', internalId);
 
@@ -121,57 +103,41 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
           {
             account_id: internalId,
             snapshot_date: today,
-            current_balance: sfAccount.balance,
-            available_balance: sfAccount.available_balance ?? sfAccount.balance,
+            current_balance: mapped.current_balance,
+            available_balance: mapped.available_balance,
           },
           { onConflict: 'account_id,snapshot_date' }
         );
     }
 
-    // Update last_synced_at
     await supabase
       .schema('finance')
       .from('plaid_items')
       .update({ last_synced_at: new Date().toISOString(), status: 'active' })
       .eq('id', item.id);
 
-    // Audit
     await supabase.schema('finance').from('audit_log').insert({
       user_id: item.user_id,
-      action: 'plaid_sync',
+      action: 'simplefin_sync',
       resource_type: 'item',
       resource_id: item.id,
       metadata: { added: totalAdded, modified: 0, removed: 0 },
     });
 
-    return {
-      item_id: item.id,
-      added: totalAdded,
-      modified: 0,
-      removed: 0,
-    };
-  } catch (error: any) {
-    const msg = error?.message ?? 'unknown';
+    return { item_id: item.id, added: totalAdded, modified: 0, removed: 0 };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'unknown';
     console.error(`[sync] item ${itemId} failed:`, msg);
-
-    // Mark item if auth failed
-    if (msg === 'INVALID_ACCESS_TOKEN') {
-      await supabase
-        .schema('finance')
-        .from('plaid_items')
-        .update({ status: 'login_required' })
-        .eq('id', itemId);
-    }
-
     return { item_id: itemId, added: 0, modified: 0, removed: 0, error: msg };
   }
 }
 
 /**
- * Sync all active items (used by daily cron).
+ * Sync all active items (used by the daily cron).
  */
 export async function syncAllItems(): Promise<SyncResult[]> {
-  const supabase = createServiceClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createServiceClient() as any;
   const { data: items } = await supabase
     .schema('finance')
     .from('plaid_items')
@@ -179,7 +145,7 @@ export async function syncAllItems(): Promise<SyncResult[]> {
     .eq('status', 'active');
 
   const results: SyncResult[] = [];
-  for (const item of items ?? []) {
+  for (const item of (items ?? []) as { id: string }[]) {
     results.push(await syncItem(item.id));
   }
   return results;
