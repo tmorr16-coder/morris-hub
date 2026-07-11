@@ -20,17 +20,17 @@ export default function TodayScreen({ onOpenMoney, onOpenAsk }: { onOpenMoney?: 
         money: { value: "$482,300", sub: "+$1,240 today", href: "/finance/dashboard" },
       }}
       attention={[
-        { id: "a1", severity: "urgent", title: "Missed Upper Body workout", context: "was scheduled Jul 1", category: "workout", href: "/health/train" },
-        { id: "a2", severity: "today", title: "Overlapping events today", context: "2 events within 30 min", category: "calendar", href: "/home" },
-        { id: "a3", severity: "today", title: "Duke Energy bill", context: "payment due today · 5:00 PM", category: "bill", href: "/finance/dashboard" },
-        { id: "a4", severity: "week", title: "Emma's Biology quiz", context: "due Jul 5", category: "course", href: "/home/me/courses" },
+        { id: "a1", severity: "urgent", title: "Missed Upper Body workout", context: "was scheduled Jul 1", category: "workout", href: "/health/train", kind: "workout", actionId: "w1" },
+        { id: "a2", severity: "today", title: "Overlapping events today", context: "2 events within 30 min", category: "calendar", href: "/home", kind: "conflict", actionId: "" },
+        { id: "a3", severity: "today", title: "Duke Energy bill", context: "payment due today · 5:00 PM", category: "bill", href: "/finance/dashboard", kind: "reminder", actionId: "r1" },
+        { id: "a4", severity: "week", title: "Emma's Biology quiz", context: "due Jul 5", category: "course", href: "/home/me/courses", kind: "course_reminder", actionId: "c1" },
       ]}
       timeline={[
-        { id: "t1", time: "8:00 AM", label: "Take Mounjaro", category: "medication" },
-        { id: "t2", time: "9:30 AM", label: "Standup", category: "work" },
-        { id: "t3", time: "4:30 PM", label: "Soccer practice — Emma", category: "family" },
-        { id: "t4", time: "6:00 PM", label: "Upper Body workout", category: "workout" },
-        { id: "t5", time: "Due today", label: "Renew car registration", category: "todo" },
+        { id: "t1", time: "8:00 AM", label: "Take Mounjaro", category: "medication", kind: "reminder", actionId: "r2", href: "/health" },
+        { id: "t2", time: "9:30 AM", label: "Standup", category: "work", kind: "reminder", actionId: "r3" },
+        { id: "t3", time: "4:30 PM", label: "Soccer practice — Emma", category: "family", kind: "reminder", actionId: "r4", href: "/home/family" },
+        { id: "t4", time: "6:00 PM", label: "Upper Body workout", category: "workout", kind: "workout", actionId: "w2" },
+        { id: "t5", time: "Due today", label: "Renew car registration", category: "todo", kind: "todo", actionId: "td1" },
       ]}
       priorities={[
         { id: "p1", title: "Call plumber about leak", flag: "High priority" },

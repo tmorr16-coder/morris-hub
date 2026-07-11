@@ -180,6 +180,21 @@ export async function scheduleWorkout(data: {
   return { id: row.id };
 }
 
+/**
+ * Remove a single exercise (and its logged sets) from an in-progress session.
+ * Lets the user drop an exercise mid-workout without ending the session.
+ */
+export async function removeExercise(exerciseId: string): Promise<{ error?: string }> {
+  if (!exerciseId) return {};
+  const db: AnyClient = createAdminClient();
+  const userId = await getCurrentUserId();
+
+  await db.from("sets").delete().eq("exercise_id", exerciseId).eq("user_id", userId);
+  const { error } = await db.from("exercises").delete().eq("id", exerciseId).eq("user_id", userId);
+  if (error) return { error: error.message };
+  return {};
+}
+
 export async function deleteScheduledWorkout(
   id: string
 ): Promise<{ error?: string }> {

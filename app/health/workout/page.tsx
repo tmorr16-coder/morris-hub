@@ -2,6 +2,28 @@ import { redirect } from "next/navigation";
 import WorkoutTracker from "./_components/WorkoutTracker";
 import { toTrackerExercises } from "./_lib/build-plan";
 import type { CardioBlock } from "./actions";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getCurrentUserId } from "@/lib/health/auth";
+
+/** Latest recorded body weight (lb), for the "BW" quick-fill on bodyweight sets. */
+async function getBodyWeight(): Promise<number | null> {
+  try {
+    const userId = await getCurrentUserId();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createAdminClient() as any;
+    const { data } = await db
+      .from("apple_health_metrics")
+      .select("value")
+      .eq("user_id", userId)
+      .eq("metric_name", "weight")
+      .order("timestamp", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return data?.value ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export default async function WorkoutPage({
   searchParams,
@@ -9,6 +31,7 @@ export default async function WorkoutPage({
   searchParams: Promise<{ plan?: string; resume?: string }>;
 }) {
   const { plan: encoded, resume } = await searchParams;
+  const bodyWeight = await getBodyWeight();
 
   // No plan means nothing was built yet. If we're resuming an in-progress
   // workout, load it entirely from the localStorage snapshot instead of the
@@ -17,7 +40,7 @@ export default async function WorkoutPage({
     if (resume === "1") {
       return (
         <div className="ios-scroll">
-          <WorkoutTracker resume />
+          <WorkoutTracker resume bodyWeight={bodyWeight} />
         </div>
       );
     }
@@ -55,6 +78,7 @@ export default async function WorkoutPage({
         initialCooldown={initialCooldown}
         initialCardio={initialCardio}
         initialBlocks={initialBlocks}
+        bodyWeight={bodyWeight}
       />
     </div>
   );

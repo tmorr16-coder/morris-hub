@@ -259,7 +259,7 @@ export async function completeCourseReminder(id: string): Promise<{ error?: stri
 
 export async function updateReminder(
   id: string,
-  updates: { next_steps?: string[] }
+  updates: { next_steps?: string[]; title?: string; due_at?: string }
 ): Promise<{ error?: string }> {
   const userId = await getCurrentUserId();
   if (!userId) return { error: "Not authenticated" };

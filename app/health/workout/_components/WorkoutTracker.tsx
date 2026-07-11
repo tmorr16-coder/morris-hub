@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { EXERCISE_LIBRARY, suggestNext, CARDIO_ACTIVITIES, getCardioActivity, type SetLog } from "../exercise-library";
 import { updateSet } from "../actions";
-import { createWorkoutSession, saveSet, finishSession, saveCardioBlocks, deleteSession, type CardioBlock } from "../actions";
+import { createWorkoutSession, saveSet, finishSession, saveCardioBlocks, deleteSession, removeExercise as removeExerciseAction, type CardioBlock } from "../actions";
 import PostWorkoutSummary from "./PostWorkoutSummary";
 import { RESUME_KEY, readSnapshot, clearSnapshot, type WorkoutSnapshot } from "../_lib/resume";
 
@@ -114,9 +114,10 @@ interface WorkoutTrackerProps {
   initialCardio?:   CardioBlock;
   initialBlocks?:   CardioBlock[];
   resume?:          boolean;   // load entirely from the localStorage snapshot
+  bodyWeight?:      number | null;  // latest recorded body weight (lb) for the "BW" quick-fill
 }
 
-export default function WorkoutTracker({ initialExercises, initialWarmup, initialCooldown, initialCardio, initialBlocks, resume }: WorkoutTrackerProps = {}) {
+export default function WorkoutTracker({ initialExercises, initialWarmup, initialCooldown, initialCardio, initialBlocks, resume, bodyWeight }: WorkoutTrackerProps = {}) {
   const [exercises, setExercises] = useState(initialExercises ?? EXERCISE_LIBRARY);
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -162,6 +163,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   const [showMenu,       setShowMenu]       = useState(false);
   const [confirmDelete,  setConfirmDelete]  = useState(false);
   const [showReorder,    setShowReorder]    = useState(false);
+  const [confirmRemoveIdx, setConfirmRemoveIdx] = useState<number | null>(null);
 
   // Inline set editing
   const [editingSet,     setEditingSet]     = useState<{ exIdx: number; setIdx: number } | null>(null);
@@ -301,7 +303,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   const handleLogSet = () => {
     const reps   = parseInt(inputReps)    || 0;
     const weight = parseFloat(inputWeight) || 0;
-    if (reps === 0 || weight === 0) return;
+    if (reps === 0) return; // weight may be 0 for bodyweight exercises
 
     const setNumber = activeSetIdx + 1;
     const newLogs = setLogs.map((row) => [...row]);
@@ -364,7 +366,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
     const { exIdx, setIdx } = editingSet;
     const reps = parseInt(editReps) || 0;
     const weight = parseFloat(editWeight) || 0;
-    if (reps === 0 || weight === 0) { setEditingSet(null); return; }
+    if (reps === 0) { setEditingSet(null); return; } // weight may be 0 for bodyweight
     const existing = setLogs[exIdx][setIdx];
     const newLogs = setLogs.map((row) => [...row]);
     newLogs[exIdx][setIdx] = { reps, weight, rpe: existing?.rpe ?? 7 };
@@ -431,6 +433,25 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
       return next;
     });
     setCurrentExIdx((prev) => (prev === i ? swap : prev === swap ? i : prev));
+  };
+
+  // Remove an exercise mid-session (drops it + its logged sets). Keeps at least one.
+  const removeExercise = (i: number) => {
+    if (exercises.length <= 1) return;
+    const dbId = session?.exerciseIds[i];
+    const newLen = exercises.length - 1;
+
+    setExercises((prev) => prev.filter((_, idx) => idx !== i));
+    setSetLogs((prev) => prev.filter((_, idx) => idx !== i));
+    setSession((prev) => (prev ? { ...prev, exerciseIds: prev.exerciseIds.filter((_, idx) => idx !== i) } : prev));
+    setCurrentExIdx((prev) => {
+      const next = i < prev ? prev - 1 : prev;
+      return Math.max(0, Math.min(next, newLen - 1));
+    });
+    setActiveSetIdx(0);
+    setConfirmRemoveIdx(null);
+
+    if (dbId) startTransition(async () => { await removeExerciseAction(dbId); });
   };
 
   // ── early returns ─────────────────────────────────────────────────────────
@@ -669,22 +690,47 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
                   <span className="ios-subhead" style={{ color: done ? "var(--ios-green)" : "var(--ios-label)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5 }}>
                     {done && <CheckGlyph size={13} stroke="var(--ios-green)" />}{ex.name}
                   </span>
-                  <button
-                    onClick={() => moveExercise(i, -1)}
-                    disabled={i === 0}
-                    aria-label="Move up"
-                    style={{ background: "none", border: "none", color: i === 0 ? "var(--ios-label-3)" : "var(--ios-tint)", cursor: i === 0 ? "default" : "pointer", padding: "2px 4px", display: "flex" }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
-                  </button>
-                  <button
-                    onClick={() => moveExercise(i, 1)}
-                    disabled={i === exercises.length - 1}
-                    aria-label="Move down"
-                    style={{ background: "none", border: "none", color: i === exercises.length - 1 ? "var(--ios-label-3)" : "var(--ios-tint)", cursor: i === exercises.length - 1 ? "default" : "pointer", padding: "2px 4px", display: "flex" }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6" /></svg>
-                  </button>
+                  {confirmRemoveIdx === i ? (
+                    <>
+                      <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>Remove?</span>
+                      <button
+                        onClick={() => removeExercise(i)}
+                        style={{ background: "none", border: "none", color: "var(--ios-red)", fontWeight: 600, fontSize: 13, cursor: "pointer", padding: "2px 6px", fontFamily: "inherit" }}
+                      >Remove</button>
+                      <button
+                        onClick={() => setConfirmRemoveIdx(null)}
+                        style={{ background: "none", border: "none", color: "var(--ios-tint)", fontSize: 13, cursor: "pointer", padding: "2px 6px", fontFamily: "inherit" }}
+                      >Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => moveExercise(i, -1)}
+                        disabled={i === 0}
+                        aria-label="Move up"
+                        style={{ background: "none", border: "none", color: i === 0 ? "var(--ios-label-3)" : "var(--ios-tint)", cursor: i === 0 ? "default" : "pointer", padding: "2px 4px", display: "flex" }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
+                      </button>
+                      <button
+                        onClick={() => moveExercise(i, 1)}
+                        disabled={i === exercises.length - 1}
+                        aria-label="Move down"
+                        style={{ background: "none", border: "none", color: i === exercises.length - 1 ? "var(--ios-label-3)" : "var(--ios-tint)", cursor: i === exercises.length - 1 ? "default" : "pointer", padding: "2px 4px", display: "flex" }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6" /></svg>
+                      </button>
+                      <button
+                        onClick={() => setConfirmRemoveIdx(i)}
+                        disabled={exercises.length <= 1}
+                        aria-label="Remove exercise"
+                        title={exercises.length <= 1 ? "A workout needs at least one exercise" : "Remove exercise"}
+                        style={{ background: "none", border: "none", color: exercises.length <= 1 ? "var(--ios-label-3)" : "var(--ios-red)", cursor: exercises.length <= 1 ? "default" : "pointer", padding: "2px 4px", display: "flex" }}
+                      >
+                        <TrashGlyph />
+                      </button>
+                    </>
+                  )}
                 </div>
               );
             })}
@@ -995,6 +1041,15 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
                       +
                     </button>
                   </div>
+                  {label === "Weight (lb)" && (
+                    <button
+                      type="button"
+                      onClick={() => setInputWeight(bodyWeight != null ? String(Math.round(bodyWeight)) : "0")}
+                      style={{ marginTop: 6, width: "100%", padding: "7px 0", borderRadius: 8, border: "1px solid var(--ios-separator)", background: "var(--ios-fill)", color: "var(--ios-tint)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      {bodyWeight != null ? `Body weight · ${Math.round(bodyWeight)} lb` : "Body weight (0 lb)"}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

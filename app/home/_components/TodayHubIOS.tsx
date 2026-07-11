@@ -5,18 +5,22 @@
 // <IOSScreen>. The /ios-demo TodayScreen feeds it mock props — so this exact
 // component is what ships. No data fetching here; presentation only.
 
+import { useState } from "react";
 import {
   LargeTitle, Group, Cell, IconBadge,
   GlanceGrid, GlanceTile, Segmented, SeverityBadge, AskMorrisPill, Icons,
   type Severity,
 } from "@/components/ios";
 import { useNavMode } from "@/components/NavModeProvider";
+import ItemActionSheet, { isActionable, type SheetTarget } from "./ItemActionSheet";
+
+export type ItemKind = "reminder" | "course_reminder" | "todo" | "workout" | "conflict" | "other";
 
 export type GlanceKey = "weather" | "reminders" | "health" | "money";
 export interface GlanceItem { value: React.ReactNode; sub?: React.ReactNode; badge?: React.ReactNode; href: string; }
 
-export interface AttentionItem { id: string; severity: Severity; title: string; context: React.ReactNode; category: string; href: string; }
-export interface TimelineRow { id: string; time: string; label: string; category: string; }
+export interface AttentionItem { id: string; severity: Severity; title: string; context: React.ReactNode; category: string; href: string; kind: ItemKind; actionId: string; }
+export interface TimelineRow { id: string; time: string; label: string; category: string; kind: ItemKind; actionId: string; href?: string; }
 export interface PriorityRow { id: string; title: string; done?: boolean; flag?: string; }
 export interface FamilyRow { id: string; name: string; status: string; color: string; initial: string; href: string; }
 
@@ -33,6 +37,14 @@ export interface TodayHubProps {
   onOpenAsk?: () => void;
   /** Called with the todo id and its NEW completed state. */
   onToggleTodo?: (id: string, completed: boolean) => void;
+  /** Mark an attention/timeline/todo item done (drops it from Today). */
+  onCompleteItem?: (kind: ItemKind, actionId: string) => void;
+  /** Delete the underlying reminder/todo. */
+  onDeleteItem?: (kind: ItemKind, actionId: string) => void;
+  /** Snooze a reminder to an ISO timestamp (drops it from Today). */
+  onSnoozeItem?: (actionId: string, until: string) => void;
+  /** Edit an item's title and/or due date. */
+  onEditItem?: (kind: ItemKind, actionId: string, patch: { title?: string; due?: string | null }) => void;
   /** Quick-actions row rendered under the glance grid. */
   quickActions?: React.ReactNode;
   /** Streamed server sections (markets, news) rendered under Ask Morris. */
@@ -73,12 +85,17 @@ const GLANCE_ORDER: GlanceKey[] = ["weather", "reminders", "health", "money"];
 
 export default function TodayHubIOS({
   firstName, dateLabel, greeting, glance, attention, timeline, priorities, family,
-  onOpenMoney, onOpenAsk, onToggleTodo, quickActions, slot,
+  onOpenMoney, onOpenAsk, onToggleTodo,
+  onCompleteItem, onDeleteItem, onSnoozeItem, onEditItem,
+  quickActions, slot,
 }: TodayHubProps) {
   // Scope lives in the shared nav context so toggling here also updates the
   // footer's Family/Me tab (and vice-versa), and persists across screens.
   const { personal, mode, setMode } = useNavMode();
   const glanceKeys = GLANCE_ORDER.filter((k) => glance[k]);
+
+  // Which item's action sheet is open (null = closed).
+  const [sheet, setSheet] = useState<SheetTarget | null>(null);
 
   return (
     <>
@@ -134,13 +151,16 @@ export default function TodayHubIOS({
         <Group header="Needs attention" id="needs-attention">
           {attention.map((a) => {
             const c = cat(a.category);
+            const act = a.actionId && isActionable(a.kind);
             return (
               <Cell
                 key={a.id}
                 lead={<IconBadge color={c.color}>{c.icon}</IconBadge>}
                 title={a.title}
                 subtitle={<><SeverityBadge level={a.severity} /> · {a.context}</>}
-                href={a.href}
+                {...(act
+                  ? { onClick: () => setSheet({ kind: a.kind, actionId: a.actionId, title: a.title, href: a.href }) }
+                  : { href: a.href })}
               />
             );
           })}
@@ -151,6 +171,7 @@ export default function TodayHubIOS({
         <Group header="Today's plan" id="today-plan">
           {timeline.map((t) => {
             const c = cat(t.category);
+            const act = t.actionId && isActionable(t.kind);
             return (
               <Cell
                 key={t.id}
@@ -159,6 +180,9 @@ export default function TodayHubIOS({
                 title={t.label}
                 trailing={<IconBadge color={c.color}>{c.icon}</IconBadge>}
                 chevron={false}
+                {...(act
+                  ? { onClick: () => setSheet({ kind: t.kind, actionId: t.actionId, title: t.label, href: t.href }) }
+                  : {})}
               />
             );
           })}
@@ -170,7 +194,8 @@ export default function TodayHubIOS({
           {priorities.map((p) => (
             <Cell
               key={p.id}
-              href="/home/tasks"
+              onClick={() => setSheet({ kind: "todo", actionId: p.id, title: p.title, href: "/home/tasks" })}
+              chevron={false}
               lead={<TodoCircle checked={p.done} onClick={onToggleTodo ? () => onToggleTodo(p.id, !p.done) : undefined} />}
               title={p.done ? <s style={{ color: "var(--ios-label-2)" }}>{p.title}</s> : p.title}
               subtitle={p.flag ? <span style={{ color: "var(--ios-red)" }}>{p.flag}</span> : undefined}
@@ -194,6 +219,18 @@ export default function TodayHubIOS({
       )}
 
       <div style={{ height: 12 }} />
+
+      {sheet && (
+        <ItemActionSheet
+          key={sheet.actionId}
+          target={sheet}
+          onClose={() => setSheet(null)}
+          onComplete={(kind, id) => onCompleteItem?.(kind, id)}
+          onDelete={(kind, id) => onDeleteItem?.(kind, id)}
+          onSnooze={(id, until) => onSnoozeItem?.(id, until)}
+          onEdit={(kind, id, patch) => onEditItem?.(kind, id, patch)}
+        />
+      )}
     </>
   );
 }
@@ -212,15 +249,22 @@ function TodoCircle({ checked, onClick }: { checked?: boolean; onClick?: () => v
       {checked && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5L19 7" /></svg>}
     </span>
   );
+  // Rendered as role="button" (not a <button>) because the surrounding priority
+  // row is itself a <button> that opens the action sheet — nesting real buttons
+  // is invalid DOM. stopPropagation keeps a circle tap from opening the sheet.
   if (onClick) return (
-    <button
-      type="button"
+    <span
+      role="button"
+      tabIndex={0}
       onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick(); }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onClick(); }
+      }}
       aria-label={checked ? "Mark incomplete" : "Mark complete"}
       style={{ display: "flex" }}
     >
       {dot}
-    </button>
+    </span>
   );
   return dot;
 }

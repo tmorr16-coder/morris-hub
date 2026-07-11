@@ -271,6 +271,7 @@ export default async function HomePage() {
 
   const todayConflicts = findConflicts(timelineItems);
 
+  type ItemKind = "reminder" | "course_reminder" | "todo" | "workout" | "conflict" | "other";
   interface AttentionItem {
     id: string;
     severity: "Urgent" | "Today" | "This week" | "Informational";
@@ -278,6 +279,8 @@ export default async function HomePage() {
     context: string;
     who: string;
     person?: string;
+    kind: ItemKind;
+    actionId: string;
     primaryAction: { label: string; href: string };
     secondaryAction?: { label: string; href: string };
   }
@@ -310,6 +313,8 @@ export default async function HomePage() {
       context: `${todayConflicts.size} events overlap within 30 minutes of each other`,
       who: "You",
       person: "me",
+      kind: "conflict" as const,
+      actionId: "",
       primaryAction: { label: "View today's plan", href: "#today-plan-heading" },
     }] : []),
     // Overdue/due-soon assignments (mine + children's) — also stands in for "required forms"
@@ -325,6 +330,9 @@ export default async function HomePage() {
         context: `${COURSE_TYPE_LABEL[c.type] ?? "Assignment"} · ${isOverdue ? "was due" : "due"} ${fmtDueDate(c.due_date)}`,
         who: childName ?? "You",
         person: (isMine ? "me" : c.user_id) as string,
+        // Only the user's own course reminders can be completed via RLS.
+        kind: (isMine ? "course_reminder" : "other") as ItemKind,
+        actionId: c.id as string,
         primaryAction: { label: "Review", href: "/home/me/courses" },
       };
     }),
@@ -337,6 +345,8 @@ export default async function HomePage() {
       context: `Workout · was scheduled ${fmtDueDate(w.scheduled_date)}`,
       who: "You",
       person: "me",
+      kind: "workout" as const,
+      actionId: w.id as string,
       primaryAction: { label: "View", href: "/health/train" },
     })),
     // Responsibilities without an owner — household items nobody has claimed
@@ -347,6 +357,9 @@ export default async function HomePage() {
       title: item.title,
       context: `Household ${CATEGORY_CONTEXT[item.category] ?? "task"} · not yet assigned to anyone`,
       who: "Family",
+      // Household items may belong to another member — keep as a link-only "Assign".
+      kind: "other" as const,
+      actionId: item.id as string,
       primaryAction: { label: "Assign", href: "/home/family" },
     })),
     // Overdue todos → Urgent
@@ -356,6 +369,8 @@ export default async function HomePage() {
       title: t.title,
       context: `Overdue task · was due ${fmtDueDate(t.due_date!)}`,
       who: "You",
+      kind: "todo" as const,
+      actionId: t.id,
       primaryAction: { label: "Open task", href: "/home/tasks" },
     })),
     // Bills due today → Today
@@ -366,6 +381,8 @@ export default async function HomePage() {
       title: r.title,
       context: `Payment due today · ${new Date(r.due_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: userTz })}`,
       who: "You",
+      kind: "reminder" as const,
+      actionId: r.id as string,
       primaryAction: { label: "View finances", href: "/finance/dashboard" },
     })),
     // Overdue reminders → Today/Urgent
@@ -376,6 +393,8 @@ export default async function HomePage() {
       title: r.title,
       context: `${CATEGORY_CONTEXT[r.category] ?? "Reminder"} · was due ${fmtDueDate(new Date(r.due_at).toLocaleDateString("sv", { timeZone: userTz }))}`,
       who: "You",
+      kind: "reminder" as const,
+      actionId: r.id as string,
       primaryAction: { label: "View", href: MODULE_ACTION_HREF[r.source_app as string] ?? "/home/tasks" },
     })),
     // High-priority todos → Today or This week
@@ -385,6 +404,8 @@ export default async function HomePage() {
       title: t.title,
       context: `High priority${t.due_date ? ` · due ${fmtDueDate(t.due_date)}` : ""}`,
       who: "You",
+      kind: "todo" as const,
+      actionId: t.id,
       primaryAction: { label: "Open task", href: "/home/tasks" },
     })),
   ].sort((a, b) => {
@@ -447,8 +468,20 @@ export default async function HomePage() {
   const iosAttention = sortedAttentionItems.slice(0, 6).map((a) => ({
     id: a.id, severity: iosSev(a.severity), title: a.title,
     context: a.context, category: attnCat(a.primaryAction.href), href: a.primaryAction.href,
+    kind: a.kind, actionId: a.actionId,
   }));
-  const iosTimeline = timelineItems.map((t) => ({ id: t.id, time: t.timeLabel, label: t.label, category: t.category }));
+  // Derive the actionable kind + underlying row id from the timeline item id prefix.
+  // (rem-/assigned-/family-hw- → hub.reminders; todo- → hub.todos; wkt- → workout.)
+  const tlKind = (id: string): ItemKind =>
+    id.startsWith("todo-") ? "todo"
+    : id.startsWith("wkt-") ? "workout"
+    : (id.startsWith("rem-") || id.startsWith("assigned-") || id.startsWith("family-hw-")) ? "reminder"
+    : "other";
+  const tlActionId = (id: string): string => id.replace(/^(rem-|assigned-|family-hw-|todo-|wkt-)/, "");
+  const iosTimeline = timelineItems.map((t) => ({
+    id: t.id, time: t.timeLabel, label: t.label, category: t.category,
+    kind: tlKind(t.id), actionId: tlActionId(t.id), href: t.href,
+  }));
   const iosPriorities = [
     ...todos.filter((t) => !t.completed).map((t) => ({ id: t.id, title: t.title, done: false, flag: t.priority === "high" ? "High priority" : undefined })),
     ...todos.filter((t) => t.completed).slice(0, 2).map((t) => ({ id: t.id, title: t.title, done: true, flag: undefined as string | undefined })),
