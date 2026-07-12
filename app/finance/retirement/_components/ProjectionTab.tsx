@@ -66,23 +66,26 @@ function clampedGrowth(pct: number | null, years: number): number {
 
 // ── Outflow / income helpers (used from now → life expectancy) ───────────────
 
-/** Effective [start, end] age window for an entered expense.
+const YEAR_MS = 365.25 * 24 * 3600 * 1000;
+
+/** Map an entered outflow's start/stop dates onto the projection's age axis.
  *  start defaults to "now" (current age); end defaults to the last working year
  *  so an ongoing living cost hands off to the retirement scenario at retirement
- *  (no double-counting). An explicit end age — e.g. college tuition — is honored
- *  even into retirement (a mortgage that runs to 65). */
-function expenseWindow(exp: RetirementExpense, profile: RetirementProfile): [number, number] {
-  const start = exp.start_age ?? profile.current_age;
-  const end = exp.end_age ?? (profile.retirement_age - 1);
+ *  (no double-counting). An explicit stop date — e.g. college tuition — is
+ *  honored even into retirement (a mortgage that runs past 65). */
+function expenseAgeWindow(exp: RetirementExpense, profile: RetirementProfile, nowMs: number): [number, number] {
+  const start = exp.start_date ? profile.current_age + (Date.parse(exp.start_date) - nowMs) / YEAR_MS : profile.current_age;
+  const end = exp.end_date ? profile.current_age + (Date.parse(exp.end_date) - nowMs) / YEAR_MS : (profile.retirement_age - 1);
   return [start, end];
 }
 
-/** Annualized amount of an entered expense at a given age (0 if outside its window). */
-function expenseAnnualAt(exp: RetirementExpense, age: number, profile: RetirementProfile): number {
-  const [start, end] = expenseWindow(exp, profile);
-  if (age < start || age > end) return 0;
+/** Annualized amount of an entered expense at a given projection age (0 if the
+ *  year does not overlap the outflow's date window). */
+function expenseAnnualAt(exp: RetirementExpense, age: number, profile: RetirementProfile, nowMs: number): number {
+  const [start, end] = expenseAgeWindow(exp, profile, nowMs);
+  if (age < Math.floor(start) || age > Math.floor(end)) return 0;
   const growthPct = exp.annual_growth_pct ?? profile.inflation_rate * 100;
-  return exp.monthly_amount * 12 * Math.pow(1 + growthPct / 100, age - start);
+  return exp.monthly_amount * 12 * Math.pow(1 + growthPct / 100, Math.max(0, age - start));
 }
 
 /** Annualized debt/lease payment at a given age (0 once paid off / lease ends). */
@@ -111,7 +114,7 @@ function debtAnnualAt(debt: RetirementDebt, age: number, profile: RetirementProf
 /** Total entered outflows (expenses + debt payments) at a given age. */
 function outflowAt(ctx: StepCtx, age: number): number {
   let sum = 0;
-  for (const e of ctx.expenses) sum += expenseAnnualAt(e, age, ctx.profile);
+  for (const e of ctx.expenses) sum += expenseAnnualAt(e, age, ctx.profile, ctx.nowMs);
   for (const d of ctx.debts) sum += debtAnnualAt(d, age, ctx.profile);
   return sum;
 }
@@ -142,6 +145,7 @@ interface StepCtx {
   weightedReturn: number;
   baseAnnualSpend: number;
   windfall: number;
+  nowMs: number;
 }
 
 function buildCtx(
@@ -173,6 +177,7 @@ function buildCtx(
     expenses,
     debts,
     scenario,
+    nowMs: Date.now(),
     weightedReturn,
     baseAnnualSpend,
     windfall: scenario.housing_windfall ?? 0,

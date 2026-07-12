@@ -28,6 +28,15 @@ function fmtMoney(n: number | null | undefined): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
 }
 
+// "2027-09-01" -> "Sep 2027"; TZ-safe (parses the string parts, not Date()).
+function fmtMonthYear(iso: string | null): string | null {
+  if (!iso) return null;
+  const [y, m] = iso.split("-");
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const mi = parseInt(m, 10) - 1;
+  return months[mi] ? `${months[mi]} ${y}` : y;
+}
+
 function payoffMonths(balance: number, rate_pct: number, monthly_payment: number): string {
   if (monthly_payment <= 0 || balance <= 0) return "—";
   const r = rate_pct / 100 / 12;
@@ -45,7 +54,7 @@ const EMPTY_LEASE = {
   name: "", lease_monthly_payment: "", lease_term_months: "", lease_months_remaining: "",
   lease_residual: "", lease_mileage_allowance: "", lease_overage_cpm: "", lease_disposition_fee: "", lease_end_decision: "return",
 };
-const EMPTY_EXPENSE = { name: "", category: "housing", monthly_amount: "", essential: true, start_age: "", end_age: "", annual_growth_pct: "" };
+const EMPTY_EXPENSE = { name: "", category: "housing", monthly_amount: "", essential: true, start_date: "", end_date: "", annual_growth_pct: "" };
 
 type FormMode = "none" | "loan" | "lease" | "expense";
 
@@ -95,8 +104,8 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
       const e = item as RetirementExpense;
       setExpenseForm({
         name: e.name, category: e.category ?? "other", monthly_amount: String(e.monthly_amount), essential: e.essential,
-        start_age: e.start_age != null ? String(e.start_age) : "",
-        end_age: e.end_age != null ? String(e.end_age) : "",
+        start_date: e.start_date ?? "",
+        end_date: e.end_date ?? "",
         annual_growth_pct: e.annual_growth_pct != null ? String(e.annual_growth_pct) : "",
       });
     }
@@ -151,8 +160,8 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
       category: expenseForm.category,
       monthly_amount: parseFloat(expenseForm.monthly_amount) || 0,
       essential: expenseForm.essential,
-      start_age: expenseForm.start_age !== "" ? parseInt(expenseForm.start_age, 10) : null,
-      end_age: expenseForm.end_age !== "" ? parseInt(expenseForm.end_age, 10) : null,
+      start_date: expenseForm.start_date !== "" ? expenseForm.start_date : null,
+      end_date: expenseForm.end_date !== "" ? expenseForm.end_date : null,
       annual_growth_pct: expenseForm.annual_growth_pct !== "" ? parseFloat(expenseForm.annual_growth_pct) : null,
     };
     if (editId) {
@@ -269,16 +278,16 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
                 </label>
               </div>
               <div>
-                <label style={labelStyle}>Starts at age</label>
-                <input type="number" min="0" max="120" value={expenseForm.start_age}
-                  onChange={(e) => setExpenseForm((f) => ({ ...f, start_age: e.target.value }))}
-                  placeholder="now" style={inputStyle} />
+                <label style={labelStyle}>Start date</label>
+                <input type="date" value={expenseForm.start_date}
+                  onChange={(e) => setExpenseForm((f) => ({ ...f, start_date: e.target.value }))}
+                  style={inputStyle} />
               </div>
               <div>
-                <label style={labelStyle}>Ends at age</label>
-                <input type="number" min="0" max="120" value={expenseForm.end_age}
-                  onChange={(e) => setExpenseForm((f) => ({ ...f, end_age: e.target.value }))}
-                  placeholder="ongoing" style={inputStyle} />
+                <label style={labelStyle}>Stop date</label>
+                <input type="date" value={expenseForm.end_date}
+                  onChange={(e) => setExpenseForm((f) => ({ ...f, end_date: e.target.value }))}
+                  style={inputStyle} />
               </div>
               <div>
                 <label style={labelStyle}>Annual growth (%)</label>
@@ -288,8 +297,9 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
               </div>
             </div>
             <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 10, lineHeight: 1.4 }}>
-              Leave <em>Ends at age</em> blank for an ongoing cost — it runs through your working years, then the retirement
-              scenario governs spending. Set an end age for temporary outflows like college tuition or a car loan.
+              Leave <em>Start date</em> blank to begin now. Leave <em>Stop date</em> blank for an ongoing cost — it runs
+              through your working years, then the retirement scenario governs spending. Set a stop date for temporary
+              outflows like college tuition or a car loan.
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
               <button type="submit" style={submitBtnStyle}>{editId ? "Save" : "Add expense"}</button>
@@ -517,9 +527,9 @@ function ExpenseRow({ expense, onEdit, onDelete }: { expense: RetirementExpense;
             </span>
           )}
         </div>
-        {(expense.start_age != null || expense.end_age != null) && (
+        {(expense.start_date != null || expense.end_date != null) && (
           <div className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)", marginTop: 3 }}>
-            {expense.start_age != null ? `Age ${expense.start_age}` : "Now"} → {expense.end_age != null ? `age ${expense.end_age}` : "ongoing"}
+            {fmtMonthYear(expense.start_date) ?? "Now"} → {fmtMonthYear(expense.end_date) ?? "ongoing"}
           </div>
         )}
       </div>
