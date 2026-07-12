@@ -53,6 +53,9 @@ export interface RetirementExpense {
   monthly_amount: number;
   essential: boolean;
   category: string | null;
+  start_age: number | null;      // when the outflow begins (null = from now / current age)
+  end_age: number | null;        // when the outflow stops, e.g. tuition (null = ongoing through working years)
+  annual_growth_pct: number | null; // null = grow with plan inflation
   sort_order: number;
   created_at: string;
 }

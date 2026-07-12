@@ -2,13 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { Cell, Chip, Segmented, Sparkline, BarRows, RadialGauge } from "@/components/ios";
-import type { RetirementProfile, RetirementAccount, RetirementIncome, RetirementScenario } from "../types";
+import type { RetirementProfile, RetirementAccount, RetirementIncome, RetirementScenario, RetirementExpense, RetirementDebt } from "../types";
 
 interface Props {
   profile: RetirementProfile;
   accounts: RetirementAccount[];
   incomes: RetirementIncome[];
   scenario: RetirementScenario;
+  expenses: RetirementExpense[];
+  debts: RetirementDebt[];
 }
 
 interface ProjectionResult {
@@ -16,7 +18,7 @@ interface ProjectionResult {
   jobIncomeByAge: Map<number, number>;    // salary pre-ret + bridge/part_time post-ret (annual $)
   ssIncomeByAge: Map<number, number>;     // Social Security income (annual $)
   pensionIncomeByAge: Map<number, number>;
-  expensesByAge: Map<number, number>;     // annual expenses post-retirement only
+  expensesByAge: Map<number, number>;     // total annual outflows from now (entered expenses/debts + scenario once retired)
   nestEgg: number;
   safeMonthlyWithdrawal: number;
   depletionAge: number | null;
@@ -62,10 +64,80 @@ function clampedGrowth(pct: number | null, years: number): number {
   return Math.pow(1 + pct / 100, Math.min(years, 10));
 }
 
+// ── Outflow / income helpers (used from now → life expectancy) ───────────────
+
+/** Effective [start, end] age window for an entered expense.
+ *  start defaults to "now" (current age); end defaults to the last working year
+ *  so an ongoing living cost hands off to the retirement scenario at retirement
+ *  (no double-counting). An explicit end age — e.g. college tuition — is honored
+ *  even into retirement (a mortgage that runs to 65). */
+function expenseWindow(exp: RetirementExpense, profile: RetirementProfile): [number, number] {
+  const start = exp.start_age ?? profile.current_age;
+  const end = exp.end_age ?? (profile.retirement_age - 1);
+  return [start, end];
+}
+
+/** Annualized amount of an entered expense at a given age (0 if outside its window). */
+function expenseAnnualAt(exp: RetirementExpense, age: number, profile: RetirementProfile): number {
+  const [start, end] = expenseWindow(exp, profile);
+  if (age < start || age > end) return 0;
+  const growthPct = exp.annual_growth_pct ?? profile.inflation_rate * 100;
+  return exp.monthly_amount * 12 * Math.pow(1 + growthPct / 100, age - start);
+}
+
+/** Annualized debt/lease payment at a given age (0 once paid off / lease ends). */
+function debtAnnualAt(debt: RetirementDebt, age: number, profile: RetirementProfile): number {
+  const yearsFromNow = age - profile.current_age;
+  if (yearsFromNow < 0) return 0;
+  if (debt.subtype === "lease") {
+    const pay = debt.lease_monthly_payment ?? 0;
+    const months = debt.lease_months_remaining ?? debt.lease_term_months ?? 0;
+    return pay > 0 && yearsFromNow < months / 12 ? pay * 12 : 0;
+  }
+  const pay = debt.monthly_payment ?? 0;
+  if (pay <= 0) return 0;
+  const bal = debt.balance ?? 0;
+  const rate = (debt.rate_pct ?? 0) / 100 / 12;
+  let payoffYears = Infinity; // no balance info → assume it keeps being paid
+  if (bal > 0 && rate > 0) {
+    const m = -Math.log(1 - (rate * bal) / pay) / Math.log(1 + rate);
+    if (isFinite(m) && m > 0) payoffYears = m / 12;
+  } else if (bal > 0) {
+    payoffYears = Math.ceil(bal / pay) / 12;
+  }
+  return yearsFromNow < payoffYears ? pay * 12 : 0;
+}
+
+/** Total entered outflows (expenses + debt payments) at a given age. */
+function outflowAt(ctx: StepCtx, age: number): number {
+  let sum = 0;
+  for (const e of ctx.expenses) sum += expenseAnnualAt(e, age, ctx.profile);
+  for (const d of ctx.debts) sum += debtAnnualAt(d, age, ctx.profile);
+  return sum;
+}
+
+/** Recurring wage income (salary/part_time/other) available to cover living costs
+ *  during the working years. Bonuses & stock awards are excluded — those are
+ *  saved into the portfolio, not spent. */
+function wageIncomeAt(incomes: RetirementIncome[], age: number, profile: RetirementProfile): number {
+  let sum = 0;
+  for (const inc of incomes) {
+    if (inc.type !== "salary" && inc.type !== "part_time" && inc.type !== "other") continue;
+    const start = inc.start_age ?? profile.current_age;
+    const end = inc.end_age ?? (profile.retirement_age - 1);
+    if (age < start || age > end) continue;
+    const annual = inc.frequency === "annual" ? inc.monthly_amount : inc.monthly_amount * 12;
+    sum += annual * clampedGrowth(inc.annual_growth_pct, age - start);
+  }
+  return sum;
+}
+
 interface StepCtx {
   profile: RetirementProfile;
   accounts: RetirementAccount[];
   incomes: RetirementIncome[];
+  expenses: RetirementExpense[];
+  debts: RetirementDebt[];
   scenario: RetirementScenario;
   weightedReturn: number;
   baseAnnualSpend: number;
@@ -76,6 +148,8 @@ function buildCtx(
   profile: RetirementProfile,
   accounts: RetirementAccount[],
   incomes: RetirementIncome[],
+  expenses: RetirementExpense[],
+  debts: RetirementDebt[],
   scenario: RetirementScenario
 ): StepCtx {
   const monthlySpend = getSelectedSpend(scenario);
@@ -96,6 +170,8 @@ function buildCtx(
     profile,
     accounts,
     incomes,
+    expenses,
+    debts,
     scenario,
     weightedReturn,
     baseAnnualSpend,
@@ -150,6 +226,12 @@ function stepYear(
       const growthFactor = clampedGrowth(inc.annual_growth_pct, age - startAge);
       portfolio += inc.monthly_amount * growthFactor; // monthly_amount stores annual amount for these types
     }
+    // Entered outflows (living costs, tuition, debt payments) draw on savings only
+    // to the extent they exceed the wage income meant to cover them. Salary covers
+    // day-to-day spend; a temporary spike like tuition dips savings only if it
+    // outstrips income that year.
+    const deficit = outflowAt(ctx, age) - wageIncomeAt(incomes, age, profile);
+    if (deficit > 0) portfolio = Math.max(0, portfolio - deficit);
   } else {
     const inflFactor = Math.pow(1 + profile.inflation_rate, yearsFromNow);
     const adjSpend = ctx.baseAnnualSpend * inflFactor;
@@ -178,7 +260,10 @@ function stepYear(
         return s + annual * inflFactor;
       }, 0);
 
-    const netWithdrawal = Math.max(0, adjSpend - retirementIncome);
+    // Retirement drawdown covers the lifestyle scenario plus any entered outflows
+    // still active (a mortgage running past retirement, a late-ending expense).
+    const totalSpend = adjSpend + outflowAt(ctx, age);
+    const netWithdrawal = Math.max(0, totalSpend - retirementIncome);
     portfolio = Math.max(0, portfolio - netWithdrawal);
   }
 
@@ -244,9 +329,11 @@ function project(
   profile: RetirementProfile,
   accounts: RetirementAccount[],
   incomes: RetirementIncome[],
+  expenses: RetirementExpense[],
+  debts: RetirementDebt[],
   scenario: RetirementScenario
 ): ProjectionResult {
-  const ctx = buildCtx(profile, accounts, incomes, scenario);
+  const ctx = buildCtx(profile, accounts, incomes, expenses, debts, scenario);
   const { weightedReturn, baseAnnualSpend, windfall } = ctx;
 
   let portfolio = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
@@ -325,8 +412,10 @@ function project(
     }
     pensionIncomeByAge.set(age, Math.round(pensionIncome));
 
-    // Expenses (post-retirement only)
-    expensesByAge.set(age, isRetired ? Math.round(baseAnnualSpend * inflFactor) : 0);
+    // Total outflows from now: entered expenses + debt payments across their
+    // windows, plus the retirement lifestyle scenario once retired.
+    const enteredOutflow = outflowAt(ctx, age);
+    expensesByAge.set(age, Math.round((isRetired ? baseAnnualSpend * inflFactor : 0) + enteredOutflow));
   }
 
   if (nestEgg === 0) {
@@ -344,11 +433,13 @@ function projectForScenario(
   profile: RetirementProfile,
   accounts: RetirementAccount[],
   incomes: RetirementIncome[],
+  expenses: RetirementExpense[],
+  debts: RetirementDebt[],
   scenario: RetirementScenario,
   scenarioKey: "lean" | "balanced" | "abundant"
 ): { depletionAge: number | null; nestEgg: number } {
   const overrideScenario = { ...scenario, selected_scenario: scenarioKey };
-  const r = project(profile, accounts, incomes, overrideScenario);
+  const r = project(profile, accounts, incomes, expenses, debts, overrideScenario);
   return { depletionAge: r.depletionAge, nestEgg: r.nestEgg };
 }
 
@@ -357,7 +448,7 @@ const SERIES = [
   { key: "jobIncome" as const, label: "Job / bridge income", color: "var(--ios-green)" },
   { key: "ss" as const, label: "Social Security", color: "var(--ios-tint)" },
   { key: "pension" as const, label: "Pension", color: "var(--ios-orange)" },
-  { key: "expenses" as const, label: "Annual expenses", color: "var(--ios-red)" },
+  { key: "expenses" as const, label: "Expenses & outflows", color: "var(--ios-red)" },
 ];
 
 const SHOCK_OPTIONS = [
@@ -371,7 +462,7 @@ const MC_SIMS = 400;
 const MC_STDEV = 0.12;
 const MC_SEED = 0x9e3779b9;
 
-export default function ProjectionTab({ profile, accounts, incomes, scenario }: Props) {
+export default function ProjectionTab({ profile, accounts, incomes, scenario, expenses, debts }: Props) {
   const [shown, setShown] = useState<Record<string, boolean>>({
     portfolio: true, jobIncome: true, ss: true, pension: true, expenses: true,
   });
@@ -384,7 +475,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
   const [shockAge, setShockAge] = useState<number>(profile.retirement_age);
   const [showMC, setShowMC] = useState<boolean>(false);
 
-  const result = project(profile, accounts, incomes, scenario);
+  const result = project(profile, accounts, incomes, expenses, debts, scenario);
   const { portfolioByAge, jobIncomeByAge, ssIncomeByAge, pensionIncomeByAge, expensesByAge,
           nestEgg, safeMonthlyWithdrawal, depletionAge, runway, weightedReturn } = result;
 
@@ -394,9 +485,9 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
   const gapMonthly = gap / 12;
 
   // Scenario comparison
-  const leanResult = projectForScenario(profile, accounts, incomes, scenario, "lean");
-  const balancedResult = projectForScenario(profile, accounts, incomes, scenario, "balanced");
-  const abundantResult = projectForScenario(profile, accounts, incomes, scenario, "abundant");
+  const leanResult = projectForScenario(profile, accounts, incomes, expenses, debts, scenario, "lean");
+  const balancedResult = projectForScenario(profile, accounts, incomes, expenses, debts, scenario, "balanced");
+  const abundantResult = projectForScenario(profile, accounts, incomes, expenses, debts, scenario, "abundant");
 
   const ages = Array.from({ length: profile.life_expectancy - profile.current_age + 1 }, (_, i) => profile.current_age + i);
   const values = ages.map((a) => portfolioByAge.get(a) ?? 0);
@@ -405,16 +496,16 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
   const shockFraction = parseInt(shockPct, 10) / 100;
   const shockResult = useMemo(() => {
     if (shockFraction <= 0) return null;
-    const ctx = buildCtx(profile, accounts, incomes, scenario);
+    const ctx = buildCtx(profile, accounts, incomes, expenses, debts, scenario);
     return runProjection(ctx, () => ctx.weightedReturn, {
       shockAge,
       shockMult: 1 - shockFraction,
     });
-  }, [profile, accounts, incomes, scenario, shockFraction, shockAge]);
+  }, [profile, accounts, incomes, expenses, debts, scenario, shockFraction, shockAge]);
 
   // ── Monte-Carlo band + success rate ───────────────────────────────────────
   const mc = useMemo(() => {
-    const ctx = buildCtx(profile, accounts, incomes, scenario);
+    const ctx = buildCtx(profile, accounts, incomes, expenses, debts, scenario);
     const rng = mulberry32(MC_SEED);
     const perAge: number[][] = Array.from({ length: ages.length }, () => [] as number[]);
     let successes = 0;
@@ -429,7 +520,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario }: 
     });
     return { band, successRate: successes / MC_SIMS };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, accounts, incomes, scenario]);
+  }, [profile, accounts, incomes, expenses, debts, scenario]);
 
   // ── Chart geometry ─────────────────────────────────────────────────────────
   const W = 800;

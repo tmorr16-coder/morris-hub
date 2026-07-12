@@ -415,6 +415,8 @@ export default function RetirementClient({
           accounts={accounts}
           incomes={incomes}
           scenario={scenario}
+          expenses={expenses}
+          debts={debts}
         />
       )}
       {activeTab === "Advisor" && (

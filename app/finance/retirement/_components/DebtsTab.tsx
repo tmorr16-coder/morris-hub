@@ -45,7 +45,7 @@ const EMPTY_LEASE = {
   name: "", lease_monthly_payment: "", lease_term_months: "", lease_months_remaining: "",
   lease_residual: "", lease_mileage_allowance: "", lease_overage_cpm: "", lease_disposition_fee: "", lease_end_decision: "return",
 };
-const EMPTY_EXPENSE = { name: "", category: "housing", monthly_amount: "", essential: true };
+const EMPTY_EXPENSE = { name: "", category: "housing", monthly_amount: "", essential: true, start_age: "", end_age: "", annual_growth_pct: "" };
 
 type FormMode = "none" | "loan" | "lease" | "expense";
 
@@ -93,7 +93,12 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
       });
     } else if (mode === "expense") {
       const e = item as RetirementExpense;
-      setExpenseForm({ name: e.name, category: e.category ?? "other", monthly_amount: String(e.monthly_amount), essential: e.essential });
+      setExpenseForm({
+        name: e.name, category: e.category ?? "other", monthly_amount: String(e.monthly_amount), essential: e.essential,
+        start_age: e.start_age != null ? String(e.start_age) : "",
+        end_age: e.end_age != null ? String(e.end_age) : "",
+        annual_growth_pct: e.annual_growth_pct != null ? String(e.annual_growth_pct) : "",
+      });
     }
     setFormMode(mode);
   }
@@ -146,6 +151,9 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
       category: expenseForm.category,
       monthly_amount: parseFloat(expenseForm.monthly_amount) || 0,
       essential: expenseForm.essential,
+      start_age: expenseForm.start_age !== "" ? parseInt(expenseForm.start_age, 10) : null,
+      end_age: expenseForm.end_age !== "" ? parseInt(expenseForm.end_age, 10) : null,
+      annual_growth_pct: expenseForm.annual_growth_pct !== "" ? parseFloat(expenseForm.annual_growth_pct) : null,
     };
     if (editId) {
       setExpenses(expenses.map((e) => e.id === editId ? { ...e, ...fields } : e));
@@ -260,6 +268,28 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
                   Essential expense
                 </label>
               </div>
+              <div>
+                <label style={labelStyle}>Starts at age</label>
+                <input type="number" min="0" max="120" value={expenseForm.start_age}
+                  onChange={(e) => setExpenseForm((f) => ({ ...f, start_age: e.target.value }))}
+                  placeholder="now" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Ends at age</label>
+                <input type="number" min="0" max="120" value={expenseForm.end_age}
+                  onChange={(e) => setExpenseForm((f) => ({ ...f, end_age: e.target.value }))}
+                  placeholder="ongoing" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Annual growth (%)</label>
+                <input type="number" step="0.1" value={expenseForm.annual_growth_pct}
+                  onChange={(e) => setExpenseForm((f) => ({ ...f, annual_growth_pct: e.target.value }))}
+                  placeholder="inflation" style={inputStyle} />
+              </div>
+            </div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 10, lineHeight: 1.4 }}>
+              Leave <em>Ends at age</em> blank for an ongoing cost — it runs through your working years, then the retirement
+              scenario governs spending. Set an end age for temporary outflows like college tuition or a car loan.
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
               <button type="submit" style={submitBtnStyle}>{editId ? "Save" : "Add expense"}</button>
@@ -487,6 +517,11 @@ function ExpenseRow({ expense, onEdit, onDelete }: { expense: RetirementExpense;
             </span>
           )}
         </div>
+        {(expense.start_age != null || expense.end_age != null) && (
+          <div className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)", marginTop: 3 }}>
+            {expense.start_age != null ? `Age ${expense.start_age}` : "Now"} → {expense.end_age != null ? `age ${expense.end_age}` : "ongoing"}
+          </div>
+        )}
       </div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
         <div className="ios-num" style={{ fontSize: 17, fontWeight: 600, color: "var(--ios-label)" }}>
