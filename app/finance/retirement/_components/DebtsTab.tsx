@@ -1,13 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import type { RetirementDebt, RetirementExpense } from "../types";
+import type { RetirementDebt, RetirementExpense, RetirementProfile, RetirementAccount, RetirementIncome, RetirementScenario } from "../types";
+import CashflowInspector from "./CashflowInspector";
 
 interface Props {
   debts: RetirementDebt[];
   setDebts: (d: RetirementDebt[]) => void;
   expenses: RetirementExpense[];
   setExpenses: (e: RetirementExpense[]) => void;
+  profile: RetirementProfile;
+  accounts: RetirementAccount[];
+  incomes: RetirementIncome[];
+  scenario: RetirementScenario;
 }
 
 const LOAN_TYPES = ["mortgage", "auto", "student", "credit_card", "personal", "other"];
@@ -58,7 +63,7 @@ const EMPTY_EXPENSE = { name: "", category: "housing", monthly_amount: "", essen
 
 type FormMode = "none" | "loan" | "lease" | "expense";
 
-export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Props) {
+export default function DebtsTab({ debts, setDebts, expenses, setExpenses, profile, accounts, incomes, scenario }: Props) {
   const [formMode, setFormMode] = useState<FormMode>("none");
   const [editId, setEditId] = useState<string | null>(null);
   const [loanForm, setLoanForm] = useState({ ...EMPTY_LOAN });
@@ -182,16 +187,21 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
     <div>
       {/* Summary card */}
       <div className="ios-list" style={{ margin: "0 0 8px", padding: 18 }}>
-        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 14 }}>
-          Monthly outflows
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            Outflows
+          </div>
+          <div className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)" }}>
+            ≈ <span style={{ color: "var(--ios-red)", fontWeight: 600 }}>{fmtMoney(totalMonthly * 12)}</span> / year
+          </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
           {[
-            { label: "Total", amount: totalMonthly, color: "var(--ios-red)" },
-            { label: "Expenses", amount: totalExpenseMonthly, color: "var(--ios-label)" },
-            { label: "Essential", amount: essentialMonthly, color: "var(--ios-label)" },
-            { label: "Discretionary", amount: discretionaryMonthly, color: "var(--ios-label-2)" },
-            { label: "Debt payments", amount: totalDebtMonthly, color: "var(--ios-label)" },
+            { label: "Total / mo", amount: totalMonthly, color: "var(--ios-red)" },
+            { label: "Expenses / mo", amount: totalExpenseMonthly, color: "var(--ios-label)" },
+            { label: "Essential / mo", amount: essentialMonthly, color: "var(--ios-label)" },
+            { label: "Discretionary / mo", amount: discretionaryMonthly, color: "var(--ios-label-2)" },
+            { label: "Debt / mo", amount: totalDebtMonthly, color: "var(--ios-label)" },
           ].map(({ label, amount, color }) => (
             <div key={label}>
               <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginBottom: 4 }}>{label}</div>
@@ -200,6 +210,16 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses }: Pro
           ))}
         </div>
       </div>
+
+      {/* Year-by-year cash-flow inspector — audit every inflow & outflow */}
+      <CashflowInspector
+        profile={profile}
+        accounts={accounts}
+        incomes={incomes}
+        expenses={expenses}
+        debts={debts}
+        scenario={scenario}
+      />
 
       {/* ── Expenses ──────────────────────────────────────────────────── */}
       <Section

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Cell, Chip, Segmented, Sparkline, BarRows, RadialGauge } from "@/components/ios";
 import type { RetirementProfile, RetirementAccount, RetirementIncome, RetirementScenario, RetirementExpense, RetirementDebt } from "../types";
+import { clampedGrowth, expenseAnnualAt, debtAnnualAt, wageIncomeAt } from "../_lib/cashflow";
 
 interface Props {
   profile: RetirementProfile;
@@ -53,85 +54,15 @@ function getSelectedSpend(scenario: RetirementScenario): number {
 }
 
 // ── Shared money math ───────────────────────────────────────────────────────
-
-/**
- * Growth multiplier for a stream with `pct` annual growth applied over `years`.
- * The exponent (years compounded) is clamped to a maximum of 10 so bonuses and
- * stock awards with a growth % can't balloon to millions over a long career.
- */
-function clampedGrowth(pct: number | null, years: number): number {
-  if (!pct) return 1;
-  return Math.pow(1 + pct / 100, Math.min(years, 10));
-}
-
-// ── Outflow / income helpers (used from now → life expectancy) ───────────────
-
-const YEAR_MS = 365.25 * 24 * 3600 * 1000;
-
-/** Map an entered outflow's start/stop dates onto the projection's age axis.
- *  start defaults to "now" (current age); end defaults to the last working year
- *  so an ongoing living cost hands off to the retirement scenario at retirement
- *  (no double-counting). An explicit stop date — e.g. college tuition — is
- *  honored even into retirement (a mortgage that runs past 65). */
-function expenseAgeWindow(exp: RetirementExpense, profile: RetirementProfile, nowMs: number): [number, number] {
-  const start = exp.start_date ? profile.current_age + (Date.parse(exp.start_date) - nowMs) / YEAR_MS : profile.current_age;
-  const end = exp.end_date ? profile.current_age + (Date.parse(exp.end_date) - nowMs) / YEAR_MS : (profile.retirement_age - 1);
-  return [start, end];
-}
-
-/** Annualized amount of an entered expense at a given projection age (0 if the
- *  year does not overlap the outflow's date window). */
-function expenseAnnualAt(exp: RetirementExpense, age: number, profile: RetirementProfile, nowMs: number): number {
-  const [start, end] = expenseAgeWindow(exp, profile, nowMs);
-  if (age < Math.floor(start) || age > Math.floor(end)) return 0;
-  const growthPct = exp.annual_growth_pct ?? profile.inflation_rate * 100;
-  return exp.monthly_amount * 12 * Math.pow(1 + growthPct / 100, Math.max(0, age - start));
-}
-
-/** Annualized debt/lease payment at a given age (0 once paid off / lease ends). */
-function debtAnnualAt(debt: RetirementDebt, age: number, profile: RetirementProfile): number {
-  const yearsFromNow = age - profile.current_age;
-  if (yearsFromNow < 0) return 0;
-  if (debt.subtype === "lease") {
-    const pay = debt.lease_monthly_payment ?? 0;
-    const months = debt.lease_months_remaining ?? debt.lease_term_months ?? 0;
-    return pay > 0 && yearsFromNow < months / 12 ? pay * 12 : 0;
-  }
-  const pay = debt.monthly_payment ?? 0;
-  if (pay <= 0) return 0;
-  const bal = debt.balance ?? 0;
-  const rate = (debt.rate_pct ?? 0) / 100 / 12;
-  let payoffYears = Infinity; // no balance info → assume it keeps being paid
-  if (bal > 0 && rate > 0) {
-    const m = -Math.log(1 - (rate * bal) / pay) / Math.log(1 + rate);
-    if (isFinite(m) && m > 0) payoffYears = m / 12;
-  } else if (bal > 0) {
-    payoffYears = Math.ceil(bal / pay) / 12;
-  }
-  return yearsFromNow < payoffYears ? pay * 12 : 0;
-}
+// clampedGrowth, expenseAnnualAt, debtAnnualAt and wageIncomeAt live in
+// ../_lib/cashflow so the projection and the Outflows-tab cash-flow inspector
+// compute every income/expense/debt identically (single source of truth).
 
 /** Total entered outflows (expenses + debt payments) at a given age. */
 function outflowAt(ctx: StepCtx, age: number): number {
   let sum = 0;
   for (const e of ctx.expenses) sum += expenseAnnualAt(e, age, ctx.profile, ctx.nowMs);
   for (const d of ctx.debts) sum += debtAnnualAt(d, age, ctx.profile);
-  return sum;
-}
-
-/** Recurring wage income (salary/part_time/other) available to cover living costs
- *  during the working years. Bonuses & stock awards are excluded — those are
- *  saved into the portfolio, not spent. */
-function wageIncomeAt(incomes: RetirementIncome[], age: number, profile: RetirementProfile): number {
-  let sum = 0;
-  for (const inc of incomes) {
-    if (inc.type !== "salary" && inc.type !== "part_time" && inc.type !== "other") continue;
-    const start = inc.start_age ?? profile.current_age;
-    const end = inc.end_age ?? (profile.retirement_age - 1);
-    if (age < start || age > end) continue;
-    const annual = inc.frequency === "annual" ? inc.monthly_amount : inc.monthly_amount * 12;
-    sum += annual * clampedGrowth(inc.annual_growth_pct, age - start);
-  }
   return sum;
 }
 

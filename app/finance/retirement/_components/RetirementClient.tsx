@@ -399,7 +399,8 @@ export default function RetirementClient({
         <IncomeTab incomes={incomes} setIncomes={handleIncomesChange} profile={profile} />
       )}
       {activeTab === "Outflows" && (
-        <DebtsTab debts={debts} setDebts={setDebts} expenses={expenses} setExpenses={setExpenses} />
+        <DebtsTab debts={debts} setDebts={setDebts} expenses={expenses} setExpenses={setExpenses}
+          profile={profile} accounts={accounts} incomes={incomes} scenario={scenario} />
       )}
       {activeTab === "Scenarios" && (
         <ScenariosTab
