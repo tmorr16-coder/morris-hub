@@ -204,7 +204,7 @@ export function retirementIncomeAt(incomes: RetirementIncome[], age: number, pro
  *  income plus the portfolio withdrawal that funds spending. Plus a flat,
  *  inflation-grown offering. */
 export function titheAndOfferingAt(inp: CashflowInputs, age: number, nowMs: number): number {
-  const { profile, accounts, incomes, expenses, debts, scenario } = inp;
+  const { profile, incomes, expenses, debts, scenario } = inp;
   if (!scenario.tithe_enabled) return 0;
   const pct = (scenario.tithe_pct ?? 10) / 100;
   const isRetired = age >= profile.retirement_age;
@@ -217,7 +217,6 @@ export function titheAndOfferingAt(inp: CashflowInputs, age: number, nowMs: numb
     for (const inc of incomes) {
       if (["salary", "bonus", "part_time", "other"].includes(inc.type)) base += incomeAnnualAt(inc, age, profile);
     }
-    if (scenario.tithe_basis === "net") base -= contributionsAnnual(accounts, age, profile);
     base = Math.max(0, base);
   } else {
     // Everything that comes in = retirement income + the withdrawal for spending.
@@ -229,6 +228,8 @@ export function titheAndOfferingAt(inp: CashflowInputs, age: number, nowMs: numb
     const spend = baseAnnualSpend(scenario) * inflFactor + entered;
     base = Math.max(retIncome, spend);
   }
+  // Net basis tithes after-tax (take-home) income only; everything else is fair game.
+  if (scenario.tithe_basis === "net") base *= Math.max(0, 1 - (scenario.tithe_tax_rate ?? 25) / 100);
   return base * pct + offering;
 }
 

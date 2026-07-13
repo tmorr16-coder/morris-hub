@@ -527,7 +527,9 @@ function GivingCard({ scenario, setScenario }: { scenario: RetirementScenario; s
   const basis = scenario.tithe_basis ?? "gross";
   const [pctStr, setPctStr] = useState(String(pct));
   const [offStr, setOffStr] = useState(String(scenario.offering_monthly ?? 0));
+  const [taxStr, setTaxStr] = useState(String(scenario.tithe_tax_rate ?? 25));
   const offering = scenario.offering_monthly ?? 0;
+  const taxRate = scenario.tithe_tax_rate ?? 25;
 
   return (
     <div className="ios-list" style={{ margin: "0 0 8px", padding: 18 }}>
@@ -556,10 +558,18 @@ function GivingCard({ scenario, setScenario }: { scenario: RetirementScenario; s
             <div>
               <label style={labelStyle}>Basis</label>
               <select value={basis} onChange={(e) => setScenario({ ...scenario, tithe_basis: e.target.value })} style={selectStyle}>
-                <option value="gross">Gross · all income</option>
-                <option value="net">Net · after 401(k)</option>
+                <option value="gross">Gross · before taxes</option>
+                <option value="net">Net · after taxes</option>
               </select>
             </div>
+            {basis === "net" && (
+              <div>
+                <label style={labelStyle}>Tax rate (%)</label>
+                <input type="number" min="0" max="100" step="1" value={taxStr}
+                  onChange={(e) => { setTaxStr(e.target.value); setScenario({ ...scenario, tithe_tax_rate: e.target.value === "" ? 0 : (parseFloat(e.target.value) || 0) }); }}
+                  placeholder="25" style={inputStyle} />
+              </div>
+            )}
             <div>
               <label style={labelStyle}>Offering ($/mo)</label>
               <input type="number" min="0" step="10" value={offStr}
@@ -569,9 +579,8 @@ function GivingCard({ scenario, setScenario }: { scenario: RetirementScenario; s
           </div>
           <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 12, lineHeight: 1.5 }}>
             {pct}% of {basis === "net"
-              ? "income after 401(k) contributions"
-              : "all income as you receive it"}
-            {basis === "gross" && " — salary now, and Social Security, pension & withdrawals in retirement"}
+              ? `income after an assumed ${taxRate}% in taxes (everything else is fair game)`
+              : "all income as you receive it — salary now, and Social Security, pension & withdrawals in retirement"}
             {offering > 0 ? `, plus ${fmtMoney(offering)}/mo in offerings` : ""}. Appears as an outflow in the cash-flow
             inspector below and in the projection.
           </div>

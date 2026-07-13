@@ -97,8 +97,9 @@ export interface RetirementScenario {
   survivor_spend_pct: number;
   tithe_enabled: boolean | null;      // include an automatic tithe outflow
   tithe_pct: number | null;           // percent of income tithed (default 10)
-  tithe_basis: string | null;         // 'gross' (all income as received) | 'net' (excludes 401k contributions)
+  tithe_basis: string | null;         // 'gross' (all income) | 'net' (after-tax income)
   offering_monthly: number | null;    // assumed additional monthly giving beyond the tithe
+  tithe_tax_rate: number | null;      // assumed effective tax rate for the net basis (default 25)
   created_at: string;
   updated_at: string;
 }
