@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Cell, Chip, Segmented, Sparkline, BarRows, RadialGauge } from "@/components/ios";
 import type { RetirementProfile, RetirementAccount, RetirementIncome, RetirementScenario, RetirementExpense, RetirementDebt } from "../types";
-import { clampedGrowth, expenseAnnualAt, debtAnnualAt, wageIncomeAt } from "../_lib/cashflow";
+import { clampedGrowth, expenseAnnualAt, debtAnnualAt, wageIncomeAt, employerMatchAnnual } from "../_lib/cashflow";
 
 interface Props {
   profile: RetirementProfile;
@@ -145,10 +145,9 @@ function stepYear(
   }
 
   if (!isRetired) {
-    portfolio += accounts.reduce(
-      (s, a) => s + a.monthly_contribution * 12 * (1 + a.employer_match_pct / 100),
-      0
-    );
+    // Employee contributions + a salary-based employer match (capped at the IRS limit).
+    portfolio += accounts.reduce((s, a) => s + a.monthly_contribution * 12, 0);
+    portfolio += employerMatchAnnual(accounts, incomes, age, profile);
     // Bonuses and vesting stock awards add to the portfolio during employment.
     for (const inc of incomes) {
       if (inc.type !== "bonus" && inc.type !== "stock_award") continue;

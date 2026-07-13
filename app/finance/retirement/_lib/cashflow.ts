@@ -136,10 +136,41 @@ export function incomeAnnualAt(inc: RetirementIncome, age: number, profile: Reti
   return 0;
 }
 
-/** Employer match (free money added to the portfolio) during the working years. */
-export function employerMatchAnnual(accounts: RetirementAccount[], age: number, profile: RetirementProfile): number {
+// IRS 401(k) employee elective-deferral limit (~2026). The modeled employer
+// match is capped here and the cap grows with inflation across the projection.
+// Update as the IRS adjusts the annual limit.
+export const IRS_401K_ANNUAL_LIMIT = 24500;
+
+/** Total salary this year for a given owner ("self" / "spouse"). */
+function ownerSalaryAt(incomes: RetirementIncome[], owner: string, age: number, profile: RetirementProfile): number {
+  let sum = 0;
+  for (const inc of incomes) {
+    if (inc.type !== "salary") continue;
+    if ((inc.owner ?? "self") !== owner) continue;
+    sum += incomeAnnualAt(inc, age, profile);
+  }
+  return sum;
+}
+
+/** Employer match — a percentage of the account owner's salary (not of the
+ *  employee's contribution), capped at the IRS annual limit (grown with
+ *  inflation). Requires an employee contribution. Working years only. */
+export function employerMatchAnnual(
+  accounts: RetirementAccount[],
+  incomes: RetirementIncome[],
+  age: number,
+  profile: RetirementProfile
+): number {
   if (age >= profile.retirement_age) return 0;
-  return accounts.reduce((s, a) => s + a.monthly_contribution * 12 * ((a.employer_match_pct ?? 0) / 100), 0);
+  const cap = IRS_401K_ANNUAL_LIMIT * Math.pow(1 + profile.inflation_rate, age - profile.current_age);
+  let sum = 0;
+  for (const a of accounts) {
+    const pct = a.employer_match_pct ?? 0;
+    if (pct <= 0 || (a.monthly_contribution ?? 0) <= 0) continue;
+    const salary = ownerSalaryAt(incomes, a.owner ?? "self", age, profile);
+    sum += Math.min(salary * (pct / 100), cap);
+  }
+  return sum;
 }
 
 /** Employee retirement-account contributions during the working years. */
@@ -203,7 +234,7 @@ export function yearCashflow(inp: CashflowInputs, age: number, nowMs: number, cu
     const amt = incomeAnnualAt(inc, age, profile);
     if (amt > 0.5) inflows.push({ label: inc.name || INCOME_LABEL[inc.type] || inc.type, amount: amt, kind: inc.type });
   }
-  const match = employerMatchAnnual(accounts, age, profile);
+  const match = employerMatchAnnual(accounts, incomes, age, profile);
   if (match > 0.5) inflows.push({ label: "Employer 401(k) match", amount: match, kind: "match" });
 
   const outflows: CashflowItem[] = [];
