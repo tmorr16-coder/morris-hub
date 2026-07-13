@@ -74,6 +74,7 @@ interface StepCtx {
   debts: RetirementDebt[];
   scenario: RetirementScenario;
   weightedReturn: number;
+  retirementReturn: number;
   baseAnnualSpend: number;
   windfall: number;
   nowMs: number;
@@ -110,9 +111,16 @@ function buildCtx(
     scenario,
     nowMs: Date.now(),
     weightedReturn,
+    retirementReturn: profile.retirement_return ?? weightedReturn,
     baseAnnualSpend,
     windfall: scenario.housing_windfall ?? 0,
   };
+}
+
+/** Market return to apply in a given year — the accumulation return while
+ *  working, the (optionally lower) retirement return at/after retirement. */
+function returnForAge(ctx: StepCtx, age: number): number {
+  return age >= ctx.profile.retirement_age ? ctx.retirementReturn : ctx.weightedReturn;
 }
 
 /**
@@ -290,7 +298,7 @@ function project(
     }
 
     // Advance one year using the shared per-year money math.
-    portfolio = stepYear(ctx, portfolio, age, weightedReturn);
+    portfolio = stepYear(ctx, portfolio, age, returnForAge(ctx, age));
 
     if (portfolio === 0 && depletionAge === null && isRetired) {
       depletionAge = age;
@@ -432,7 +440,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
   const shockResult = useMemo(() => {
     if (shockFraction <= 0) return null;
     const ctx = buildCtx(profile, accounts, incomes, expenses, debts, scenario);
-    return runProjection(ctx, () => ctx.weightedReturn, {
+    return runProjection(ctx, (age) => returnForAge(ctx, age), {
       shockAge,
       shockMult: 1 - shockFraction,
     });
@@ -445,7 +453,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
     const perAge: number[][] = Array.from({ length: ages.length }, () => [] as number[]);
     let successes = 0;
     for (let s = 0; s < MC_SIMS; s++) {
-      const { byAge, final } = runProjection(ctx, () => ctx.weightedReturn + nextNormal(rng) * MC_STDEV);
+      const { byAge, final } = runProjection(ctx, (age) => returnForAge(ctx, age) + nextNormal(rng) * MC_STDEV);
       ages.forEach((a, i) => perAge[i].push(byAge.get(a) ?? 0));
       if (final > 0) successes++;
     }

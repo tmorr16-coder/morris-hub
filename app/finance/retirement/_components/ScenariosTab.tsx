@@ -99,6 +99,19 @@ export default function ScenariosTab({ profile, setProfile, scenario, setScenari
             />
           </div>
           <div>
+            <label style={labelStyle}>Retirement return (%/yr)</label>
+            <input
+              type="number"
+              min="0"
+              max="30"
+              step="0.1"
+              value={profile.retirement_return != null ? (profile.retirement_return * 100).toFixed(1) : ""}
+              onChange={(e) => updateProfile("retirement_return", e.target.value === "" ? null : (parseFloat(e.target.value) || 0) / 100)}
+              placeholder={`same (${(profile.base_return * 100).toFixed(1)}%)`}
+              style={inputStyle}
+            />
+          </div>
+          <div>
             <label style={labelStyle}>Inflation rate (%/yr)</label>
             <input
               type="number"

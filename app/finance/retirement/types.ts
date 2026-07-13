@@ -9,6 +9,7 @@ export interface RetirementProfile {
   spouse_age: number | null;
   spouse_retirement_age: number | null;
   base_return: number;
+  retirement_return: number | null; // return applied at/after retirement age (null = same as base_return)
   inflation_rate: number;
   created_at: string;
   updated_at: string;

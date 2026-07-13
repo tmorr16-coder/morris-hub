@@ -33,6 +33,7 @@ const DEFAULT_PROFILE: RetirementProfile = {
   spouse_age: null,
   spouse_retirement_age: null,
   base_return: 0.07,
+  retirement_return: null,
   inflation_rate: 0.03,
   created_at: "",
   updated_at: "",
@@ -115,7 +116,7 @@ function computeNestEgg(
               0
             )
           : profile.base_return;
-      portfolio *= 1 + weightedReturn;
+      portfolio *= 1 + (isRetired && profile.retirement_return != null ? profile.retirement_return : weightedReturn);
     }
 
     if (!isRetired) {
@@ -169,7 +170,7 @@ function computeNestEgg(
               0
             )
           : profile.base_return;
-      portfolioCheck *= 1 + weightedReturn;
+      portfolioCheck *= 1 + (isRetired && profile.retirement_return != null ? profile.retirement_return : weightedReturn);
     }
 
     if (!isRetired) {
