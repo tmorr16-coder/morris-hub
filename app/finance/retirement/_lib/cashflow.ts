@@ -187,6 +187,10 @@ export function contributionsAnnual(accounts: RetirementAccount[], age: number, 
 
 // ── Tithe & offerings ───────────────────────────────────────────────────────
 
+// Assumed top marginal tax rate (federal + state) the net-tithe effective rate
+// climbs toward as income rises above today's level.
+const TITHE_MARGINAL_TAX = 0.40;
+
 /** Retirement income that offsets the portfolio drawdown (everything except
  *  salary & bonus, which don't fund retirement in the model). */
 export function retirementIncomeAt(incomes: RetirementIncome[], age: number, profile: RetirementProfile): number {
@@ -228,8 +232,22 @@ export function titheAndOfferingAt(inp: CashflowInputs, age: number, nowMs: numb
     const spend = baseAnnualSpend(scenario) * inflFactor + entered;
     base = Math.max(retIncome, spend);
   }
-  // Net basis tithes after-tax (take-home) income only; everything else is fair game.
-  if (scenario.tithe_basis === "net") base *= Math.max(0, 1 - (scenario.tithe_tax_rate ?? 25) / 100);
+  // Net basis tithes after-tax (take-home) income. The entered rate is today's
+  // effective rate; taxes are progressive, so as income climbs above today's level
+  // the effective rate rises toward the marginal rate — the tax grows with salary.
+  if (scenario.tithe_basis === "net") {
+    const anchorRate = Math.min(0.95, (scenario.tithe_tax_rate ?? 25) / 100);
+    let anchorIncome = 0;
+    for (const inc of incomes) {
+      if (["salary", "bonus", "part_time", "other"].includes(inc.type)) anchorIncome += incomeAnnualAt(inc, profile.current_age, profile);
+    }
+    let rate = anchorRate;
+    if (anchorIncome > 0 && base > 0 && anchorRate < TITHE_MARGINAL_TAX) {
+      const threshold = anchorIncome * (1 - anchorRate / TITHE_MARGINAL_TAX);
+      rate = Math.min(TITHE_MARGINAL_TAX, (TITHE_MARGINAL_TAX * Math.max(0, base - threshold)) / base);
+    }
+    base *= 1 - rate;
+  }
   return base * pct + offering;
 }
 

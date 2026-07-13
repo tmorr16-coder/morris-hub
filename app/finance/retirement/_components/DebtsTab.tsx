@@ -564,7 +564,7 @@ function GivingCard({ scenario, setScenario }: { scenario: RetirementScenario; s
             </div>
             {basis === "net" && (
               <div>
-                <label style={labelStyle}>Tax rate (%)</label>
+                <label style={labelStyle}>Tax rate now (%)</label>
                 <input type="number" min="0" max="100" step="1" value={taxStr}
                   onChange={(e) => { setTaxStr(e.target.value); setScenario({ ...scenario, tithe_tax_rate: e.target.value === "" ? 0 : (parseFloat(e.target.value) || 0) }); }}
                   placeholder="25" style={inputStyle} />
@@ -579,7 +579,7 @@ function GivingCard({ scenario, setScenario }: { scenario: RetirementScenario; s
           </div>
           <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 12, lineHeight: 1.5 }}>
             {pct}% of {basis === "net"
-              ? `income after an assumed ${taxRate}% in taxes (everything else is fair game)`
+              ? `after-tax income — ${taxRate}% effective today, rising with income as your salary grows (everything else is fair game)`
               : "all income as you receive it — salary now, and Social Security, pension & withdrawals in retirement"}
             {offering > 0 ? `, plus ${fmtMoney(offering)}/mo in offerings` : ""}. Appears as an outflow in the cash-flow
             inspector below and in the projection.
