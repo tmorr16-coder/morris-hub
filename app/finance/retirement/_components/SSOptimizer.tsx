@@ -110,6 +110,7 @@ export default function SSOptimizer({ profile, onAddIncome }: Props) {
       start_age: null,
       end_age: null,
       ss_claim_age: selectedSelfAge,
+      match_eligible: false,
       sort_order: 0,
       created_at: new Date().toISOString(),
     };
@@ -134,6 +135,7 @@ export default function SSOptimizer({ profile, onAddIncome }: Props) {
       start_age: null,
       end_age: null,
       ss_claim_age: selectedSpouseAge,
+      match_eligible: false,
       sort_order: 0,
       created_at: new Date().toISOString(),
     };

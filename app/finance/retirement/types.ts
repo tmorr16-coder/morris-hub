@@ -42,6 +42,7 @@ export interface RetirementIncome {
   start_age: number | null;
   end_age: number | null;
   ss_claim_age: number | null;
+  match_eligible: boolean | null; // counts toward the 401(k) employer match base (null = salary only)
   sort_order: number;
   created_at: string;
 }

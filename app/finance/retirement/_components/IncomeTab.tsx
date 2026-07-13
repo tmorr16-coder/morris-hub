@@ -76,6 +76,7 @@ const EMPTY_FORM = {
   end_age: "",
   ss_claim_age: "",
   recurring: false,   // stock_award: same grant issued every year until retirement
+  match_eligible: true, // counts toward the 401(k) employer match base
 };
 
 interface RetirementTemplate {
@@ -197,6 +198,7 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
       end_age: inc.end_age != null && !isRecurring ? String(inc.end_age) : "",
       ss_claim_age: inc.ss_claim_age != null ? String(inc.ss_claim_age) : "",
       recurring: isRecurring,
+      match_eligible: inc.match_eligible ?? (inc.type === "salary"),
     });
     setShowPensionScanner(false);
     setShowForm(true);
@@ -228,6 +230,7 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
       start_age: startAge,
       end_age: endAge,
       ss_claim_age: form.ss_claim_age !== "" ? parseInt(form.ss_claim_age) : null,
+      match_eligible: ["social_security", "pension"].includes(form.type) ? false : form.match_eligible,
     };
 
     if (editId) {
@@ -414,6 +417,11 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
                       {inc.owner === "spouse" ? profile.spouse_name ?? "Spouse" : "Self"}
                     </span>
                   )}
+                  {(inc.match_eligible ?? (inc.type === "salary")) && (
+                    <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.03em", color: "var(--ios-finance)", background: "var(--ios-fill)", padding: "2px 7px", borderRadius: 6 }}>
+                      401(k)
+                    </span>
+                  )}
                 </div>
                 <div className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>{ageRange(inc)}</div>
                 {inc.type === "salary" && inc.annual_growth_pct != null && inc.annual_growth_pct > 0 && (() => {
@@ -508,6 +516,19 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
                 style={inputStyle}
               />
             </div>
+
+            {/* 401(k) match eligibility — which pay the employer matches against */}
+            {!["social_security", "pension"].includes(form.type) && (
+              <label className="ios-subhead" style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", color: "var(--ios-label)", padding: "4px 0" }}>
+                <input
+                  type="checkbox"
+                  checked={form.match_eligible}
+                  onChange={(e) => setForm((f) => ({ ...f, match_eligible: e.target.checked }))}
+                  style={{ width: 18, height: 18, accentColor: "var(--ios-tint)" }}
+                />
+                Counts toward 401(k) match
+              </label>
+            )}
 
             {/* Salary: growth rate + projected value */}
             {form.type === "salary" && (

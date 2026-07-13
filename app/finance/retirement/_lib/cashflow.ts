@@ -141,11 +141,17 @@ export function incomeAnnualAt(inc: RetirementIncome, age: number, profile: Reti
 // Update as the IRS adjusts the annual limit.
 export const IRS_401K_ANNUAL_LIMIT = 24500;
 
-/** Total salary this year for a given owner ("self" / "spouse"). */
-function ownerSalaryAt(incomes: RetirementIncome[], owner: string, age: number, profile: RetirementProfile): number {
+/** Whether an income stream counts toward the 401(k) match base.
+ *  Explicit flag wins; unset defaults to salary-only (backward compatible). */
+export function isMatchEligible(inc: RetirementIncome): boolean {
+  return inc.match_eligible ?? (inc.type === "salary");
+}
+
+/** Total 401(k)-eligible compensation this year for a given owner. */
+function ownerEligibleCompAt(incomes: RetirementIncome[], owner: string, age: number, profile: RetirementProfile): number {
   let sum = 0;
   for (const inc of incomes) {
-    if (inc.type !== "salary") continue;
+    if (!isMatchEligible(inc)) continue;
     if ((inc.owner ?? "self") !== owner) continue;
     sum += incomeAnnualAt(inc, age, profile);
   }
@@ -167,8 +173,8 @@ export function employerMatchAnnual(
   for (const a of accounts) {
     const pct = a.employer_match_pct ?? 0;
     if (pct <= 0 || (a.monthly_contribution ?? 0) <= 0) continue;
-    const salary = ownerSalaryAt(incomes, a.owner ?? "self", age, profile);
-    sum += Math.min(salary * (pct / 100), cap);
+    const comp = ownerEligibleCompAt(incomes, a.owner ?? "self", age, profile);
+    sum += Math.min(comp * (pct / 100), cap);
   }
   return sum;
 }
