@@ -53,27 +53,36 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let imageBase64: string;
-  let mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+  let base64: string;
+  let mediaType: string;
+  let isPdf = false;
 
   try {
     const formData = await req.formData();
-    const file = formData.get("image") as File | null;
-    if (!file) return NextResponse.json({ error: "No image provided" }, { status: 400 });
+    const file = (formData.get("file") ?? formData.get("image")) as File | null;
+    if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
 
-    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"];
     if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: "Unsupported file type. Please upload JPEG, PNG, or WebP." }, { status: 400 });
+      return NextResponse.json({ error: "Unsupported file type. Please upload a PDF or a JPEG/PNG/WebP image." }, { status: 400 });
     }
-    mediaType = file.type as typeof mediaType;
+    isPdf = file.type === "application/pdf";
+    mediaType = file.type;
 
     const bytes = await file.arrayBuffer();
-    imageBase64 = Buffer.from(bytes).toString("base64");
+    base64 = Buffer.from(bytes).toString("base64");
   } catch {
-    return NextResponse.json({ error: "Failed to read image" }, { status: 400 });
+    return NextResponse.json({ error: "Failed to read file" }, { status: 400 });
   }
 
   try {
+    const mediaBlock = isPdf
+      ? { type: "document" as const, source: { type: "base64" as const, media_type: "application/pdf" as const, data: base64 } }
+      : {
+          type: "image" as const,
+          source: { type: "base64" as const, media_type: mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp", data: base64 },
+        };
+
     const response = await client.messages.create({
       model: "claude-haiku-4-5",
       max_tokens: 1024,
@@ -81,13 +90,7 @@ export async function POST(req: NextRequest) {
       messages: [
         {
           role: "user",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: mediaType, data: imageBase64 },
-            },
-            { type: "text", text: PROMPT },
-          ],
+          content: [mediaBlock, { type: "text", text: PROMPT }],
         },
       ],
     });

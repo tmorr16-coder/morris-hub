@@ -25,11 +25,11 @@ export default function PensionScanner({ spouseEnabled, spouseName, onSelect }: 
 
     try {
       const fd = new FormData();
-      fd.append("image", file);
+      fd.append("file", file);
       const res = await fetch("/api/finance/retirement/pension-extract", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Extraction failed");
-      if (!data.options?.length) throw new Error("No pension options found in the image. Try a clearer photo.");
+      if (!data.options?.length) throw new Error("No pension options found. Try a clearer scan or a PDF of the statement.");
       setResult(data as PensionExtractResult);
     } catch (err) {
       setError((err as Error).message);
@@ -72,7 +72,8 @@ export default function PensionScanner({ spouseEnabled, spouseName, onSelect }: 
       </div>
 
       <p className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5, marginBottom: 12 }}>
-        Upload a photo or screenshot of your Lilly pension benefit statement. Morris will extract the payment options automatically.
+        Upload a PDF, photo, or screenshot of your pension benefit statement. Morris reads every payment option
+        (single life, joint &amp; survivor, etc.) so you can pick one to model.
       </p>
 
       {!result && (
@@ -92,11 +93,11 @@ export default function PensionScanner({ spouseEnabled, spouseName, onSelect }: 
             width: "fit-content",
           }}
         >
-          {scanning ? "Scanning…" : "Choose image"}
+          {scanning ? "Scanning…" : "Choose PDF or image"}
           <input
             ref={fileRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
             onChange={handleFile}
             disabled={scanning}
             style={{ display: "none" }}

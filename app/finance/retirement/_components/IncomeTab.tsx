@@ -730,7 +730,7 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
           {form.type === "pension" && !editId && (
             <div style={{ marginTop: 14 }}>
               <Chip small selected={showPensionScanner} onClick={() => setShowPensionScanner((v) => !v)}>
-                {showPensionScanner ? "Hide scanner" : "Scan Lilly pension statement"}
+                {showPensionScanner ? "Hide scanner" : "Upload pension statement (PDF)"}
               </Chip>
 
               {showPensionScanner && (
