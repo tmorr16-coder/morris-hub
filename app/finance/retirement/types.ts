@@ -100,7 +100,9 @@ export interface RetirementScenario {
   tithe_pct: number | null;           // percent of income tithed (default 10)
   tithe_basis: string | null;         // 'gross' (all income) | 'net' (after-tax income)
   offering_monthly: number | null;    // assumed additional monthly giving beyond the tithe
-  tithe_tax_rate: number | null;      // assumed effective tax rate for the net basis (default 25)
+  tithe_tax_rate: number | null;      // manual effective tax rate for the net basis (default 25)
+  tithe_tax_auto: boolean | null;     // auto-calculate taxes from federal brackets + state rate
+  state_tax_rate: number | null;      // flat state/local rate added to the automatic federal rate
   created_at: string;
   updated_at: string;
 }

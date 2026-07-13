@@ -188,8 +188,51 @@ export function contributionsAnnual(accounts: RetirementAccount[], age: number, 
 // ── Tithe & offerings ───────────────────────────────────────────────────────
 
 // Assumed top marginal tax rate (federal + state) the net-tithe effective rate
-// climbs toward as income rises above today's level.
+// climbs toward as income rises above today's level (manual mode).
 const TITHE_MARGINAL_TAX = 0.40;
+
+// Federal ordinary-income brackets (2025 base; inflated forward in the model).
+// Each entry is [lower bound in today's dollars, marginal rate].
+const FED_BRACKETS: Record<"mfj" | "single", [number, number][]> = {
+  mfj: [[0, 0.10], [23850, 0.12], [96950, 0.22], [206700, 0.24], [394600, 0.32], [501050, 0.35], [751600, 0.37]],
+  single: [[0, 0.10], [11925, 0.12], [48475, 0.22], [103350, 0.24], [197300, 0.32], [250525, 0.35], [626350, 0.37]],
+};
+const STD_DEDUCTION: Record<"mfj" | "single", number> = { mfj: 30000, single: 15000 };
+
+/** Federal income tax on gross income for a filing status, brackets & standard
+ *  deduction inflated by `inflFactor` to the projection year. */
+function federalTax(income: number, filing: "mfj" | "single", inflFactor: number): number {
+  const ded = STD_DEDUCTION[filing] * inflFactor;
+  const taxable = Math.max(0, income - ded);
+  const brackets = FED_BRACKETS[filing];
+  let tax = 0;
+  for (let i = 0; i < brackets.length; i++) {
+    const lo = brackets[i][0] * inflFactor;
+    const hi = i + 1 < brackets.length ? brackets[i + 1][0] * inflFactor : Infinity;
+    if (taxable > lo) tax += (Math.min(taxable, hi) - lo) * brackets[i][1];
+  }
+  return tax;
+}
+
+/** Automatic effective tax rate for a year: federal (brackets + standard
+ *  deduction, by filing status) plus a flat state/local rate. */
+export function autoTaxRate(income: number, age: number, profile: RetirementProfile, scenario: RetirementScenario): number {
+  if (income <= 0) return 0;
+  const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
+  const filing: "mfj" | "single" = profile.spouse_enabled ? "mfj" : "single";
+  const fed = federalTax(income, filing, inflFactor);
+  const state = (scenario.state_tax_rate ?? 5) / 100;
+  return Math.min(0.6, fed / income + state);
+}
+
+/** Gross income the tithe is calculated on for a year (all wage-type income). */
+export function titheGrossBaseAt(incomes: RetirementIncome[], age: number, profile: RetirementProfile): number {
+  let sum = 0;
+  for (const inc of incomes) {
+    if (["salary", "bonus", "part_time", "other"].includes(inc.type)) sum += incomeAnnualAt(inc, age, profile);
+  }
+  return sum;
+}
 
 /** Retirement income that offsets the portfolio drawdown (everything except
  *  salary & bonus, which don't fund retirement in the model). */
@@ -232,19 +275,23 @@ export function titheAndOfferingAt(inp: CashflowInputs, age: number, nowMs: numb
     const spend = baseAnnualSpend(scenario) * inflFactor + entered;
     base = Math.max(retIncome, spend);
   }
-  // Net basis tithes after-tax (take-home) income. The entered rate is today's
-  // effective rate; taxes are progressive, so as income climbs above today's level
-  // the effective rate rises toward the marginal rate — the tax grows with salary.
+  // Net basis tithes after-tax (take-home) income.
   if (scenario.tithe_basis === "net") {
-    const anchorRate = Math.min(0.95, (scenario.tithe_tax_rate ?? 25) / 100);
-    let anchorIncome = 0;
-    for (const inc of incomes) {
-      if (["salary", "bonus", "part_time", "other"].includes(inc.type)) anchorIncome += incomeAnnualAt(inc, profile.current_age, profile);
-    }
-    let rate = anchorRate;
-    if (anchorIncome > 0 && base > 0 && anchorRate < TITHE_MARGINAL_TAX) {
-      const threshold = anchorIncome * (1 - anchorRate / TITHE_MARGINAL_TAX);
-      rate = Math.min(TITHE_MARGINAL_TAX, (TITHE_MARGINAL_TAX * Math.max(0, base - threshold)) / base);
+    let rate: number;
+    if (scenario.tithe_tax_auto) {
+      // Automatic: federal brackets by filing status + standard deduction, plus state.
+      rate = autoTaxRate(base, age, profile, scenario);
+    } else {
+      // Manual: the entered rate is today's effective rate; taxes are progressive, so
+      // as income climbs above today's level the effective rate rises toward the
+      // marginal rate — the tax grows with the salary.
+      const anchorRate = Math.min(0.95, (scenario.tithe_tax_rate ?? 25) / 100);
+      const anchorIncome = titheGrossBaseAt(incomes, profile.current_age, profile);
+      rate = anchorRate;
+      if (anchorIncome > 0 && base > 0 && anchorRate < TITHE_MARGINAL_TAX) {
+        const threshold = anchorIncome * (1 - anchorRate / TITHE_MARGINAL_TAX);
+        rate = Math.min(TITHE_MARGINAL_TAX, (TITHE_MARGINAL_TAX * Math.max(0, base - threshold)) / base);
+      }
     }
     base *= 1 - rate;
   }

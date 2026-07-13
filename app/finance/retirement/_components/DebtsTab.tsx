@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { RetirementDebt, RetirementExpense, RetirementProfile, RetirementAccount, RetirementIncome, RetirementScenario } from "../types";
 import CashflowInspector from "./CashflowInspector";
+import { autoTaxRate, titheGrossBaseAt } from "../_lib/cashflow";
 
 interface Props {
   debts: RetirementDebt[];
@@ -213,7 +214,7 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses, profi
       </div>
 
       {/* Giving — automatic tithe & offerings */}
-      <GivingCard scenario={scenario} setScenario={setScenario} />
+      <GivingCard scenario={scenario} setScenario={setScenario} profile={profile} incomes={incomes} />
 
       {/* Year-by-year cash-flow inspector — audit every inflow & outflow */}
       <CashflowInspector
@@ -521,15 +522,23 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses, profi
 
 // ── Giving (tithe & offerings) ────────────────────────────────────────────────
 
-function GivingCard({ scenario, setScenario }: { scenario: RetirementScenario; setScenario: (s: RetirementScenario) => void }) {
+function GivingCard({ scenario, setScenario, profile, incomes }: {
+  scenario: RetirementScenario; setScenario: (s: RetirementScenario) => void;
+  profile: RetirementProfile; incomes: RetirementIncome[];
+}) {
   const enabled = !!scenario.tithe_enabled;
   const pct = scenario.tithe_pct ?? 10;
   const basis = scenario.tithe_basis ?? "gross";
+  const auto = !!scenario.tithe_tax_auto;
   const [pctStr, setPctStr] = useState(String(pct));
   const [offStr, setOffStr] = useState(String(scenario.offering_monthly ?? 0));
   const [taxStr, setTaxStr] = useState(String(scenario.tithe_tax_rate ?? 25));
+  const [stateStr, setStateStr] = useState(String(scenario.state_tax_rate ?? 5));
   const offering = scenario.offering_monthly ?? 0;
   const taxRate = scenario.tithe_tax_rate ?? 25;
+  // Effective auto rate on today's income (federal brackets + state), for display.
+  const currentAutoRate = autoTaxRate(titheGrossBaseAt(incomes, profile.current_age, profile), profile.current_age, profile, scenario);
+  const filingLabel = profile.spouse_enabled ? "married filing jointly" : "single";
 
   return (
     <div className="ios-list" style={{ margin: "0 0 8px", padding: 18 }}>
@@ -562,14 +571,6 @@ function GivingCard({ scenario, setScenario }: { scenario: RetirementScenario; s
                 <option value="net">Net · after taxes</option>
               </select>
             </div>
-            {basis === "net" && (
-              <div>
-                <label style={labelStyle}>Tax rate now (%)</label>
-                <input type="number" min="0" max="100" step="1" value={taxStr}
-                  onChange={(e) => { setTaxStr(e.target.value); setScenario({ ...scenario, tithe_tax_rate: e.target.value === "" ? 0 : (parseFloat(e.target.value) || 0) }); }}
-                  placeholder="25" style={inputStyle} />
-              </div>
-            )}
             <div>
               <label style={labelStyle}>Offering ($/mo)</label>
               <input type="number" min="0" step="10" value={offStr}
@@ -577,9 +578,48 @@ function GivingCard({ scenario, setScenario }: { scenario: RetirementScenario; s
                 placeholder="0" style={inputStyle} />
             </div>
           </div>
+
+          {/* Net basis: automatic (brackets) or manual tax rate */}
+          {basis === "net" && (
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--ios-separator)" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+                <input type="checkbox" checked={auto}
+                  onChange={(e) => setScenario({ ...scenario, tithe_tax_auto: e.target.checked })}
+                  style={{ width: 18, height: 18, accentColor: "var(--ios-tint)" }} />
+                <span className="ios-subhead" style={{ color: "var(--ios-label)" }}>Calculate taxes automatically</span>
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginTop: 12 }}>
+                {auto ? (
+                  <div>
+                    <label style={labelStyle}>State / local tax (%)</label>
+                    <input type="number" min="0" max="20" step="0.1" value={stateStr}
+                      onChange={(e) => { setStateStr(e.target.value); setScenario({ ...scenario, state_tax_rate: e.target.value === "" ? 0 : (parseFloat(e.target.value) || 0) }); }}
+                      placeholder="5" style={inputStyle} />
+                  </div>
+                ) : (
+                  <div>
+                    <label style={labelStyle}>Tax rate now (%)</label>
+                    <input type="number" min="0" max="100" step="1" value={taxStr}
+                      onChange={(e) => { setTaxStr(e.target.value); setScenario({ ...scenario, tithe_tax_rate: e.target.value === "" ? 0 : (parseFloat(e.target.value) || 0) }); }}
+                      placeholder="25" style={inputStyle} />
+                  </div>
+                )}
+              </div>
+              {auto && (
+                <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 10, lineHeight: 1.5 }}>
+                  Federal brackets ({filingLabel}) + standard deduction, plus your state rate — ≈{" "}
+                  <strong style={{ color: "var(--ios-label)" }}>{(currentAutoRate * 100).toFixed(1)}%</strong> effective on today&apos;s
+                  income, recalculated each year as income changes.
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 12, lineHeight: 1.5 }}>
             {pct}% of {basis === "net"
-              ? `after-tax income — ${taxRate}% effective today, rising with income as your salary grows (everything else is fair game)`
+              ? (auto
+                  ? "after-tax income (taxes computed automatically from brackets each year)"
+                  : `after-tax income — ${taxRate}% effective today, rising with income as your salary grows (everything else is fair game)`)
               : "all income as you receive it — salary now, and Social Security, pension & withdrawals in retirement"}
             {offering > 0 ? `, plus ${fmtMoney(offering)}/mo in offerings` : ""}. Appears as an outflow in the cash-flow
             inspector below and in the projection.

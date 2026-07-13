@@ -57,6 +57,8 @@ const DEFAULT_SCENARIO: RetirementScenario = {
   tithe_basis: "gross",
   offering_monthly: 0,
   tithe_tax_rate: 25,
+  tithe_tax_auto: false,
+  state_tax_rate: 5,
   created_at: "",
   updated_at: "",
 };
