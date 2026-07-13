@@ -95,6 +95,10 @@ export interface RetirementScenario {
   housing_windfall: number;
   monthly_health_premium: number;
   survivor_spend_pct: number;
+  tithe_enabled: boolean | null;      // include an automatic tithe outflow
+  tithe_pct: number | null;           // percent of income tithed (default 10)
+  tithe_basis: string | null;         // 'gross' (all income as received) | 'net' (excludes 401k contributions)
+  offering_monthly: number | null;    // assumed additional monthly giving beyond the tithe
   created_at: string;
   updated_at: string;
 }

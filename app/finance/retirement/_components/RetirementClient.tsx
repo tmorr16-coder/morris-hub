@@ -51,6 +51,10 @@ const DEFAULT_SCENARIO: RetirementScenario = {
   housing_windfall: 0,
   monthly_health_premium: 600,
   survivor_spend_pct: 75,
+  tithe_enabled: false,
+  tithe_pct: 10,
+  tithe_basis: "gross",
+  offering_monthly: 0,
   created_at: "",
   updated_at: "",
 };
@@ -400,7 +404,7 @@ export default function RetirementClient({
       )}
       {activeTab === "Outflows" && (
         <DebtsTab debts={debts} setDebts={setDebts} expenses={expenses} setExpenses={setExpenses}
-          profile={profile} accounts={accounts} incomes={incomes} scenario={scenario} />
+          profile={profile} accounts={accounts} incomes={incomes} scenario={scenario} setScenario={setScenario} />
       )}
       {activeTab === "Scenarios" && (
         <ScenariosTab

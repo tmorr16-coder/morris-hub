@@ -185,6 +185,53 @@ export function contributionsAnnual(accounts: RetirementAccount[], age: number, 
   return accounts.reduce((s, a) => s + a.monthly_contribution * 12, 0);
 }
 
+// ── Tithe & offerings ───────────────────────────────────────────────────────
+
+/** Retirement income that offsets the portfolio drawdown (everything except
+ *  salary & bonus, which don't fund retirement in the model). */
+export function retirementIncomeAt(incomes: RetirementIncome[], age: number, profile: RetirementProfile): number {
+  let sum = 0;
+  for (const inc of incomes) {
+    if (inc.type === "salary" || inc.type === "bonus") continue;
+    sum += incomeAnnualAt(inc, age, profile);
+  }
+  return sum;
+}
+
+/** Annual tithe + assumed offering for a year, if enabled.
+ *  Working years: a percent of income received (gross = full pay; net excludes
+ *  401k contributions). Retirement: a percent of everything that comes in —
+ *  income plus the portfolio withdrawal that funds spending. Plus a flat,
+ *  inflation-grown offering. */
+export function titheAndOfferingAt(inp: CashflowInputs, age: number, nowMs: number): number {
+  const { profile, accounts, incomes, expenses, debts, scenario } = inp;
+  if (!scenario.tithe_enabled) return 0;
+  const pct = (scenario.tithe_pct ?? 10) / 100;
+  const isRetired = age >= profile.retirement_age;
+  const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
+  const offering = (scenario.offering_monthly ?? 0) * 12 * inflFactor;
+
+  let base: number;
+  if (!isRetired) {
+    base = 0;
+    for (const inc of incomes) {
+      if (["salary", "bonus", "part_time", "other"].includes(inc.type)) base += incomeAnnualAt(inc, age, profile);
+    }
+    if (scenario.tithe_basis === "net") base -= contributionsAnnual(accounts, age, profile);
+    base = Math.max(0, base);
+  } else {
+    // Everything that comes in = retirement income + the withdrawal for spending.
+    // Use pre-tithe spending as the base to avoid tithing the tithe (circularity).
+    const retIncome = retirementIncomeAt(incomes, age, profile);
+    let entered = 0;
+    for (const e of expenses) entered += expenseAnnualAt(e, age, profile, nowMs);
+    for (const d of debts) entered += debtAnnualAt(d, age, profile);
+    const spend = baseAnnualSpend(scenario) * inflFactor + entered;
+    base = Math.max(retIncome, spend);
+  }
+  return base * pct + offering;
+}
+
 // ── Itemized year cash flow (for the inspector) ─────────────────────────────
 
 export interface CashflowItem {
@@ -255,6 +302,10 @@ export function yearCashflow(inp: CashflowInputs, age: number, nowMs: number, cu
   const scenarioSpend = isRetired ? baseAnnualSpend(scenario) * inflFactor : 0;
   if (scenarioSpend > 0.5) {
     outflows.push({ label: `Retirement lifestyle · ${scenario.selected_scenario}`, amount: scenarioSpend, kind: "scenario" });
+  }
+  const tithe = titheAndOfferingAt(inp, age, nowMs);
+  if (tithe > 0.5) {
+    outflows.push({ label: "Tithe & offerings", amount: tithe, kind: "tithe" });
   }
 
   const totalInflow = inflows.reduce((s, i) => s + i.amount, 0);

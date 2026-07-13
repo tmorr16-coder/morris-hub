@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Cell, Chip, Segmented, Sparkline, BarRows, RadialGauge } from "@/components/ios";
 import type { RetirementProfile, RetirementAccount, RetirementIncome, RetirementScenario, RetirementExpense, RetirementDebt } from "../types";
-import { clampedGrowth, expenseAnnualAt, debtAnnualAt, wageIncomeAt, employerMatchAnnual } from "../_lib/cashflow";
+import { clampedGrowth, expenseAnnualAt, debtAnnualAt, wageIncomeAt, employerMatchAnnual, titheAndOfferingAt } from "../_lib/cashflow";
 
 interface Props {
   profile: RetirementProfile;
@@ -161,11 +161,11 @@ function stepYear(
       const growthFactor = clampedGrowth(inc.annual_growth_pct, age - startAge);
       portfolio += inc.monthly_amount * growthFactor; // monthly_amount stores annual amount for these types
     }
-    // Entered outflows (living costs, tuition, debt payments) draw on savings only
-    // to the extent they exceed the wage income meant to cover them. Salary covers
-    // day-to-day spend; a temporary spike like tuition dips savings only if it
-    // outstrips income that year.
-    const deficit = outflowAt(ctx, age) - wageIncomeAt(incomes, age, profile);
+    // Entered outflows (living costs, tuition, debt payments) plus any tithe draw
+    // on savings only to the extent they exceed the wage income meant to cover
+    // them. Salary covers day-to-day spend; a temporary spike like tuition dips
+    // savings only if it outstrips income that year.
+    const deficit = outflowAt(ctx, age) + titheAndOfferingAt(ctx, age, ctx.nowMs) - wageIncomeAt(incomes, age, profile);
     if (deficit > 0) portfolio = Math.max(0, portfolio - deficit);
   } else {
     const inflFactor = Math.pow(1 + profile.inflation_rate, yearsFromNow);
@@ -195,9 +195,9 @@ function stepYear(
         return s + annual * inflFactor;
       }, 0);
 
-    // Retirement drawdown covers the lifestyle scenario plus any entered outflows
-    // still active (a mortgage running past retirement, a late-ending expense).
-    const totalSpend = adjSpend + outflowAt(ctx, age);
+    // Retirement drawdown covers the lifestyle scenario, any entered outflows
+    // still active (a mortgage past retirement), and the tithe on what comes in.
+    const totalSpend = adjSpend + outflowAt(ctx, age) + titheAndOfferingAt(ctx, age, ctx.nowMs);
     const netWithdrawal = Math.max(0, totalSpend - retirementIncome);
     portfolio = Math.max(0, portfolio - netWithdrawal);
   }
@@ -349,7 +349,7 @@ function project(
 
     // Total outflows from now: entered expenses + debt payments across their
     // windows, plus the retirement lifestyle scenario once retired.
-    const enteredOutflow = outflowAt(ctx, age);
+    const enteredOutflow = outflowAt(ctx, age) + titheAndOfferingAt(ctx, age, ctx.nowMs);
     expensesByAge.set(age, Math.round((isRetired ? baseAnnualSpend * inflFactor : 0) + enteredOutflow));
   }
 

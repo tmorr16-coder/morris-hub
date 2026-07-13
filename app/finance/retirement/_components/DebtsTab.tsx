@@ -13,6 +13,7 @@ interface Props {
   accounts: RetirementAccount[];
   incomes: RetirementIncome[];
   scenario: RetirementScenario;
+  setScenario: (s: RetirementScenario) => void;
 }
 
 const LOAN_TYPES = ["mortgage", "auto", "student", "credit_card", "personal", "other"];
@@ -63,7 +64,7 @@ const EMPTY_EXPENSE = { name: "", category: "housing", monthly_amount: "", essen
 
 type FormMode = "none" | "loan" | "lease" | "expense";
 
-export default function DebtsTab({ debts, setDebts, expenses, setExpenses, profile, accounts, incomes, scenario }: Props) {
+export default function DebtsTab({ debts, setDebts, expenses, setExpenses, profile, accounts, incomes, scenario, setScenario }: Props) {
   const [formMode, setFormMode] = useState<FormMode>("none");
   const [editId, setEditId] = useState<string | null>(null);
   const [loanForm, setLoanForm] = useState({ ...EMPTY_LOAN });
@@ -210,6 +211,9 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses, profi
           ))}
         </div>
       </div>
+
+      {/* Giving — automatic tithe & offerings */}
+      <GivingCard scenario={scenario} setScenario={setScenario} />
 
       {/* Year-by-year cash-flow inspector — audit every inflow & outflow */}
       <CashflowInspector
@@ -511,6 +515,68 @@ export default function DebtsTab({ debts, setDebts, expenses, setExpenses, profi
           </form>
         )}
       </Section>
+    </div>
+  );
+}
+
+// ── Giving (tithe & offerings) ────────────────────────────────────────────────
+
+function GivingCard({ scenario, setScenario }: { scenario: RetirementScenario; setScenario: (s: RetirementScenario) => void }) {
+  const enabled = !!scenario.tithe_enabled;
+  const pct = scenario.tithe_pct ?? 10;
+  const basis = scenario.tithe_basis ?? "gross";
+  const [pctStr, setPctStr] = useState(String(pct));
+  const [offStr, setOffStr] = useState(String(scenario.offering_monthly ?? 0));
+  const offering = scenario.offering_monthly ?? 0;
+
+  return (
+    <div className="ios-list" style={{ margin: "0 0 8px", padding: 18 }}>
+      <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, cursor: "pointer" }}>
+        <div>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Giving</div>
+          <div className="ios-subhead" style={{ color: "var(--ios-label)", marginTop: 2, fontWeight: 600 }}>Automatic tithe &amp; offerings</div>
+        </div>
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => setScenario({ ...scenario, tithe_enabled: e.target.checked })}
+          style={{ width: 22, height: 22, accentColor: "var(--ios-tint)" }}
+        />
+      </label>
+
+      {enabled && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginTop: 16 }}>
+            <div>
+              <label style={labelStyle}>Tithe (%)</label>
+              <input type="number" min="0" max="100" step="0.5" value={pctStr}
+                onChange={(e) => { setPctStr(e.target.value); setScenario({ ...scenario, tithe_pct: e.target.value === "" ? 0 : (parseFloat(e.target.value) || 0) }); }}
+                placeholder="10" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Basis</label>
+              <select value={basis} onChange={(e) => setScenario({ ...scenario, tithe_basis: e.target.value })} style={selectStyle}>
+                <option value="gross">Gross · all income</option>
+                <option value="net">Net · after 401(k)</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Offering ($/mo)</label>
+              <input type="number" min="0" step="10" value={offStr}
+                onChange={(e) => { setOffStr(e.target.value); setScenario({ ...scenario, offering_monthly: e.target.value === "" ? 0 : (parseFloat(e.target.value) || 0) }); }}
+                placeholder="0" style={inputStyle} />
+            </div>
+          </div>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 12, lineHeight: 1.5 }}>
+            {pct}% of {basis === "net"
+              ? "income after 401(k) contributions"
+              : "all income as you receive it"}
+            {basis === "gross" && " — salary now, and Social Security, pension & withdrawals in retirement"}
+            {offering > 0 ? `, plus ${fmtMoney(offering)}/mo in offerings` : ""}. Appears as an outflow in the cash-flow
+            inspector below and in the projection.
+          </div>
+        </>
+      )}
     </div>
   );
 }
