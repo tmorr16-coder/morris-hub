@@ -394,6 +394,10 @@ export function yearCashflow(inp: CashflowInputs, age: number, nowMs: number, cu
   if (tithe > 0.5) {
     outflows.push({ label: "Tithe & offerings", amount: tithe, kind: "tithe" });
   }
+  const estimatedTax = estimatedTaxAt(inp, age, nowMs);
+  if (estimatedTax > 0.5) {
+    outflows.push({ label: "Income taxes (est.)", amount: estimatedTax, kind: "tax" });
+  }
 
   const totalInflow = inflows.reduce((s, i) => s + i.amount, 0);
   const totalOutflow = outflows.reduce((s, i) => s + i.amount, 0);
@@ -419,6 +423,6 @@ export function yearCashflow(inp: CashflowInputs, age: number, nowMs: number, cu
     net: totalInflow - totalOutflow,
     savedToPortfolio,
     scenarioSpend,
-    estimatedTax: estimatedTaxAt(inp, age, nowMs),
+    estimatedTax,
   };
 }

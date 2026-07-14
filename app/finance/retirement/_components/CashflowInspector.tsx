@@ -23,6 +23,7 @@ const KIND_DOT: Record<string, string> = {
   salary: "var(--ios-green)", bonus: "var(--ios-green)", stock_award: "#34C759", part_time: "#30D158",
   other: "#30D158", social_security: "var(--ios-tint)", pension: "var(--ios-orange)", match: "#5E5CE6",
   expense: "var(--ios-red)", loan: "#FF6B6B", lease: "#FF6B6B", scenario: "#C97A3A",
+  tithe: "#6B5B95", tax: "#8E5A3A",
 };
 
 // Read the wall clock in a plain function (not directly in render) so the
@@ -91,22 +92,6 @@ export default function CashflowInspector({ profile, accounts, incomes, expenses
       <LedgerSection title="Inflows" items={cf.inflows} total={cf.totalInflow} totalLabel="Total inflows" />
       {/* Outflows */}
       <LedgerSection title="Outflows" items={cf.outflows} total={cf.totalOutflow} totalLabel="Total outflows" />
-
-      {/* Estimated taxes — informational */}
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--ios-separator)" }}>
-        <span className="ios-subhead" style={{ color: "var(--ios-label)" }}>Estimated income taxes</span>
-        <span className="ios-num ios-subhead" style={{ fontWeight: 700, color: "var(--ios-label)" }}>
-          {fmtMoney(cf.estimatedTax)}
-          {cf.totalInflow > 0 && (
-            <span className="ios-footnote" style={{ color: "var(--ios-label-2)", fontWeight: 400 }}>
-              {" "}· {((cf.estimatedTax / (cf.isRetired ? Math.max(cf.totalOutflow, cf.totalInflow) : cf.totalInflow)) * 100).toFixed(0)}%
-            </span>
-          )}
-        </span>
-      </div>
-      <div className="ios-footnote" style={{ color: "var(--ios-label-3)", marginTop: 4 }}>
-        Federal brackets + state, on this year&apos;s income. Estimate for planning — not drawn from the portfolio here.
-      </div>
 
       {/* Reconciliation note — how the year affects the portfolio */}
       <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 14, lineHeight: 1.5, paddingTop: 12, borderTop: "1px solid var(--ios-separator)" }}>

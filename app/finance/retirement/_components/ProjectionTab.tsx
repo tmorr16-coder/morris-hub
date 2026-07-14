@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Cell, Chip, Segmented, Sparkline, BarRows, RadialGauge } from "@/components/ios";
 import type { RetirementProfile, RetirementAccount, RetirementIncome, RetirementScenario, RetirementExpense, RetirementDebt } from "../types";
-import { clampedGrowth, expenseAnnualAt, debtAnnualAt, wageIncomeAt, employerMatchAnnual, titheAndOfferingAt } from "../_lib/cashflow";
+import { clampedGrowth, expenseAnnualAt, debtAnnualAt, wageIncomeAt, employerMatchAnnual, titheAndOfferingAt, estimatedTaxAt } from "../_lib/cashflow";
 
 interface Props {
   profile: RetirementProfile;
@@ -204,8 +204,9 @@ function stepYear(
       }, 0);
 
     // Retirement drawdown covers the lifestyle scenario, any entered outflows
-    // still active (a mortgage past retirement), and the tithe on what comes in.
-    const totalSpend = adjSpend + outflowAt(ctx, age) + titheAndOfferingAt(ctx, age, ctx.nowMs);
+    // still active (a mortgage past retirement), the tithe on what comes in, and
+    // the income tax on withdrawals — all pull from the portfolio.
+    const totalSpend = adjSpend + outflowAt(ctx, age) + titheAndOfferingAt(ctx, age, ctx.nowMs) + estimatedTaxAt(ctx, age, ctx.nowMs);
     const netWithdrawal = Math.max(0, totalSpend - retirementIncome);
     portfolio = Math.max(0, portfolio - netWithdrawal);
   }
@@ -357,7 +358,7 @@ function project(
 
     // Total outflows from now: entered expenses + debt payments across their
     // windows, plus the retirement lifestyle scenario once retired.
-    const enteredOutflow = outflowAt(ctx, age) + titheAndOfferingAt(ctx, age, ctx.nowMs);
+    const enteredOutflow = outflowAt(ctx, age) + titheAndOfferingAt(ctx, age, ctx.nowMs) + estimatedTaxAt(ctx, age, ctx.nowMs);
     expensesByAge.set(age, Math.round((isRetired ? baseAnnualSpend * inflFactor : 0) + enteredOutflow));
   }
 
