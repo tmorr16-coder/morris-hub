@@ -406,9 +406,11 @@ export function yearCashflow(inp: CashflowInputs, age: number, nowMs: number, cu
   // contributions + employer match + bonuses/stock awards.
   let savedToPortfolio = 0;
   if (!isRetired) {
+    // 401k contributions & match are pre-tax; bonuses/stock are banked after-tax.
+    const taxRate = autoTaxRate(titheGrossBaseAt(incomes, age, profile), age, profile, scenario);
     savedToPortfolio = contributionsAnnual(accounts, age, profile) + match;
     for (const inc of incomes) {
-      if (inc.type === "bonus" || inc.type === "stock_award") savedToPortfolio += incomeAnnualAt(inc, age, profile);
+      if (inc.type === "bonus" || inc.type === "stock_award") savedToPortfolio += incomeAnnualAt(inc, age, profile) * (1 - taxRate);
     }
   }
 

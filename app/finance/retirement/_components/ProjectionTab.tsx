@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Cell, Chip, Segmented, Sparkline, BarRows, RadialGauge } from "@/components/ios";
 import type { RetirementProfile, RetirementAccount, RetirementIncome, RetirementScenario, RetirementExpense, RetirementDebt } from "../types";
-import { clampedGrowth, expenseAnnualAt, debtAnnualAt, wageIncomeAt, employerMatchAnnual, titheAndOfferingAt, estimatedTaxAt } from "../_lib/cashflow";
+import { clampedGrowth, expenseAnnualAt, debtAnnualAt, wageIncomeAt, employerMatchAnnual, titheAndOfferingAt, estimatedTaxAt, autoTaxRate, titheGrossBaseAt } from "../_lib/cashflow";
 
 interface Props {
   profile: RetirementProfile;
@@ -153,10 +153,12 @@ function stepYear(
   }
 
   if (!isRetired) {
-    // Employee contributions + a salary-based employer match (capped at the IRS limit).
+    // Income-tax rate for the year. 401k contributions & employer match go in
+    // pre-tax (taxed later when withdrawn — see the retirement drawdown); bonuses
+    // and vesting stock are banked after-tax, and take-home wage covers spending.
+    const taxRate = autoTaxRate(titheGrossBaseAt(incomes, age, profile), age, profile, ctx.scenario);
     portfolio += accounts.reduce((s, a) => s + a.monthly_contribution * 12, 0);
     portfolio += employerMatchAnnual(accounts, incomes, age, profile);
-    // Bonuses and vesting stock awards add to the portfolio during employment.
     for (const inc of incomes) {
       if (inc.type !== "bonus" && inc.type !== "stock_award") continue;
       const startAge = inc.start_age ?? profile.current_age;
@@ -167,13 +169,13 @@ function stepYear(
       );
       if (age < startAge || age > endAge) continue;
       const growthFactor = clampedGrowth(inc.annual_growth_pct, age - startAge);
-      portfolio += inc.monthly_amount * growthFactor; // monthly_amount stores annual amount for these types
+      portfolio += inc.monthly_amount * growthFactor * (1 - taxRate); // banked after-tax
     }
     // Entered outflows (living costs, tuition, debt payments) plus any tithe draw
-    // on savings only to the extent they exceed the wage income meant to cover
-    // them. Salary covers day-to-day spend; a temporary spike like tuition dips
-    // savings only if it outstrips income that year.
-    const deficit = outflowAt(ctx, age) + titheAndOfferingAt(ctx, age, ctx.nowMs) - wageIncomeAt(incomes, age, profile);
+    // on savings only to the extent they exceed take-home wage. A temporary spike
+    // like tuition dips savings only if it outstrips take-home income that year.
+    const takeHomeWage = wageIncomeAt(incomes, age, profile) * (1 - taxRate);
+    const deficit = outflowAt(ctx, age) + titheAndOfferingAt(ctx, age, ctx.nowMs) - takeHomeWage;
     if (deficit > 0) portfolio = Math.max(0, portfolio - deficit);
   } else {
     const inflFactor = Math.pow(1 + profile.inflation_rate, yearsFromNow);
