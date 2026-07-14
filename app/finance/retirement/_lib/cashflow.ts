@@ -298,6 +298,26 @@ export function titheAndOfferingAt(inp: CashflowInputs, age: number, nowMs: numb
   return base * pct + offering;
 }
 
+/** Estimated income tax (federal brackets + state) for a year, on that year's
+ *  gross income — working wages, or retirement income + the withdrawal that funds
+ *  spending. Independent of the tithe settings; informational. */
+export function estimatedTaxAt(inp: CashflowInputs, age: number, nowMs: number): number {
+  const { profile, incomes, expenses, debts, scenario } = inp;
+  const isRetired = age >= profile.retirement_age;
+  const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
+  let base: number;
+  if (!isRetired) {
+    base = titheGrossBaseAt(incomes, age, profile);
+  } else {
+    const retIncome = retirementIncomeAt(incomes, age, profile);
+    let entered = 0;
+    for (const e of expenses) entered += expenseAnnualAt(e, age, profile, nowMs);
+    for (const d of debts) entered += debtAnnualAt(d, age, profile);
+    base = Math.max(retIncome, baseAnnualSpend(scenario) * inflFactor + entered);
+  }
+  return autoTaxRate(base, age, profile, scenario) * base;
+}
+
 // ── Itemized year cash flow (for the inspector) ─────────────────────────────
 
 export interface CashflowItem {
@@ -317,6 +337,7 @@ export interface YearCashflow {
   net: number;
   savedToPortfolio: number; // contributions + match + bonus/stock that the projection banks
   scenarioSpend: number;    // retirement lifestyle spend this year (0 pre-retirement)
+  estimatedTax: number;     // estimated income tax (federal + state) on this year's income
 }
 
 const INCOME_LABEL: Record<string, string> = {
@@ -398,5 +419,6 @@ export function yearCashflow(inp: CashflowInputs, age: number, nowMs: number, cu
     net: totalInflow - totalOutflow,
     savedToPortfolio,
     scenarioSpend,
+    estimatedTax: estimatedTaxAt(inp, age, nowMs),
   };
 }
