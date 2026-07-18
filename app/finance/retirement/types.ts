@@ -105,6 +105,8 @@ export interface RetirementScenario {
   state_tax_rate: number | null;      // flat state/local rate added to the automatic federal rate
   property_tax_annual?: number | null; // annual property tax (itemized deduction, SALT)
   other_itemized?: number | null;      // other itemized deductions (medical over floor, etc.)
+  home_value?: number | null;          // manual home value (e.g. Zillow Zestimate) for net worth
+  home_address?: string | null;        // optional property address
   created_at: string;
   updated_at: string;
 }

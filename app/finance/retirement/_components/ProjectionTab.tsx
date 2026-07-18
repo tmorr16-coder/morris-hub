@@ -128,6 +128,13 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
   const hasLegacyGoal = (scenario.legacy_goal ?? 0) > 0;
   const legacyMetRaw = !hasLegacyGoal || rawResult.finalBalance >= legacyGoalNominal;
 
+  // Net worth today (incl. home): investable portfolio + home value − all debts.
+  // The home is NOT part of the spendable retirement portfolio above.
+  const currentPortfolio = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
+  const homeValue = scenario.home_value ?? 0;
+  const totalDebt = debts.reduce((s, d) => s + (d.balance ?? 0), 0);
+  const netWorth = currentPortfolio + homeValue - totalDebt;
+
   const result = realDollars ? {
     ...rawResult,
     portfolioByAge: deflateMap(rawResult.portfolioByAge),
@@ -370,6 +377,21 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
           Age {profile.current_age} → {profile.life_expectancy}
         </div>
       </div>
+
+      {/* Net worth today (incl. home) */}
+      {homeValue > 0 && (
+        <div className="ios-list" style={{ margin: "0 0 8px", padding: 16 }}>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            Net worth today · incl. home
+          </div>
+          <div className="ios-num" style={{ fontSize: 28, fontWeight: 700, marginTop: 2 }}>{fmtLarge(netWorth)}</div>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 4 }}>
+            Portfolio {fmtLarge(currentPortfolio)} + home {fmtLarge(homeValue)}
+            {totalDebt > 0 ? <> − debts {fmtLarge(totalDebt)}</> : null}
+            {scenario.home_address ? <span style={{ color: "var(--ios-label-3)" }}> · {scenario.home_address}</span> : null}
+          </div>
+        </div>
+      )}
 
       {/* Gap / surplus callout */}
       {nestEgg > 0 && (

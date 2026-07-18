@@ -123,6 +123,32 @@ export default function ScenariosTab({ profile, setProfile, scenario, setScenari
               style={inputStyle}
             />
           </div>
+          <div>
+            <label style={labelStyle}>Home value ($)</label>
+            <input
+              type="number"
+              min="0"
+              step="1000"
+              value={scenario.home_value ?? 0}
+              onChange={(e) => updateScenario("home_value", parseFloat(e.target.value) || 0)}
+              placeholder="Zillow Zestimate"
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Home address (optional)</label>
+            <input
+              type="text"
+              value={scenario.home_address ?? ""}
+              onChange={(e) => updateScenario("home_address", e.target.value)}
+              placeholder="123 Main St — look up your estimate on zillow.com"
+              style={inputStyle}
+            />
+            <div className="ios-footnote" style={{ color: "var(--ios-label-3)", marginTop: 4 }}>
+              Added to net worth (home value − mortgage). Not counted as spendable retirement portfolio.{" "}
+              <a href="https://www.zillow.com" target="_blank" rel="noopener noreferrer" style={{ color: "var(--ios-tint)" }}>Get your Zestimate ↗</a>
+            </div>
+          </div>
         </div>
 
         {/* Spouse toggle */}
