@@ -373,7 +373,9 @@ export function titheAndOfferingAt(inp: CashflowInputs, age: number, nowMs: numb
   const pct = (scenario.tithe_pct ?? 10) / 100;
   const isRetired = age >= profile.retirement_age;
   const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
-  const offering = (scenario.offering_monthly ?? 0) * 12 * inflFactor;
+  // Flat nominal — an assumed offering is a fixed monthly amount, not something
+  // that balloons with 40 years of inflation. (The 10% tithe already scales with income.)
+  const offering = (scenario.offering_monthly ?? 0) * 12;
 
   let base: number;
   if (!isRetired) {
