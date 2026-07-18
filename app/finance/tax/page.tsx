@@ -30,6 +30,15 @@ export default async function TaxPage() {
     <div className="ios-scroll">
       <LargeTitle title="Tax" subtitle="Your tax picture & strategy" />
       <div style={{ padding: "0 16px" }}>
+        <a href="/finance/tax/estimate" className="ios-list" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, margin: "0 0 8px", padding: 16, textDecoration: "none" }}>
+          <div>
+            <div className="ios-headline" style={{ color: "var(--ios-label)" }}>Next-year tax estimator →</div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>
+              Model your refund or payment · upload W-2s &amp; prior returns · explore adjustments
+            </div>
+          </div>
+          <span style={{ color: "var(--ios-label-3)", fontSize: 20 }}>›</span>
+        </a>
         <TaxClient snapshot={snapshot} />
       </div>
       <p className="ios-caption" style={{ color: "var(--ios-label-3)", padding: "8px 20px 0", lineHeight: 1.5 }}>

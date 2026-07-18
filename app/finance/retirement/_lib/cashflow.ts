@@ -232,15 +232,15 @@ const TITHE_MARGINAL_TAX = 0.40;
 
 // Federal ordinary-income brackets (2025 base; inflated forward in the model).
 // Each entry is [lower bound in today's dollars, marginal rate].
-const FED_BRACKETS: Record<"mfj" | "single", [number, number][]> = {
+export const FED_BRACKETS: Record<"mfj" | "single", [number, number][]> = {
   mfj: [[0, 0.10], [23850, 0.12], [96950, 0.22], [206700, 0.24], [394600, 0.32], [501050, 0.35], [751600, 0.37]],
   single: [[0, 0.10], [11925, 0.12], [48475, 0.22], [103350, 0.24], [197300, 0.32], [250525, 0.35], [626350, 0.37]],
 };
-const STD_DEDUCTION: Record<"mfj" | "single", number> = { mfj: 30000, single: 15000 };
+export const STD_DEDUCTION: Record<"mfj" | "single", number> = { mfj: 30000, single: 15000 };
 
 /** Federal income tax on gross income for a filing status. `deduction` overrides
  *  the standard deduction (for itemizers); otherwise the standard is used. */
-function federalTax(income: number, filing: "mfj" | "single", inflFactor: number, deduction?: number): number {
+export function federalTax(income: number, filing: "mfj" | "single", inflFactor: number, deduction?: number): number {
   const ded = deduction != null ? deduction : STD_DEDUCTION[filing] * inflFactor;
   const taxable = Math.max(0, income - ded);
   const brackets = FED_BRACKETS[filing];
@@ -447,7 +447,7 @@ export function accountTaxMix(accounts: RetirementAccount[]): Record<TaxBucket, 
 const TAXABLE_GAIN_FRACTION = 0.5;
 
 /** Long-term capital-gains rate by ordinary-income level (2025 brackets, inflated). */
-function ltcgRate(ordinary: number, filing: "mfj" | "single", inflFactor: number): number {
+export function ltcgRate(ordinary: number, filing: "mfj" | "single", inflFactor: number): number {
   const top = (filing === "mfj" ? 600050 : 533400) * inflFactor;
   const bottom = (filing === "mfj" ? 96700 : 48350) * inflFactor;
   if (ordinary >= top) return 0.20;
@@ -469,7 +469,7 @@ function ssTaxablePortion(ss: number, otherIncome: number, filing: "mfj" | "sing
 }
 
 /** Additional Medicare tax (0.9%) on wages above the MAGI threshold. */
-function additionalMedicareTax(wages: number, filing: "mfj" | "single", inflFactor: number): number {
+export function additionalMedicareTax(wages: number, filing: "mfj" | "single", inflFactor: number): number {
   const thr = (filing === "mfj" ? 250000 : 200000) * inflFactor;
   return Math.max(0, wages - thr) * 0.009;
 }
