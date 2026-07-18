@@ -119,8 +119,13 @@ export function incomeAnnualAt(inc: RetirementIncome, age: number, profile: Reti
     return inc.monthly_amount * 12 * inflFactor;
   }
   if (inc.type === "pension") {
-    if (age < (inc.start_age ?? profile.retirement_age)) return 0;
-    return inc.monthly_amount * 12 * inflFactor;
+    const start = inc.start_age ?? profile.retirement_age;
+    if (age < start) return 0;
+    // Pensions are FLAT nominal by default — most private pensions have no COLA,
+    // so the benefit erodes in real terms. If the user sets an annual growth %,
+    // treat it as the pension's COLA. (Social Security, above, keeps its COLA.)
+    const cola = inc.annual_growth_pct ? Math.pow(1 + inc.annual_growth_pct / 100, age - start) : 1;
+    return inc.monthly_amount * 12 * cola;
   }
   if (["salary", "part_time", "other", "bonus", "stock_award"].includes(inc.type)) {
     const start = inc.start_age ?? (
