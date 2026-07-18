@@ -310,21 +310,55 @@ export function titheAndOfferingAt(inp: CashflowInputs, age: number, nowMs: numb
 /** Estimated income tax (federal brackets + state) for a year, on that year's
  *  gross income — working wages, or retirement income + the withdrawal that funds
  *  spending. Independent of the tithe settings; informational. */
+/** Portion of Social Security benefits that is taxable (≤85%), via the IRS
+ *  provisional-income formula. Thresholds inflate with the plan. */
+function ssTaxablePortion(ss: number, otherIncome: number, filing: "mfj" | "single", inflFactor: number): number {
+  if (ss <= 0) return 0;
+  const [t1, t2] = filing === "mfj" ? [32000, 44000] : [25000, 34000];
+  const b1 = t1 * inflFactor, b2 = t2 * inflFactor;
+  const provisional = otherIncome + 0.5 * ss;
+  if (provisional <= b1) return 0;
+  if (provisional <= b2) return Math.min(0.5 * (provisional - b1), 0.5 * ss);
+  const lowerTier = Math.min(0.5 * (b2 - b1), 0.5 * ss);
+  return Math.min(0.85 * (provisional - b2) + lowerTier, 0.85 * ss);
+}
+
+/** Additional Medicare tax (0.9%) on wages above the MAGI threshold. */
+function additionalMedicareTax(wages: number, filing: "mfj" | "single", inflFactor: number): number {
+  const thr = (filing === "mfj" ? 250000 : 200000) * inflFactor;
+  return Math.max(0, wages - thr) * 0.009;
+}
+
+/** Estimated income tax (federal + state) for the year. Working years tax wages
+ *  (plus the additional-Medicare surtax on high earners); retirement taxes
+ *  ordinary income + only the taxable portion of Social Security. */
 export function estimatedTaxAt(inp: CashflowInputs, age: number, nowMs: number): number {
   const { profile, incomes, expenses, debts, scenario } = inp;
   const isRetired = age >= profile.retirement_age;
   const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
-  let base: number;
+  const filing: "mfj" | "single" = profile.spouse_enabled ? "mfj" : "single";
+  const state = (scenario.state_tax_rate ?? 5) / 100;
+
   if (!isRetired) {
-    base = titheGrossBaseAt(incomes, age, profile);
-  } else {
-    const retIncome = retirementIncomeAt(incomes, age, profile);
-    let entered = 0;
-    for (const e of expenses) entered += expenseAnnualAt(e, age, profile, nowMs);
-    for (const d of debts) entered += debtAnnualAt(d, age, profile);
-    base = Math.max(retIncome, baseAnnualSpend(scenario) * inflFactor + entered);
+    const wages = titheGrossBaseAt(incomes, age, profile);
+    if (wages <= 0) return 0;
+    const tax = federalTax(wages, filing, inflFactor) + additionalMedicareTax(wages, filing, inflFactor) + state * wages;
+    return Math.min(0.6 * wages, tax);
   }
-  return autoTaxRate(base, age, profile, scenario) * base;
+
+  const retIncome = retirementIncomeAt(incomes, age, profile);
+  let entered = 0;
+  for (const e of expenses) entered += expenseAnnualAt(e, age, profile, nowMs);
+  for (const d of debts) entered += debtAnnualAt(d, age, profile);
+  const grossBase = Math.max(retIncome, baseAnnualSpend(scenario) * inflFactor + entered);
+
+  let ss = 0;
+  for (const inc of incomes) if (inc.type === "social_security") ss += incomeAnnualAt(inc, age, profile);
+  const otherOrdinary = Math.max(0, grossBase - ss);
+  const taxableSS = ssTaxablePortion(ss, otherOrdinary, filing, inflFactor);
+  const ordinaryBase = otherOrdinary + taxableSS; // SS only partially taxable
+  const tax = federalTax(ordinaryBase, filing, inflFactor) + state * ordinaryBase;
+  return Math.min(0.6 * grossBase, tax);
 }
 
 // ── Itemized year cash flow (for the inspector) ─────────────────────────────
