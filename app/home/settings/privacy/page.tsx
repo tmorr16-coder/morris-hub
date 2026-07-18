@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { LargeTitle, Group, Cell, TabBar } from "@/components/ios";
+import ExportDataButton from "./_components/ExportDataButton";
 
 interface Row {
   category: string;
@@ -179,6 +180,10 @@ export default async function PrivacySettingsPage() {
 
         <Group footer="See exactly what someone else sees of your data.">
           <Cell title="Preview as a family member" href="/home/family/preview" />
+        </Group>
+
+        <Group header="Your data" footer="Download a copy of everything the platform has stored for you.">
+          <ExportDataButton />
         </Group>
 
         <div style={{ height: 12 }} />

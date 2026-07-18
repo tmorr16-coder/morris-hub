@@ -127,7 +127,7 @@ export default function PrivacyPage() {
           <p style={{ marginBottom: 14 }}>The following external services receive data to power platform features:</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[
-              { name: "Anthropic (Claude API)", purpose: "AI features — chat, research, summaries, career coaching", data: "Your messages and relevant context (profile, account data you've provided)", training: "Not used for model training per Anthropic's API terms" },
+              { name: "Anthropic (Claude API)", purpose: "AI features — chat, research, summaries, career coaching, document extraction", data: "Your messages and relevant context (profile, account figures), plus any documents you upload for extraction (e.g. pension/account statements)", training: "Not used for model training per Anthropic's API terms" },
               { name: "Google (OAuth)", purpose: "Authentication", data: "Name and email only", training: "N/A" },
               { name: "SimpleFIN", purpose: "Bank account connectivity", data: "Bank credentials are handled by SimpleFIN — the platform receives read-only account and transaction data only", training: "N/A" },
               { name: "Alpaca Markets", purpose: "Investment research and paper trading", data: "Ticker searches, watchlist, paper orders", training: "N/A" },
@@ -162,13 +162,14 @@ export default function PrivacyPage() {
           <ul style={{ paddingLeft: 20, marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
             <li>Data sent to the Claude API is <strong>not used to train Anthropic&rsquo;s models</strong> per their API usage terms.</li>
             <li>Conversation context is sent only when needed for a specific request — it is not stored by Anthropic beyond the API call.</li>
-            <li>We do not send financial credentials, raw bank data, or health device tokens to the Claude API. We send summaries and figures only.</li>
+            <li>We do not send financial credentials, bank access tokens, or health device tokens to the Claude API. For most features we send summaries and figures only.</li>
+            <li><strong>Document uploads:</strong> When you upload a document for the platform to read — for example a pension or account statement (PDF or image) for automatic extraction — that file is sent to the Claude API to pull out the figures. Uploaded documents are processed for that request only and are not stored by us or by Anthropic beyond the API call.</li>
           </ul>
         </Section>
 
         <Section title="Your rights and controls">
           <ul style={{ paddingLeft: 20, display: "flex", flexDirection: "column", gap: 6 }}>
-            <li><strong>Access:</strong> All your data is visible through the platform.</li>
+            <li><strong>Access:</strong> All your data is visible through the platform, and you can download a full copy from Settings → Privacy &amp; data → Download my data.</li>
             <li><strong>Export:</strong> Contact us to request a data export.</li>
             <li><strong>Delete:</strong> Contact us to request full account and data deletion. Third-party connections (SimpleFIN, Alpaca) should be disconnected from within the platform before requesting deletion.</li>
             <li><strong>Correction:</strong> You can update most data directly through the platform settings.</li>

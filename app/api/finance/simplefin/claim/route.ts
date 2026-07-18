@@ -88,6 +88,7 @@ async function pullAccounts(service: any, itemId: string, userId: string, access
     }));
 
     if (accountRows.length > 0) {
+      // scoping-ok: accountRows each carry item_id for this user's just-created item
       await service.schema('finance').from('accounts').insert(accountRows);
     }
 
@@ -118,6 +119,7 @@ async function pullAccounts(service: any, itemId: string, userId: string, access
     }
 
     if (txRows.length > 0) {
+      // scoping-ok: txRows are built from this user's accounts (unique plaid_transaction_id)
       await service
         .schema('finance')
         .from('transactions')

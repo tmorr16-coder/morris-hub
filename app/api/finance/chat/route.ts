@@ -201,24 +201,28 @@ export async function POST(req: NextRequest) {
 
   const ninetyDaysAgo = new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
 
-  const [{ data: accountRows }, { data: txRows }] = await Promise.all([
-    service
-      .schema("finance")
-      .from("accounts")
-      .select("id, item_id, name, type, subtype, mask, current_balance, iso_currency_code")
-      .in("item_id", itemIds),
-    service
-      .schema("finance")
-      .from("transactions")
-      .select("id, account_id, date, amount, merchant_name, name, pending, personal_finance_category")
-      .gte("date", ninetyDaysAgo)
-      .order("date", { ascending: false })
-      .limit(500),
-  ]);
+  // Scope at the query: this user's items → accounts → transactions. (Previously
+  // this pulled the 500 most-recent transactions across ALL users and filtered in
+  // memory, which both leaked other users' rows into the process and could crowd
+  // out this user's own recent transactions.)
+  const { data: accountRows } = await service
+    .schema("finance")
+    .from("accounts")
+    .select("id, item_id, name, type, subtype, mask, current_balance, iso_currency_code")
+    .in("item_id", itemIds);
 
-  // Defensive: filter transactions to only those whose account belongs to this user
-  const validAccountIds = new Set((accountRows ?? []).map((a) => a.id));
-  const transactions = (txRows ?? []).filter((t) => validAccountIds.has(t.account_id));
+  const accountIds = (accountRows ?? []).map((a: { id: string }) => a.id);
+  const { data: txRows } = accountIds.length > 0
+    ? await service
+        .schema("finance")
+        .from("transactions")
+        .select("id, account_id, date, amount, merchant_name, name, pending, personal_finance_category")
+        .in("account_id", accountIds)
+        .gte("date", ninetyDaysAgo)
+        .order("date", { ascending: false })
+        .limit(500)
+    : { data: [] };
+  const transactions = txRows ?? [];
 
   const financeContext = buildFinanceContext(
     (accountRows ?? []) as Account[],

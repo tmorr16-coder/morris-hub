@@ -72,6 +72,7 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
 
     let totalAdded = 0;
     if (txRows.length > 0) {
+      // scoping-ok: txRows are built for the item being synced (this user's)
       await supabase
         .schema('finance')
         .from('transactions')
@@ -139,6 +140,7 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
 export async function syncAllItems(): Promise<SyncResult[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createServiceClient() as any;
+  // scoping-ok: cron job — intentionally syncs every user's active items
   const { data: items } = await supabase
     .schema('finance')
     .from('plaid_items')
