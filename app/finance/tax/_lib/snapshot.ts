@@ -3,7 +3,7 @@
 
 import type { RetirementProfile, RetirementAccount, RetirementIncome, RetirementExpense, RetirementDebt, RetirementScenario } from "../../retirement/types";
 import {
-  titheGrossBaseAt, estimatedTaxAt, accountTaxMix, type CashflowInputs,
+  titheGrossBaseAt, estimatedTaxAt, accountTaxMix, itemizedDeductionAt, type CashflowInputs,
 } from "../../retirement/_lib/cashflow";
 
 export interface TaxOpportunity {
@@ -23,6 +23,7 @@ export interface TaxSnapshot {
   mix: { pretax: number; roth: number; taxable: number; hsa: number };
   concentrationNote: string | null;
   surtaxes: string[];      // active surtax exposures
+  deduction: { standard: number; itemized: number; usingItemized: boolean; charitable: number; mortgageInterest: number; salt: number };
   opportunities: TaxOpportunity[];
 }
 
@@ -57,6 +58,14 @@ export function buildTaxSnapshot(
   }
 
   const mix = accountTaxMix(accounts);
+
+  // Deductions — standard vs itemized (charitable + mortgage interest + SALT).
+  const item = itemizedDeductionAt(inp, age, now, grossIncome);
+  const standard = filingMFJ ? 30000 : 15000;
+  const deduction = {
+    standard, itemized: item.total, usingItemized: item.total > standard,
+    charitable: item.charitable, mortgageInterest: item.mortgageInterest, salt: item.salt,
+  };
 
   // Surtax exposure at current income.
   const surtaxes: string[] = [];
@@ -128,6 +137,7 @@ export function buildTaxSnapshot(
     mix,
     concentrationNote,
     surtaxes,
+    deduction,
     opportunities,
   };
 }

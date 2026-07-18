@@ -105,6 +105,29 @@ export default function TaxClient({ snapshot }: { snapshot: TaxSnapshot }) {
         )}
       </div>
 
+      {/* Deductions — standard vs itemized */}
+      <div className="ios-list" style={{ margin: "0 0 8px", padding: 18 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            Deductions
+          </div>
+          <div className="ios-subhead" style={{ color: snapshot.deduction.usingItemized ? "var(--ios-green)" : "var(--ios-label-2)", fontWeight: 600 }}>
+            {snapshot.deduction.usingItemized ? "Itemizing" : "Standard"}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+          <Stat label="Standard" value={money(snapshot.deduction.standard)} />
+          <Stat label="Itemized" value={money(snapshot.deduction.itemized)} />
+        </div>
+        {snapshot.deduction.itemized > 0 && (
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 10, lineHeight: 1.6, paddingTop: 10, borderTop: "1px solid var(--ios-separator)" }}>
+            <div>Charitable (tithe + offerings): {money(snapshot.deduction.charitable)}</div>
+            {snapshot.deduction.mortgageInterest > 0 && <div>Mortgage interest: {money(snapshot.deduction.mortgageInterest)}</div>}
+            <div>SALT (state + property, capped $10k): {money(snapshot.deduction.salt)}</div>
+          </div>
+        )}
+      </div>
+
       {/* Opportunities */}
       {snapshot.opportunities.length > 0 && (
         <>

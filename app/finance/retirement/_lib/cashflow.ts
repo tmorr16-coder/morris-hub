@@ -208,10 +208,10 @@ const FED_BRACKETS: Record<"mfj" | "single", [number, number][]> = {
 };
 const STD_DEDUCTION: Record<"mfj" | "single", number> = { mfj: 30000, single: 15000 };
 
-/** Federal income tax on gross income for a filing status, brackets & standard
- *  deduction inflated by `inflFactor` to the projection year. */
-function federalTax(income: number, filing: "mfj" | "single", inflFactor: number): number {
-  const ded = STD_DEDUCTION[filing] * inflFactor;
+/** Federal income tax on gross income for a filing status. `deduction` overrides
+ *  the standard deduction (for itemizers); otherwise the standard is used. */
+function federalTax(income: number, filing: "mfj" | "single", inflFactor: number, deduction?: number): number {
+  const ded = deduction != null ? deduction : STD_DEDUCTION[filing] * inflFactor;
   const taxable = Math.max(0, income - ded);
   const brackets = FED_BRACKETS[filing];
   let tax = 0;
@@ -221,6 +221,32 @@ function federalTax(income: number, filing: "mfj" | "single", inflFactor: number
     if (taxable > lo) tax += (Math.min(taxable, hi) - lo) * brackets[i][1];
   }
   return tax;
+}
+
+/** Itemized deductions for a year: charitable gifts (tithe + offerings) +
+ *  mortgage interest + SALT (state income + property tax, capped at $10k). */
+export function itemizedDeductionAt(inp: CashflowInputs, age: number, nowMs: number, incomeForState: number): {
+  total: number; charitable: number; mortgageInterest: number; salt: number;
+} {
+  const { profile, debts, scenario } = inp;
+  const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
+  const charitable = titheAndOfferingAt(inp, age, nowMs);
+  let mortgageInterest = 0;
+  for (const d of debts) {
+    if (d.subtype === "loan" && d.type === "mortgage" && d.balance && d.rate_pct) {
+      mortgageInterest += d.balance * (d.rate_pct / 100);
+    }
+  }
+  const stateIncomeTax = ((scenario.state_tax_rate ?? 5) / 100) * incomeForState;
+  const propertyTax = (scenario.property_tax_annual ?? 0) * inflFactor;
+  const salt = Math.min(stateIncomeTax + propertyTax, 10000 * inflFactor);
+  const other = (scenario.other_itemized ?? 0) * inflFactor;
+  return { total: charitable + mortgageInterest + salt + other, charitable, mortgageInterest, salt: salt + other };
+}
+
+/** The deduction to use — greater of standard and itemized. */
+export function deductionAt(inp: CashflowInputs, age: number, nowMs: number, income: number, filing: "mfj" | "single", inflFactor: number): number {
+  return Math.max(STD_DEDUCTION[filing] * inflFactor, itemizedDeductionAt(inp, age, nowMs, income).total);
 }
 
 /** Automatic effective tax rate for a year: federal (brackets + standard
@@ -429,7 +455,8 @@ export function estimatedTaxAt(inp: CashflowInputs, age: number, nowMs: number):
   if (!isRetired) {
     const wages = titheGrossBaseAt(incomes, age, profile);
     if (wages <= 0) return 0;
-    const tax = federalTax(wages, filing, inflFactor) + additionalMedicareTax(wages, filing, inflFactor) + state * wages;
+    const deduction = deductionAt(inp, age, nowMs, wages, filing, inflFactor); // greater of standard / itemized
+    const tax = federalTax(wages, filing, inflFactor, deduction) + additionalMedicareTax(wages, filing, inflFactor) + state * wages;
     return Math.min(0.6 * wages, tax);
   }
 

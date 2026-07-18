@@ -46,6 +46,7 @@ function buildContext(s: TaxSnapshot): string {
 - Gross wage/earned income: ${fmt$(s.grossIncome)}
 - Estimated income tax: ${fmt$(s.estimatedTax)} — effective ${fmtPct(s.effectiveRate)}, marginal ${fmtPct(s.marginalRate)}
 - Asset tax-location mix: pre-tax ${Math.round(mix.pretax * 100)}%, Roth ${Math.round(mix.roth * 100)}%, taxable ${Math.round(mix.taxable * 100)}%, HSA ${Math.round(mix.hsa * 100)}%
+- Deductions: standard ${fmt$(s.deduction.standard)} vs itemized ${fmt$(s.deduction.itemized)} → ${s.deduction.usingItemized ? "ITEMIZING" : "taking standard"} (charitable ${fmt$(s.deduction.charitable)}, mortgage interest ${fmt$(s.deduction.mortgageInterest)}, SALT ${fmt$(s.deduction.salt)})
 - Active surtax exposure: ${s.surtaxes.length ? s.surtaxes.join("; ") : "none flagged"}
 - Concentration: ${s.concentrationNote ?? "none flagged"}
 - Flagged opportunities: ${s.opportunities.map((o) => o.title).join("; ") || "none"}`;

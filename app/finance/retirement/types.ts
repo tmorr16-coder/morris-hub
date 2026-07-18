@@ -103,6 +103,8 @@ export interface RetirementScenario {
   tithe_tax_rate: number | null;      // manual effective tax rate for the net basis (default 25)
   tithe_tax_auto: boolean | null;     // auto-calculate taxes from federal brackets + state rate
   state_tax_rate: number | null;      // flat state/local rate added to the automatic federal rate
+  property_tax_annual?: number | null; // annual property tax (itemized deduction, SALT)
+  other_itemized?: number | null;      // other itemized deductions (medical over floor, etc.)
   created_at: string;
   updated_at: string;
 }
