@@ -73,7 +73,9 @@ export async function POST(req: NextRequest) {
       ],
       messages: trimmed.map((m) => ({ role: m.role, content: m.content })),
     });
-    const reply = response.content[0].type === "text" ? response.content[0].text : "";
+    // Sonnet may return a thinking block first — pick the text block, not content[0].
+    const textBlock = response.content.find((b) => b.type === "text");
+    const reply = textBlock && textBlock.type === "text" ? textBlock.text : "";
     return NextResponse.json({ reply });
   } catch (err) {
     if (err instanceof Anthropic.APIError) return NextResponse.json({ error: "AI service error" }, { status: 502 });
