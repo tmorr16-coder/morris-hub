@@ -254,6 +254,58 @@ export function retirementIncomeAt(incomes: RetirementIncome[], age: number, pro
   return sum;
 }
 
+// ── RMDs · IRMAA · bucket-aware retirement tax (for the stateful engine) ──────
+
+export const RMD_AGE = 73;
+// IRS Uniform Lifetime Table divisors, age 73+.
+const RMD_DIVISORS: Record<number, number> = {
+  73: 26.5, 74: 25.5, 75: 24.6, 76: 23.7, 77: 22.9, 78: 22.0, 79: 21.1, 80: 20.2, 81: 19.4, 82: 18.5,
+  83: 17.7, 84: 16.8, 85: 16.0, 86: 15.2, 87: 14.4, 88: 13.7, 89: 12.9, 90: 12.2, 91: 11.5, 92: 10.8,
+  93: 10.1, 94: 9.5, 95: 8.9, 96: 8.4, 97: 7.8, 98: 7.3, 99: 6.8, 100: 6.4, 101: 6.0, 102: 5.6, 103: 5.2,
+  104: 4.9, 105: 4.6, 106: 4.3, 107: 4.1, 108: 3.9, 109: 3.7, 110: 3.5, 111: 3.4, 112: 3.3, 113: 3.1,
+  114: 3.0, 115: 2.9, 116: 2.8, 117: 2.7, 118: 2.5, 119: 2.3,
+};
+/** Required minimum distribution from a pre-tax balance at a given age (0 if none). */
+export function rmdAmount(pretaxBalance: number, age: number): number {
+  if (age < RMD_AGE || pretaxBalance <= 0) return 0;
+  const divisor = RMD_DIVISORS[age] ?? 2.0;
+  return pretaxBalance / divisor;
+}
+
+// IRMAA Part B + D income-related surcharge — per person, annual (2025 ≈), by MAGI
+// tier. Thresholds inflate with the plan. Applies from age 65.
+const IRMAA_THRESHOLDS: Record<"mfj" | "single", number[]> = {
+  mfj: [212000, 266000, 334000, 400000, 750000],
+  single: [106000, 133000, 167000, 200000, 500000],
+};
+const IRMAA_PER_PERSON = [0, 1052, 2644, 4234, 5824, 6357];
+/** Annual Medicare IRMAA surcharge for the household (age 65+). */
+export function irmaaAnnual(magi: number, age: number, filing: "mfj" | "single", inflFactor: number): number {
+  if (age < 65) return 0;
+  const thr = IRMAA_THRESHOLDS[filing];
+  let tier = 0;
+  for (let i = 0; i < thr.length; i++) if (magi > thr[i] * inflFactor) tier = i + 1;
+  const people = filing === "mfj" ? 2 : 1;
+  return IRMAA_PER_PERSON[tier] * inflFactor * people;
+}
+
+/** Income tax on a retirement year given its withdrawal composition. Pre-tax
+ *  withdrawals are ordinary, taxable-account gains are LTCG + NIIT, Roth/HSA are
+ *  tax-free, and only ≤85% of Social Security is taxable. Returns tax + MAGI. */
+export function retirementIncomeTax(
+  otherOrdinaryIncome: number, ss: number, pretaxWithdrawn: number, taxableGain: number,
+  filing: "mfj" | "single", inflFactor: number, state: number,
+): { tax: number; magi: number } {
+  const taxableSS = ssTaxablePortion(ss, otherOrdinaryIncome + pretaxWithdrawn, filing, inflFactor);
+  const ordinary = otherOrdinaryIncome + taxableSS + pretaxWithdrawn;
+  const fed = federalTax(ordinary, filing, inflFactor);
+  const capGains = taxableGain * ltcgRate(ordinary, filing, inflFactor);
+  const niitThreshold = (filing === "mfj" ? 250000 : 200000) * inflFactor;
+  const niit = ordinary + taxableGain > niitThreshold ? 0.038 * taxableGain : 0;
+  const stateTax = state * (ordinary + taxableGain);
+  return { tax: fed + capGains + niit + stateTax, magi: ordinary + taxableGain };
+}
+
 /** Annual tithe + assumed offering for a year, if enabled.
  *  Working years: a percent of income received (gross = full pay; net excludes
  *  401k contributions). Retirement: a percent of everything that comes in —
@@ -433,6 +485,8 @@ export interface YearCashflow {
   savedToPortfolio: number; // contributions + match + bonus/stock that the projection banks
   scenarioSpend: number;    // retirement lifestyle spend this year (0 pre-retirement)
   estimatedTax: number;     // estimated income tax (federal + state) on this year's income
+  irmaa: number;            // Medicare IRMAA surcharge (retirement, age 65+)
+  rmd: number;              // required minimum distribution forced from pre-tax
 }
 
 const INCOME_LABEL: Record<string, string> = {
@@ -456,7 +510,10 @@ export interface CashflowInputs {
 
 /** Full itemized inflows + outflows for one projection age. currentYear anchors
  *  the age axis to calendar years for display. */
-export function yearCashflow(inp: CashflowInputs, age: number, nowMs: number, currentYear: number): YearCashflow {
+export function yearCashflow(
+  inp: CashflowInputs, age: number, nowMs: number, currentYear: number,
+  override?: { tax?: number; irmaa?: number; rmd?: number },
+): YearCashflow {
   const { profile, accounts, incomes, expenses, debts, scenario } = inp;
   const isRetired = age >= profile.retirement_age;
   const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
@@ -489,9 +546,14 @@ export function yearCashflow(inp: CashflowInputs, age: number, nowMs: number, cu
   if (tithe > 0.5) {
     outflows.push({ label: "Tithe & offerings", amount: tithe, kind: "tithe" });
   }
-  const estimatedTax = estimatedTaxAt(inp, age, nowMs);
+  // Tax comes from the stateful engine when supplied (bucket-correct: pre-tax
+  // ordinary, Roth/HSA tax-free, taxable at LTCG, plus RMDs); otherwise estimate.
+  const estimatedTax = override?.tax ?? estimatedTaxAt(inp, age, nowMs);
   if (estimatedTax > 0.5) {
     outflows.push({ label: "Income taxes (est.)", amount: estimatedTax, kind: "tax" });
+  }
+  if ((override?.irmaa ?? 0) > 0.5) {
+    outflows.push({ label: "Medicare surcharge (IRMAA)", amount: override!.irmaa!, kind: "tax" });
   }
 
   const totalInflow = inflows.reduce((s, i) => s + i.amount, 0);
@@ -521,5 +583,7 @@ export function yearCashflow(inp: CashflowInputs, age: number, nowMs: number, cu
     savedToPortfolio,
     scenarioSpend,
     estimatedTax,
+    irmaa: override?.irmaa ?? 0,
+    rmd: override?.rmd ?? 0,
   };
 }

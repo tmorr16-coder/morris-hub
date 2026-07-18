@@ -1,6 +1,8 @@
 // The retirement projection engine — the SINGLE source of truth for the
-// year-by-year portfolio path. Both the Projection tab (chart + Monte-Carlo) and
-// the Advisor snapshot import from here, so the numbers can never diverge.
+// year-by-year portfolio path. STATEFUL: it tracks four tax buckets
+// (pre-tax / Roth / taxable / HSA) across years, so it can model RMDs, tax-aware
+// withdrawal sequencing, IRMAA, and bucket-correct taxation. Both the Projection
+// tab and the cash-flow inspector read from here so nothing diverges.
 
 import type {
   RetirementProfile, RetirementAccount, RetirementIncome, RetirementExpense, RetirementDebt, RetirementScenario,
@@ -10,7 +12,49 @@ import {
   streamGrowth, expenseAnnualAt, debtAnnualAt, wageIncomeAt, employerMatchAnnual,
   titheAndOfferingAt, estimatedTaxAt, autoTaxRate, titheGrossBaseAt,
   retirementIncomeAt, incomeAnnualAt,
+  bucketOf, rmdAmount, irmaaAnnual, retirementIncomeTax,
 } from "./cashflow";
+
+export interface Buckets { pretax: number; roth: number; taxable: number; hsa: number; }
+const BUCKET_KEYS: (keyof Buckets)[] = ["taxable", "pretax", "roth", "hsa"]; // withdrawal order
+const bTotal = (b: Buckets) => b.pretax + b.roth + b.taxable + b.hsa;
+function initBuckets(accounts: RetirementAccount[]): Buckets {
+  const b: Buckets = { pretax: 0, roth: 0, taxable: 0, hsa: 0 };
+  for (const a of accounts) b[bucketOf(a)] += a.balance ?? 0;
+  return b;
+}
+/** Withdraw `amount` in tax-efficient order (taxable → pre-tax → Roth → HSA).
+ *  Mutates `b`; returns the amount drawn from each bucket + any shortfall. */
+function sequenceWithdraw(b: Buckets, amount: number): { w: Buckets; shortfall: number } {
+  const w: Buckets = { pretax: 0, roth: 0, taxable: 0, hsa: 0 };
+  let need = amount;
+  for (const k of BUCKET_KEYS) {
+    if (need <= 0) break;
+    const take = Math.min(b[k], need);
+    b[k] -= take; w[k] += take; need -= take;
+  }
+  return { w, shortfall: Math.max(0, need) };
+}
+
+// Fraction of a taxable-account withdrawal treated as taxable gain (no basis yet).
+const TAXABLE_GAIN_FRACTION = 0.5;
+
+export interface YearDetail {
+  age: number;
+  isRetired: boolean;
+  buckets: Buckets;
+  total: number;
+  scenarioSpend: number;
+  enteredOutflow: number;
+  tithe: number;
+  tax: number;
+  irmaa: number;
+  rmd: number;
+  withdrawal: Buckets;
+  savedToPortfolio: number;
+  netWithdrawal: number;
+  shortfall: number;
+}
 
 export interface StepCtx {
   profile: RetirementProfile;
@@ -24,6 +68,8 @@ export interface StepCtx {
   baseAnnualSpend: number;
   windfall: number;
   nowMs: number;
+  filing: "mfj" | "single";
+  state: number;
 }
 
 export interface ProjectionResult {
@@ -32,6 +78,10 @@ export interface ProjectionResult {
   ssIncomeByAge: Map<number, number>;
   pensionIncomeByAge: Map<number, number>;
   expensesByAge: Map<number, number>;
+  taxByAge: Map<number, number>;
+  irmaaByAge: Map<number, number>;
+  rmdByAge: Map<number, number>;
+  detailByAge: Map<number, YearDetail>;
   nestEgg: number;
   safeMonthlyWithdrawal: number;
   depletionAge: number | null;
@@ -41,7 +91,6 @@ export interface ProjectionResult {
   finalBalance: number;
 }
 
-/** Total entered outflows (expenses + debt payments) at a given age. */
 export function outflowAt(ctx: StepCtx, age: number): number {
   let sum = 0;
   for (const e of ctx.expenses) sum += expenseAnnualAt(e, age, ctx.profile, ctx.nowMs);
@@ -55,13 +104,12 @@ export function buildCtx(
   incomes: RetirementIncome[],
   expenses: RetirementExpense[],
   debts: RetirementDebt[],
-  scenario: RetirementScenario
+  scenario: RetirementScenario,
 ): StepCtx {
   const totalBal = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
   const weightedReturn = totalBal > 0
     ? accounts.reduce((s, a) => s + ((a.balance ?? 0) / totalBal) * (a.return_override ?? profile.base_return), 0)
     : profile.base_return;
-
   return {
     profile, accounts, incomes, expenses, debts, scenario,
     nowMs: Date.now(),
@@ -69,106 +117,171 @@ export function buildCtx(
     retirementReturn: profile.retirement_return ?? weightedReturn,
     baseAnnualSpend: scenarioBaseAnnualSpend(scenario),
     windfall: scenario.housing_windfall ?? 0,
+    filing: profile.spouse_enabled ? "mfj" : "single",
+    state: (scenario.state_tax_rate ?? 5) / 100,
   };
 }
 
-/** Market return for a year — accumulation return while working, the (optionally
- *  lower) retirement return at/after the retirement age. */
 export function returnForAge(ctx: StepCtx, age: number): number {
   return age >= ctx.profile.retirement_age ? ctx.retirementReturn : ctx.weightedReturn;
 }
 
-/** Advances the portfolio one year — the ONE place per-year money math lives. */
-export function stepYear(ctx: StepCtx, portfolioStart: number, age: number, yearReturn: number, endMult = 1): number {
+/** Advance the bucket portfolio one year. Returns the new buckets + a full detail. */
+export function stepYear(ctx: StepCtx, start: Buckets, age: number, yearReturn: number, endMult = 1): { buckets: Buckets; detail: YearDetail } {
   const { profile, accounts, incomes } = ctx;
   const isRetired = age >= profile.retirement_age;
-  let portfolio = portfolioStart;
+  const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
+  let b: Buckets = { ...start };
 
-  if (age === profile.retirement_age) portfolio += ctx.windfall;
-  if (age > profile.current_age) portfolio *= 1 + yearReturn;
+  if (age === profile.retirement_age) b.taxable += ctx.windfall;
+  if (age > profile.current_age) for (const k of BUCKET_KEYS) b[k] *= 1 + yearReturn;
+  if (endMult !== 1) for (const k of BUCKET_KEYS) b[k] *= endMult;
+
+  const detail: YearDetail = {
+    age, isRetired, buckets: b, total: 0, scenarioSpend: 0, enteredOutflow: 0, tithe: 0,
+    tax: 0, irmaa: 0, rmd: 0, withdrawal: { pretax: 0, roth: 0, taxable: 0, hsa: 0 },
+    savedToPortfolio: 0, netWithdrawal: 0, shortfall: 0,
+  };
 
   if (!isRetired) {
-    // 401k contributions & employer match go in pre-tax (taxed at withdrawal);
-    // bonuses/stock are banked after-tax; take-home wage covers spending.
     const taxRate = autoTaxRate(titheGrossBaseAt(incomes, age, profile), age, profile, ctx.scenario);
-    portfolio += accounts.reduce((s, a) => s + a.monthly_contribution * 12, 0);
-    portfolio += employerMatchAnnual(accounts, incomes, age, profile);
+    const contrib = accounts.reduce((s, a) => s + a.monthly_contribution * 12, 0);
+    const match = employerMatchAnnual(accounts, incomes, age, profile);
+    b.pretax += contrib + match;
+    let bonusStock = 0;
     for (const inc of incomes) {
       if (inc.type !== "bonus" && inc.type !== "stock_award") continue;
       const startAge = inc.start_age ?? profile.current_age;
-      const endAge = inc.end_age ?? (
-        inc.type === "stock_award" && inc.vest_years != null ? startAge + inc.vest_years : profile.retirement_age - 1
-      );
+      const endAge = inc.end_age ?? (inc.type === "stock_award" && inc.vest_years != null ? startAge + inc.vest_years : profile.retirement_age - 1);
       if (age < startAge || age > endAge) continue;
-      portfolio += inc.monthly_amount * streamGrowth(inc, age - startAge) * (1 - taxRate);
+      bonusStock += inc.monthly_amount * streamGrowth(inc, age - startAge) * (1 - taxRate);
     }
-    const takeHomeWage = wageIncomeAt(incomes, age, profile) * (1 - taxRate);
-    const deficit = outflowAt(ctx, age) + titheAndOfferingAt(ctx, age, ctx.nowMs) - takeHomeWage;
-    if (deficit > 0) portfolio = Math.max(0, portfolio - deficit);
+    b.taxable += bonusStock;
+    detail.savedToPortfolio = contrib + match + bonusStock;
+    detail.tax = estimatedTaxAt(ctx, age, ctx.nowMs); // wage tax (paid from paycheck)
+    detail.enteredOutflow = outflowAt(ctx, age);
+    detail.tithe = titheAndOfferingAt(ctx, age, ctx.nowMs);
+    const takeHome = wageIncomeAt(incomes, age, profile) * (1 - taxRate);
+    const deficit = detail.enteredOutflow + detail.tithe - takeHome;
+    if (deficit > 0) {
+      const res = sequenceWithdraw(b, deficit);
+      detail.withdrawal = res.w;
+      detail.shortfall = res.shortfall;
+      detail.netWithdrawal = deficit - res.shortfall;
+    }
   } else {
-    const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
-    const adjSpend = ctx.baseAnnualSpend * inflFactor;
-    // Retirement income uses the SAME calc as the cash-flow inspector (growth +
-    // SS claim-age-67), so the portfolio line and the inspector agree.
-    const retirementIncome = retirementIncomeAt(incomes, age, profile);
-    const totalSpend = adjSpend + outflowAt(ctx, age) + titheAndOfferingAt(ctx, age, ctx.nowMs) + estimatedTaxAt(ctx, age, ctx.nowMs);
-    portfolio = Math.max(0, portfolio - Math.max(0, totalSpend - retirementIncome));
+    const scenarioSpend = ctx.baseAnnualSpend * inflFactor;
+    const entered = outflowAt(ctx, age);
+    const tithe = titheAndOfferingAt(ctx, age, ctx.nowMs);
+    const retIncome = retirementIncomeAt(incomes, age, profile);
+    let ss = 0;
+    for (const inc of incomes) if (inc.type === "social_security") ss += incomeAnnualAt(inc, age, profile);
+    const otherOrdinaryInc = Math.max(0, retIncome - ss);
+
+    // RMD forced out of pre-tax (provides cash; excess reinvested after tax).
+    const rmd = rmdAmount(b.pretax, age);
+    b.pretax -= rmd;
+
+    // Iterate: tax & IRMAA depend on the withdrawal composition, which depends on
+    // the total need (which includes tax & IRMAA). Converges in a couple passes.
+    let tax = 0, irmaa = 0;
+    let w: Buckets = { pretax: 0, roth: 0, taxable: 0, hsa: 0 };
+    let shortfall = 0;
+    let worked: Buckets = { ...b };
+    for (let iter = 0; iter < 3; iter++) {
+      const grossOut = scenarioSpend + entered + tithe + tax + irmaa;
+      const extraNeed = Math.max(0, grossOut - (retIncome + rmd));
+      worked = { ...b };
+      const res = sequenceWithdraw(worked, extraNeed);
+      w = res.w; shortfall = res.shortfall;
+      const pretaxW = rmd + w.pretax;
+      const taxableGain = w.taxable * TAXABLE_GAIN_FRACTION;
+      const t = retirementIncomeTax(otherOrdinaryInc, ss, pretaxW, taxableGain, ctx.filing, inflFactor, ctx.state);
+      tax = t.tax;
+      irmaa = irmaaAnnual(t.magi, age, ctx.filing, inflFactor);
+    }
+    b = worked;
+    const totalOut = scenarioSpend + entered + tithe + tax + irmaa;
+    const reinvest = Math.max(0, retIncome + rmd - totalOut - (w.taxable + w.pretax + w.roth + w.hsa));
+    b.taxable += reinvest;
+
+    detail.scenarioSpend = scenarioSpend;
+    detail.enteredOutflow = entered;
+    detail.tithe = tithe;
+    detail.tax = tax;
+    detail.irmaa = irmaa;
+    detail.rmd = rmd;
+    detail.withdrawal = w;
+    detail.shortfall = shortfall;
+    detail.netWithdrawal = w.taxable + w.pretax + w.roth + w.hsa;
   }
 
-  return portfolio * endMult;
+  detail.buckets = b;
+  detail.total = bTotal(b);
+  return { buckets: b, detail };
 }
 
-/** Full path from current_age → life_expectancy with a per-year return + optional shock. */
+/** Full path with a per-year return + optional shock. Returns totals by age. */
 export function runProjection(
   ctx: StepCtx,
   returnFor: (age: number) => number,
-  opts?: { shockAge?: number | null; shockMult?: number }
+  opts?: { shockAge?: number | null; shockMult?: number },
 ): { byAge: Map<number, number>; depletionAge: number | null; final: number } {
-  const { profile, accounts } = ctx;
-  let portfolio = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
+  const { profile } = ctx;
+  let b = initBuckets(ctx.accounts);
   const byAge = new Map<number, number>();
   let depletionAge: number | null = null;
   for (let age = profile.current_age; age <= profile.life_expectancy; age++) {
     const endMult = opts?.shockAge != null && age === opts.shockAge ? opts.shockMult ?? 1 : 1;
-    portfolio = stepYear(ctx, portfolio, age, returnFor(age), endMult);
-    if (portfolio === 0 && depletionAge === null && age >= profile.retirement_age) depletionAge = age;
-    byAge.set(age, portfolio);
+    const r = stepYear(ctx, b, age, returnFor(age), endMult);
+    b = r.buckets;
+    const total = bTotal(b);
+    if (total <= 1 && depletionAge === null && age >= profile.retirement_age) depletionAge = age;
+    byAge.set(age, total);
   }
-  return { byAge, depletionAge, final: portfolio };
+  return { byAge, depletionAge, final: bTotal(b) };
 }
 
 const JOB_TYPES = ["salary", "part_time", "other", "bonus", "stock_award"];
 
-/** Deterministic projection with chart series. Chart income series are derived
- *  from incomeAnnualAt so they match the inspector and the drawdown exactly. */
 export function project(
   profile: RetirementProfile,
   accounts: RetirementAccount[],
   incomes: RetirementIncome[],
   expenses: RetirementExpense[],
   debts: RetirementDebt[],
-  scenario: RetirementScenario
+  scenario: RetirementScenario,
 ): ProjectionResult {
   const ctx = buildCtx(profile, accounts, incomes, expenses, debts, scenario);
-  const { weightedReturn, baseAnnualSpend, windfall } = ctx;
+  const { weightedReturn } = ctx;
 
-  let portfolio = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
+  let b = initBuckets(accounts);
   const portfolioByAge = new Map<number, number>();
   const jobIncomeByAge = new Map<number, number>();
   const ssIncomeByAge = new Map<number, number>();
   const pensionIncomeByAge = new Map<number, number>();
   const expensesByAge = new Map<number, number>();
+  const taxByAge = new Map<number, number>();
+  const irmaaByAge = new Map<number, number>();
+  const rmdByAge = new Map<number, number>();
+  const detailByAge = new Map<number, YearDetail>();
   let nestEgg = 0;
   let depletionAge: number | null = null;
 
   for (let age = profile.current_age; age <= profile.life_expectancy; age++) {
     const isRetired = age >= profile.retirement_age;
-    const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
-    if (age === profile.retirement_age) nestEgg = portfolio + windfall;
+    if (age === profile.retirement_age) nestEgg = bTotal(b) + ctx.windfall;
 
-    portfolio = stepYear(ctx, portfolio, age, returnForAge(ctx, age));
-    if (portfolio === 0 && depletionAge === null && isRetired) depletionAge = age;
-    portfolioByAge.set(age, portfolio);
+    const { buckets, detail } = stepYear(ctx, b, age, returnForAge(ctx, age));
+    b = buckets;
+    const total = bTotal(b);
+    if (total <= 1 && depletionAge === null && isRetired) depletionAge = age;
+
+    portfolioByAge.set(age, total);
+    detailByAge.set(age, detail);
+    taxByAge.set(age, Math.round(detail.tax));
+    irmaaByAge.set(age, Math.round(detail.irmaa));
+    rmdByAge.set(age, Math.round(detail.rmd));
 
     let jobIncome = 0, ssIncome = 0, pensionIncome = 0;
     for (const inc of incomes) {
@@ -180,8 +293,8 @@ export function project(
     ssIncomeByAge.set(age, Math.round(ssIncome));
     pensionIncomeByAge.set(age, Math.round(pensionIncome));
 
-    const outflow = outflowAt(ctx, age) + titheAndOfferingAt(ctx, age, ctx.nowMs) + estimatedTaxAt(ctx, age, ctx.nowMs);
-    expensesByAge.set(age, Math.round((isRetired ? baseAnnualSpend * inflFactor : 0) + outflow));
+    const outflow = detail.scenarioSpend + detail.enteredOutflow + detail.tithe + detail.tax + detail.irmaa;
+    expensesByAge.set(age, Math.round(outflow));
   }
 
   if (nestEgg === 0) nestEgg = portfolioByAge.get(profile.retirement_age) ?? 0;
@@ -190,7 +303,8 @@ export function project(
 
   return {
     portfolioByAge, jobIncomeByAge, ssIncomeByAge, pensionIncomeByAge, expensesByAge,
-    nestEgg, safeMonthlyWithdrawal, depletionAge, runway, baseAnnualSpend, weightedReturn,
+    taxByAge, irmaaByAge, rmdByAge, detailByAge,
+    nestEgg, safeMonthlyWithdrawal, depletionAge, runway, baseAnnualSpend: ctx.baseAnnualSpend, weightedReturn,
     finalBalance: portfolioByAge.get(profile.life_expectancy) ?? 0,
   };
 }
@@ -202,7 +316,7 @@ export function projectForScenario(
   expenses: RetirementExpense[],
   debts: RetirementDebt[],
   scenario: RetirementScenario,
-  scenarioKey: "lean" | "balanced" | "abundant"
+  scenarioKey: "lean" | "balanced" | "abundant",
 ): { depletionAge: number | null; nestEgg: number } {
   const r = project(profile, accounts, incomes, expenses, debts, { ...scenario, selected_scenario: scenarioKey });
   return { depletionAge: r.depletionAge, nestEgg: r.nestEgg };

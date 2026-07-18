@@ -5,6 +5,7 @@ import type {
   RetirementProfile, RetirementAccount, RetirementIncome, RetirementExpense, RetirementDebt, RetirementScenario,
 } from "../types";
 import { yearCashflow, type CashflowItem } from "../_lib/cashflow";
+import { project } from "../_lib/projection";
 
 interface Props {
   profile: RetirementProfile;
@@ -43,9 +44,19 @@ export default function CashflowInspector({ profile, accounts, incomes, expenses
   );
 
   const selectedAge = profile.current_age + (year - currentYear);
+
+  // Run the stateful engine once; the inspector reads its per-age tax/IRMAA/RMD
+  // and bucket balances so it always matches the projection.
+  const proj = useMemo(
+    () => project(profile, accounts, incomes, expenses, debts, scenario),
+    [profile, accounts, incomes, expenses, debts, scenario]
+  );
+  const detail = proj.detailByAge.get(selectedAge);
+
   const cf = useMemo(
-    () => yearCashflow({ profile, accounts, incomes, expenses, debts, scenario }, selectedAge, nowMs, currentYear),
-    [profile, accounts, incomes, expenses, debts, scenario, selectedAge, nowMs, currentYear]
+    () => yearCashflow({ profile, accounts, incomes, expenses, debts, scenario }, selectedAge, nowMs, currentYear,
+      detail ? { tax: detail.tax, irmaa: detail.irmaa, rmd: detail.rmd } : undefined),
+    [profile, accounts, incomes, expenses, debts, scenario, selectedAge, nowMs, currentYear, detail]
   );
 
   const drawdown = cf.isRetired ? Math.max(0, cf.totalOutflow - cf.totalInflow) : 0;
@@ -114,9 +125,34 @@ export default function CashflowInspector({ profile, accounts, incomes, expenses
           </>
         )}
       </div>
+
+      {/* Portfolio buckets (end of year) + RMD */}
+      {detail && (
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--ios-separator)" }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+            <span className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.03em" }}>Portfolio by tax bucket · year end</span>
+            <span className="ios-num ios-subhead" style={{ fontWeight: 700 }}>{fmtMoney(detail.total)}</span>
+          </div>
+          {(["pretax", "roth", "taxable", "hsa"] as const).filter((k) => detail.buckets[k] > 1).map((k) => (
+            <div key={k} style={{ display: "flex", alignItems: "center", gap: 10, padding: "5px 0" }}>
+              <span aria-hidden style={{ width: 8, height: 8, borderRadius: 2, background: BUCKET_DOT[k], flexShrink: 0 }} />
+              <span className="ios-subhead" style={{ flex: 1, color: "var(--ios-label-2)" }}>{BUCKET_LABEL[k]}</span>
+              <span className="ios-num ios-subhead" style={{ color: "var(--ios-label)" }}>{fmtMoney(detail.buckets[k])}</span>
+            </div>
+          ))}
+          {detail.rmd > 0.5 && (
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 8, lineHeight: 1.5 }}>
+              Required minimum distribution this year: <strong>{fmtMoney(detail.rmd)}</strong> forced from pre-tax (taxable).
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
+const BUCKET_DOT: Record<string, string> = { pretax: "#C97A3A", roth: "var(--ios-green)", taxable: "var(--ios-tint)", hsa: "#5E5CE6" };
+const BUCKET_LABEL: Record<string, string> = { pretax: "Pre-tax (401k/IRA)", roth: "Roth", taxable: "Taxable", hsa: "HSA" };
 
 function Metric({ label, value, color, sign }: { label: string; value: number; color: string; sign?: string }) {
   return (
