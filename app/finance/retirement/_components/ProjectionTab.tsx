@@ -108,6 +108,9 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
   const [showMC, setShowMC] = useState<boolean>(false);
   // Display in today's (real) dollars vs future (nominal) dollars.
   const [realDollars, setRealDollars] = useState<boolean>(false);
+  // Zoom: restrict the chart x-axis to an age window (y-axis rescales to fit).
+  const [zoomStart, setZoomStart] = useState<number>(profile.current_age);
+  const [zoomEnd, setZoomEnd] = useState<number>(profile.life_expectancy);
 
   const rawResult = project(profile, accounts, incomes, expenses, debts, scenario);
 
@@ -182,7 +185,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
   const balancedResult = projectForScenario(profile, accounts, incomes, expenses, debts, scenario, "balanced");
   const abundantResult = projectForScenario(profile, accounts, incomes, expenses, debts, scenario, "abundant");
 
-  const ages = Array.from({ length: profile.life_expectancy - profile.current_age + 1 }, (_, i) => profile.current_age + i);
+  const ages = Array.from({ length: zoomEnd - zoomStart + 1 }, (_, i) => zoomStart + i);
   const values = ages.map((a) => portfolioByAge.get(a) ?? 0);
 
   // ── Market-shock path (deterministic returns + one-year hit) ──────────────
@@ -234,17 +237,18 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
   const chartHB = HB - PAD_TB - PAD_BB;
 
   function xPos(age: number) {
-    return PAD_L + ((age - profile.current_age) / (profile.life_expectancy - profile.current_age)) * chartW;
+    return PAD_L + ((age - zoomStart) / Math.max(1, zoomEnd - zoomStart)) * chartW;
   }
 
   // Panel A y-scale: exclude the housing-windfall spike so pre-retirement growth
   // stays visible; include the shock path and Monte-Carlo p90 when shown.
   const windfallAmount = scenario.housing_windfall ?? 0;
+  const zBand = mc.band.filter((b) => b.age >= zoomStart && b.age <= zoomEnd);
   const scaleVals: number[] = ages.map((a) => {
     const v = portfolioByAge.get(a) ?? 0;
     return a === profile.retirement_age && windfallAmount > 0 ? v - dv(windfallAmount, profile.retirement_age) : v;
   });
-  if (showMC) scaleVals.push(...mc.band.map((b) => dv(b.p90, b.age)));
+  if (showMC) scaleVals.push(...zBand.map((b) => dv(b.p90, b.age)));
   if (shockResult) scaleVals.push(...ages.map((a) => dv(shockResult.byAge.get(a) ?? 0, a)));
   const maxValA = Math.max(...scaleVals, 1) * 1.1;
 
@@ -288,12 +292,12 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
   // Monte-Carlo band (p90 across, back along p10) + median line
   const mcBandPath = (() => {
     if (!showMC || mc.band.length < 2) return "";
-    const top = mc.band.map((b, i) => `${i === 0 ? "M" : "L"}${xPos(b.age).toFixed(1)},${yPosA(dv(b.p90, b.age)).toFixed(1)}`).join(" ");
-    const bottom = mc.band.slice().reverse().map((b) => `L${xPos(b.age).toFixed(1)},${yPosA(dv(b.p10, b.age)).toFixed(1)}`).join(" ");
+    const top = zBand.map((b, i) => `${i === 0 ? "M" : "L"}${xPos(b.age).toFixed(1)},${yPosA(dv(b.p90, b.age)).toFixed(1)}`).join(" ");
+    const bottom = zBand.slice().reverse().map((b) => `L${xPos(b.age).toFixed(1)},${yPosA(dv(b.p10, b.age)).toFixed(1)}`).join(" ");
     return `${top} ${bottom} Z`;
   })();
   const mcMedianPath = showMC
-    ? mc.band.map((b, i) => `${i === 0 ? "M" : "L"}${xPos(b.age).toFixed(1)},${yPosA(dv(b.p50, b.age)).toFixed(1)}`).join(" ")
+    ? zBand.map((b, i) => `${i === 0 ? "M" : "L"}${xPos(b.age).toFixed(1)},${yPosA(dv(b.p50, b.age)).toFixed(1)}`).join(" ")
     : "";
 
   const shockPath = shockResult
@@ -342,8 +346,9 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
     survivalRatio = Math.min(survivalRatio, legacyGoalNominal > 0 ? finalBalance / legacyGoalNominal : 1);
   }
 
-  const xLabelAges = [profile.current_age, profile.retirement_age, profile.life_expectancy]
-    .filter((a, idx, arr) => a >= profile.current_age && a <= profile.life_expectancy && arr.indexOf(a) === idx);
+  const xLabelAges = [zoomStart, profile.retirement_age, Math.round((zoomStart + zoomEnd) / 2), zoomEnd]
+    .filter((a, idx, arr) => a >= zoomStart && a <= zoomEnd && arr.indexOf(a) === idx)
+    .sort((a, b) => a - b);
 
   return (
     <div>
@@ -555,6 +560,22 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
             <Chip small selected={realDollars} onClick={() => setRealDollars((v) => !v)}>
               {realDollars ? "Today's $" : "Future $"}
             </Chip>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span className="ios-caption" style={{ color: "var(--ios-label-2)" }}>Zoom · ages</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input type="number" min={profile.current_age} max={zoomEnd - 1} value={zoomStart}
+                onChange={(e) => setZoomStart(Math.max(profile.current_age, Math.min(zoomEnd - 1, parseInt(e.target.value) || profile.current_age)))}
+                style={{ width: 56, padding: "6px 8px", border: "1px solid var(--ios-separator)", borderRadius: 8, background: "var(--ios-bg)", color: "var(--ios-label)", fontSize: 14, outline: "none" }} />
+              <span className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>–</span>
+              <input type="number" min={zoomStart + 1} max={profile.life_expectancy} value={zoomEnd}
+                onChange={(e) => setZoomEnd(Math.min(profile.life_expectancy, Math.max(zoomStart + 1, parseInt(e.target.value) || profile.life_expectancy)))}
+                style={{ width: 56, padding: "6px 8px", border: "1px solid var(--ios-separator)", borderRadius: 8, background: "var(--ios-bg)", color: "var(--ios-label)", fontSize: 14, outline: "none" }} />
+              {(zoomStart !== profile.current_age || zoomEnd !== profile.life_expectancy) && (
+                <button onClick={() => { setZoomStart(profile.current_age); setZoomEnd(profile.life_expectancy); }}
+                  style={{ padding: 0, color: "var(--ios-tint)", fontSize: 13, background: "none", border: "none", cursor: "pointer" }}>Reset</button>
+              )}
+            </div>
           </div>
         </div>
         <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>

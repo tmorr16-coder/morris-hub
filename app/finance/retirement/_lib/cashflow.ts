@@ -136,7 +136,6 @@ export function streamGrowth(inc: RetirementIncome, years: number): number {
 /** Annual amount of a single income stream at a given age (0 outside window).
  *  Mirrors the projection's chart series exactly. */
 export function incomeAnnualAt(inc: RetirementIncome, age: number, profile: RetirementProfile): number {
-  const isRetired = age >= profile.retirement_age;
   const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
 
   if (inc.type === "social_security") {
@@ -166,11 +165,12 @@ export function incomeAnnualAt(inc: RetirementIncome, age: number, profile: Reti
           : 999
     );
     if (age < start || age > end) return 0;
-    const growth = streamGrowth(inc, age - start);
     const annual = (inc.frequency === "annual" || inc.type === "stock_award" || inc.type === "bonus")
       ? inc.monthly_amount
       : inc.monthly_amount * 12;
-    return annual * growth * (isRetired ? inflFactor : 1);
+    // Wage / bridge income uses its OWN growth rate only — never the inflation
+    // factor (applying both double-inflated it, spiking the retirement-year value).
+    return annual * streamGrowth(inc, age - start);
   }
   return 0;
 }
