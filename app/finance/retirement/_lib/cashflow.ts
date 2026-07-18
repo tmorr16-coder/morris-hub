@@ -31,9 +31,34 @@ export function selectedMonthlySpend(scenario: RetirementScenario): number {
   return (scenario[key] as number) ?? 0;
 }
 
-/** Base annual retirement spend in today's dollars (before inflation). */
+/** Lifestyle retirement spend in today's dollars, EXCLUDING healthcare (which is
+ *  age-banded and inflated separately via healthcareCostAt). */
 export function baseAnnualSpend(scenario: RetirementScenario): number {
-  return selectedMonthlySpend(scenario) * 12 + scenario.annual_travel + scenario.monthly_health_premium * 12;
+  return selectedMonthlySpend(scenario) * 12 + scenario.annual_travel;
+}
+
+/** Age-banded annual healthcare cost at a given age (retirement): the pre-65
+ *  (ACA/COBRA) premium until Medicare at 65, then the Medicare-era premium — each
+ *  grown at a healthcare-specific inflation rate — plus an optional late-life
+ *  long-term-care cost. IRMAA surcharges are added by the engine on top. */
+export function healthcareCostAt(scenario: RetirementScenario, age: number, profile: RetirementProfile): number {
+  const base = scenario.monthly_health_premium ?? 0;
+  const pre65 = scenario.health_premium_pre65 ?? base;
+  const medicare = scenario.health_premium_medicare ?? base;
+  const monthly = age < 65 ? pre65 : medicare;
+  const hcInflPct = scenario.healthcare_inflation ?? profile.inflation_rate * 100;
+  const hcFactor = Math.pow(1 + hcInflPct / 100, age - profile.current_age);
+  let cost = monthly * 12 * hcFactor;
+
+  if (scenario.ltc_enabled && (scenario.ltc_monthly_cost ?? 0) > 0) {
+    const years = scenario.ltc_years ?? 3;
+    const startAge = scenario.ltc_start_age ?? Math.max(profile.retirement_age, profile.life_expectancy - years);
+    if (age >= startAge && age < startAge + years) {
+      const infl = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
+      cost += (scenario.ltc_monthly_cost ?? 0) * 12 * infl;
+    }
+  }
+  return cost;
 }
 
 // ── Expenses (date-windowed, growth-aware) ──────────────────────────────────
@@ -364,7 +389,7 @@ export function titheAndOfferingAt(inp: CashflowInputs, age: number, nowMs: numb
     let entered = 0;
     for (const e of expenses) entered += expenseAnnualAt(e, age, profile, nowMs);
     for (const d of debts) entered += debtAnnualAt(d, age, profile);
-    const spend = baseAnnualSpend(scenario) * inflFactor + entered;
+    const spend = baseAnnualSpend(scenario) * inflFactor + healthcareCostAt(scenario, age, profile) + entered;
     base = Math.max(retIncome, spend);
   }
   // Net basis tithes after-tax (take-home) income.
@@ -573,6 +598,16 @@ export function yearCashflow(
   const scenarioSpend = isRetired ? baseAnnualSpend(scenario) * inflFactor : 0;
   if (scenarioSpend > 0.5) {
     outflows.push({ label: `Retirement lifestyle · ${scenario.selected_scenario}`, amount: scenarioSpend, kind: "scenario" });
+  }
+  const healthcare = isRetired ? healthcareCostAt(scenario, age, profile) : 0;
+  if (healthcare > 0.5) {
+    const ltcActive = scenario.ltc_enabled && (scenario.ltc_monthly_cost ?? 0) > 0 &&
+      age >= (scenario.ltc_start_age ?? Math.max(profile.retirement_age, profile.life_expectancy - (scenario.ltc_years ?? 3))) &&
+      age < (scenario.ltc_start_age ?? Math.max(profile.retirement_age, profile.life_expectancy - (scenario.ltc_years ?? 3))) + (scenario.ltc_years ?? 3);
+    outflows.push({ label: age < 65 ? "Healthcare (pre-Medicare)" : ltcActive ? "Healthcare + long-term care" : "Healthcare (Medicare)", amount: healthcare, kind: "healthcare" });
+  }
+  if (override?.irmaa && override.irmaa > 0.5) {
+    outflows.push({ label: "Medicare surcharge (IRMAA)", amount: override.irmaa, kind: "healthcare" });
   }
   const tithe = titheAndOfferingAt(inp, age, nowMs);
   if (tithe > 0.5) {

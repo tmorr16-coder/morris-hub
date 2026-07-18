@@ -311,15 +311,68 @@ export default function ScenariosTab({ profile, setProfile, scenario, setScenari
             />
           </div>
           <div>
-            <label style={labelStyle}>Monthly healthcare premium ($)</label>
+            <label style={labelStyle}>Health premium · pre-65 ($/mo)</label>
             <input
-              type="number"
-              min="0"
-              step="10"
+              type="number" min="0" step="10"
               value={scenario.monthly_health_premium}
               onChange={(e) => updateScenario("monthly_health_premium", parseFloat(e.target.value) || 0)}
+              placeholder="ACA / COBRA"
               style={inputStyle}
             />
+          </div>
+          <div>
+            <label style={labelStyle}>Health premium · 65+ ($/mo)</label>
+            <input
+              type="number" min="0" step="10"
+              value={scenario.health_premium_medicare ?? ""}
+              onChange={(e) => updateScenario("health_premium_medicare", e.target.value === "" ? null : (parseFloat(e.target.value) || 0))}
+              placeholder="Medicare + supplement"
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Healthcare inflation (%/yr)</label>
+            <input
+              type="number" min="0" max="15" step="0.1"
+              value={scenario.healthcare_inflation ?? ""}
+              onChange={(e) => updateScenario("healthcare_inflation", e.target.value === "" ? null : (parseFloat(e.target.value) || 0))}
+              placeholder={`${(profile.inflation_rate * 100).toFixed(1)} (try 5)`}
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ gridColumn: "1 / -1", paddingTop: 4 }}>
+            <label className="ios-subhead" style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", color: "var(--ios-label)" }}>
+              <input type="checkbox" checked={!!scenario.ltc_enabled}
+                onChange={(e) => updateScenario("ltc_enabled", e.target.checked)}
+                style={{ width: 18, height: 18, accentColor: "var(--ios-tint)" }} />
+              Model long-term care (late-life)
+            </label>
+            {scenario.ltc_enabled && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12, marginTop: 10 }}>
+                <div>
+                  <label style={labelStyle}>LTC cost ($/mo)</label>
+                  <input type="number" min="0" step="500" value={scenario.ltc_monthly_cost ?? ""}
+                    onChange={(e) => updateScenario("ltc_monthly_cost", e.target.value === "" ? null : (parseFloat(e.target.value) || 0))}
+                    placeholder="8000" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Starts at age</label>
+                  <input type="number" min="60" max="110" value={scenario.ltc_start_age ?? ""}
+                    onChange={(e) => updateScenario("ltc_start_age", e.target.value === "" ? null : (parseInt(e.target.value) || 0))}
+                    placeholder={String(Math.max(profile.retirement_age, profile.life_expectancy - (scenario.ltc_years ?? 3)))} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>For (years)</label>
+                  <input type="number" min="1" max="20" value={scenario.ltc_years ?? ""}
+                    onChange={(e) => updateScenario("ltc_years", e.target.value === "" ? null : (parseInt(e.target.value) || 0))}
+                    placeholder="3" style={inputStyle} />
+                </div>
+              </div>
+            )}
+            <div className="ios-footnote" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>
+              Healthcare is age-banded (pre-65 ACA/COBRA → Medicare at 65), inflates at its own rate, and IRMAA surcharges
+              are added automatically for high incomes.
+            </div>
           </div>
           <div>
             <label style={labelStyle}>Housing windfall ($)</label>

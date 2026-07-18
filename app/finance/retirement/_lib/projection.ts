@@ -12,7 +12,7 @@ import {
   streamGrowth, expenseAnnualAt, debtAnnualAt, wageIncomeAt, employerMatchAnnual,
   titheAndOfferingAt, estimatedTaxAt, autoTaxRate, titheGrossBaseAt,
   retirementIncomeAt, incomeAnnualAt,
-  bucketOf, rmdAmount, irmaaAnnual, retirementIncomeTax,
+  bucketOf, rmdAmount, irmaaAnnual, retirementIncomeTax, healthcareCostAt,
 } from "./cashflow";
 
 export interface Buckets { pretax: number; roth: number; taxable: number; hsa: number; }
@@ -170,7 +170,7 @@ export function stepYear(ctx: StepCtx, start: Buckets, age: number, yearReturn: 
       detail.netWithdrawal = deficit - res.shortfall;
     }
   } else {
-    const scenarioSpend = ctx.baseAnnualSpend * inflFactor;
+    const scenarioSpend = ctx.baseAnnualSpend * inflFactor + healthcareCostAt(ctx.scenario, age, profile);
     const entered = outflowAt(ctx, age);
     const tithe = titheAndOfferingAt(ctx, age, ctx.nowMs);
     const retIncome = retirementIncomeAt(incomes, age, profile);

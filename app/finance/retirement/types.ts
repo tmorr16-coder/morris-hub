@@ -107,6 +107,13 @@ export interface RetirementScenario {
   other_itemized?: number | null;      // other itemized deductions (medical over floor, etc.)
   home_value?: number | null;          // manual home value (e.g. Zillow Zestimate) for net worth
   home_address?: string | null;        // optional property address
+  health_premium_pre65?: number | null;    // monthly healthcare premium before Medicare (ACA/COBRA)
+  health_premium_medicare?: number | null; // monthly premium at 65+ (Medicare + supplement)
+  healthcare_inflation?: number | null;    // healthcare-specific inflation % (null = plan inflation)
+  ltc_enabled?: boolean | null;            // model a late-life long-term-care cost
+  ltc_monthly_cost?: number | null;        // LTC monthly cost (today's dollars)
+  ltc_start_age?: number | null;           // age LTC begins (null = life_expectancy − ltc_years)
+  ltc_years?: number | null;               // duration of LTC in years
   created_at: string;
   updated_at: string;
 }

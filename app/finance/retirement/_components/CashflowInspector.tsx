@@ -24,7 +24,7 @@ const KIND_DOT: Record<string, string> = {
   salary: "var(--ios-green)", bonus: "var(--ios-green)", stock_award: "#34C759", part_time: "#30D158",
   other: "#30D158", social_security: "var(--ios-tint)", pension: "var(--ios-orange)", match: "#5E5CE6",
   expense: "var(--ios-red)", loan: "#FF6B6B", lease: "#FF6B6B", scenario: "#C97A3A",
-  tithe: "#6B5B95", tax: "#8E5A3A",
+  tithe: "#6B5B95", tax: "#8E5A3A", healthcare: "#00B2A9",
 };
 
 // Read the wall clock in a plain function (not directly in render) so the
