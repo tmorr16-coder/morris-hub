@@ -114,6 +114,10 @@ export interface RetirementScenario {
   ltc_monthly_cost?: number | null;        // LTC monthly cost (today's dollars)
   ltc_start_age?: number | null;           // age LTC begins (null = life_expectancy − ltc_years)
   ltc_years?: number | null;               // duration of LTC in years
+  roth_convert_enabled?: boolean | null;   // convert pre-tax → Roth during a window
+  roth_convert_annual?: number | null;     // annual conversion amount (today's dollars)
+  roth_convert_start_age?: number | null;  // window start (null = retirement age)
+  roth_convert_end_age?: number | null;    // window end (null = 72, before RMDs)
   created_at: string;
   updated_at: string;
 }

@@ -50,6 +50,7 @@ export interface YearDetail {
   tax: number;
   irmaa: number;
   rmd: number;
+  rothConversion: number;
   withdrawal: Buckets;
   savedToPortfolio: number;
   netWithdrawal: number;
@@ -139,7 +140,7 @@ export function stepYear(ctx: StepCtx, start: Buckets, age: number, yearReturn: 
 
   const detail: YearDetail = {
     age, isRetired, buckets: b, total: 0, scenarioSpend: 0, enteredOutflow: 0, tithe: 0,
-    tax: 0, irmaa: 0, rmd: 0, withdrawal: { pretax: 0, roth: 0, taxable: 0, hsa: 0 },
+    tax: 0, irmaa: 0, rmd: 0, rothConversion: 0, withdrawal: { pretax: 0, roth: 0, taxable: 0, hsa: 0 },
     savedToPortfolio: 0, netWithdrawal: 0, shortfall: 0,
   };
 
@@ -178,6 +179,20 @@ export function stepYear(ctx: StepCtx, start: Buckets, age: number, yearReturn: 
     for (const inc of incomes) if (inc.type === "social_security") ss += incomeAnnualAt(inc, age, profile);
     const otherOrdinaryInc = Math.max(0, retIncome - ss);
 
+    // Roth conversion (in the low-income window): move pre-tax → Roth. It's taxed
+    // as ordinary income; the tax is funded from the withdrawal (taxable-first).
+    const sc = ctx.scenario;
+    let conv = 0;
+    if (sc.roth_convert_enabled && (sc.roth_convert_annual ?? 0) > 0) {
+      const cs = sc.roth_convert_start_age ?? profile.retirement_age;
+      const ce = sc.roth_convert_end_age ?? 72;
+      if (age >= cs && age <= ce) {
+        conv = Math.min(sc.roth_convert_annual ?? 0, b.pretax);
+        b.pretax -= conv;
+        b.roth += conv;
+      }
+    }
+
     // RMD forced out of pre-tax (provides cash; excess reinvested after tax).
     const rmd = rmdAmount(b.pretax, age);
     b.pretax -= rmd;
@@ -194,7 +209,7 @@ export function stepYear(ctx: StepCtx, start: Buckets, age: number, yearReturn: 
       worked = { ...b };
       const res = sequenceWithdraw(worked, extraNeed);
       w = res.w; shortfall = res.shortfall;
-      const pretaxW = rmd + w.pretax;
+      const pretaxW = rmd + w.pretax + conv; // conversion is ordinary income too
       const taxableGain = w.taxable * TAXABLE_GAIN_FRACTION;
       const t = retirementIncomeTax(otherOrdinaryInc, ss, pretaxW, taxableGain, ctx.filing, inflFactor, ctx.state);
       tax = t.tax;
@@ -211,6 +226,7 @@ export function stepYear(ctx: StepCtx, start: Buckets, age: number, yearReturn: 
     detail.tax = tax;
     detail.irmaa = irmaa;
     detail.rmd = rmd;
+    detail.rothConversion = conv;
     detail.withdrawal = w;
     detail.shortfall = shortfall;
     detail.netWithdrawal = w.taxable + w.pretax + w.roth + w.hsa;

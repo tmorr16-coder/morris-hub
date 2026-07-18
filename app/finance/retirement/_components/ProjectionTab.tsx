@@ -135,6 +135,19 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
   const totalDebt = debts.reduce((s, d) => s + (d.balance ?? 0), 0);
   const netWorth = currentPortfolio + homeValue - totalDebt;
 
+  // Roth-conversion impact: compare the current plan (conversions on) with an
+  // identical plan that skips them. Lifetime tax = income tax + IRMAA in retirement.
+  const rothOn = !!scenario.roth_convert_enabled && (scenario.roth_convert_annual ?? 0) > 0;
+  const noRothResult = useMemo(
+    () => (rothOn ? project(profile, accounts, incomes, expenses, debts, { ...scenario, roth_convert_enabled: false }) : null),
+    [rothOn, profile, accounts, incomes, expenses, debts, scenario],
+  );
+  const lifetimeTax = (r: typeof rawResult) => {
+    let s = 0;
+    for (let a = profile.retirement_age; a <= profile.life_expectancy; a++) s += (r.taxByAge.get(a) ?? 0) + (r.irmaaByAge.get(a) ?? 0);
+    return s;
+  };
+
   const result = realDollars ? {
     ...rawResult,
     portfolioByAge: deflateMap(rawResult.portfolioByAge),
@@ -392,6 +405,29 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
           </div>
         </div>
       )}
+
+      {/* Roth-conversion impact */}
+      {rothOn && noRothResult && (() => {
+        const taxWith = lifetimeTax(rawResult);
+        const taxWithout = lifetimeTax(noRothResult);
+        const endWith = rawResult.finalBalance;
+        const endWithout = noRothResult.finalBalance;
+        const taxSaved = taxWithout - taxWith;
+        return (
+          <div className="ios-list" style={{ margin: "0 0 8px", padding: 16 }}>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              Roth-conversion impact
+            </div>
+            <div className="ios-subhead" style={{ color: taxSaved >= 0 ? "var(--ios-green)" : "var(--ios-red)", marginTop: 4, lineHeight: 1.5 }}>
+              <strong>{taxSaved >= 0 ? "Saves" : "Costs"} {fmtLarge(Math.abs(taxSaved))}</strong> in lifetime tax + IRMAA
+              {" "}and ends with <strong>{fmtLarge(endWith - endWithout >= 0 ? endWith - endWithout : 0)}</strong> more.
+            </div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 6 }}>
+              Lifetime tax: {fmtLarge(taxWith)} with conversions vs {fmtLarge(taxWithout)} without · ending balance {fmtLarge(endWith)} vs {fmtLarge(endWithout)}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Gap / surplus callout */}
       {nestEgg > 0 && (

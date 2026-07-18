@@ -374,6 +374,40 @@ export default function ScenariosTab({ profile, setProfile, scenario, setScenari
               are added automatically for high incomes.
             </div>
           </div>
+          <div style={{ gridColumn: "1 / -1", paddingTop: 4 }}>
+            <label className="ios-subhead" style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", color: "var(--ios-label)" }}>
+              <input type="checkbox" checked={!!scenario.roth_convert_enabled}
+                onChange={(e) => updateScenario("roth_convert_enabled", e.target.checked)}
+                style={{ width: 18, height: 18, accentColor: "var(--ios-tint)" }} />
+              Roth conversions (pre-tax → Roth)
+            </label>
+            {scenario.roth_convert_enabled && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12, marginTop: 10 }}>
+                <div>
+                  <label style={labelStyle}>Convert / year ($)</label>
+                  <input type="number" min="0" step="5000" value={scenario.roth_convert_annual ?? ""}
+                    onChange={(e) => updateScenario("roth_convert_annual", e.target.value === "" ? null : (parseFloat(e.target.value) || 0))}
+                    placeholder="100000" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>From age</label>
+                  <input type="number" min="50" max="75" value={scenario.roth_convert_start_age ?? ""}
+                    onChange={(e) => updateScenario("roth_convert_start_age", e.target.value === "" ? null : (parseInt(e.target.value) || 0))}
+                    placeholder={String(profile.retirement_age)} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>To age</label>
+                  <input type="number" min="50" max="75" value={scenario.roth_convert_end_age ?? ""}
+                    onChange={(e) => updateScenario("roth_convert_end_age", e.target.value === "" ? null : (parseInt(e.target.value) || 0))}
+                    placeholder="72" style={inputStyle} />
+                </div>
+              </div>
+            )}
+            <div className="ios-footnote" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>
+              Converts pre-tax to Roth in your low-income years (retirement → before RMDs at 73), taxed as ordinary income
+              now to cut future RMDs, IRMAA and heirs&apos; taxes. The impact vs. no conversions shows on the Projection tab.
+            </div>
+          </div>
           <div>
             <label style={labelStyle}>Housing windfall ($)</label>
             <input
