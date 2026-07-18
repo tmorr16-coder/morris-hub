@@ -310,6 +310,41 @@ export function titheAndOfferingAt(inp: CashflowInputs, age: number, nowMs: numb
 /** Estimated income tax (federal brackets + state) for a year, on that year's
  *  gross income — working wages, or retirement income + the withdrawal that funds
  *  spending. Independent of the tithe settings; informational. */
+// ── Account tax buckets ─────────────────────────────────────────────────────
+// Derived from the account's type (no schema needed): pre-tax (401k/IRA/pension)
+// is taxed as ordinary on withdrawal, Roth/HSA are tax-free, taxable/brokerage is
+// taxed at long-term capital-gains rates on the gain portion.
+export type TaxBucket = "pretax" | "roth" | "taxable" | "hsa";
+export function bucketOf(a: RetirementAccount): TaxBucket {
+  const t = (a.type || "").toLowerCase();
+  if (t.includes("roth")) return "roth";
+  if (t.includes("hsa")) return "hsa";
+  if (t.includes("brokerage") || t.includes("saving") || t.includes("checking") || t.includes("taxable") || t === "other") return "taxable";
+  return "pretax"; // 401k, 403b, traditional ira, pension
+}
+
+/** Share of the portfolio in each tax bucket, by balance. */
+export function accountTaxMix(accounts: RetirementAccount[]): Record<TaxBucket, number> {
+  const bal: Record<TaxBucket, number> = { pretax: 0, roth: 0, taxable: 0, hsa: 0 };
+  let total = 0;
+  for (const a of accounts) { const v = a.balance ?? 0; bal[bucketOf(a)] += v; total += v; }
+  if (total <= 0) return { pretax: 1, roth: 0, taxable: 0, hsa: 0 };
+  return { pretax: bal.pretax / total, roth: bal.roth / total, taxable: bal.taxable / total, hsa: bal.hsa / total };
+}
+
+// Fraction of a taxable-account withdrawal that is taxable gain (no cost-basis
+// tracking yet — a mid estimate for a long-held appreciated account).
+const TAXABLE_GAIN_FRACTION = 0.5;
+
+/** Long-term capital-gains rate by ordinary-income level (2025 brackets, inflated). */
+function ltcgRate(ordinary: number, filing: "mfj" | "single", inflFactor: number): number {
+  const top = (filing === "mfj" ? 600050 : 533400) * inflFactor;
+  const bottom = (filing === "mfj" ? 96700 : 48350) * inflFactor;
+  if (ordinary >= top) return 0.20;
+  if (ordinary >= bottom) return 0.15;
+  return 0;
+}
+
 /** Portion of Social Security benefits that is taxable (≤85%), via the IRS
  *  provisional-income formula. Thresholds inflate with the plan. */
 function ssTaxablePortion(ss: number, otherIncome: number, filing: "mfj" | "single", inflFactor: number): number {
@@ -333,7 +368,7 @@ function additionalMedicareTax(wages: number, filing: "mfj" | "single", inflFact
  *  (plus the additional-Medicare surtax on high earners); retirement taxes
  *  ordinary income + only the taxable portion of Social Security. */
 export function estimatedTaxAt(inp: CashflowInputs, age: number, nowMs: number): number {
-  const { profile, incomes, expenses, debts, scenario } = inp;
+  const { profile, accounts, incomes, expenses, debts, scenario } = inp;
   const isRetired = age >= profile.retirement_age;
   const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
   const filing: "mfj" | "single" = profile.spouse_enabled ? "mfj" : "single";
@@ -346,19 +381,36 @@ export function estimatedTaxAt(inp: CashflowInputs, age: number, nowMs: number):
     return Math.min(0.6 * wages, tax);
   }
 
+  // Retirement income (SS only partially taxable) + a portfolio withdrawal taxed
+  // by the account mix: pre-tax → ordinary, Roth/HSA → tax-free, taxable → LTCG.
   const retIncome = retirementIncomeAt(incomes, age, profile);
   let entered = 0;
   for (const e of expenses) entered += expenseAnnualAt(e, age, profile, nowMs);
   for (const d of debts) entered += debtAnnualAt(d, age, profile);
-  const grossBase = Math.max(retIncome, baseAnnualSpend(scenario) * inflFactor + entered);
+  const spend = baseAnnualSpend(scenario) * inflFactor + entered;
+  const withdrawal = Math.max(0, spend - retIncome);
 
   let ss = 0;
   for (const inc of incomes) if (inc.type === "social_security") ss += incomeAnnualAt(inc, age, profile);
-  const otherOrdinary = Math.max(0, grossBase - ss);
-  const taxableSS = ssTaxablePortion(ss, otherOrdinary, filing, inflFactor);
-  const ordinaryBase = otherOrdinary + taxableSS; // SS only partially taxable
-  const tax = federalTax(ordinaryBase, filing, inflFactor) + state * ordinaryBase;
-  return Math.min(0.6 * grossBase, tax);
+  const otherOrdinaryIncome = Math.max(0, retIncome - ss); // pension / part-time / other
+
+  const mix = accountTaxMix(accounts);
+  const pretaxW = withdrawal * mix.pretax;                    // ordinary
+  const ltcgIncome = withdrawal * mix.taxable * TAXABLE_GAIN_FRACTION; // capital gains
+  // Roth + HSA withdrawals are tax-free.
+
+  const taxableSS = ssTaxablePortion(ss, otherOrdinaryIncome + pretaxW, filing, inflFactor);
+  const ordinary = otherOrdinaryIncome + taxableSS + pretaxW;
+
+  const fed = federalTax(ordinary, filing, inflFactor);
+  const capGains = ltcgIncome * ltcgRate(ordinary, filing, inflFactor);
+  // Net investment income tax (3.8%) on capital gains once MAGI clears the threshold.
+  const niitThreshold = (filing === "mfj" ? 250000 : 200000) * inflFactor;
+  const niit = ordinary + ltcgIncome > niitThreshold ? 0.038 * ltcgIncome : 0;
+  const stateTax = state * (ordinary + ltcgIncome);
+
+  const tax = fed + capGains + niit + stateTax;
+  return Math.min(0.6 * (retIncome + withdrawal), tax);
 }
 
 // ── Itemized year cash flow (for the inspector) ─────────────────────────────
