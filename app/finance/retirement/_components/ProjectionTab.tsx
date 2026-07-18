@@ -3,7 +3,14 @@
 import { useMemo, useState } from "react";
 import { Cell, Chip, Segmented, Sparkline, BarRows, RadialGauge } from "@/components/ios";
 import type { RetirementProfile, RetirementAccount, RetirementIncome, RetirementScenario, RetirementExpense, RetirementDebt } from "../types";
-import { clampedGrowth, expenseAnnualAt, debtAnnualAt, wageIncomeAt, employerMatchAnnual, titheAndOfferingAt, estimatedTaxAt, autoTaxRate, titheGrossBaseAt } from "../_lib/cashflow";
+import { retirementIncomeAt } from "../_lib/cashflow";
+import { buildCtx, returnForAge, runProjection, project, projectForScenario } from "../_lib/projection";
+
+/** Earliest age retirement income meaningfully flows (SS claim age, else retirement). */
+function ssStartAge(incomes: RetirementIncome[]): number {
+  const ss = incomes.filter((i) => i.type === "social_security").map((i) => i.ss_claim_age ?? 67);
+  return ss.length ? Math.min(...ss) : 0;
+}
 
 interface Props {
   profile: RetirementProfile;
@@ -12,20 +19,6 @@ interface Props {
   scenario: RetirementScenario;
   expenses: RetirementExpense[];
   debts: RetirementDebt[];
-}
-
-interface ProjectionResult {
-  portfolioByAge: Map<number, number>;
-  jobIncomeByAge: Map<number, number>;    // salary pre-ret + bridge/part_time post-ret (annual $)
-  ssIncomeByAge: Map<number, number>;     // Social Security income (annual $)
-  pensionIncomeByAge: Map<number, number>;
-  expensesByAge: Map<number, number>;     // total annual outflows from now (entered expenses/debts + scenario once retired)
-  nestEgg: number;
-  safeMonthlyWithdrawal: number;
-  depletionAge: number | null;
-  runway: number | string;
-  baseAnnualSpend: number;
-  weightedReturn: number;
 }
 
 function fmtMoney(n: number): string {
@@ -51,195 +44,6 @@ function getSelectedSpend(scenario: RetirementScenario): number {
     | "custom";
   const key = `${sel}_monthly_spend` as keyof RetirementScenario;
   return scenario[key] as number;
-}
-
-// ── Shared money math ───────────────────────────────────────────────────────
-// clampedGrowth, expenseAnnualAt, debtAnnualAt and wageIncomeAt live in
-// ../_lib/cashflow so the projection and the Outflows-tab cash-flow inspector
-// compute every income/expense/debt identically (single source of truth).
-
-/** Total entered outflows (expenses + debt payments) at a given age. */
-function outflowAt(ctx: StepCtx, age: number): number {
-  let sum = 0;
-  for (const e of ctx.expenses) sum += expenseAnnualAt(e, age, ctx.profile, ctx.nowMs);
-  for (const d of ctx.debts) sum += debtAnnualAt(d, age, ctx.profile);
-  return sum;
-}
-
-interface StepCtx {
-  profile: RetirementProfile;
-  accounts: RetirementAccount[];
-  incomes: RetirementIncome[];
-  expenses: RetirementExpense[];
-  debts: RetirementDebt[];
-  scenario: RetirementScenario;
-  weightedReturn: number;
-  retirementReturn: number;
-  baseAnnualSpend: number;
-  windfall: number;
-  nowMs: number;
-}
-
-function buildCtx(
-  profile: RetirementProfile,
-  accounts: RetirementAccount[],
-  incomes: RetirementIncome[],
-  expenses: RetirementExpense[],
-  debts: RetirementDebt[],
-  scenario: RetirementScenario
-): StepCtx {
-  const monthlySpend = getSelectedSpend(scenario);
-  const baseAnnualSpend =
-    monthlySpend * 12 + scenario.annual_travel + scenario.monthly_health_premium * 12;
-
-  const totalBal = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
-  const weightedReturn =
-    totalBal > 0
-      ? accounts.reduce(
-          (s, a) =>
-            s + ((a.balance ?? 0) / totalBal) * (a.return_override ?? profile.base_return),
-          0
-        )
-      : profile.base_return;
-
-  return {
-    profile,
-    accounts,
-    incomes,
-    expenses,
-    debts,
-    scenario,
-    nowMs: Date.now(),
-    weightedReturn,
-    retirementReturn: profile.retirement_return ?? weightedReturn,
-    baseAnnualSpend,
-    windfall: scenario.housing_windfall ?? 0,
-  };
-}
-
-/** Market return to apply in a given year — the accumulation return while
- *  working, the (optionally lower) retirement return at/after retirement. */
-function returnForAge(ctx: StepCtx, age: number): number {
-  return age >= ctx.profile.retirement_age ? ctx.retirementReturn : ctx.weightedReturn;
-}
-
-/**
- * Advances the portfolio through a single year. This is the ONE place the
- * per-year money math lives — the deterministic, shocked, and Monte-Carlo
- * paths all call it so their contribution/withdrawal/income/expense logic
- * stays identical.
- *
- * @param yearReturn  the market return to apply this year
- * @param endMult     extra multiplier applied AFTER growth/withdrawal (shock)
- */
-function stepYear(
-  ctx: StepCtx,
-  portfolioStart: number,
-  age: number,
-  yearReturn: number,
-  endMult = 1
-): number {
-  const { profile, accounts, incomes } = ctx;
-  const yearsFromNow = age - profile.current_age;
-  const isRetired = age >= profile.retirement_age;
-  let portfolio = portfolioStart;
-
-  if (age === profile.retirement_age) {
-    portfolio += ctx.windfall;
-  }
-
-  if (age > profile.current_age) {
-    portfolio *= 1 + yearReturn;
-  }
-
-  if (!isRetired) {
-    // Income-tax rate for the year. 401k contributions & employer match go in
-    // pre-tax (taxed later when withdrawn — see the retirement drawdown); bonuses
-    // and vesting stock are banked after-tax, and take-home wage covers spending.
-    const taxRate = autoTaxRate(titheGrossBaseAt(incomes, age, profile), age, profile, ctx.scenario);
-    portfolio += accounts.reduce((s, a) => s + a.monthly_contribution * 12, 0);
-    portfolio += employerMatchAnnual(accounts, incomes, age, profile);
-    for (const inc of incomes) {
-      if (inc.type !== "bonus" && inc.type !== "stock_award") continue;
-      const startAge = inc.start_age ?? profile.current_age;
-      const endAge = inc.end_age ?? (
-        inc.type === "stock_award" && inc.vest_years != null
-          ? startAge + inc.vest_years       // vest_years defines the window
-          : profile.retirement_age - 1      // default: through end of career
-      );
-      if (age < startAge || age > endAge) continue;
-      const growthFactor = clampedGrowth(inc.annual_growth_pct, age - startAge);
-      portfolio += inc.monthly_amount * growthFactor * (1 - taxRate); // banked after-tax
-    }
-    // Entered outflows (living costs, tuition, debt payments) plus any tithe draw
-    // on savings only to the extent they exceed take-home wage. A temporary spike
-    // like tuition dips savings only if it outstrips take-home income that year.
-    const takeHomeWage = wageIncomeAt(incomes, age, profile) * (1 - taxRate);
-    const deficit = outflowAt(ctx, age) + titheAndOfferingAt(ctx, age, ctx.nowMs) - takeHomeWage;
-    if (deficit > 0) portfolio = Math.max(0, portfolio - deficit);
-  } else {
-    const inflFactor = Math.pow(1 + profile.inflation_rate, yearsFromNow);
-    const adjSpend = ctx.baseAnnualSpend * inflFactor;
-
-    const retirementIncome = incomes
-      .filter((inc) => {
-        if (inc.type === "salary" || inc.type === "bonus") return false;
-        // Stock awards that are still vesting into early retirement count
-        if (inc.type === "stock_award") {
-          const startAge = inc.start_age ?? profile.current_age;
-          const endAge = inc.end_age ?? (startAge + (inc.vest_years ?? 4));
-          return age >= startAge && age <= endAge;
-        }
-        const startAge = inc.start_age ?? profile.retirement_age;
-        const endAge = inc.end_age ?? 999;
-        if (age < startAge || age > endAge) return false;
-        if (inc.type === "social_security" && inc.ss_claim_age != null && age < inc.ss_claim_age)
-          return false;
-        return true;
-      })
-      .reduce((s, inc) => {
-        // Convert to annual amount based on frequency
-        const annual = inc.frequency === "annual" || inc.type === "stock_award"
-          ? inc.monthly_amount
-          : inc.monthly_amount * 12;
-        return s + annual * inflFactor;
-      }, 0);
-
-    // Retirement drawdown covers the lifestyle scenario, any entered outflows
-    // still active (a mortgage past retirement), the tithe on what comes in, and
-    // the income tax on withdrawals — all pull from the portfolio.
-    const totalSpend = adjSpend + outflowAt(ctx, age) + titheAndOfferingAt(ctx, age, ctx.nowMs) + estimatedTaxAt(ctx, age, ctx.nowMs);
-    const netWithdrawal = Math.max(0, totalSpend - retirementIncome);
-    portfolio = Math.max(0, portfolio - netWithdrawal);
-  }
-
-  return portfolio * endMult;
-}
-
-/**
- * Runs a full portfolio path from current_age → life_expectancy, applying a
- * per-year return supplied by `returnFor` and an optional one-year shock.
- */
-function runProjection(
-  ctx: StepCtx,
-  returnFor: (age: number) => number,
-  opts?: { shockAge?: number | null; shockMult?: number }
-): { byAge: Map<number, number>; depletionAge: number | null; final: number } {
-  const { profile, accounts } = ctx;
-  let portfolio = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
-  const byAge = new Map<number, number>();
-  let depletionAge: number | null = null;
-
-  for (let age = profile.current_age; age <= profile.life_expectancy; age++) {
-    const endMult =
-      opts?.shockAge != null && age === opts.shockAge ? opts.shockMult ?? 1 : 1;
-    portfolio = stepYear(ctx, portfolio, age, returnFor(age), endMult);
-    if (portfolio === 0 && depletionAge === null && age >= profile.retirement_age) {
-      depletionAge = age;
-    }
-    byAge.set(age, portfolio);
-  }
-  return { byAge, depletionAge, final: portfolio };
 }
 
 // Seeded PRNG (mulberry32) + Box–Muller normal draw — keeps the Monte-Carlo
@@ -269,124 +73,6 @@ function percentile(sorted: number[], p: number): number {
   const hi = Math.ceil(idx);
   if (lo === hi) return sorted[lo];
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
-}
-
-function project(
-  profile: RetirementProfile,
-  accounts: RetirementAccount[],
-  incomes: RetirementIncome[],
-  expenses: RetirementExpense[],
-  debts: RetirementDebt[],
-  scenario: RetirementScenario
-): ProjectionResult {
-  const ctx = buildCtx(profile, accounts, incomes, expenses, debts, scenario);
-  const { weightedReturn, baseAnnualSpend, windfall } = ctx;
-
-  let portfolio = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
-  const portfolioByAge    = new Map<number, number>();
-  const jobIncomeByAge    = new Map<number, number>();
-  const ssIncomeByAge     = new Map<number, number>();
-  const pensionIncomeByAge = new Map<number, number>();
-  const expensesByAge     = new Map<number, number>();
-  let nestEgg = 0;
-  let depletionAge: number | null = null;
-
-  for (let age = profile.current_age; age <= profile.life_expectancy; age++) {
-    const yearsFromNow = age - profile.current_age;
-    const isRetired = age >= profile.retirement_age;
-
-    // Nest egg = portfolio + windfall at the moment of retirement (pre-growth).
-    if (age === profile.retirement_age) {
-      nestEgg = portfolio + windfall;
-    }
-
-    // Advance one year using the shared per-year money math.
-    portfolio = stepYear(ctx, portfolio, age, returnForAge(ctx, age));
-
-    if (portfolio === 0 && depletionAge === null && isRetired) {
-      depletionAge = age;
-    }
-
-    portfolioByAge.set(age, portfolio);
-
-    // ── Per-age income/expense data for chart series ─────────────────────────
-    const inflFactor = Math.pow(1 + profile.inflation_rate, yearsFromNow);
-
-    // Job income: salary + stock_award + bonus pre-ret; part_time/bridge/other post-ret
-    let jobIncome = 0;
-    for (const inc of incomes) {
-      if (!["salary", "part_time", "other", "bonus", "stock_award"].includes(inc.type)) continue;
-      // Determine effective age window for this income stream
-      const start = inc.start_age ?? (
-        inc.type === "salary" || inc.type === "bonus" || inc.type === "stock_award"
-          ? profile.current_age
-          : profile.retirement_age
-      );
-      const end = inc.end_age ?? (
-        inc.type === "stock_award" && inc.vest_years != null
-          ? start + inc.vest_years          // stock awards: use vest_years as fallback
-          : inc.type === "salary" || inc.type === "bonus"
-            ? profile.retirement_age - 1   // salary/bonus: default end at retirement
-            : 999                           // part_time/other: no default end
-      );
-      if (age < start || age > end) continue;
-      // Same clamped compounding as the portfolio math so the series matches.
-      const growth = clampedGrowth(inc.annual_growth_pct, age - start);
-      // stock_award and bonus store annual value in monthly_amount field
-      const annual = (inc.frequency === "annual" || inc.type === "stock_award" || inc.type === "bonus")
-        ? inc.monthly_amount
-        : inc.monthly_amount * 12;
-      jobIncome += annual * growth * (isRetired ? inflFactor : 1);
-    }
-    jobIncomeByAge.set(age, Math.round(jobIncome));
-
-    // Social Security income
-    let ssIncome = 0;
-    for (const inc of incomes) {
-      if (inc.type !== "social_security") continue;
-      if (age < (inc.ss_claim_age ?? 67)) continue;
-      ssIncome += inc.monthly_amount * 12 * inflFactor;
-    }
-    ssIncomeByAge.set(age, Math.round(ssIncome));
-
-    // Pension income
-    let pensionIncome = 0;
-    for (const inc of incomes) {
-      if (inc.type !== "pension") continue;
-      if (age < (inc.start_age ?? profile.retirement_age)) continue;
-      pensionIncome += inc.monthly_amount * 12 * inflFactor;
-    }
-    pensionIncomeByAge.set(age, Math.round(pensionIncome));
-
-    // Total outflows from now: entered expenses + debt payments across their
-    // windows, plus the retirement lifestyle scenario once retired.
-    const enteredOutflow = outflowAt(ctx, age) + titheAndOfferingAt(ctx, age, ctx.nowMs) + estimatedTaxAt(ctx, age, ctx.nowMs);
-    expensesByAge.set(age, Math.round((isRetired ? baseAnnualSpend * inflFactor : 0) + enteredOutflow));
-  }
-
-  if (nestEgg === 0) {
-    nestEgg = portfolioByAge.get(profile.retirement_age) ?? 0;
-  }
-
-  const safeMonthlyWithdrawal = (nestEgg * 0.04) / 12;
-  const runway =
-    depletionAge != null ? depletionAge - profile.retirement_age : "lifetime";
-
-  return { portfolioByAge, jobIncomeByAge, ssIncomeByAge, pensionIncomeByAge, expensesByAge, nestEgg, safeMonthlyWithdrawal, depletionAge, runway, baseAnnualSpend, weightedReturn };
-}
-
-function projectForScenario(
-  profile: RetirementProfile,
-  accounts: RetirementAccount[],
-  incomes: RetirementIncome[],
-  expenses: RetirementExpense[],
-  debts: RetirementDebt[],
-  scenario: RetirementScenario,
-  scenarioKey: "lean" | "balanced" | "abundant"
-): { depletionAge: number | null; nestEgg: number } {
-  const overrideScenario = { ...scenario, selected_scenario: scenarioKey };
-  const r = project(profile, accounts, incomes, expenses, debts, overrideScenario);
-  return { depletionAge: r.depletionAge, nestEgg: r.nestEgg };
 }
 
 const SERIES = [
@@ -420,15 +106,56 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
   const [shockPct, setShockPct] = useState<"0" | "10" | "20" | "30">("0");
   const [shockAge, setShockAge] = useState<number>(profile.retirement_age);
   const [showMC, setShowMC] = useState<boolean>(false);
+  // Display in today's (real) dollars vs future (nominal) dollars.
+  const [realDollars, setRealDollars] = useState<boolean>(false);
 
-  const result = project(profile, accounts, incomes, expenses, debts, scenario);
+  const rawResult = project(profile, accounts, incomes, expenses, debts, scenario);
+
+  // Deflator: nominal $ at `age` → today's dollars.
+  const inflAt = (age: number) => Math.pow(1 + profile.inflation_rate, age - profile.current_age);
+  const dv = (v: number, age: number) => (realDollars ? v / inflAt(age) : v);
+  function deflateMap(m: Map<number, number>): Map<number, number> {
+    if (!realDollars) return m;
+    const r = new Map<number, number>();
+    m.forEach((v, k) => r.set(k, v / inflAt(k)));
+    return r;
+  }
+
+  // Legacy is judged on nominal figures (goal is today's-$ → nominal at end of plan),
+  // independent of the display toggle.
+  const lifeInflFactor = Math.pow(1 + profile.inflation_rate, profile.life_expectancy - profile.current_age);
+  const legacyGoalNominal = (scenario.legacy_goal ?? 0) * lifeInflFactor;
+  const hasLegacyGoal = (scenario.legacy_goal ?? 0) > 0;
+  const legacyMetRaw = !hasLegacyGoal || rawResult.finalBalance >= legacyGoalNominal;
+
+  const result = realDollars ? {
+    ...rawResult,
+    portfolioByAge: deflateMap(rawResult.portfolioByAge),
+    jobIncomeByAge: deflateMap(rawResult.jobIncomeByAge),
+    ssIncomeByAge: deflateMap(rawResult.ssIncomeByAge),
+    pensionIncomeByAge: deflateMap(rawResult.pensionIncomeByAge),
+    expensesByAge: deflateMap(rawResult.expensesByAge),
+    nestEgg: rawResult.nestEgg / inflAt(profile.retirement_age),
+    safeMonthlyWithdrawal: rawResult.safeMonthlyWithdrawal / inflAt(profile.retirement_age),
+    finalBalance: rawResult.finalBalance / inflAt(profile.life_expectancy),
+  } : rawResult;
+
   const { portfolioByAge, jobIncomeByAge, ssIncomeByAge, pensionIncomeByAge, expensesByAge,
-          nestEgg, safeMonthlyWithdrawal, depletionAge, runway, weightedReturn } = result;
+          nestEgg, safeMonthlyWithdrawal, depletionAge, runway, weightedReturn, finalBalance } = result;
+  const legacyMet = legacyMetRaw;
 
-  const annualWithdrawalNeed = getSelectedSpend(scenario) * 12 + scenario.annual_travel + scenario.monthly_health_premium * 12;
+  // Net need = lifestyle spend LESS the retirement income (SS/pension/bridge) that
+  // covers part of it — the portfolio only has to fund the remainder. Evaluated at
+  // the first full retirement year the income actually flows (SS often starts later).
+  const grossAnnualNeed = getSelectedSpend(scenario) * 12 + scenario.annual_travel + scenario.monthly_health_premium * 12;
+  const retIncomeAtRet = retirementIncomeAt(incomes, Math.max(profile.retirement_age, ssStartAge(incomes)), profile);
+  const annualWithdrawalNeed = Math.max(0, grossAnnualNeed - retIncomeAtRet);
   const safeAnnualWithdrawal = nestEgg * 0.04;
   const gap = annualWithdrawalNeed - safeAnnualWithdrawal;
   const gapMonthly = gap / 12;
+  // The plan actually falls short only if the detailed year-by-year model depletes.
+  // Otherwise never contradict it with a "shortfall" headline.
+  const showGap = gap > 0 && depletionAge != null;
 
   // Scenario comparison
   const leanResult = projectForScenario(profile, accounts, incomes, expenses, debts, scenario, "lean");
@@ -495,10 +222,10 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
   const windfallAmount = scenario.housing_windfall ?? 0;
   const scaleVals: number[] = ages.map((a) => {
     const v = portfolioByAge.get(a) ?? 0;
-    return a === profile.retirement_age && windfallAmount > 0 ? v - windfallAmount : v;
+    return a === profile.retirement_age && windfallAmount > 0 ? v - dv(windfallAmount, profile.retirement_age) : v;
   });
-  if (showMC) scaleVals.push(...mc.band.map((b) => b.p90));
-  if (shockResult) scaleVals.push(...ages.map((a) => shockResult.byAge.get(a) ?? 0));
+  if (showMC) scaleVals.push(...mc.band.map((b) => dv(b.p90, b.age)));
+  if (shockResult) scaleVals.push(...ages.map((a) => dv(shockResult.byAge.get(a) ?? 0, a)));
   const maxValA = Math.max(...scaleVals, 1) * 1.1;
 
   function yPosA(val: number) {
@@ -541,16 +268,16 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
   // Monte-Carlo band (p90 across, back along p10) + median line
   const mcBandPath = (() => {
     if (!showMC || mc.band.length < 2) return "";
-    const top = mc.band.map((b, i) => `${i === 0 ? "M" : "L"}${xPos(b.age).toFixed(1)},${yPosA(b.p90).toFixed(1)}`).join(" ");
-    const bottom = mc.band.slice().reverse().map((b) => `L${xPos(b.age).toFixed(1)},${yPosA(b.p10).toFixed(1)}`).join(" ");
+    const top = mc.band.map((b, i) => `${i === 0 ? "M" : "L"}${xPos(b.age).toFixed(1)},${yPosA(dv(b.p90, b.age)).toFixed(1)}`).join(" ");
+    const bottom = mc.band.slice().reverse().map((b) => `L${xPos(b.age).toFixed(1)},${yPosA(dv(b.p10, b.age)).toFixed(1)}`).join(" ");
     return `${top} ${bottom} Z`;
   })();
   const mcMedianPath = showMC
-    ? mc.band.map((b, i) => `${i === 0 ? "M" : "L"}${xPos(b.age).toFixed(1)},${yPosA(b.p50).toFixed(1)}`).join(" ")
+    ? mc.band.map((b, i) => `${i === 0 ? "M" : "L"}${xPos(b.age).toFixed(1)},${yPosA(dv(b.p50, b.age)).toFixed(1)}`).join(" ")
     : "";
 
   const shockPath = shockResult
-    ? ages.map((a, i) => `${i === 0 ? "M" : "L"}${xPos(a).toFixed(1)},${yPosA(shockResult.byAge.get(a) ?? 0).toFixed(1)}`).join(" ")
+    ? ages.map((a, i) => `${i === 0 ? "M" : "L"}${xPos(a).toFixed(1)},${yPosA(dv(shockResult.byAge.get(a) ?? 0, a)).toFixed(1)}`).join(" ")
     : "";
 
   // Panel A y-axis ticks
@@ -583,13 +310,17 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
   ].filter((a, idx, arr) => a >= profile.current_age && a <= profile.life_expectancy && arr.indexOf(a) === idx);
 
   // Health hue for the headline sparkline / gauge.
-  const healthColor = depletionAge != null ? "var(--ios-red)" : "var(--ios-green)";
+  const healthColor = depletionAge != null || !legacyMet ? "var(--ios-red)" : "var(--ios-green)";
 
-  // Plan-confidence ratio: share of retirement years the portfolio survives.
+  // Plan-confidence ratio: share of retirement years the portfolio survives, and
+  // — if a legacy goal is set — whether the plan also funds that bequest.
   const retirementSpan = profile.life_expectancy - profile.retirement_age;
   const survivedSpan =
     depletionAge != null ? Math.max(0, depletionAge - profile.retirement_age) : retirementSpan;
-  const survivalRatio = retirementSpan > 0 ? Math.min(1, survivedSpan / retirementSpan) : 1;
+  let survivalRatio = retirementSpan > 0 ? Math.min(1, survivedSpan / retirementSpan) : 1;
+  if (depletionAge == null && hasLegacyGoal && !legacyMet) {
+    survivalRatio = Math.min(survivalRatio, legacyGoalNominal > 0 ? finalBalance / legacyGoalNominal : 1);
+  }
 
   const xLabelAges = [profile.current_age, profile.retirement_age, profile.life_expectancy]
     .filter((a, idx, arr) => a >= profile.current_age && a <= profile.life_expectancy && arr.indexOf(a) === idx);
@@ -608,7 +339,11 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
             </div>
             <div className="ios-subhead" style={{ marginTop: 2, color: healthColor }}>
               At age {profile.retirement_age} ·{" "}
-              {depletionAge != null ? `funds run out at ${depletionAge}` : "outlives your plan"}
+              {depletionAge != null
+                ? `funds run out at ${depletionAge}`
+                : !legacyMet
+                  ? `ends below your ${fmtLarge(scenario.legacy_goal)} legacy goal`
+                  : "outlives your plan"}
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
@@ -640,16 +375,16 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
       {nestEgg > 0 && (
         <div className="ios-list" style={{ margin: "0 0 8px", padding: 16 }}>
           <div className="ios-subhead" style={{ color: "var(--ios-label)", lineHeight: 1.5 }}>
-            {gap > 0 ? (
+            {showGap ? (
               <>
-                <strong style={{ color: "var(--ios-orange)" }}>Gap: {fmtMoney(gapMonthly)}/mo</strong> — your projected safe
-                withdrawal falls short of your planned spend. Consider extending contributions, reducing scenario spend, or
-                delaying retirement.
+                <strong style={{ color: "var(--ios-orange)" }}>Gap: {fmtMoney(gapMonthly)}/mo</strong> — after Social Security,
+                pension and bridge income, your projected safe withdrawal still falls short and the plan depletes at{" "}
+                {depletionAge}. Consider extending contributions, reducing scenario spend, or delaying retirement.
               </>
             ) : (
               <>
-                <strong style={{ color: "var(--ios-green)" }}>Surplus: {fmtMoney(Math.abs(gapMonthly))}/mo</strong> — your plan is
-                on track. The 4% rule supports your lifestyle scenario.
+                <strong style={{ color: "var(--ios-green)" }}>On track</strong> — after Social Security, pension and bridge
+                income, your portfolio {depletionAge != null ? "covers your plan" : "outlives your plan"} at this spending level.
               </>
             )}
           </div>
@@ -680,6 +415,16 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
           title="Retirement runway"
           subtitle={runway === "lifetime" ? "portfolio survives" : "from retirement"}
           trailing={<span className="ios-num">{runway === "lifetime" ? "Lifetime" : `${runway} years`}</span>}
+        />
+        <Cell
+          chevron={false}
+          title="Estate at end of plan"
+          subtitle={hasLegacyGoal ? (legacyMet ? `meets your ${fmtLarge(scenario.legacy_goal)} goal` : `below your ${fmtLarge(scenario.legacy_goal)} goal`) : "no legacy goal set"}
+          trailing={
+            <span className="ios-num" style={{ color: hasLegacyGoal ? (legacyMet ? "var(--ios-green)" : "var(--ios-red)") : "var(--ios-label)" }}>
+              {fmtLarge(finalBalance)}
+            </span>
+          }
         />
       </div>
 
@@ -747,6 +492,17 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
               </span>
             </Chip>
           </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span className="ios-caption" style={{ color: "var(--ios-label-2)" }}>Dollars</span>
+            <Chip small selected={realDollars} onClick={() => setRealDollars((v) => !v)}>
+              {realDollars ? "Today's $" : "Future $"}
+            </Chip>
+          </div>
+        </div>
+        <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>
+          {realDollars
+            ? "Shown in today's dollars (inflation-adjusted) — what the money is worth in today's purchasing power."
+            : "Shown in future (nominal) dollars. Toggle “Today's $” to see inflation-adjusted values."}
         </div>
 
         {/* ── Panel A: Portfolio balance ── */}

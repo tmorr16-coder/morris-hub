@@ -28,6 +28,11 @@ export default async function RetirementPage() {
         />
       </div>
 
+      <p className="ios-caption" style={{ color: "var(--ios-label-3)", padding: "8px 20px 0", lineHeight: 1.5 }}>
+        Projections are estimates for planning only and depend on the assumptions you enter (returns, inflation, taxes).
+        They are not financial, tax, or investment advice — consult a qualified professional before making decisions.
+      </p>
+
       <div style={{ height: 12 }} />
     </div>
   );

@@ -204,7 +204,8 @@ export default function SSOptimizer({ profile, onAddIncome }: Props) {
           }}
         >
           <strong>Survivor benefit:</strong> When one spouse dies, the survivor receives the higher of the two
-          benefits — estimated <span className="ios-num">{fmtMoney(survivorBenefit)}</span>/mo. This is automatically modeled in your projection.
+          benefits — estimated <span className="ios-num">{fmtMoney(survivorBenefit)}</span>/mo. Shown here for planning; the
+          projection currently runs a single combined household and does not yet model the first-death income drop.
         </div>
       )}
 

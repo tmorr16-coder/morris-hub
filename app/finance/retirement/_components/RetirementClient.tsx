@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type {
   RetirementProfile,
   RetirementAccount,
@@ -21,6 +21,7 @@ import DebtsTab from "./DebtsTab";
 import ScenariosTab from "./ScenariosTab";
 import ProjectionTab from "./ProjectionTab";
 import AdvisorTab from "./AdvisorTab";
+import { project } from "../_lib/projection";
 
 const DEFAULT_PROFILE: RetirementProfile = {
   id: "",
@@ -78,138 +79,6 @@ interface Props {
   sharedAccounts: SharedAccountSuggestion[];
 }
 
-function computeNestEgg(
-  profile: RetirementProfile,
-  accounts: RetirementAccount[],
-  incomes: RetirementIncome[],
-  scenario: RetirementScenario
-): { nestEgg: number; safeMonthlyWithdrawal: number; depletionAge: number | null; runway: number | string } {
-  const sel = scenario.selected_scenario as
-    | "lean"
-    | "balanced"
-    | "abundant"
-    | "custom";
-  const spendKey = `${sel}_monthly_spend` as keyof RetirementScenario;
-  const baseAnnualSpend =
-    (scenario[spendKey] as number) * 12 +
-    scenario.annual_travel +
-    scenario.monthly_health_premium * 12;
-
-  let portfolio = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
-  let nestEgg = 0;
-
-  for (let age = profile.current_age; age <= profile.life_expectancy; age++) {
-    const yearsFromNow = age - profile.current_age;
-    const isRetired = age >= profile.retirement_age;
-
-    if (age === profile.retirement_age) {
-      portfolio += scenario.housing_windfall;
-    }
-
-    if (age > profile.current_age) {
-      const totalBal = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
-      const weightedReturn =
-        totalBal > 0
-          ? accounts.reduce(
-              (s, a) =>
-                s +
-                ((a.balance ?? 0) / totalBal) *
-                  (a.return_override ?? profile.base_return),
-              0
-            )
-          : profile.base_return;
-      portfolio *= 1 + (isRetired && profile.retirement_return != null ? profile.retirement_return : weightedReturn);
-    }
-
-    if (!isRetired) {
-      portfolio += accounts.reduce(
-        (s, a) =>
-          s + a.monthly_contribution * 12 * (1 + a.employer_match_pct / 100),
-        0
-      );
-    } else {
-      if (age === profile.retirement_age) nestEgg = portfolio;
-
-      const inflFactor = Math.pow(1 + profile.inflation_rate, yearsFromNow);
-      const adjSpend = baseAnnualSpend * inflFactor;
-
-      const retirementIncome = incomes
-        .filter((inc) => {
-          if (inc.type === "salary") return false;
-          const startAge = inc.start_age ?? profile.retirement_age;
-          const endAge = inc.end_age ?? 999;
-          if (age < startAge || age > endAge) return false;
-          if (inc.type === "social_security" && inc.ss_claim_age != null && age < inc.ss_claim_age)
-            return false;
-          return true;
-        })
-        .reduce((s, inc) => s + inc.monthly_amount * 12 * inflFactor, 0);
-
-      const netWithdrawal = Math.max(0, adjSpend - retirementIncome);
-      portfolio = Math.max(0, portfolio - netWithdrawal);
-    }
-  }
-
-  const safeMonthlyWithdrawal = (nestEgg * 0.04) / 12;
-
-  let depletionAge: number | null = null;
-  let portfolioCheck = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
-  for (let age = profile.current_age; age <= profile.life_expectancy; age++) {
-    const yearsFromNow = age - profile.current_age;
-    const isRetired = age >= profile.retirement_age;
-
-    if (age === profile.retirement_age) portfolioCheck += scenario.housing_windfall;
-
-    if (age > profile.current_age) {
-      const totalBal = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
-      const weightedReturn =
-        totalBal > 0
-          ? accounts.reduce(
-              (s, a) =>
-                s +
-                ((a.balance ?? 0) / totalBal) *
-                  (a.return_override ?? profile.base_return),
-              0
-            )
-          : profile.base_return;
-      portfolioCheck *= 1 + (isRetired && profile.retirement_return != null ? profile.retirement_return : weightedReturn);
-    }
-
-    if (!isRetired) {
-      portfolioCheck += accounts.reduce(
-        (s, a) => s + a.monthly_contribution * 12 * (1 + a.employer_match_pct / 100),
-        0
-      );
-    } else {
-      const inflFactor = Math.pow(1 + profile.inflation_rate, yearsFromNow);
-      const adjSpend = baseAnnualSpend * inflFactor;
-      const retirementIncome = incomes
-        .filter((inc) => {
-          if (inc.type === "salary") return false;
-          const startAge = inc.start_age ?? profile.retirement_age;
-          const endAge = inc.end_age ?? 999;
-          if (age < startAge || age > endAge) return false;
-          if (inc.type === "social_security" && inc.ss_claim_age != null && age < inc.ss_claim_age)
-            return false;
-          return true;
-        })
-        .reduce((s, inc) => s + inc.monthly_amount * 12 * inflFactor, 0);
-
-      const netWithdrawal = Math.max(0, adjSpend - retirementIncome);
-      portfolioCheck = Math.max(0, portfolioCheck - netWithdrawal);
-      if (portfolioCheck === 0 && depletionAge === null) {
-        depletionAge = age;
-      }
-    }
-  }
-
-  const runway =
-    depletionAge != null
-      ? depletionAge - profile.retirement_age
-      : "lifetime";
-
-  return { nestEgg, safeMonthlyWithdrawal, depletionAge, runway };
-}
 
 export default function RetirementClient({
   profile: initialProfile,
@@ -280,19 +149,28 @@ export default function RetirementClient({
     }
   }
 
-  // Auto-save any accounts change (add, edit, delete) so the DB stays in sync
   function handleAccountsChange(updatedAccounts: RetirementAccount[]) {
     setAccounts(updatedAccounts);
-    handleSave({ accounts: updatedAccounts });
   }
-
-  // Auto-save any income change (add, edit, delete) so entries persist on reload
   function handleIncomesChange(updatedIncomes: RetirementIncome[]) {
     setIncomes(updatedIncomes);
-    handleSave({ incomes: updatedIncomes });
   }
 
-  const metrics = computeNestEgg(profile, accounts, incomes, scenario);
+  // Debounced autosave — EVERY plan change (accounts, income, outflows, scenario,
+  // giving/tax settings, profile) persists automatically ~1.2s after you stop
+  // editing, so nothing is lost when you switch tabs or navigate away. Continuous
+  // inputs (spend, tithe %) coalesce into one write instead of one per keystroke.
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return; }
+    const t = setTimeout(() => { handleSave(); }, 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile, accounts, incomes, expenses, debts, scenario]);
+
+  // Use the SAME engine as the Projection tab so the Advisor's nest egg /
+  // depletion / runway match what the user sees on the chart.
+  const proj = project(profile, accounts, incomes, expenses, debts, scenario);
 
   const planSnapshot: PlanSnapshot = {
     profile,
@@ -301,7 +179,10 @@ export default function RetirementClient({
     expenses,
     debts,
     scenario,
-    ...metrics,
+    nestEgg: proj.nestEgg,
+    safeMonthlyWithdrawal: proj.safeMonthlyWithdrawal,
+    depletionAge: proj.depletionAge,
+    runway: proj.runway,
   };
 
   return (

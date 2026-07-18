@@ -94,9 +94,18 @@ export function wageIncomeAt(incomes: RetirementIncome[], age: number, profile: 
     const end = inc.end_age ?? (profile.retirement_age - 1);
     if (age < start || age > end) continue;
     const annual = inc.frequency === "annual" ? inc.monthly_amount : inc.monthly_amount * 12;
-    sum += annual * clampedGrowth(inc.annual_growth_pct, age - start);
+    sum += annual * streamGrowth(inc, age - start);
   }
   return sum;
+}
+
+/** Growth factor for an income stream. Bonuses & stock awards are capped at 10
+ *  years (a growth % on a large annual grant would otherwise balloon over a long
+ *  career); salary and other recurring pay grow UNCAPPED so long careers aren't
+ *  understated — this keeps income growth symmetric with expense growth. */
+export function streamGrowth(inc: RetirementIncome, years: number): number {
+  if (inc.type === "bonus" || inc.type === "stock_award") return clampedGrowth(inc.annual_growth_pct, years);
+  return inc.annual_growth_pct ? Math.pow(1 + inc.annual_growth_pct / 100, Math.max(0, years)) : 1;
 }
 
 /** Annual amount of a single income stream at a given age (0 outside window).
@@ -127,7 +136,7 @@ export function incomeAnnualAt(inc: RetirementIncome, age: number, profile: Reti
           : 999
     );
     if (age < start || age > end) return 0;
-    const growth = clampedGrowth(inc.annual_growth_pct, age - start);
+    const growth = streamGrowth(inc, age - start);
     const annual = (inc.frequency === "annual" || inc.type === "stock_award" || inc.type === "bonus")
       ? inc.monthly_amount
       : inc.monthly_amount * 12;
