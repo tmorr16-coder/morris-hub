@@ -4,16 +4,16 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { inviteUser, cancelInvitation, updateUserRole, removeUser, updateIntegrationRequestStatus, approveUser, rejectUser, updateTicketStatus, updateAppAccess, approveAccessRequest, dismissAccessRequest, type AppKey } from "../actions";
 
-const ALL_APPS: AppKey[] = ["hub", "health", "finance", "investments", "career", "student-success", "children", "bible"];
+const ALL_APPS: AppKey[] = ["hub", "health", "finance", "investments", "career", "travel", "student-success", "children", "bible"];
 const APP_LABEL: Record<AppKey, string> = {
   hub: "Hub", health: "Health", finance: "Finance",
   "student-success": "Courses", investments: "Investments",
-  bible: "Bible", career: "Career", children: "Children",
+  bible: "Bible", career: "Career", travel: "Travel", children: "Children",
 };
 const APP_COLOR: Record<AppKey, string> = {
   hub: "#356FB0", health: "#4D6B3A", finance: "#8B6A47",
   "student-success": "#6B5B95", investments: "#C97A3A",
-  bible: "#6B3B7C", career: "#2A6049", children: "#C97A9B",
+  bible: "#6B3B7C", career: "#2A6049", travel: "#2A7B8C", children: "#C97A9B",
 };
 
 export interface AdminUser {

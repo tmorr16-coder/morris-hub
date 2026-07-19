@@ -15,6 +15,7 @@ const NAV = [
   { key: "health", label: "Health",      href: "/health",             accessKeys: ["health"] },
   { key: "money",  label: "Money",       href: "/finance/dashboard",  accessKeys: ["finance", "investments"] },
   { key: "career", label: "Career",      href: "/career",             accessKeys: ["career"] },
+  { key: "travel", label: "Travel",      href: "/travel",             accessKeys: ["travel"] },
   { key: "bible",  label: "Bible",       href: "/bible/dashboard",    accessKeys: ["bible"] },
   { key: "ask",    label: "Ask Morris",  href: "/home/ask",           accessKeys: [] as string[] },
 ];
@@ -36,6 +37,7 @@ function activeKeyFromApp(currentApp: string): string {
   if (currentApp === "finance" || currentApp === "investments") return "money";
   if (currentApp === "children") return "children";
   if (currentApp === "career") return "career";
+  if (currentApp === "travel") return "travel";
   if (currentApp === "bible") return "bible";
   return "";
 }
@@ -44,7 +46,7 @@ export default function PlatformMenu({
   currentApp,
   user,
 }: {
-  currentApp: "hub" | "family" | "ask" | "health" | "finance" | "investments" | "student-success" | "bible" | "career" | "children" | "news";
+  currentApp: "hub" | "family" | "ask" | "health" | "finance" | "investments" | "student-success" | "bible" | "career" | "travel" | "children" | "news";
   user?: MenuUser | null;
 }) {
   const activeKey = activeKeyFromApp(currentApp);

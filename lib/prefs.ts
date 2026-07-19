@@ -62,7 +62,7 @@ export async function getPreferences(userId: string): Promise<Preferences> {
     // app_access: grant all modules only when the array is completely empty (new user).
     // Do NOT auto-merge missing modules — child users have deliberately restricted access
     // and merging would silently re-grant Finance/Career/Investments to them.
-    const ALL_MODULES = ["hub", "health", "finance", "investments", "career", "student-success", "children", "bible"];
+    const ALL_MODULES = ["hub", "health", "finance", "investments", "career", "travel", "student-success", "children", "bible"];
     if (!p.app_access?.length) {
       p.app_access = ALL_MODULES;  // new adult user with no prefs yet → full access
     }
@@ -91,7 +91,7 @@ export async function getPreferences(userId: string): Promise<Preferences> {
     investment_categories: ["stocks", "real_estate", "transportation", "tech", "other"],
     visible_widgets: [...ALL_WIDGETS],
     reminder_categories: [...DEFAULT_REMINDER_CATEGORIES],
-    app_access: ["hub", "health", "finance", "student-success", "children", "investments", "career", "bible"],
+    app_access: ["hub", "health", "finance", "student-success", "children", "investments", "career", "travel", "bible"],
     news_sources: DEFAULT_NEWS_SOURCES,
     watched_stocks: [],
     phone_number: null,

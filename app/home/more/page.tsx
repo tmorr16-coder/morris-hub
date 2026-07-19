@@ -32,6 +32,10 @@ export default async function MorePage() {
         {can("bible") && <Cell lead={<IconBadge color="#3B5C7F"><Icons.BookIcon /></IconBadge>} title="Bible" subtitle="Reading plans · notes · study" href="/bible/dashboard" />}
       </Group>
 
+      <Group header="Explore">
+        {can("travel") && <Cell lead={<IconBadge color="#2A7B8C"><Icons.PlaneIcon /></IconBadge>} title="Travel" subtitle="Flights · hotels · loyalty · price alerts" href="/travel" />}
+      </Group>
+
       <Group header="Stay informed">
         <Cell lead={<IconBadge color="#9A3B2A"><Icons.NewsIcon /></IconBadge>} title="News" subtitle="Topics · local · company" href="/news" />
         <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.SparkleIcon /></IconBadge>} title="Ask Morris" subtitle="Your AI across everything" href="/home/ask" />

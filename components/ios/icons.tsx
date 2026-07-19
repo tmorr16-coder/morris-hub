@@ -57,6 +57,9 @@ export const DumbbellIcon = (p: P) => (
 export const BriefcaseIcon = (p: P) => (
   <svg {...base(p)}><rect x="3" y="7.5" width="18" height="12" rx="2.5" /><path d="M8.5 7.5V6a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v1.5M3 12.5h18" /></svg>
 );
+export const PlaneIcon = (p: P) => (
+  <svg {...base(p)}><path d="M10.5 3.5a1.5 1.5 0 0 1 3 0V9l7.5 4.5v2l-7.5-2.2V18l2.2 1.6v1.6L12 20.3l-3.2 .9v-1.6L11 18v-4.7L3.5 15.5v-2L11 9V3.5z" /></svg>
+);
 export const ChevronRight = (p: P) => (
   <svg {...base(p)} strokeWidth={2.2}><path d="M9 5l7 7-7 7" /></svg>
 );

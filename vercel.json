@@ -11,6 +11,10 @@
     {
       "path": "/api/health/withings/sync",
       "schedule": "30 11 * * *"
+    },
+    {
+      "path": "/api/cron/travel-watches",
+      "schedule": "0 13 * * *"
     }
   ]
 }
