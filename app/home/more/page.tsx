@@ -24,6 +24,7 @@ export default async function MorePage() {
         {can("finance") && <Cell lead={<IconBadge color="var(--ios-finance)"><Icons.WalletIcon /></IconBadge>} title="Finances" subtitle="Net worth · accounts · spending" href="/finance/dashboard" />}
         {can("investments") && <Cell lead={<IconBadge color="#C97A3A"><Icons.TrendUpIcon /></IconBadge>} title="Investments" subtitle="Portfolio · research · paper trading" href="/investments" />}
         {can("finance") && <Cell lead={<IconBadge color="#8B6A47"><Icons.ChartIcon /></IconBadge>} title="Retirement" href="/finance/retirement" />}
+        {can("finance") && <Cell lead={<IconBadge color="#3E6E8E"><Icons.ChecklistIcon /></IconBadge>} title="Tax" subtitle="Estimator · strategy · rates" href="/finance/tax" />}
       </Group>
 
       <Group header="Learn & grow">
@@ -33,7 +34,7 @@ export default async function MorePage() {
       </Group>
 
       <Group header="Explore">
-        {can("travel") && <Cell lead={<IconBadge color="#2A7B8C"><Icons.PlaneIcon /></IconBadge>} title="Travel" subtitle="Flights · hotels · loyalty · price alerts" href="/travel" />}
+        <Cell lead={<IconBadge color="#2A7B8C"><Icons.PlaneIcon /></IconBadge>} title="Travel" subtitle="Flights · hotels · loyalty · price alerts" href="/travel" />
       </Group>
 
       <Group header="Stay informed">

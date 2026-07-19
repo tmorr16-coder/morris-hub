@@ -16,7 +16,7 @@ const MORE_ITEMS = [
   { label: "Ask Morris",  href: "/home/ask",                                accessKey: null },
   { label: "Bible",       href: "/bible/dashboard",                        accessKey: "bible" },
   { label: "Career",      href: "/career",                                 accessKey: "career" },
-  { label: "Travel",      href: "/travel",                                 accessKey: "travel" },
+  { label: "Travel",      href: "/travel",                                 accessKey: null },
   { label: "Settings",    href: "/home/settings",                          accessKey: null },
 ];
 

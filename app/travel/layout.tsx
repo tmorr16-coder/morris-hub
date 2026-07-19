@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getPreferences } from "@/lib/prefs";
 import { TabBar } from "@/components/ios";
 
 export default async function TravelLayout({ children }: { children: React.ReactNode }) {
@@ -8,11 +7,8 @@ export default async function TravelLayout({ children }: { children: React.React
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const prefs = await getPreferences(user.id);
-  const appAccess = prefs.app_access ?? null;
-  if (Array.isArray(appAccess) && !appAccess.includes("travel")) {
-    redirect("/home");
-  }
+  // Travel is a general, always-available module (like News / Ask Morris) — no
+  // per-user access gate, so it works for existing accounts without a module grant.
 
   return (
     <div data-ui="ios">

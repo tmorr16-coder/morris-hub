@@ -15,7 +15,7 @@ const NAV = [
   { key: "health", label: "Health",      href: "/health",             accessKeys: ["health"] },
   { key: "money",  label: "Money",       href: "/finance/dashboard",  accessKeys: ["finance", "investments"] },
   { key: "career", label: "Career",      href: "/career",             accessKeys: ["career"] },
-  { key: "travel", label: "Travel",      href: "/travel",             accessKeys: ["travel"] },
+  { key: "travel", label: "Travel",      href: "/travel",             accessKeys: [] as string[] },
   { key: "bible",  label: "Bible",       href: "/bible/dashboard",    accessKeys: ["bible"] },
   { key: "ask",    label: "Ask Morris",  href: "/home/ask",           accessKeys: [] as string[] },
 ];
