@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { duffelConfigured, searchHotels, type HotelSearchParams } from "@/lib/duffel";
+import { travelConfigured, searchHotels, type HotelSearchParams } from "@/lib/travel-search";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -10,9 +10,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!duffelConfigured()) {
+  if (!travelConfigured()) {
     return NextResponse.json(
-      { error: "not_configured", message: "Hotel search isn't connected yet. Add a Duffel access token to enable live results." },
+      { error: "not_configured", message: "Hotel search isn't connected yet. Add a SerpApi or Duffel token to enable live results." },
       { status: 503 },
     );
   }

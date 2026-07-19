@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { duffelConfigured } from "@/lib/duffel";
+import { travelConfigured } from "@/lib/travel-search";
 import { LargeTitle } from "@/components/ios";
 import { DEFAULT_PREFS, type TravelPreferences, type LoyaltyProgram } from "../types";
 import SearchClient from "../_components/SearchClient";
@@ -26,7 +26,7 @@ export default async function TravelSearchPage() {
     <div className="ios-scroll">
       <LargeTitle title="Search" subtitle="Flights & hotels" />
       <div style={{ padding: "0 16px" }}>
-        <SearchClient prefs={prefs} loyalty={programs} connected={duffelConfigured()} />
+        <SearchClient prefs={prefs} loyalty={programs} connected={travelConfigured()} />
       </div>
       <div style={{ height: 24 }} />
     </div>

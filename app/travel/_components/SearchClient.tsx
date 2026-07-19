@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { FlightOffer, HotelOffer } from "@/lib/duffel";
+import type { FlightOffer, HotelOffer } from "@/lib/travel-search";
 import { CABINS, type TravelPreferences, type LoyaltyProgram } from "../types";
 
 function money(n: number | null, ccy = "USD"): string {
@@ -118,7 +118,7 @@ export default function SearchClient({
       {!connected && (
         <div className="ios-list" style={{ margin: "0 0 12px", padding: 14 }}>
           <div className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}>
-            Live results need a Duffel access token. You can still set up preferences and loyalty programs — searches will return results once search is connected.
+            Live results need a search provider token (SerpApi or Duffel). You can still set up preferences and loyalty programs — searches will return results once search is connected.
           </div>
         </div>
       )}

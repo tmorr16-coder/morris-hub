@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { duffelConfigured, cheapestFlightPrice } from "@/lib/duffel";
+import { travelConfigured, cheapestFlightPrice } from "@/lib/travel-search";
 import { Resend } from "resend";
 
 export const runtime = "nodejs";
@@ -17,8 +17,8 @@ export async function GET(request: NextRequest) {
   if (expected && authHeader !== `Bearer ${expected}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!duffelConfigured()) {
-    return NextResponse.json({ ok: true, skipped: "duffel_not_configured" });
+  if (!travelConfigured()) {
+    return NextResponse.json({ ok: true, skipped: "provider_not_configured" });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

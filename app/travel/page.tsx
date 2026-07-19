@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { duffelConfigured } from "@/lib/duffel";
+import { travelConfigured } from "@/lib/travel-search";
 import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 import WatchList from "./_components/WatchList";
 
@@ -18,7 +18,7 @@ export default async function TravelPage() {
     db.schema("travel").from("loyalty_programs").select("id", { count: "exact", head: true }).eq("user_id", user.id), // scoping-ok: user-scoped read
   ]);
 
-  const connected = duffelConfigured();
+  const connected = travelConfigured();
   const home = prefs?.home_airport as string | undefined;
 
   return (
@@ -28,8 +28,8 @@ export default async function TravelPage() {
       {!connected && (
         <div className="ios-list" style={{ margin: "0 16px 8px", padding: 14 }}>
           <div className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}>
-            ✈️ Live flight &amp; hotel search activates once a Duffel access token is added. Preferences, loyalty programs, and
-            price alerts all work now.
+            ✈️ Live flight &amp; hotel search activates once a search provider token (SerpApi or Duffel) is added. Preferences,
+            loyalty programs, and price alerts all work now.
           </div>
         </div>
       )}
