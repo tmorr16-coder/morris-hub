@@ -187,6 +187,54 @@ export function computeEstimate(inp: EstimateInput): EstimateResult {
   };
 }
 
+/** Project a mid-year paystub's YTD figures to a full-year estimate.
+ *  Prefers deriving elapsed periods from YTD ÷ this-period (most accurate),
+ *  else falls back to day-of-year proration. Returns annualized W-2-style figures. */
+export function annualizePaystub(ps: {
+  pay_frequency?: string | null;
+  pay_date?: string | null;
+  gross_this_period?: number | null;
+  federal_wh_this_period?: number | null;
+  state_wh_this_period?: number | null;
+  ytd_gross?: number | null;
+  ytd_federal_wh?: number | null;
+  ytd_state_wh?: number | null;
+  ytd_pretax_retirement?: number | null;
+}): { wages: number; federalWithholding: number; stateWithholding: number; pretaxRetirement: number; basis: string } {
+  const periodsPerYear: Record<string, number> = { weekly: 52, biweekly: 26, semimonthly: 24, monthly: 12 };
+  const total = ps.pay_frequency ? periodsPerYear[ps.pay_frequency] ?? 24 : 24;
+
+  const ytdGross = ps.ytd_gross ?? 0;
+  const perGross = ps.gross_this_period ?? 0;
+
+  // Elapsed fraction of the year.
+  let fraction: number;
+  let basis: string;
+  if (perGross > 0 && ytdGross > 0) {
+    const periodsElapsed = Math.max(1, Math.round(ytdGross / perGross));
+    fraction = Math.min(1, periodsElapsed / total);
+    basis = `${periodsElapsed} of ${total} pay periods`;
+  } else if (ps.pay_date) {
+    const d = new Date(`${ps.pay_date}T12:00:00`);
+    const start = new Date(d.getFullYear(), 0, 1).getTime();
+    const dayOfYear = Math.max(1, Math.round((d.getTime() - start) / 86_400_000) + 1);
+    fraction = Math.min(1, dayOfYear / 365);
+    basis = `${Math.round(fraction * 100)}% through the year`;
+  } else {
+    fraction = 0.5;
+    basis = "assumed mid-year";
+  }
+
+  const scale = (n: number | null | undefined) => (fraction > 0 ? Math.round(((n ?? 0) / fraction)) : (n ?? 0));
+  return {
+    wages: scale(ytdGross),
+    federalWithholding: scale(ps.ytd_federal_wh),
+    stateWithholding: scale(ps.ytd_state_wh),
+    pretaxRetirement: scale(ps.ytd_pretax_retirement),
+    basis,
+  };
+}
+
 export function emptyInput(taxYear: number): EstimateInput {
   return {
     taxYear,

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   computeEstimate,
   emptyInput,
+  annualizePaystub,
   type EstimateInput,
   type W2,
 } from "../_lib/estimate";
@@ -100,6 +101,29 @@ export default function TaxEstimatorClient({
           return { ...cur, w2s };
         });
         setUpload({ busy: false, msg: `Added W-2${w.employer ? ` — ${w.employer}` : ""} (${money(w.wages || 0)} wages).`, error: false });
+      } else if (data.doc_type === "paystub" && data.paystub) {
+        const a = annualizePaystub(data.paystub);
+        setInput((cur) => {
+          const filled: W2 = {
+            id: cur.w2s[0]?.id ?? newW2().id,
+            employer: data.paystub!.employer || cur.w2s[0]?.employer || "",
+            wages: a.wages,
+            federalWithholding: a.federalWithholding,
+            stateWithholding: a.stateWithholding,
+            localWithholding: cur.w2s[0]?.localWithholding ?? 0,
+          };
+          const w2s = cur.w2s.length ? cur.w2s.map((x, i) => (i === 0 ? filled : x)) : [filled];
+          return {
+            ...cur,
+            w2s,
+            iraDeduction: cur.iraDeduction, // 401k already excluded from projected box-1 wages
+          };
+        });
+        setUpload({
+          busy: false,
+          error: false,
+          msg: `Projected a full year from your paystub (${a.basis}): ~${money(a.wages)} wages, ${money(a.federalWithholding)} federal withheld. Adjust if you expect a bonus or raise.`,
+        });
       } else if (data.doc_type === "1040" && data.prior_return) {
         const r = data.prior_return;
         setInput((cur) => ({
@@ -167,8 +191,10 @@ export default function TaxEstimatorClient({
       <div className="ios-list" style={{ margin: "0 0 8px", padding: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div>
-            <div className="ios-headline">Upload a W-2 or prior return</div>
-            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>PDF or photo — we read the figures to pre-fill. Not stored.</div>
+            <div className="ios-headline">Upload a paystub, W-2, or prior return</div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 2, lineHeight: 1.5 }}>
+              Paystub → projects a full year from YTD · W-2 → refined once you have it · prior 1040 → baseline. PDF or photo, not stored.
+            </div>
           </div>
           <button
             onClick={() => fileRef.current?.click()}

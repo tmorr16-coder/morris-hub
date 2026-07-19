@@ -28,20 +28,34 @@ export interface PriorReturnExtract {
   state_tax: number | null;          // state income tax (from Schedule A / state return)
 }
 
-export interface TaxDocExtract {
-  doc_type: "w2" | "1040" | "unknown";
-  w2: W2Extract | null;
-  prior_return: PriorReturnExtract | null;
+export interface PaystubExtract {
+  employer: string;
+  pay_frequency: "weekly" | "biweekly" | "semimonthly" | "monthly" | null;
+  pay_date: string | null;             // YYYY-MM-DD of this check / period end
+  gross_this_period: number | null;
+  federal_wh_this_period: number | null;
+  state_wh_this_period: number | null;
+  ytd_gross: number | null;            // year-to-date gross wages
+  ytd_federal_wh: number | null;       // YTD federal income tax withheld
+  ytd_state_wh: number | null;         // YTD state income tax withheld
+  ytd_pretax_retirement: number | null; // YTD 401k/403b/pre-tax deferrals, if shown
 }
 
-const SYSTEM = `You are a US tax document parser. You read W-2 wage statements and Form 1040 individual tax returns.
+export interface TaxDocExtract {
+  doc_type: "w2" | "1040" | "paystub" | "unknown";
+  w2: W2Extract | null;
+  prior_return: PriorReturnExtract | null;
+  paystub: PaystubExtract | null;
+}
+
+const SYSTEM = `You are a US tax document parser. You read W-2 wage statements, Form 1040 individual tax returns, and payroll paystubs / earnings statements.
 Return ONLY valid JSON — no prose, no markdown, no code fences.`;
 
-const PROMPT = `Identify whether this document is a W-2, a Form 1040 (individual income tax return), or neither, then extract the figures.
+const PROMPT = `Identify whether this document is a W-2, a Form 1040 (individual income tax return), a payroll paystub / earnings statement, or none, then extract the figures.
 
 Return JSON in exactly this shape:
 {
-  "doc_type": "w2" | "1040" | "unknown",
+  "doc_type": "w2" | "1040" | "paystub" | "unknown",
   "w2": {
     "employer": "string — employer name (box c)",
     "wages": number — box 1 (wages, tips, other comp),
@@ -60,14 +74,27 @@ Return JSON in exactly this shape:
     "qualified_dividends": number or null — 1040 line 3a,
     "capital_gains": number or null — 1040 line 7,
     "state_tax": number or null — state income tax paid, if visible
+  } or null,
+  "paystub": {
+    "employer": "string — employer name",
+    "pay_frequency": "weekly" | "biweekly" | "semimonthly" | "monthly" | null — infer from pay period dates if not stated,
+    "pay_date": "YYYY-MM-DD or null — this check's pay date or period-end date",
+    "gross_this_period": number or null — gross earnings for THIS pay period,
+    "federal_wh_this_period": number or null — federal income tax withheld this period,
+    "state_wh_this_period": number or null — state income tax withheld this period,
+    "ytd_gross": number or null — year-to-date gross wages,
+    "ytd_federal_wh": number or null — YTD federal income tax withheld,
+    "ytd_state_wh": number or null — YTD state income tax withheld,
+    "ytd_pretax_retirement": number or null — YTD 401(k)/403(b)/pre-tax deferrals if shown
   } or null
 }
 
 Rules:
-- Populate ONLY the object matching doc_type; set the other to null.
+- Populate ONLY the object matching doc_type; set the others to null.
 - All dollar amounts are plain numbers (no $ or commas).
-- If a field is not present on the document, use 0 for W-2 withholding boxes and null for 1040 line items.
-- If the document is neither a W-2 nor a 1040, return { "doc_type": "unknown", "w2": null, "prior_return": null }.`;
+- For a paystub, prioritize the YEAR-TO-DATE (YTD) column values.
+- If a field is not present on the document, use 0 for W-2 withholding boxes and null for 1040 / paystub line items.
+- If the document is none of these, return { "doc_type": "unknown", "w2": null, "prior_return": null, "paystub": null }.`;
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
