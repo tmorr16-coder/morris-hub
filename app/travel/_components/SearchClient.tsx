@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { FlightOffer, HotelOffer } from "@/lib/amadeus";
+import type { FlightOffer, HotelOffer } from "@/lib/duffel";
 import { CABINS, type TravelPreferences, type LoyaltyProgram } from "../types";
 
 function money(n: number | null, ccy = "USD"): string {
@@ -40,7 +40,7 @@ export default function SearchClient({
   const [flights, setFlights] = useState<FlightOffer[] | null>(null);
 
   // Hotel form
-  const [cityCode, setCityCode] = useState("");
+  const [city, setCity] = useState("");
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [hotels, setHotels] = useState<HotelOffer[] | null>(null);
@@ -75,8 +75,8 @@ export default function SearchClient({
       const res = await fetch("/api/travel/hotels", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cityCode, checkIn, checkOut, adults, currency: prefs.currency,
-          ratings: prefs.hotel_min_rating ? [prefs.hotel_min_rating, 4, 5].filter((r, i, a) => r >= prefs.hotel_min_rating && a.indexOf(r) === i) : undefined,
+          query: city, checkIn, checkOut, adults, currency: prefs.currency,
+          ratings: prefs.hotel_min_rating ? [prefs.hotel_min_rating] : undefined,
           chains: preferredChains.length ? preferredChains : undefined,
         }),
       });
@@ -118,7 +118,7 @@ export default function SearchClient({
       {!connected && (
         <div className="ios-list" style={{ margin: "0 0 12px", padding: 14 }}>
           <div className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}>
-            Live results need Amadeus API keys. You can still set up preferences and loyalty programs — searches will return results once search is connected.
+            Live results need a Duffel access token. You can still set up preferences and loyalty programs — searches will return results once search is connected.
           </div>
         </div>
       )}
@@ -152,14 +152,14 @@ export default function SearchClient({
       {/* ── Hotel form ── */}
       {mode === "hotels" && (
         <div className="ios-list" style={{ margin: "0 0 12px", padding: 16 }}>
-          <Field label="City code"><Text value={cityCode} onChange={setCityCode} placeholder="NYC" upper /></Field>
+          <Field label="City"><Text value={city} onChange={setCity} placeholder="New York" /></Field>
           <Field label="Check-in"><Text value={checkIn} onChange={setCheckIn} placeholder="YYYY-MM-DD" type="date" /></Field>
           <Field label="Check-out"><Text value={checkOut} onChange={setCheckOut} placeholder="YYYY-MM-DD" type="date" /></Field>
           <Field label="Guests"><Num value={adults} onChange={setAdults} min={1} max={9} /></Field>
           {preferredChains.length > 0 && (
-            <div className="ios-caption" style={{ color: "var(--ios-label-3)", lineHeight: 1.4 }}>Filtering to preferred chains: {preferredChains.join(", ")} · min {prefs.hotel_min_rating}★</div>
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", lineHeight: 1.4 }}>Highlighting preferred chains: {preferredChains.join(", ")} · min {prefs.hotel_min_rating}★</div>
           )}
-          <button onClick={searchHotels} disabled={busy || !cityCode || !checkIn || !checkOut} style={primaryBtn(busy)}>
+          <button onClick={searchHotels} disabled={busy || !city || !checkIn || !checkOut} style={primaryBtn(busy)}>
             {busy ? "Searching…" : "Search hotels"}
           </button>
         </div>
@@ -206,8 +206,10 @@ export default function SearchClient({
           <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>{hotels.length} HOTEL{hotels.length === 1 ? "" : "S"}</div>
           {hotels.length === 0 && <Empty />}
           {hotels.map((h) => {
-            const preferred = h.chain && preferredChains.includes(h.chain.toUpperCase());
-            const loyaltyMatch = h.chain && hotelPrograms.some((p) => p.includes(h.chain!.toLowerCase()));
+            const hay = `${h.name} ${h.chain ?? ""}`.toUpperCase();
+            const preferred = preferredChains.some((c) => c && hay.includes(c));
+            const hayLower = hay.toLowerCase();
+            const loyaltyMatch = hotelPrograms.some((p) => p && hayLower.includes(p.split(" ")[0]));
             return (
               <div key={h.id} className="ios-list" style={{ margin: "0 0 8px", padding: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>

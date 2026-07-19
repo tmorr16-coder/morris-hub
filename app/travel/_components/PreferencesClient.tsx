@@ -39,8 +39,8 @@ export default function PreferencesClient({ initial }: { initial: TravelPreferen
 
       <div className="ios-group-header" style={{ padding: "12px 0 7px" }}>HOTELS</div>
       <div className="ios-list" style={{ margin: 0, padding: 16 }}>
-        <Field label="Preferred chains"><Inp value={p.preferred_hotel_chains.join(", ")} onChange={(v) => set("preferred_hotel_chains", splitCodes(v))} placeholder="MC, HH, IC" width={170} /></Field>
-        <div className="ios-caption" style={{ color: "var(--ios-label-3)", lineHeight: 1.4 }}>Amadeus 2-letter chain codes (Marriott MC, Hilton HH, IHG IC…).</div>
+        <Field label="Preferred chains"><Inp value={p.preferred_hotel_chains.join(", ")} onChange={(v) => set("preferred_hotel_chains", splitCodes(v))} placeholder="Marriott, Hilton, Hyatt" width={170} /></Field>
+        <div className="ios-caption" style={{ color: "var(--ios-label-3)", lineHeight: 1.4 }}>Brand names, comma-separated. Matching results get a “Preferred chain” flag.</div>
         <Field label="Minimum rating">
           <select value={p.hotel_min_rating} onChange={(e) => set("hotel_min_rating", parseInt(e.target.value))} style={sel(110)}>
             {[1, 2, 3, 4, 5].map((r) => <option key={r} value={r}>{"★".repeat(r)}</option>)}

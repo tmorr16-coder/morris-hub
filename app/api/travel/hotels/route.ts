@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { amadeusConfigured, searchHotels, type HotelSearchParams } from "@/lib/amadeus";
+import { duffelConfigured, searchHotels, type HotelSearchParams } from "@/lib/duffel";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -10,16 +10,16 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!amadeusConfigured()) {
+  if (!duffelConfigured()) {
     return NextResponse.json(
-      { error: "not_configured", message: "Hotel search isn't connected yet. Add Amadeus API keys to enable live results." },
+      { error: "not_configured", message: "Hotel search isn't connected yet. Add a Duffel access token to enable live results." },
       { status: 503 },
     );
   }
 
   let body: HotelSearchParams;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }); }
-  if (!body.cityCode || !body.checkIn || !body.checkOut) {
+  if (!body.query || !body.checkIn || !body.checkOut) {
     return NextResponse.json({ error: "Missing city, check-in, or check-out" }, { status: 400 });
   }
 
