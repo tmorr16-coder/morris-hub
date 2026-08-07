@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { getPreferences } from "@/lib/prefs";
+import { hasModuleAccess } from "@/lib/module-access";
 import { TabBar } from "@/components/ios";
 import PinGate from "./_components/PinGate";
 
@@ -12,18 +12,14 @@ export default async function FinanceLayout({ children }: { children: React.Reac
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [prefs, pinResult] = await Promise.all([
-    getPreferences(user.id),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (createServiceClient() as any)
-      .schema("hub")
-      .from("preferences")
-      .select("finance_pin")
-      .eq("user_id", user.id)
-      .maybeSingle(),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const service = createServiceClient() as any;
+  const [hasFinance, pinResult] = await Promise.all([
+    hasModuleAccess(user.id, "finance"),
+    service.schema("hub").from("preferences").select("finance_pin").eq("user_id", user.id).maybeSingle(),
   ]);
 
-  if (!prefs.app_access?.includes("finance")) redirect("/home");
+  if (!hasFinance) redirect("/home");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const financePin: string | null = (pinResult.data as any)?.finance_pin ?? null;

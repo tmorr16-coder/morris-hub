@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getPreferences } from "@/lib/prefs";
+import { hasModuleAccess } from "@/lib/module-access";
 import { TabBar } from "@/components/ios";
 
 export default async function InvestmentsLayout({ children }: { children: React.ReactNode }) {
@@ -8,8 +8,7 @@ export default async function InvestmentsLayout({ children }: { children: React.
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const prefs = await getPreferences(user.id);
-  if (!prefs.app_access?.includes("investments")) redirect("/home");
+  if (!(await hasModuleAccess(user.id, "investments"))) redirect("/home");
 
   return (
     <div data-ui="ios">
