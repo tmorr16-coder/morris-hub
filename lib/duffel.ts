@@ -234,3 +234,42 @@ export async function cheapestFlightPrice(p: FlightSearchParams): Promise<number
   if (!offers.length) return null;
   return Math.min(...offers.map((o) => o.price));
 }
+
+// ── Booking (Phase 2) — only reachable when a Duffel token is configured ──────
+
+export interface DuffelPassenger {
+  given_name: string;
+  family_name: string;
+  born_on: string;            // YYYY-MM-DD
+  gender: "m" | "f";
+  title?: "mr" | "ms" | "mrs" | "miss";
+  email: string;
+  phone_number: string;       // E.164
+  id?: string;                // passenger id from the offer request (intl)
+}
+
+/** Re-price/confirm an offer just before booking (prices can move / expire). */
+export async function confirmOffer(offerId: string): Promise<{ price: number; currency: string; expiresAt: string | null } | null> {
+  const data = await duffelGet(`/air/offers/${offerId}?return_available_services=false`);
+  const o = data.data;
+  if (!o) return null;
+  return { price: parseFloat(o.total_amount ?? "0"), currency: o.total_currency ?? "USD", expiresAt: o.expires_at ?? null };
+}
+
+/** Create an instant order. Payment is funded from the Duffel balance (the app
+ *  collects the customer's money via Stripe first, then books). */
+export async function createOrder(args: {
+  offerId: string; amount: string; currency: string; passengers: DuffelPassenger[];
+}): Promise<{ orderId: string; bookingReference: string | null }> {
+  const body = {
+    data: {
+      type: "instant",
+      selected_offers: [args.offerId],
+      passengers: args.passengers,
+      payments: [{ type: "balance", amount: args.amount, currency: args.currency }],
+    },
+  };
+  const data = await duffelPost("/air/orders", body);
+  const order = data.data;
+  return { orderId: order?.id, bookingReference: order?.booking_reference ?? null };
+}

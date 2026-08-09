@@ -56,6 +56,37 @@ export const LOYALTY_CATEGORIES = [
   { key: "credit_card", label: "Travel card" },
 ] as const;
 
+export interface Traveler {
+  id: string;
+  family_member_id: string | null;
+  is_self: boolean;
+  given_name: string | null;
+  family_name: string | null;
+  date_of_birth: string | null;
+  gender: string | null;
+  nationality: string | null;
+  passport_number: string | null;
+  passport_expiry: string | null;
+  passport_country: string | null;
+  known_traveler_number: string | null;
+  seat_pref: string | null;
+  meal_pref: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
+export const GENDERS = [
+  { key: "f", label: "Female" },
+  { key: "m", label: "Male" },
+  { key: "x", label: "Unspecified" },
+] as const;
+
+export const SEAT_PREFS = [
+  { key: "no_pref", label: "No preference" },
+  { key: "window", label: "Window" },
+  { key: "aisle", label: "Aisle" },
+] as const;
+
 export const CABINS = [
   { key: "ECONOMY", label: "Economy" },
   { key: "PREMIUM_ECONOMY", label: "Premium" },

@@ -57,6 +57,7 @@ export default async function TravelPage() {
       </div>
 
       <Group header="Plan">
+        <Cell lead={<IconBadge color="#3E6E8E"><Icons.PeopleIcon /></IconBadge>} title="Travelers" subtitle="Who you book for · from your family" href="/travel/travelers" />
         <Cell lead={<IconBadge color="#8E44AD"><Icons.SparkleIcon /></IconBadge>} title="Loyalty programs" subtitle={loyaltyCount ? `${loyaltyCount} saved` : "Add airlines, hotels, cards"} href="/travel/loyalty" />
         <Cell lead={<IconBadge color="#8E8E93"><Icons.GearIcon /></IconBadge>} title="Travel preferences" subtitle="Home airport · cabin · airlines · alerts" href="/travel/preferences" />
       </Group>
