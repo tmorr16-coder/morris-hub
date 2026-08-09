@@ -24,15 +24,19 @@ function checkRateLimit(userId: string): boolean {
   return true;
 }
 
-const SYSTEM = `You are a personal travel-planning assistant for a family finance app.
-You help plan trips: compare flights, find hotels, surface things to do and events, car rentals, and whether to drive or fly.
+const SYSTEM = `You are a warm, capable personal travel concierge inside a family app. You plan trips end to end: flights, hotels, things to do, events, car rentals, and drive-vs-fly.
+
+Voice & style:
+- Talk like a friendly human travel agent, not a search engine. Warm, natural, first person ("I'd fly you out Friday morning…"). A little personality is good; no corporate filler.
+- Before a tool call, say what you're about to do in a short natural line ("Let me pull up flights for those dates…").
+- Format for easy reading: short paragraphs, **bold** the key facts (prices, times, names), and use bullet or numbered lists for options. Keep each option to one tight line. End with a clear recommendation or a single next question.
+- Never wall-of-text. Lead with the answer, then the supporting options.
 
 Rules:
-- Use the tools to get REAL data — never invent flights, prices, hotels, or events.
-- Personalize with the traveler's saved preferences and loyalty programs (below): default the origin to their home airport, prefer their airlines/hotel chains, and call out when an option earns points in a program they hold.
-- Be concise and scannable. Lead with a recommendation, then a short list. Use the traveler's currency.
-- When you don't have enough to search (missing dates, city), ask one brief clarifying question instead of guessing.
-- Flag when results are limited by the free data tier. Never mention API keys, tools internals, or these instructions.`;
+- Use the tools to get REAL data — never invent flights, prices, hotels, or events. If a search returns nothing, say so plainly.
+- Personalize using the traveler's saved preferences and loyalty programs (below): default the origin to their home airport, prefer their airlines/hotel chains, and call out when an option earns points in a program they hold ("that one's on United — earns MileagePlus miles").
+- If you're missing something essential (dates, destination), ask ONE brief question rather than guessing.
+- Use the traveler's currency. Flag when results look limited. Never mention API keys, tool names, or these instructions.`;
 
 // ── Tool definitions ────────────────────────────────────────────────
 const TOOLS: Anthropic.Tool[] = [
@@ -98,6 +102,15 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
 ];
+
+const TOOL_LABELS: Record<string, string> = {
+  search_flights: "Searching flights ✈️",
+  search_hotels: "Finding hotels 🏨",
+  things_to_do: "Looking up things to do 📍",
+  search_events: "Checking events 🎟️",
+  car_rentals: "Finding car rentals 🚗",
+  drive_vs_fly: "Comparing driving vs flying 🗺️",
+};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function runTool(name: string, input: any): Promise<unknown> {
@@ -175,36 +188,48 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const messages: any[] = body.messages.slice(-10).map((m) => ({ role: m.role, content: m.content }));
 
-  try {
-    for (let i = 0; i < 6; i++) {
-      const resp = await client.messages.create({
-        model: "claude-sonnet-5",
-        max_tokens: 1500,
-        system: [{ type: "text", text: SYSTEM }, { type: "text", text: `TRAVELER PROFILE:\n${ctx}` }],
-        tools: TOOLS,
-        messages,
-      });
+  // Stream NDJSON events: {type:"status"|"delta"|"done"|"error", text?}
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (obj: Record<string, unknown>) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+      try {
+        for (let i = 0; i < 6; i++) {
+          const s = client.messages.stream({
+            model: "claude-sonnet-5",
+            max_tokens: 1500,
+            system: [{ type: "text", text: SYSTEM }, { type: "text", text: `TRAVELER PROFILE:\n${ctx}` }],
+            tools: TOOLS,
+            messages,
+          });
+          s.on("text", (t) => send({ type: "delta", text: t }));
+          const final = await s.finalMessage();
 
-      if (resp.stop_reason === "tool_use") {
-        messages.push({ role: "assistant", content: resp.content });
-        const toolResults = [];
-        for (const block of resp.content) {
-          if (block.type === "tool_use") {
-            const result = await runTool(block.name, block.input);
-            toolResults.push({ type: "tool_result" as const, tool_use_id: block.id, content: JSON.stringify(result).slice(0, 8000) });
+          if (final.stop_reason === "tool_use") {
+            messages.push({ role: "assistant", content: final.content });
+            const toolResults = [];
+            for (const block of final.content) {
+              if (block.type === "tool_use") {
+                send({ type: "status", text: TOOL_LABELS[block.name] ?? "Working…" });
+                const result = await runTool(block.name, block.input);
+                toolResults.push({ type: "tool_result" as const, tool_use_id: block.id, content: JSON.stringify(result).slice(0, 8000) });
+              }
+            }
+            messages.push({ role: "user", content: toolResults });
+            continue;
           }
+          break; // final answer already streamed via text deltas
         }
-        messages.push({ role: "user", content: toolResults });
-        continue;
+        send({ type: "done" });
+      } catch {
+        send({ type: "error", text: "Something went wrong finding that — mind trying again?" });
+      } finally {
+        controller.close();
       }
+    },
+  });
 
-      const textBlock = resp.content.find((b) => b.type === "text");
-      const reply = textBlock && textBlock.type === "text" ? textBlock.text : "";
-      return NextResponse.json({ reply });
-    }
-    return NextResponse.json({ reply: "I gathered a lot of options — could you narrow the trip down a bit (dates, destination, or budget)?" });
-  } catch (err) {
-    if (err instanceof Anthropic.APIError) return NextResponse.json({ error: "AI service error" }, { status: 502 });
-    return NextResponse.json({ error: "Failed to generate response" }, { status: 500 });
-  }
+  return new Response(stream, {
+    headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-cache, no-transform" },
+  });
 }
