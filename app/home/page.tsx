@@ -13,6 +13,7 @@ import { fetchWeather } from "@/lib/weather";
 import { getUserTimezone } from "@/lib/timezone";
 import HomeClient from "./HomeClient";
 import QuickActions from "./_components/QuickActions";
+import SetupChecklist, { type SetupItem } from "./_components/SetupChecklist";
 import TodayMarkets from "./_components/TodayMarkets";
 import TodayNews from "./_components/TodayNews";
 import MoneyGlanceValue from "./_components/MoneyGlanceValue";
@@ -594,9 +595,22 @@ export default async function HomePage() {
       : {}),
   };
 
+  // ── Activation checklist — surfaces setup steps until they're done ──────────
+  const profileDone = Boolean(user.user_metadata?.full_name || user.user_metadata?.name);
+  const locationDone = homePrefs?.latitude != null && homePrefs?.longitude != null;
+  const familyDone = circleMembers.length > 0;
+  const dataDone = iosUpcoming.length > 0 || netWorth != null || stepsToday > 0;
+  const setupItems: SetupItem[] = [
+    { key: "profile", label: "Complete your profile", href: "/settings", done: profileDone },
+    { key: "location", label: "Set your location & timezone", href: "/settings", done: locationDone },
+    { key: "family", label: "Invite your family", href: "/home/settings/family", done: familyDone },
+    { key: "data", label: "Add a task or connect an account", href: "/home/tasks", done: dataDone },
+  ];
+
   return (
     <HomeClient
       firstName={firstName}
+      setupChecklist={<SetupChecklist items={setupItems} />}
       dateLabel={todayDisplay}
       greeting={greeting}
       glance={iosGlance}

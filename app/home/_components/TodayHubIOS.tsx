@@ -47,6 +47,8 @@ export interface TodayHubProps {
   onEditItem?: (kind: ItemKind, actionId: string, patch: { title?: string; due?: string | null }) => void;
   /** Quick-actions row rendered under the glance grid. */
   quickActions?: React.ReactNode;
+  /** Setup/activation checklist, shown near the top until setup is complete. */
+  setupChecklist?: React.ReactNode;
   /** Streamed server sections (markets, news) rendered under Ask Morris. */
   slot?: React.ReactNode;
 }
@@ -87,7 +89,7 @@ export default function TodayHubIOS({
   firstName, dateLabel, greeting, glance, attention, timeline, priorities, family,
   onOpenMoney, onOpenAsk, onToggleTodo,
   onCompleteItem, onDeleteItem, onSnoozeItem, onEditItem,
-  quickActions, slot,
+  quickActions, setupChecklist, slot,
 }: TodayHubProps) {
   // Scope lives in the shared nav context so toggling here also updates the
   // footer's Family/Me tab (and vice-versa), and persists across screens.
@@ -118,6 +120,8 @@ export default function TodayHubIOS({
           options={[{ value: "family", label: "Family" }, { value: "personal", label: "Me" }]}
         />
       )}
+
+      {setupChecklist}
 
       {glanceKeys.length > 0 && (
         <GlanceGrid>
