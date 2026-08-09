@@ -35,6 +35,16 @@ export default async function TravelPage() {
       )}
 
       <div style={{ padding: "0 16px" }}>
+        <a href="/travel/plan" className="ios-list" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, margin: "0 0 12px", padding: 18, textDecoration: "none" }}>
+          <div>
+            <div className="ios-headline" style={{ color: "var(--ios-label)", fontSize: 19 }}>✨ Plan a trip with AI →</div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 3 }}>
+              Flights · hotels · things to do · events · drive-vs-fly, tuned to you
+            </div>
+          </div>
+          <IconBadge color="#8E44AD"><Icons.SparkleIcon /></IconBadge>
+        </a>
+
         <a href="/travel/search" className="ios-list" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, margin: "0 0 12px", padding: 18, textDecoration: "none" }}>
           <div>
             <div className="ios-headline" style={{ color: "var(--ios-label)", fontSize: 19 }}>Search flights &amp; hotels →</div>

@@ -138,3 +138,64 @@ export async function cheapestFlightPrice(p: FlightSearchParams): Promise<number
   if (!offers.length) return null;
   return Math.min(...offers.map((o) => o.price));
 }
+
+// ── Additional travel tools (used by the AI travel agent) ────────────
+
+export interface PlaceResult {
+  name: string;
+  rating: number | null;
+  reviews: number | null;
+  type: string | null;
+  address: string | null;
+  price: string | null;
+}
+
+/** Top attractions / things to do at a destination (SerpApi Google Maps). */
+export async function thingsToDo(city: string, maxResults = 12): Promise<PlaceResult[]> {
+  const data = await serpGet({ engine: "google_maps", type: "search", q: `top things to do in ${city}`, hl: "en" });
+  const rows: any[] = data.local_results ?? [];
+  return rows.slice(0, maxResults).map((r) => ({
+    name: r.title,
+    rating: r.rating ?? null,
+    reviews: r.reviews ?? null,
+    type: r.type ?? (Array.isArray(r.types) ? r.types[0] : null),
+    address: r.address ?? null,
+    price: r.price ?? null,
+  }));
+}
+
+/** Rental-car options / offices at a destination (SerpApi Google Maps). */
+export async function carRentals(city: string, maxResults = 10): Promise<PlaceResult[]> {
+  const data = await serpGet({ engine: "google_maps", type: "search", q: `car rental in ${city}`, hl: "en" });
+  const rows: any[] = data.local_results ?? [];
+  return rows.slice(0, maxResults).map((r) => ({
+    name: r.title,
+    rating: r.rating ?? null,
+    reviews: r.reviews ?? null,
+    type: r.type ?? "Car rental",
+    address: r.address ?? null,
+    price: r.price ?? null,
+  }));
+}
+
+export interface EventResult {
+  title: string;
+  date: string | null;
+  venue: string | null;
+  address: string | null;
+  link: string | null;
+}
+
+/** Events (concerts, sports, festivals) at a destination (SerpApi Google Events). */
+export async function searchEvents(city: string, when?: string, maxResults = 12): Promise<EventResult[]> {
+  const q = when ? `events in ${city} ${when}` : `events in ${city}`;
+  const data = await serpGet({ engine: "google_events", q, hl: "en" });
+  const rows: any[] = data.events_results ?? [];
+  return rows.slice(0, maxResults).map((e) => ({
+    title: e.title,
+    date: e.date?.when ?? e.date?.start_date ?? null,
+    venue: e.venue?.name ?? null,
+    address: Array.isArray(e.address) ? e.address.join(", ") : (e.address ?? null),
+    link: e.link ?? null,
+  }));
+}
