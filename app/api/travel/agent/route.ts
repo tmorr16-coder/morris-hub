@@ -5,6 +5,7 @@ import { searchFlights, searchHotels } from "@/lib/travel-search";
 import { thingsToDo, carRentals, searchEvents, serpapiConfigured } from "@/lib/serpapi-travel";
 import { computeDrive, gmapsConfigured } from "@/lib/gmaps";
 import { cheapestFlightPrice } from "@/lib/serpapi-travel";
+import { flightBookingLinks, hotelBookingLinks } from "@/lib/booking-links";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -36,6 +37,7 @@ Rules:
 - Use the tools to get REAL data — never invent flights, prices, hotels, or events. If a search returns nothing, say so plainly.
 - Personalize using the traveler's saved preferences and loyalty programs (below): default the origin to their home airport, prefer their airlines/hotel chains, and call out when an option earns points in a program they hold ("that one's on United — earns MileagePlus miles").
 - If you're missing something essential (dates, destination), ask ONE brief question rather than guessing.
+- Booking: when the traveler wants to book, call get_booking_links and present the returned links as tidy one-tap options (e.g. "**Book the flight:** [Google Flights](url) · [Kayak](url)"). Be upfront that checkout finishes securely on that provider's site — you hand them off, you don't take payment. Offer flight and hotel links as relevant.
 - Use the traveler's currency. Flag when results look limited. Never mention API keys, tool names, or these instructions.`;
 
 // ── Tool definitions ────────────────────────────────────────────────
@@ -101,6 +103,35 @@ const TOOLS: Anthropic.Tool[] = [
       required: ["origin_city", "destination_city", "origin_airport", "destination_airport", "depart_date"],
     },
   },
+  {
+    name: "get_booking_links",
+    description: "Get one-tap booking handoff links to complete a purchase on the provider's own site. Use when the traveler is ready to book a flight and/or hotel. Provide flight params, hotel params, or both.",
+    input_schema: {
+      type: "object",
+      properties: {
+        flight: {
+          type: "object",
+          properties: {
+            origin: { type: "string", description: "IATA code" },
+            destination: { type: "string", description: "IATA code" },
+            depart_date: { type: "string", description: "YYYY-MM-DD" },
+            return_date: { type: "string", description: "YYYY-MM-DD; omit for one-way" },
+          },
+          required: ["origin", "destination", "depart_date"],
+        },
+        hotel: {
+          type: "object",
+          properties: {
+            city: { type: "string" },
+            check_in: { type: "string", description: "YYYY-MM-DD" },
+            check_out: { type: "string", description: "YYYY-MM-DD" },
+            adults: { type: "number" },
+          },
+          required: ["city", "check_in", "check_out"],
+        },
+      },
+    },
+  },
 ];
 
 const TOOL_LABELS: Record<string, string> = {
@@ -110,6 +141,7 @@ const TOOL_LABELS: Record<string, string> = {
   search_events: "Checking events 🎟️",
   car_rentals: "Finding car rentals 🚗",
   drive_vs_fly: "Comparing driving vs flying 🗺️",
+  get_booking_links: "Getting booking options 🎫",
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -139,6 +171,22 @@ async function runTool(name: string, input: any): Promise<unknown> {
       case "car_rentals":
         if (!serpapiConfigured()) return { error: "not_configured" };
         return await carRentals(input.city);
+      case "get_booking_links": {
+        const out: Record<string, unknown> = {};
+        if (input.flight) {
+          out.flight = flightBookingLinks({
+            origin: input.flight.origin, destination: input.flight.destination,
+            departDate: input.flight.depart_date, returnDate: input.flight.return_date,
+          });
+        }
+        if (input.hotel) {
+          out.hotel = hotelBookingLinks({
+            city: input.hotel.city, checkIn: input.hotel.check_in,
+            checkOut: input.hotel.check_out, adults: input.hotel.adults,
+          });
+        }
+        return out;
+      }
       case "drive_vs_fly": {
         if (!gmapsConfigured()) return { error: "drive comparison unavailable — GOOGLE_MAPS_API_KEY not set" };
         const drive = await computeDrive(input.origin_city, input.destination_city);

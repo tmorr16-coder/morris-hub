@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { FlightOffer, HotelOffer } from "@/lib/travel-search";
+import { flightBookingLinks, hotelBookingLinks } from "@/lib/booking-links";
 import { CABINS, type TravelPreferences, type LoyaltyProgram } from "../types";
 
 function money(n: number | null, ccy = "USD"): string {
@@ -172,6 +173,10 @@ export default function SearchClient({
       {mode === "flights" && flights && (
         <>
           <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>{flights.length} FLIGHT{flights.length === 1 ? "" : "S"}</div>
+          {flights.length > 0 && (() => {
+            const bl = flightBookingLinks({ origin, destination, departDate, returnDate: returnDate || undefined });
+            return <BookRow label="Ready to book?" links={[["Google Flights", bl.google_flights], ["Kayak", bl.kayak]]} />;
+          })()}
           {flights.length === 0 && <Empty />}
           {flights.map((o) => {
             const preferred = o.carriers.some((c) => preferredAir.includes(c));
@@ -204,6 +209,10 @@ export default function SearchClient({
       {mode === "hotels" && hotels && (
         <>
           <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>{hotels.length} HOTEL{hotels.length === 1 ? "" : "S"}</div>
+          {hotels.length > 0 && (() => {
+            const bl = hotelBookingLinks({ city, checkIn, checkOut, adults });
+            return <BookRow label="Ready to book?" links={[["Booking.com", bl.booking_com], ["Kayak", bl.kayak], ["Google", bl.google_hotels]]} />;
+          })()}
           {hotels.length === 0 && <Empty />}
           {hotels.map((h) => {
             const hay = `${h.name} ${h.chain ?? ""}`.toUpperCase();
@@ -250,6 +259,21 @@ function SegList({ segs, label }: { segs: FlightOffer["outbound"]; label: string
           <div className="ios-caption" style={{ color: "var(--ios-label-3)" }}>{segs.length > 1 ? `${segs.length - 1} stop` : "non-stop"}</div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function BookRow({ label, links }: { label: string; links: [string, string][] }) {
+  return (
+    <div className="ios-list" style={{ margin: "0 0 8px", padding: "12px 16px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <span className="ios-footnote" style={{ color: "var(--ios-label-2)", fontWeight: 600 }}>🎫 {label}</span>
+      {links.map(([name, url]) => (
+        <a key={name} href={url} target="_blank" rel="noopener noreferrer"
+          style={{ padding: "6px 12px", borderRadius: 8, background: "var(--ios-tint)", color: "var(--ios-on-tint)", fontSize: 13, fontWeight: 600, textDecoration: "none" }}>
+          {name} →
+        </a>
+      ))}
+      <span className="ios-caption" style={{ color: "var(--ios-label-3)", width: "100%" }}>Opens the provider&apos;s secure checkout — you finish booking there.</span>
     </div>
   );
 }
