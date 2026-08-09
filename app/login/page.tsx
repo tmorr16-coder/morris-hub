@@ -131,15 +131,16 @@ export default function LoginPage() {
                 className="ios-btn ios-btn--full"
                 style={{
                   marginTop: 12, background: "var(--ios-fill)",
-                  color: "var(--ios-label-2)", fontSize: 15, fontWeight: 500,
+                  color: "var(--ios-label)", fontSize: 15, fontWeight: 600,
+                  border: "1px solid var(--ios-separator)",
                 }}
               >
-                🧪 Sign in with test account
+                Use walkthrough account
               </button>
             ) : (
               <form onSubmit={handleTestLogin} style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
                 <div className="ios-caption" style={{ fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--ios-label-3)", textAlign: "center" }}>
-                  Test account login
+                  Walkthrough account
                 </div>
                 <input
                   autoFocus

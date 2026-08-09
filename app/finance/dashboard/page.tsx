@@ -2,6 +2,7 @@ export const revalidate = 1800; // cache for 30 minutes
 
 import { createServiceClient } from "@/lib/supabase/server";
 import { requireFinanceAccess } from "@/lib/finance/access";
+import { getUserTimezone, formatTodayHeader, greetingForTz } from "@/lib/timezone";
 import type { SharedWithMe } from "./settings/share-actions";
 import { LargeTitle, Group, Cell, IconBadge, Sparkline, Icons } from "@/components/ios";
 import SyncNowButton from "./_components/SyncNowButton";
@@ -339,27 +340,10 @@ export default async function DashboardPage() {
     return latest;
   }, null);
 
-  // Pin to Indianapolis time. Vercel functions run in UTC by default,
-  // so we must compute the local hour explicitly via toLocaleString.
-  const userTz = "America/Indiana/Indianapolis";
-  const today = new Date();
-  const localHour = parseInt(
-    today.toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: userTz }),
-    10
-  );
-  const greeting = (() => {
-    if (localHour < 5) return "Good evening";
-    if (localHour < 12) return "Good morning";
-    if (localHour < 17) return "Good afternoon";
-    return "Good evening";
-  })();
-  const todayDisplay = today.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    timeZone: userTz,
-  });
+  // Use the user's saved timezone so the date agrees with every other module.
+  const userTz = getUserTimezone(user.user_metadata);
+  const greeting = greetingForTz(userTz);
+  const todayDisplay = formatTodayHeader(userTz);
   return (
     <div className="ios-scroll">
       <LargeTitle brand title="Money" subtitle={`${todayDisplay} · ${greeting}`} avatarInitial={(name || "T")[0]?.toUpperCase()} />

@@ -9,7 +9,7 @@ import { type CombinedWorkoutRow } from "./_components/ActivityHistoryCard";
 import { type TrendMetric, type TrendPoint } from "./_components/MetricTrendsCard";
 import Link from "next/link";
 import { LargeTitle, Group, Cell, IconBadge, Icons, RadialGauge, Sparkline } from "@/components/ios";
-import { getUserTimezone, startOfTodayInTz } from "@/lib/timezone";
+import { getUserTimezone, startOfTodayInTz, formatTodayHeader, greetingForTz } from "@/lib/timezone";
 
 // latest value + windowed delta for a trend metric
 function trendSummary(m: TrendMetric): { value: string; delta: string; color: string } | null {
@@ -51,17 +51,6 @@ function toMiles(value: number, unit: string): number {
   if (u === "mi" || u === "miles") return value;
   if (u === "km") return value / 1.60934;
   return value / 1609.344;
-}
-
-function formatDate(d: Date) {
-  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-}
-
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
 }
 
 function toLocalDate(d: Date): string {
@@ -384,12 +373,12 @@ export default async function DashboardPage() {
     },
   ];
 
-  const today = formatDate(new Date());
+  const today = formatTodayHeader(tz);
   const firstName = (userName ?? "").split(" ")[0];
 
   return (
     <div className="ios-scroll">
-      <LargeTitle brand title="Health" subtitle={`${today} · ${getGreeting()}${firstName ? `, ${firstName}` : ""}`} avatarInitial={(userName || "T")[0]?.toUpperCase()} />
+      <LargeTitle brand title="Health" subtitle={`${today} · ${greetingForTz(tz)}${firstName ? `, ${firstName}` : ""}`} avatarInitial={(userName || "T")[0]?.toUpperCase()} />
 
       {/* Scores hero — radial gauges. Hidden entirely when no real scores exist;
           any individual missing score renders an empty gauge, never a fake value. */}

@@ -22,6 +22,21 @@ export function getUserTimezone(userMetadata: any): string {
   return typeof tz === "string" && tz.length > 0 ? tz : DEFAULT_TIMEZONE;
 }
 
+/** The current date formatted for a dashboard header, in the user's timezone.
+ *  e.g. "Saturday, August 9". Single source so every module agrees. */
+export function formatTodayHeader(tz: string, now: Date = new Date()): string {
+  return now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: tz });
+}
+
+/** Time-of-day greeting computed in the user's timezone. */
+export function greetingForTz(tz: string, now: Date = new Date()): string {
+  const hourStr = now.toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: tz });
+  const hour = parseInt(hourStr, 10) % 24;
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 /**
  * The UTC instant corresponding to 00:00 local time *today* in `tz`.
  * Filtering `timestamp >= startOfTodayInTz(tz)` yields exactly today's rows in

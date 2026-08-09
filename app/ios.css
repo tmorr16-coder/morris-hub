@@ -22,8 +22,8 @@
 
   /* ── Content ──────────────────────────────────────────────────────────── */
   --ios-label:         #1C1C1E;                 /* label */
-  --ios-label-2:       rgba(60,60,67,0.60);     /* secondaryLabel */
-  --ios-label-3:       rgba(60,60,67,0.30);     /* tertiaryLabel */
+  --ios-label-2:       rgba(60,60,67,0.72);     /* secondaryLabel — darkened for mobile legibility */
+  --ios-label-3:       rgba(60,60,67,0.44);     /* tertiaryLabel — darkened for mobile legibility */
   --ios-separator:     rgba(60,60,67,0.18);     /* opaqueSeparator (hairline) */
 
   /* ── Tint + semantic ──────────────────────────────────────────────────── */
@@ -73,8 +73,8 @@
     --ios-fill:         rgba(120,120,128,0.24);
     --ios-fill-2:       rgba(120,120,128,0.16);
     --ios-label:        #FFFFFF;
-    --ios-label-2:      rgba(235,235,245,0.60);
-    --ios-label-3:      rgba(235,235,245,0.30);
+    --ios-label-2:      rgba(235,235,245,0.72);
+    --ios-label-3:      rgba(235,235,245,0.44);
     --ios-separator:    rgba(84,84,88,0.55);
     --ios-tint:         #5E9BD6;
     --ios-tint-press:   #7BAFE0;
@@ -93,8 +93,8 @@
   --ios-fill:         rgba(120,120,128,0.24);
   --ios-fill-2:       rgba(120,120,128,0.16);
   --ios-label:        #FFFFFF;
-  --ios-label-2:      rgba(235,235,245,0.60);
-  --ios-label-3:      rgba(235,235,245,0.30);
+  --ios-label-2:      rgba(235,235,245,0.72);
+  --ios-label-3:      rgba(235,235,245,0.44);
   --ios-separator:    rgba(84,84,88,0.55);
   --ios-tint:         #5E9BD6;
   --ios-tint-press:   #7BAFE0;
@@ -191,8 +191,8 @@
 /* ══ Grouped inset list ══════════════════════════════════════════════════════ */
 .ios-group        { margin: 22px 0 0; }
 .ios-group-header {
-  font-size: 13px; font-weight: 400; line-height: 18px;
-  color: var(--ios-label-2); text-transform: uppercase; letter-spacing: 0.02em;
+  font-size: 13px; font-weight: 600; line-height: 18px;
+  color: var(--ios-label-2); text-transform: uppercase; letter-spacing: 0.03em;
   padding: 0 var(--ios-gutter) 7px;
 }
 .ios-group-footer { color: var(--ios-label-2); padding: 7px var(--ios-gutter) 0; }

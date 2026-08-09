@@ -160,6 +160,9 @@ export default function HubChat({ firstName }: { firstName: string }) {
           </svg>
         </button>
       </form>
+      <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, textAlign: "center", lineHeight: 1.4 }}>
+        Not saved · answers from your tasks, weather &amp; watchlist
+      </div>
     </div>
   );
 }

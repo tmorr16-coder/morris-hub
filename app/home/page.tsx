@@ -572,7 +572,7 @@ export default async function HomePage() {
       weatherGlance = {
         value: temp != null ? `${Math.round(temp)}°` : "—",
         sub: [cond, today ? `H ${today.temperature}°` : null].filter(Boolean).join(" · "),
-        href: "/news",
+        href: "/home/weather",
       };
     }
   }
