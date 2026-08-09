@@ -194,11 +194,11 @@ function AddMealSheet({
         {/* Details */}
         <div className="ios-list" style={{ margin: 0 }}>
           <div className="ios-cell">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name — e.g. Chicken + rice bowl" style={cellInput} />
+            <input aria-label="Meal name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name — e.g. Chicken + rice bowl" style={cellInput} />
           </div>
           <div className="ios-cell">
             <span className="ios-cell-body"><span className="ios-cell-title" style={{ fontSize: 15, color: "var(--ios-label-2)" }}>Calories</span></span>
-            <input value={calories} onChange={(e) => setCalories(e.target.value)} type="number" min="0" inputMode="numeric" placeholder="—" style={{ ...cellInput, width: 90, textAlign: "right" }} />
+            <input aria-label="Calories" value={calories} onChange={(e) => setCalories(e.target.value)} type="number" min="0" inputMode="numeric" placeholder="—" style={{ ...cellInput, width: 90, textAlign: "right" }} />
           </div>
           <div className="ios-cell">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, width: "100%" }}>
@@ -209,13 +209,13 @@ function AddMealSheet({
               ].map(({ label, val, set, color }) => (
                 <div key={label}>
                   <div className="ios-caption" style={{ color, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
-                  <input value={val} onChange={(e) => set(e.target.value)} type="number" min="0" step="0.1" placeholder="—" inputMode="decimal" style={{ ...cellInput, textAlign: "center", background: "var(--ios-fill)", borderRadius: 8, padding: "8px 4px" }} />
+                  <input aria-label={`${label} (grams)`} value={val} onChange={(e) => set(e.target.value)} type="number" min="0" step="0.1" placeholder="—" inputMode="decimal" style={{ ...cellInput, textAlign: "center", background: "var(--ios-fill)", borderRadius: 8, padding: "8px 4px" }} />
                 </div>
               ))}
             </div>
           </div>
           <div className="ios-cell">
-            <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes — portion size, restaurant… (optional)" style={cellInput} />
+            <input aria-label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes — portion size, restaurant… (optional)" style={cellInput} />
           </div>
         </div>
 

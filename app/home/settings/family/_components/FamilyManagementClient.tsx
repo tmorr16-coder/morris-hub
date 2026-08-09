@@ -453,6 +453,7 @@ export default function FamilyManagementClient({
             <div>
               <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-ink-3)", display: "block", marginBottom: 5, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>Birth year</label>
               <input
+                aria-label="Birth year"
                 type="number"
                 value={managedBirthYear}
                 onChange={(e) => setManagedBirthYear(e.target.value)}
@@ -504,6 +505,7 @@ export default function FamilyManagementClient({
             <div>
               <label style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-ink-3)", display: "block", marginBottom: 5, fontFamily: "var(--font-geist, system-ui), sans-serif" }}>Birth year (optional)</label>
               <input
+                aria-label="Birth year (optional)"
                 type="number"
                 value={inviteBirthYear}
                 onChange={(e) => setInviteBirthYear(e.target.value)}
