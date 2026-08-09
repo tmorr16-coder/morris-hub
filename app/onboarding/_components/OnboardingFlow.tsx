@@ -72,7 +72,7 @@ const PERSONA_ICON: Record<Persona, Glyph> = {
 
 const MODULES: { key: ModuleKey; label: string; dot: string; icon: string; description: string }[] = [
   { key: "health",          label: "Health",          dot: "#34C759", icon: "♡", description: "Body composition, workouts, GLP-1 tracking, Oura & Withings sync" },
-  { key: "finance",         label: "Finance",         dot: "#C58B4F", icon: "$", description: "Family accounts, net worth, bank-connected via SimpleFIN, family sharing" },
+  { key: "finance",         label: "Finance",         dot: "#C58B4F", icon: "$", description: "Accounts, net worth, bank-connected via SimpleFIN — private by default, share individual accounts only if you choose" },
   { key: "investments",     label: "Investments",     dot: "#FF9F0A", icon: "↗", description: "Stock research, AI deep analysis, live charts, paper trading" },
   { key: "career",          label: "Career",          dot: "#356FB0", icon: "◈", description: "AI advisor, goal tracking, learning log, relationship mapping" },
   { key: "student-success", label: "Courses",         dot: "#6B5B95", icon: "✦", description: "College course tracking, assignments, and grades — lives on your Me dashboard" },

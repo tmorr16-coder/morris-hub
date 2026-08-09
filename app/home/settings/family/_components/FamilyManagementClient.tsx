@@ -175,7 +175,7 @@ export default function FamilyManagementClient({
   }
 
   async function promoteToAdult(memberUserId: string) {
-    if (!confirm("Give this person full adult privacy? Their access resets to everything, and parent visibility into their school data ends.")) return;
+    if (!confirm("Promote to adult? They'll be able to open every module, and parent visibility into their school data ends.")) return;
     setPromoting(memberUserId);
     const res = await fetch(`/api/family/members/${memberUserId}/promote-adult`, { method: "PATCH" });
     setPromoting(null);
@@ -373,14 +373,14 @@ export default function FamilyManagementClient({
                       padding: "10px 16px", background: "rgba(184,138,46,0.08)", border: "1px solid var(--color-amber)", borderRadius: 10,
                     }}>
                       <span style={{ fontSize: 12, color: "var(--color-ink-2)", fontFamily: "var(--font-geist, system-ui), sans-serif" }}>
-                        {name} turned {memberAge} — consider switching to adult privacy.
+                        {name} turned {memberAge} — consider promoting to adult access.
                       </span>
                       <button
                         onClick={() => promoteToAdult(m.member_user_id as string)}
                         disabled={promoting === m.member_user_id}
                         style={{ fontSize: 11, fontWeight: 600, padding: "5px 12px", borderRadius: 7, border: "none", background: "var(--color-amber)", color: "#fff", cursor: "pointer", flexShrink: 0 }}
                       >
-                        {promoting === m.member_user_id ? "…" : "Give adult privacy"}
+                        {promoting === m.member_user_id ? "…" : "Promote to adult"}
                       </button>
                     </div>
                   )}
@@ -498,7 +498,7 @@ export default function FamilyManagementClient({
               style={{ margin: 0 }}
             />
             <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>
-              {inviteRole === "adult" ? "Full access to all modules." : "Limited access — you manage what they see."}
+              {inviteRole === "adult" ? "Can open every module. Their own data stays private to them." : "Can open the modules you choose."}
             </div>
           </div>
           {inviteRole === "child" && (
@@ -559,6 +559,9 @@ export default function FamilyManagementClient({
       {/* ── Section 4: Permission preview ── */}
       <section style={{ background: "var(--ios-fill-2)", borderRadius: "var(--ios-radius-card)", padding: "18px 20px" }}>
         <SH>Role permissions</SH>
+        <p className="ios-footnote" style={{ color: "var(--ios-label-3)", marginTop: 0, marginBottom: 12, lineHeight: 1.5 }}>
+          Roles control which modules a person can <strong>open</strong> — not what they can see of your data.
+        </p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           {(["adult", "child"] as const).map((role) => (
             <div key={role}>
@@ -566,7 +569,7 @@ export default function FamilyManagementClient({
                 {role === "adult"
                   ? <Icons.PersonIcon style={{ width: 16, height: 16, color: "var(--ios-tint)" }} />
                   : <Icons.PeopleIcon style={{ width: 16, height: 16, color: "var(--ios-tint)" }} />}
-                {role === "adult" ? "Adult" : "Child"} — {role === "adult" ? "Full access" : "Limited access"}
+                {role === "adult" ? "Adult" : "Child"} — {role === "adult" ? "Opens all modules" : "Opens selected modules"}
               </div>
               <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 }}>
                 {ROLE_ACCESS[role].map((module) => (
@@ -580,7 +583,7 @@ export default function FamilyManagementClient({
           ))}
         </div>
         <p className="ios-footnote" style={{ color: "var(--ios-label-3)", marginTop: 12, marginBottom: 0, lineHeight: 1.5 }}>
-          Each person controls their own data. Joining a circle enables shared family features but does not automatically expose private data. Finance, career, and investment information is always private.
+          Opening a module never exposes your data. <strong>Money and Investments are private by default</strong> — your accounts stay yours unless you explicitly share a specific one. Career, Health, and Journal have no sharing at all.
         </p>
       </section>
     </div>

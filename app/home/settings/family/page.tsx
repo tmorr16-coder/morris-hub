@@ -88,7 +88,7 @@ export default async function FamilySettingsPage() {
   return (
     <div data-ui="ios">
       <div className="ios-scroll">
-        <LargeTitle title="Family circle" subtitle="Invite members, assign roles, and control shared access" />
+        <LargeTitle title="Family circle" subtitle="Invite members, set roles & module access, choose what to share" />
 
         <div style={{ padding: "8px 16px 0" }}>
           <FamilyManagementClient
