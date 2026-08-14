@@ -41,9 +41,11 @@
   --ios-bar-border:    rgba(60,60,67,0.16);
 
   /* ── Geometry ─────────────────────────────────────────────────────────── */
-  --ios-radius-card:   10px;
-  --ios-radius-sheet:  12px;
-  --ios-radius-tile:   16px;
+  --ios-radius-card:   14px;
+  --ios-radius-sheet:  18px;
+  --ios-radius-tile:   18px;
+  /* Crisp-modern elevation — subtle depth on white cards (invisible on dark). */
+  --ios-shadow-card:   0 1px 2px rgba(16,24,40,0.05), 0 1px 3px rgba(16,24,40,0.04);
   --ios-gutter:        16px;      /* standard leading inset */
   --ios-hair:          0.5px;
 
@@ -125,11 +127,11 @@
 }
 
 /* ══ Type scale (Apple HIG) ══════════════════════════════════════════════════ */
-.ios-large-title { font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: 0.011em; }
-.ios-title-1     { font-size: 28px; line-height: 34px; font-weight: 700; }
-.ios-title-2     { font-size: 22px; line-height: 28px; font-weight: 700; }
-.ios-title-3     { font-size: 20px; line-height: 25px; font-weight: 600; }
-.ios-headline    { font-size: 17px; line-height: 22px; font-weight: 600; }
+.ios-large-title { font-size: 34px; line-height: 40px; font-weight: 700; letter-spacing: -0.024em; }
+.ios-title-1     { font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: -0.021em; }
+.ios-title-2     { font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -0.017em; }
+.ios-title-3     { font-size: 20px; line-height: 25px; font-weight: 600; letter-spacing: -0.014em; }
+.ios-headline    { font-size: 17px; line-height: 22px; font-weight: 600; letter-spacing: -0.011em; }
 .ios-body        { font-size: 17px; line-height: 22px; font-weight: 400; }
 .ios-callout     { font-size: 16px; line-height: 21px; font-weight: 400; }
 .ios-subhead     { font-size: 15px; line-height: 20px; font-weight: 400; }
@@ -201,6 +203,7 @@
   border-radius: var(--ios-radius-card);
   margin: 0 var(--ios-gutter);
   overflow: hidden;
+  box-shadow: var(--ios-shadow-card);
 }
 /* Hairline separators between cells, inset from the leading content edge */
 .ios-cell + .ios-cell { box-shadow: inset 0 var(--ios-hair) 0 0 var(--ios-separator); }
@@ -215,6 +218,7 @@
   min-height: 44px; padding: 11px var(--ios-gutter);
   color: var(--ios-label); text-align: left; width: 100%;
 }
+.ios-cell { transition: background 0.12s ease; }
 button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed); }
 .ios-cell-lead  { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
 .ios-cell-body  { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
