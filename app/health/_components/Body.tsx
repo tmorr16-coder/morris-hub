@@ -176,6 +176,18 @@ const HIT_ZONES: Record<'front' | 'back', HitZone[]> = {
 const ptsToPath = (pts: string): string =>
   'M ' + pts.split(' ').map((p) => p.replace(',', ' ')).join(' L ') + ' Z';
 
+// Accessible name for a hit-zone. Paired muscles (left+right halves share the
+// same group) are disambiguated by side so screen readers don't announce two
+// identical "Shoulders" buttons. Body coordinates are centered on x=500.
+function zoneAriaLabel(z: HitZone, all: HitZone[]): string {
+  const base = MUSCLE_LABELS[z.g];
+  if (all.filter((x) => x.g === z.g).length < 2) return base;
+  const xs = z.pts.split(' ').map((p) => Number(p.split(',')[0]));
+  const cx = xs.reduce((a, b) => a + b, 0) / xs.length;
+  const side = cx < 490 ? 'left' : cx > 510 ? 'right' : null;
+  return side ? `${base} (${side})` : base;
+}
+
 export const MUSCLE_LABELS: Record<MuscleGroup, string> = {
   chest: 'Chest', back: 'Lower back', lats: 'Lats', shoulders: 'Shoulders',
   biceps: 'Biceps', triceps: 'Triceps', forearms: 'Forearms',
@@ -290,7 +302,7 @@ export function Body({
             }
             style={{ cursor: onMuscleClick ? 'pointer' : 'default' }}
             role={onMuscleClick ? 'button' : undefined}
-            aria-label={onMuscleClick ? MUSCLE_LABELS[z.g] : undefined}
+            aria-label={onMuscleClick ? zoneAriaLabel(z, zones) : undefined}
           />
         ))}
       </g>

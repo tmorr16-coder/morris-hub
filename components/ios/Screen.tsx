@@ -27,7 +27,7 @@ export function NavBar({ back, title, trailing }: { back: { label: string; onBac
 export function IOSScreen({ children, theme }: { children: ReactNode; theme?: "light" | "dark" }) {
   return (
     <div data-ui="ios" data-theme={theme}>
-      <div className="ios-scroll">{children}</div>
+      <main className="ios-scroll">{children}</main>
     </div>
   );
 }
