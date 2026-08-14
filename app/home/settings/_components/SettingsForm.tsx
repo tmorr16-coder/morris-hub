@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Chip } from "@/components/ios";
 import { savePreferences, lookupZip } from "../../actions";
@@ -260,11 +260,66 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
     });
   }
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [query, setQuery] = useState("");
+  const [visibleIds, setVisibleIds] = useState<Set<string> | null>(null);
+  const SECTIONS: { id: string; label: string }[] = [
+    { id: "set-app-access", label: "Modules" },
+    { id: "set-reminder-categories", label: "Reminders" },
+    { id: "set-location", label: "Location" },
+    { id: "set-stocks", label: "Stocks" },
+    { id: "set-read-aloud-voice", label: "Voice" },
+    { id: "set-local-news-cities", label: "Local news" },
+    { id: "set-sports-teams", label: "Sports" },
+    { id: "set-investment-categories", label: "Investments" },
+    { id: "news-subscriptions", label: "News feeds" },
+    { id: "set-news-topics", label: "News topics" },
+  ];
+  function applyFilter(q: string) {
+    setQuery(q);
+    const ql = q.trim().toLowerCase();
+    const root = containerRef.current;
+    if (!root) return;
+    if (!ql) {
+      root.querySelectorAll<HTMLElement>("[data-search]").forEach((el) => { el.style.display = ""; });
+      setVisibleIds(null);
+      return;
+    }
+    const vis = new Set<string>();
+    root.querySelectorAll<HTMLElement>("[data-search]").forEach((el) => {
+      const match = (el.getAttribute("data-search") || "").includes(ql);
+      el.style.display = match ? "" : "none";
+      if (match && el.id) vis.add(el.id);
+    });
+    setVisibleIds(vis);
+  }
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+    <div ref={containerRef} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+
+      {/* Search + jump-to-section index — filters the long settings list */}
+      <div style={{ position: "sticky", top: 0, zIndex: 5, background: "var(--ios-bg)", paddingBottom: 8 }}>
+        <input
+          aria-label="Search settings"
+          value={query}
+          onChange={(e) => applyFilter(e.target.value)}
+          placeholder="Search settings…"
+          style={{ width: "100%", background: "var(--ios-fill)", border: "none", borderRadius: 10, padding: "10px 14px", fontSize: 15, color: "var(--ios-label)" }}
+        />
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingTop: 10, scrollbarWidth: "none" }}>
+          {SECTIONS.filter((s) => !visibleIds || visibleIds.has(s.id)).map((s) => (
+            <button key={s.id} type="button"
+              onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              className="ios-caption"
+              style={{ flex: "0 0 auto", padding: "6px 12px", borderRadius: 999, border: "1px solid var(--ios-separator)", background: "transparent", color: "var(--ios-tint)", fontWeight: 600, cursor: "pointer" }}>
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Module access */}
-      <section style={card}>
+      <section style={card} id="set-app-access" data-search="app access modules health finance investments career bible news">
         <SectionHeader title="App access" subtitle="Which modules you can access" />
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {AVAILABLE_MODULES.map((module) => {
@@ -339,7 +394,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
       )}
 
       {/* Reminder categories */}
-      <section style={card}>
+      <section style={card} id="set-reminder-categories" data-search="reminder categories tasks">
         <SectionHeader title="Reminder categories" subtitle="Categories that appear in the reminder add form" />
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
           {reminderCats.map((c) => (
@@ -382,7 +437,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
       </section>
 
       {/* Location */}
-      <section style={card}>
+      <section style={card} id="set-location" data-search="location weather city zip timezone">
         <SectionHeader title="Location" subtitle="Used for the Weather widget" />
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 12 }}>
           <div style={{ flex: 1 }}>
@@ -404,7 +459,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
       </section>
 
       {/* Stocks */}
-      <section style={card}>
+      <section style={card} id="set-stocks" data-search="stocks tickers watchlist markets">
         <SectionHeader title="Stocks" subtitle="Comma-separated tickers to track" />
         <Label>Tickers</Label>
         <input type="text" value={tickersInput} onChange={(e) => setTickersInput(e.target.value)} placeholder="GOOGL, AMZN, NVDA, MSFT" style={input} />
@@ -428,7 +483,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
       </section>
 
       {/* Read-aloud / TTS */}
-      <section style={card}>
+      <section style={card} id="set-read-aloud-voice" data-search="read aloud voice tts text to speech bible speed">
         <SectionHeader title="Read-aloud voice" subtitle="Used for Bible reading and any platform text-to-speech" />
         <Label>Voice name</Label>
         <TtsVoicePicker value={ttsVoice} onChange={setTtsVoice} />
@@ -446,7 +501,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
       </section>
 
       {/* Cities for local news */}
-      <section style={card}>
+      <section style={card} id="set-local-news-cities" data-search="local news cities">
         <SectionHeader title="Local news cities" subtitle="Cities to fetch local news from" />
         <Label>Cities</Label>
         <input type="text" value={citiesInput} onChange={(e) => setCitiesInput(e.target.value)} placeholder="Indianapolis, IN, Tallahassee, FL" style={input} />
@@ -456,7 +511,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
       </section>
 
       {/* Sports teams */}
-      <section style={card}>
+      <section style={card} id="set-sports-teams" data-search="sports teams scores">
         <SectionHeader title="Sports teams" subtitle="Search and add teams to track scores" />
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {Object.entries(AVAILABLE_SPORTS_TEAMS).map(([league, teams]) => (
@@ -596,7 +651,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
       </section>
 
       {/* Investment categories */}
-      <section style={card}>
+      <section style={card} id="set-investment-categories" data-search="investment categories">
         <SectionHeader title="Investment categories" subtitle="Which investment categories to explore" />
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {Object.entries(CATEGORY_LABELS).map(([cat, label]) => {
@@ -620,7 +675,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
       </section>
 
       {/* News Subscriptions */}
-      <section id="news-subscriptions" style={card}>
+      <section id="news-subscriptions" style={card} data-search="news subscriptions rss feeds publications">
         <SectionHeader title="News subscriptions" subtitle="Publications shown in the My Subscriptions widget. Toggle to enable/disable, or add any RSS feed." />
 
         {/* Built-in + user sources */}
@@ -777,7 +832,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
       </section>
 
       {/* News topics */}
-      <section style={card}>
+      <section style={card} id="set-news-topics" data-search="news topics feed">
         <SectionHeader title="News topics" subtitle="What Morris searches when refreshing the news feed" />
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {AVAILABLE_TOPICS.map((t) => {
