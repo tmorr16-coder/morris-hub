@@ -96,6 +96,12 @@ export default function TodayHubIOS({
   const { personal, mode, setMode } = useNavMode();
   const glanceKeys = GLANCE_ORDER.filter((k) => glance[k]);
 
+  // "Next up" — surface the single most immediate item (top attention item, else
+  // the next scheduled plan row) as a prominent card, and drop it from the list
+  // below so it isn't shown twice.
+  const nextUp = attention[0] ?? null;
+  const attentionRest = nextUp ? attention.slice(1) : attention;
+
   // Which item's action sheet is open (null = closed).
   const [sheet, setSheet] = useState<SheetTarget | null>(null);
 
@@ -145,15 +151,40 @@ export default function TodayHubIOS({
         </GlanceGrid>
       )}
 
+      {nextUp && (() => {
+        const c = cat(nextUp.category);
+        const act = nextUp.actionId && isActionable(nextUp.kind);
+        const open = act
+          ? () => setSheet({ kind: nextUp.kind, actionId: nextUp.actionId, title: nextUp.title, href: nextUp.href })
+          : undefined;
+        const inner = (
+          <>
+            <div className="ios-caption" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Next up</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <IconBadge color={c.color}>{c.icon}</IconBadge>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="ios-headline" style={{ color: "var(--ios-label)" }}>{nextUp.title}</div>
+                <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 1 }}><SeverityBadge level={nextUp.severity} /> · {nextUp.context}</div>
+              </div>
+              <span className="ios-chevron" aria-hidden><Icons.ChevronRight /></span>
+            </div>
+          </>
+        );
+        const style: React.CSSProperties = { display: "block", width: "100%", textAlign: "left", background: "var(--ios-cell)", borderRadius: "var(--ios-radius-card)", padding: 16, margin: "4px 16px 0", border: "none", cursor: "pointer" };
+        return act
+          ? <button onClick={open} style={style}>{inner}</button>
+          : <a href={nextUp.href} style={{ ...style, textDecoration: "none" }}>{inner}</a>;
+      })()}
+
       {quickActions}
 
       <AskMorrisPill onClick={onOpenAsk} />
 
       {slot}
 
-      {attention.length > 0 && (
+      {attentionRest.length > 0 && (
         <Group header="Needs attention" id="needs-attention">
-          {attention.map((a) => {
+          {attentionRest.map((a) => {
             const c = cat(a.category);
             const act = a.actionId && isActionable(a.kind);
             return (
