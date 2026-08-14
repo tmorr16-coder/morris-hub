@@ -376,9 +376,31 @@ export default async function DashboardPage() {
   const today = formatTodayHeader(tz);
   const firstName = (userName ?? "").split(" ")[0];
 
+  // Empty-state handling: when no device is feeding data, lead with one
+  // onboarding card instead of rows of "—" / "No data yet".
+  const hasDeviceData = steps != null || activeEnergyCal != null || distanceMiles != null || heartRateBpm != null;
+  const trendsWithData = trendMetrics.filter((m) => trendSummary(m) != null);
+
   return (
     <div className="ios-scroll">
       <LargeTitle brand title="Health" subtitle={`${today} · ${greetingForTz(tz)}${firstName ? `, ${firstName}` : ""}`} avatarInitial={(userName || "T")[0]?.toUpperCase()} />
+
+      {/* No device connected → one onboarding card instead of empty metric rows. */}
+      {!hasDeviceData && (
+        <div className="ios-list" style={{ margin: "8px 16px 0", padding: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+            <IconBadge color="var(--ios-green)"><Icons.HeartIcon /></IconBadge>
+            <div className="ios-headline">Connect your health data</div>
+          </div>
+          <div className="ios-subhead" style={{ color: "var(--ios-label-2)", lineHeight: 1.5, marginBottom: 12 }}>
+            Link Apple Health, Oura, or Withings to see your steps, activity, heart rate, sleep and trends here — or log a meal to get started.
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <a href="/health/settings/integrations" style={{ padding: "10px 16px", borderRadius: 10, background: "var(--ios-tint)", color: "var(--ios-on-tint)", fontWeight: 600, fontSize: 15, textDecoration: "none" }}>Connect a device →</a>
+            <a href="/health/nutrition" style={{ padding: "10px 16px", borderRadius: 10, background: "var(--ios-fill)", color: "var(--ios-tint)", fontWeight: 600, fontSize: 15, textDecoration: "none" }}>Log a meal</a>
+          </div>
+        </div>
+      )}
 
       {/* Scores hero — radial gauges. Hidden entirely when no real scores exist;
           any individual missing score renders an empty gauge, never a fake value. */}
@@ -397,21 +419,26 @@ export default async function DashboardPage() {
       )}
 
       <Group header="Today">
-        <Cell chevron={false} lead={<IconBadge color="var(--ios-green)"><Icons.HeartIcon /></IconBadge>} title="Steps" subtitle={stepsDay && stepsDay.day !== todayKey ? `as of ${dayLabel(stepsDay.day)}` : undefined} trailing={<span className="ios-num">{steps != null ? steps.toLocaleString() : "—"}</span>} />
-        <Cell
-          chevron={false}
-          lead={<IconBadge color="#FA114F"><Icons.DumbbellIcon /></IconBadge>}
-          title="Move"
-          subtitle={activeEnergyCal != null ? `${Math.round((activeEnergyCal / moveGoal) * 100)}% of ${moveGoal.toLocaleString()} cal goal${energyDay && energyDay.day !== todayKey ? ` · as of ${dayLabel(energyDay.day)}` : ""}` : `Goal ${moveGoal.toLocaleString()} cal`}
-          trailing={<span className="ios-num" style={{ color: activeEnergyCal != null && activeEnergyCal >= moveGoal ? "var(--ios-green)" : undefined }}>{activeEnergyCal != null ? `${activeEnergyCal.toLocaleString()} cal` : "—"}</span>}
-        />
-        <Cell chevron={false} lead={<IconBadge color="var(--ios-tint)"><Icons.TrendUpIcon /></IconBadge>} title="Distance" subtitle={distanceDay && distanceDay.day !== todayKey ? `as of ${dayLabel(distanceDay.day)}` : undefined} trailing={<span className="ios-num">{distanceMiles != null ? `${distanceMiles} mi` : "—"}</span>} />
-        <Cell chevron={false} lead={<IconBadge color="#FA114F"><Icons.HeartIcon /></IconBadge>} title={heartRateLabel} trailing={<span className="ios-num">{heartRateBpm != null ? `${heartRateBpm} bpm` : "—"}</span>} />
+        {hasDeviceData && (
+          <>
+            <Cell chevron={false} lead={<IconBadge color="var(--ios-green)"><Icons.HeartIcon /></IconBadge>} title="Steps" subtitle={stepsDay && stepsDay.day !== todayKey ? `as of ${dayLabel(stepsDay.day)}` : undefined} trailing={<span className="ios-num">{steps != null ? steps.toLocaleString() : "—"}</span>} />
+            <Cell
+              chevron={false}
+              lead={<IconBadge color="#FA114F"><Icons.DumbbellIcon /></IconBadge>}
+              title="Move"
+              subtitle={activeEnergyCal != null ? `${Math.round((activeEnergyCal / moveGoal) * 100)}% of ${moveGoal.toLocaleString()} cal goal${energyDay && energyDay.day !== todayKey ? ` · as of ${dayLabel(energyDay.day)}` : ""}` : `Goal ${moveGoal.toLocaleString()} cal`}
+              trailing={<span className="ios-num" style={{ color: activeEnergyCal != null && activeEnergyCal >= moveGoal ? "var(--ios-green)" : undefined }}>{activeEnergyCal != null ? `${activeEnergyCal.toLocaleString()} cal` : "—"}</span>}
+            />
+            <Cell chevron={false} lead={<IconBadge color="var(--ios-tint)"><Icons.TrendUpIcon /></IconBadge>} title="Distance" subtitle={distanceDay && distanceDay.day !== todayKey ? `as of ${dayLabel(distanceDay.day)}` : undefined} trailing={<span className="ios-num">{distanceMiles != null ? `${distanceMiles} mi` : "—"}</span>} />
+            <Cell chevron={false} lead={<IconBadge color="#FA114F"><Icons.HeartIcon /></IconBadge>} title={heartRateLabel} trailing={<span className="ios-num">{heartRateBpm != null ? `${heartRateBpm} bpm` : "—"}</span>} />
+          </>
+        )}
         <Cell href="/health/nutrition" lead={<IconBadge color="#E8734A"><Icons.ForkKnifeIcon /></IconBadge>} title="Nutrition" subtitle={`${mealCount} ${mealCount === 1 ? "meal" : "meals"} logged`} trailing={<span className="ios-num">{todayCalories} cal</span>} />
       </Group>
 
+      {trendsWithData.length > 0 && (
       <Group header="Trends" footer="Last 14 days.">
-        {trendMetrics.map((m) => {
+        {trendsWithData.map((m) => {
           const t = trendSummary(m);
           const vals = m.points.map((p) => p.value);
           return (
@@ -426,6 +453,7 @@ export default async function DashboardPage() {
           );
         })}
       </Group>
+      )}
 
       {recentWorkouts.length > 0 && (
         <Group header="Recent workouts">

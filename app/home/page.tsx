@@ -583,7 +583,7 @@ export default async function HomePage() {
     reminders: iosUpcoming.length > 0
       ? { value: `${iosUpcoming.length} due`, sub: iosUpcoming[0].title as string, badge: iosUpcoming.length, href: "/home/tasks" }
       : { value: "None", sub: "All caught up", href: "/home/tasks" },
-    health: { value: stepsToday > 0 ? Math.round(stepsToday).toLocaleString() : "—", sub: stepsToday > 0 ? (stepsIsToday ? "steps today" : `steps · ${stepsDayShort}`) : "no data yet", href: "/health" },
+    health: { value: stepsToday > 0 ? Math.round(stepsToday).toLocaleString() : "—", sub: stepsToday > 0 ? (stepsIsToday ? "steps today" : `steps · ${stepsDayShort}`) : "Connect a device", href: "/health" },
     ...(netWorth != null
       ? {
           money: {
