@@ -34,7 +34,20 @@
   --ios-orange:        #FF9F0A;   /* Today / due */
   --ios-green:         #34C759;   /* done / Health */
   --ios-yellow:        #FFCC00;
-  --ios-finance:       #C58B4F;   /* Money section accent */
+  --ios-finance:       #C58B4F;   /* legacy Money accent (kept for compat) */
+
+  /* ── Domain palette — one consistent color per module (crisp, restrained) ── */
+  --ios-health:        #2FA24E;   /* green */
+  --ios-money:         #BE842B;   /* amber */
+  --ios-investments:   #D9772B;   /* orange */
+  --ios-family:        #7B5EA8;   /* violet */
+  --ios-morris:        #356FB0;   /* brand blue */
+  --ios-career:        #2E7D6B;   /* teal */
+  --ios-bible:         #5B6B9E;   /* indigo */
+  --ios-news:          #B04A34;   /* terracotta */
+  --ios-travel:        #2A8390;   /* cyan-teal */
+  --ios-children:      #C56A93;   /* rose */
+  --ios-alert:         #E5484D;   /* alert red */
 
   /* ── Bars (translucent) ───────────────────────────────────────────────── */
   --ios-bar:           rgba(249,249,249,0.82);
@@ -230,9 +243,10 @@ button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed);
 
 /* ══ Icon tile (SF-symbol-style leading badge) ═══════════════════════════════ */
 .ios-icon {
-  width: 29px; height: 29px; border-radius: 7px;
+  width: 30px; height: 30px; border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
   color: #fff; flex: 0 0 auto;
+  box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.22), 0 1px 1.5px rgba(16,24,40,0.12);
 }
 .ios-icon svg { width: 18px; height: 18px; }
 
@@ -281,15 +295,17 @@ button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed);
 }
 .ios-tile {
   background: var(--ios-cell); border-radius: var(--ios-radius-tile);
-  padding: 14px; min-height: 92px; text-align: left;
-  display: flex; flex-direction: column; gap: 4px;
+  padding: 15px 16px; min-height: 96px; text-align: left;
+  display: flex; flex-direction: column; gap: 3px;
+  box-shadow: var(--ios-shadow-card);
+  transition: transform 0.12s ease, background 0.12s ease;
 }
-.ios-tile:active { background: var(--ios-cell-pressed); }
+.ios-tile:active { background: var(--ios-cell-pressed); transform: scale(0.985); }
 .ios-tile-top   { display: flex; align-items: center; justify-content: space-between; }
-.ios-tile-label { font-size: 12px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; }
-.ios-tile-value { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-top: 2px; }
+.ios-tile-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.ios-tile-value { font-size: 25px; font-weight: 700; letter-spacing: -0.022em; margin-top: 3px; line-height: 1.08; }
 .ios-tile-top svg { width: 18px; height: 18px; }
-.ios-tile-sub   { font-size: 13px; color: var(--ios-label-2); }
+.ios-tile-sub   { font-size: 12.5px; color: var(--ios-label-2); letter-spacing: -0.003em; }
 .ios-badge {
   min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
   background: var(--ios-red); color: #fff; font-size: 12px; font-weight: 600;
@@ -299,21 +315,25 @@ button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed);
 /* ══ Buttons ═════════════════════════════════════════════════════════════════ */
 .ios-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 14px 20px; border-radius: 12px; font-size: 17px; font-weight: 600;
-  min-height: 50px;
+  padding: 14px 20px; border-radius: 13px; font-size: 17px; font-weight: 600;
+  min-height: 50px; letter-spacing: -0.01em;
+  transition: transform 0.12s ease, background 0.12s ease, opacity 0.12s ease;
 }
-.ios-btn--primary { background: var(--ios-tint); color: var(--ios-on-tint); width: 100%; }
+.ios-btn:active { transform: scale(0.98); }
+.ios-btn--primary { background: var(--ios-tint); color: var(--ios-on-tint); width: 100%; box-shadow: 0 1px 2px rgba(53,111,176,0.28); }
 .ios-btn--primary:active { background: var(--ios-tint-press); }
-.ios-btn--plain { color: var(--ios-tint); padding: 8px; min-height: 0; font-weight: 400; }
+.ios-btn--plain { color: var(--ios-tint); padding: 8px; min-height: 0; font-weight: 400; box-shadow: none; }
 .ios-btn--full { width: 100%; }
 
 /* ══ Ask-Morris pill ═════════════════════════════════════════════════════════ */
 .ios-ask {
   display: flex; align-items: center; gap: 9px;
-  margin: 14px var(--ios-gutter) 0; padding: 11px 15px;
+  margin: 14px var(--ios-gutter) 0; padding: 12px 16px;
   background: var(--ios-cell); border-radius: 999px; color: var(--ios-label-2);
-  font-size: 16px;
+  font-size: 16px; box-shadow: var(--ios-shadow-card);
+  transition: transform 0.12s ease;
 }
+.ios-ask:active { transform: scale(0.99); }
 
 /* ══ Chat (Ask Morris) ═══════════════════════════════════════════════════════ */
 .ios-bubble {

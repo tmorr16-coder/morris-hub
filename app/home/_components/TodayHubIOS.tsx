@@ -78,10 +78,10 @@ const SunIcon = () => (
 );
 
 const GLANCE_META: Record<GlanceKey, { label: string; accent: string; icon: React.ReactNode }> = {
-  weather: { label: "Weather", accent: "#E8843C", icon: <SunIcon /> },
+  weather: { label: "Weather", accent: "var(--ios-travel)", icon: <SunIcon /> },
   reminders: { label: "Reminders", accent: "var(--ios-orange)", icon: <Icons.BellIcon /> },
-  health: { label: "Health", accent: "var(--ios-green)", icon: <Icons.HeartIcon /> },
-  money: { label: "Money", accent: "var(--ios-finance)", icon: <Icons.WalletIcon /> },
+  health: { label: "Health", accent: "var(--ios-health)", icon: <Icons.HeartIcon /> },
+  money: { label: "Money", accent: "var(--ios-money)", icon: <Icons.WalletIcon /> },
 };
 const GLANCE_ORDER: GlanceKey[] = ["weather", "reminders", "health", "money"];
 

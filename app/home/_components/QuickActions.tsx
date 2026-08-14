@@ -7,11 +7,11 @@ import type { ReactNode } from "react";
 const ACTIONS: { label: string; href: string; color: string; icon: ReactNode }[] = [
   // Ask Morris intentionally omitted here — the hero Ask pill right below is the
   // primary global entry point (avoids the Today triple-up).
-  { label: "Workout", href: "/health/workout/builder", color: "var(--ios-green)", icon: <Icons.DumbbellIcon /> },
-  { label: "Bible", href: "/bible/read", color: "#3B5C7F", icon: <Icons.BookIcon /> },
-  { label: "Meal", href: "/health/nutrition", color: "#E8734A", icon: <Icons.ForkKnifeIcon /> },
-  { label: "Markets", href: "/investments/stocks", color: "#C97A3A", icon: <Icons.TrendUpIcon /> },
-  { label: "News", href: "/news", color: "#9A3B2A", icon: <Icons.NewsIcon /> },
+  { label: "Workout", href: "/health/workout/builder", color: "var(--ios-health)", icon: <Icons.DumbbellIcon /> },
+  { label: "Bible", href: "/bible/read", color: "var(--ios-bible)", icon: <Icons.BookIcon /> },
+  { label: "Meal", href: "/health/nutrition", color: "var(--ios-orange)", icon: <Icons.ForkKnifeIcon /> },
+  { label: "Markets", href: "/investments/stocks", color: "var(--ios-investments)", icon: <Icons.TrendUpIcon /> },
+  { label: "News", href: "/news", color: "var(--ios-news)", icon: <Icons.NewsIcon /> },
 ];
 
 export default function QuickActions() {
