@@ -348,8 +348,9 @@ export default async function DashboardPage() {
     <div className="ios-scroll">
       <LargeTitle brand title="Money" subtitle={`${todayDisplay} · ${greeting}`} avatarInitial={(name || "T")[0]?.toUpperCase()} />
 
-      {/* Net position hero — the real number is fine here since the whole
-          Money dashboard sits behind the finance PIN. */}
+      {/* Net position hero — hidden for brand-new users (no accounts) so they
+          don't see a $0 net worth above the "Get started" card. */}
+      {accounts.length + manualAccounts.length > 0 && (
       <div className="ios-list" style={{ margin: "8px 16px 0", padding: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Net position</div>
@@ -402,6 +403,7 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+      )}
 
       {accounts.length + manualAccounts.length === 0 && (
         <Group header="Get started" footer="Securely link a bank or brokerage with SimpleFIN to pull in balances and transactions automatically.">

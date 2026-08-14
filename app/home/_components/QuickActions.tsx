@@ -5,9 +5,10 @@ import type { ReactNode } from "react";
 // Quick-launch favorites — one tap to the capabilities Terry uses most.
 // Short labels + a fixed 3-column grid (2 rows) so nothing clips on a 390px phone.
 const ACTIONS: { label: string; href: string; color: string; icon: ReactNode }[] = [
+  // Ask Morris intentionally omitted here — the hero Ask pill right below is the
+  // primary global entry point (avoids the Today triple-up).
   { label: "Workout", href: "/health/workout/builder", color: "var(--ios-green)", icon: <Icons.DumbbellIcon /> },
   { label: "Bible", href: "/bible/read", color: "#3B5C7F", icon: <Icons.BookIcon /> },
-  { label: "Ask", href: "/home/ask", color: "var(--ios-tint)", icon: <Icons.SparkleIcon /> },
   { label: "Meal", href: "/health/nutrition", color: "#E8734A", icon: <Icons.ForkKnifeIcon /> },
   { label: "Markets", href: "/investments/stocks", color: "#C97A3A", icon: <Icons.TrendUpIcon /> },
   { label: "News", href: "/news", color: "#9A3B2A", icon: <Icons.NewsIcon /> },

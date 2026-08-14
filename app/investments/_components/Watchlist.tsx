@@ -53,9 +53,12 @@ export default function Watchlist({ initialTickers, onSelectStock }: WatchlistPr
 
   if (!initialTickers.length) {
     return (
-      <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--ios-label-3)" }}>
-        <p className="ios-body" style={{ marginBottom: 4 }}>No stocks in your watchlist yet</p>
-        <p className="ios-footnote">Search for a stock and add it to get started</p>
+      <div style={{ textAlign: "center", padding: "36px 20px" }}>
+        <p className="ios-body" style={{ marginBottom: 4, color: "var(--ios-label)" }}>Track stocks you care about</p>
+        <p className="ios-footnote" style={{ color: "var(--ios-label-2)", marginBottom: 14 }}>Add a ticker to watch its price, news, and AI analysis.</p>
+        <a href="/investments/stocks" style={{ display: "inline-block", padding: "10px 18px", borderRadius: 10, background: "var(--ios-tint)", color: "var(--ios-on-tint)", fontWeight: 600, fontSize: 15, textDecoration: "none" }}>
+          Add a stock →
+        </a>
       </div>
     );
   }
