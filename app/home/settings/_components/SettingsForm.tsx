@@ -35,7 +35,14 @@ export const WIDGET_LABELS: Record<WidgetId, string> = {
   career:             "Career Development",
 };
 
-export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferences }) {
+// All section ids in render order (must match the id="…" on each <section>).
+const ALL_SECTION_IDS = [
+  "set-app-access", "set-reminder-categories", "set-location", "set-stocks",
+  "set-read-aloud-voice", "set-local-news-cities", "set-sports-teams",
+  "set-investment-categories", "news-subscriptions", "set-news-topics",
+];
+
+export default function SettingsForm({ initialPrefs, only }: { initialPrefs: Preferences; only?: string[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -297,7 +304,13 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
   return (
     <div ref={containerRef} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
-      {/* Search + jump-to-section index — filters the long settings list */}
+      {/* Dedicated sub-page: hide every section except the requested one(s). */}
+      {only && (
+        <style>{ALL_SECTION_IDS.filter((id) => !only.includes(id)).map((id) => `#${id}`).join(",") + "{display:none!important}"}</style>
+      )}
+
+      {/* Search + jump-to-section index — only on the combined page */}
+      {!only && (
       <div style={{ position: "sticky", top: 0, zIndex: 5, background: "var(--ios-bg)", paddingBottom: 8 }}>
         <input
           aria-label="Search settings"
@@ -317,6 +330,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
           ))}
         </div>
       </div>
+      )}
 
       {/* Module access */}
       <section style={card} id="set-app-access" data-search="app access modules health finance investments career bible news">
@@ -737,7 +751,7 @@ export default function SettingsForm({ initialPrefs }: { initialPrefs: Preferenc
                   background: "var(--color-bg)",
                 }}>
                   <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginBottom: 8 }}>
-                    Medium shows articles by topic or publication — not your personal reading list (Medium doesn't expose that via RSS).
+                    Medium shows articles by topic or publication — not your personal reading list (Medium doesn&apos;t expose that via RSS).
                   </div>
                   {/* Preset popular topics */}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
