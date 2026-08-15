@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { COMPARE_MODELS, MORE_MODELS, type CompareModel } from "@/lib/openrouter";
+import { useMemo, useState } from "react";
+import { COMPARE_MODELS, MORE_MODELS, SYNTH_MODEL, type CompareModel } from "@/lib/openrouter";
+import type { Pricing } from "./page";
 
 interface Result { model: string; answer: string; error: string | null; cost: number | null }
 
@@ -45,7 +46,7 @@ const SUGGESTIONS = [
   "What are the risks of a portfolio concentrated in one stock?",
 ];
 
-export default function CompareClient({ connected }: { connected: boolean }) {
+export default function CompareClient({ connected, pricing }: { connected: boolean; pricing: Pricing }) {
   const [question, setQuestion] = useState("");
   const [selected, setSelected] = useState<string[]>(COMPARE_MODELS.map((m) => m.id));
   const [synthesize, setSynthesize] = useState(false);
@@ -62,6 +63,20 @@ export default function CompareClient({ connected }: { connected: boolean }) {
   const [synthCost, setSynthCost] = useState<number | null>(null);
   const [sessionCost, setSessionCost] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // Rough pre-run estimate: ~700 output tokens/model (+ a synthesis pass).
+  const estCost = useMemo(() => {
+    const promptTok = Math.ceil(question.length / 4) + 60;
+    let total = selected.reduce((sum, id) => {
+      const p = pricing[id];
+      return p ? sum + promptTok * p.prompt + 700 * p.completion : sum;
+    }, 0);
+    if (synthesize && selected.length >= 2) {
+      const p = pricing[SYNTH_MODEL];
+      if (p) total += 1600 * p.prompt + 700 * p.completion;
+    }
+    return total;
+  }, [question, selected, synthesize, pricing]);
 
   const slug = (s: string) => (s || "morris").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "morris";
 
@@ -170,10 +185,10 @@ export default function CompareClient({ connected }: { connected: boolean }) {
           className="ios-btn ios-btn--primary" style={{ marginTop: 12, opacity: busy || !question.trim() ? 0.5 : 1 }}>
           {busy ? "Asking…" : `Compare ${selected.length} model${selected.length === 1 ? "" : "s"}`}
         </button>
-        <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, textAlign: "center" }}>
-          {sessionCost > 0
-            ? <>Session so far: <strong style={{ color: "var(--ios-label-2)" }}>{fmtCost(sessionCost)}</strong> · exact OpenRouter cost shown after each action</>
-            : "Exact OpenRouter cost is shown after each action"}
+        <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, textAlign: "center", lineHeight: 1.5 }}>
+          {estCost > 0 && <>Est. this run <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>. </>}
+          {sessionCost > 0 && <>Session <strong style={{ color: "var(--ios-label-2)" }}>{fmtCost(sessionCost)}</strong>. </>}
+          Exact cost shown after each action.
         </div>
       </div>
       {notice && <div className="ios-footnote" style={{ color: "var(--ios-green)", marginTop: 10, textAlign: "center" }}>{notice}</div>}

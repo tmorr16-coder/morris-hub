@@ -53,9 +53,9 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "Morris AI",
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
   },
-  icons: { apple: "/apple-touch-icon.png" },
+  // Icons come from the file-based app/icon.tsx + app/apple-icon.tsx (the M mark).
 };
 
 export const viewport: Viewport = {
