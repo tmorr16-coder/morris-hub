@@ -7,6 +7,33 @@ import type { Pricing } from "./page";
 interface Citation { url: string; title: string }
 interface Result { model: string; answer: string; error: string | null; cost: number | null; citations?: Citation[] }
 
+// A saved run — the question *and* every answer it produced, so revisiting a
+// recent search costs nothing.
+interface HistoryEntry {
+  q: string;
+  at: number;                 // epoch ms
+  models: string[];
+  web: boolean;
+  results: Result[] | null;   // null for legacy entries (question only)
+  synthesis: string | null;
+  synthCost: number | null;
+  cost: number | null;        // total cost of that run
+}
+
+const HISTORY_KEY = "panel-history-v1";
+const LEGACY_KEY = "compare-recent-searches"; // question-only strings
+const MAX_ENTRIES = 15;
+const MAX_BYTES = 1_500_000; // stay well inside the ~5MB localStorage budget
+
+function ago(ts: number): string {
+  const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24); if (d < 7) return `${d}d ago`;
+  return new Date(ts).toLocaleDateString();
+}
+
 function fmtCost(c: number | null | undefined): string {
   if (c == null) return "";
   if (c <= 0) return "$0";
@@ -66,17 +93,69 @@ export default function CompareClient({ connected, pricing }: { connected: boole
   const [synthCost, setSynthCost] = useState<number | null>(null);
   const [sessionCost, setSessionCost] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
-  const [recents, setRecents] = useState<string[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [viewing, setViewing] = useState<number | null>(null); // `at` of a restored run
 
+  // Load saved runs (migrating the old question-only list), then put the most
+  // recent one back on screen so answers survive a reload or a trip elsewhere.
   useEffect(() => {
-    try { const r = JSON.parse(localStorage.getItem("compare-recent-searches") || "[]"); if (Array.isArray(r)) setRecents(r); } catch { /* ignore */ }
-  }, []);
-  function persistRecents(next: string[]) {
-    setRecents(next);
-    try { localStorage.setItem("compare-recent-searches", JSON.stringify(next)); } catch { /* ignore */ }
+    let saved: HistoryEntry[] = [];
+    try {
+      const raw = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+      if (Array.isArray(raw)) saved = raw.filter((e) => e && typeof e.q === "string");
+    } catch { /* ignore */ }
+    if (!saved.length) {
+      try {
+        const old = JSON.parse(localStorage.getItem(LEGACY_KEY) || "[]");
+        if (Array.isArray(old)) {
+          saved = old.filter((q: unknown) => typeof q === "string")
+            .map((q: string, i: number) => ({ q, at: Date.now() - i, models: [], web: false, results: null, synthesis: null, synthCost: null, cost: null }));
+        }
+      } catch { /* ignore */ }
+    }
+    if (!saved.length) return;
+    setHistory(saved);
+    if (saved[0].results) restore(saved[0], saved);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function persistHistory(next: HistoryEntry[]) {
+    let list = next.slice(0, MAX_ENTRIES);
+    // Answers are bulky — drop the oldest runs until the payload fits, then
+    // keep dropping if the browser still refuses the write.
+    while (list.length > 1 && JSON.stringify(list).length > MAX_BYTES) list = list.slice(0, -1);
+    setHistory(list);
+    for (;;) {
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); break; } catch {
+        if (list.length <= 1) { try { localStorage.removeItem(HISTORY_KEY); } catch { /* ignore */ } break; }
+        list = list.slice(0, -1);
+        setHistory(list);
+      }
+    }
+    try { localStorage.removeItem(LEGACY_KEY); } catch { /* ignore */ }
   }
-  function addRecent(q: string) { persistRecents([q, ...recents.filter((x) => x !== q)].slice(0, 15)); }
-  function removeRecent(q: string) { persistRecents(recents.filter((x) => x !== q)); }
+  function removeEntry(at: number) {
+    persistHistory(history.filter((e) => e.at !== at));
+    if (viewing === at) { setViewing(null); setResults(null); setSynthesis(null); setSynthCost(null); }
+  }
+
+  /** Put a saved run back on screen — no model calls, no cost. */
+  function restore(e: HistoryEntry, list?: HistoryEntry[]) {
+    if (!e.results) { run(e.q); return; }
+    setQuestion(e.q);
+    setResults(e.results);
+    setSynthesis(e.synthesis);
+    setSynthCost(e.synthCost);
+    setWeb(e.web);
+    setSynthesize(!!e.synthesis);
+    if (e.models.length) setSelected(e.models.slice(0, 4));
+    setViewing(e.at);
+    setErr(null);
+    if (!list) window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function newQuestion() {
+    setViewing(null); setQuestion(""); setResults(null); setSynthesis(null); setSynthCost(null); setErr(null);
+  }
 
   // Rough pre-run estimate: ~700 output tokens/model (+ a synthesis pass).
   const estCost = useMemo(() => {
@@ -140,8 +219,7 @@ export default function CompareClient({ connected, pricing }: { connected: boole
   async function run(text?: string) {
     const q = (text ?? question).trim();
     if (!q || busy || selected.length === 0) return;
-    addRecent(q);
-    setErr(null); setBusy(true); setResults(null); setSynthesis(null);
+    setErr(null); setBusy(true); setResults(null); setSynthesis(null); setSynthCost(null); setViewing(null);
     if (text) setQuestion(text);
     try {
       const res = await fetch("/api/ask/compare", {
@@ -154,6 +232,15 @@ export default function CompareClient({ connected, pricing }: { connected: boole
       setSynthesis(data.synthesis ?? null);
       setSynthCost(data.synthesisCost ?? null);
       if (data.totalCost) setSessionCost((s) => s + data.totalCost);
+      // Keep the whole run, so re-opening this question is free.
+      const entry: HistoryEntry = {
+        q, at: Date.now(), models: selected, web,
+        results: data.results ?? null,
+        synthesis: data.synthesis ?? null,
+        synthCost: data.synthesisCost ?? null,
+        cost: data.totalCost ?? null,
+      };
+      persistHistory([entry, ...history.filter((e) => e.q !== q)]);
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
 
@@ -213,19 +300,34 @@ export default function CompareClient({ connected, pricing }: { connected: boole
       </div>
       {notice && <div className="ios-footnote" style={{ color: "var(--ios-green)", marginTop: 10, textAlign: "center" }}>{notice}</div>}
 
-      {results === null && !busy && recents.length > 0 && (
+      {!busy && history.length > 0 && (
         <div style={{ marginTop: 16 }}>
           <div className="ios-group-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0 7px" }}>
-            <span>RECENT</span>
-            <button onClick={() => persistRecents([])} className="ios-caption" style={{ color: "var(--ios-tint)", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>Clear all</button>
+            <span>RECENT · answers saved</span>
+            <button onClick={() => { persistHistory([]); newQuestion(); }} className="ios-caption" style={{ color: "var(--ios-tint)", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>Clear all</button>
           </div>
           <div className="ios-list" style={{ margin: 0 }}>
-            {recents.map((r, i) => (
-              <div key={r} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: i < recents.length - 1 ? "1px solid var(--ios-separator)" : "none" }}>
-                <button onClick={() => run(r)} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", color: "var(--ios-label)", fontSize: 14.5, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r}</button>
-                <button onClick={() => removeRecent(r)} aria-label="Remove search" style={{ background: "none", border: "none", color: "var(--ios-label-3)", fontSize: 19, lineHeight: 1, cursor: "pointer", padding: "0 4px", flexShrink: 0 }}>×</button>
-              </div>
-            ))}
+            {history.map((e, i) => {
+              const n = e.results?.filter((r) => r.answer && !r.error).length ?? 0;
+              return (
+                <div key={e.at} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: i < history.length - 1 ? "1px solid var(--ios-separator)" : "none", background: viewing === e.at ? "var(--ios-fill)" : "transparent" }}>
+                  <button onClick={() => restore(e)} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                    <div style={{ color: "var(--ios-label)", fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.q}</div>
+                    <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 2 }}>
+                      {e.results ? `${n} saved answer${n === 1 ? "" : "s"}${e.synthesis ? " + synthesis" : ""} · ${ago(e.at)}` : "tap to ask again"}
+                      {e.cost != null && e.cost > 0 && ` · ${fmtCost(e.cost)}`}
+                    </div>
+                  </button>
+                  {e.results && (
+                    <button onClick={() => run(e.q)} aria-label="Ask again" title="Ask again (runs the models, costs money)"
+                      style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "5px 9px", flexShrink: 0 }}>
+                      Re-ask
+                    </button>
+                  )}
+                  <button onClick={() => removeEntry(e.at)} aria-label="Remove search" style={{ background: "none", border: "none", color: "var(--ios-label-3)", fontSize: 19, lineHeight: 1, cursor: "pointer", padding: "0 4px", flexShrink: 0 }}>×</button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -243,6 +345,16 @@ export default function CompareClient({ connected, pricing }: { connected: boole
 
       {err && <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", marginTop: 12 }}>{err}</div>}
       {busy && <div className="ios-subhead" style={{ color: "var(--ios-label-2)", marginTop: 16, textAlign: "center" }}>Running against {selected.length} model{selected.length === 1 ? "" : "s"}…</div>}
+
+      {viewing != null && results && !busy && (
+        <div className="ios-list" style={{ margin: "16px 0 0", padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span className="ios-caption" style={{ color: "var(--ios-label-2)", flex: 1, minWidth: 140 }}>
+            Saved answers from {ago(viewing)} · no new cost
+          </span>
+          <button onClick={() => run(question)} className="ios-caption" style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "5px 10px" }}>Ask again</button>
+          <button onClick={newQuestion} className="ios-caption" style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "5px 2px" }}>New question</button>
+        </div>
+      )}
 
       {/* Synthesis */}
       {synthesis && (
