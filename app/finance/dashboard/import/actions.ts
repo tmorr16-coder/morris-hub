@@ -30,9 +30,17 @@ interface ExtractedStatement {
 
 const EXTRACTION_PROMPT = `You are a financial data extractor. Analyze this account statement and extract key information.
 
-The statement may be a HOLDINGS SUMMARY (showing current balance per fund) or a TRANSACTION ACTIVITY LOG (showing individual transactions with columns like VALUATION DATE, POSTING DATE, ACTIVITY TYPE, PLAN, ACCOUNT, FUND, AMOUNT, FUND NAV/PRICE, FUND UNITS).
+First identify the statement TYPE, then extract accordingly:
 
-If it is a TRANSACTION ACTIVITY LOG:
+── A) BROKERAGE / PORTFOLIO POSITIONS (e.g. E*TRADE, Morgan Stanley, Schwab, Fidelity, Vanguard brokerage, Robinhood) ──
+These list positions in a table with columns like: SYMBOL, DESCRIPTION (security name), QUANTITY/SHARES, LAST PRICE / PRICE, MARKET VALUE, and often COST BASIS, TOTAL GAIN/LOSS, and % OF ACCOUNT/PORTFOLIO. They usually also show a CASH / SWEEP / MONEY MARKET balance and a TOTAL ACCOUNT VALUE.
+For each position row:
+- name = "SYMBOL — Description" if a ticker symbol exists (e.g. "AAPL — Apple Inc."), otherwise just the description.
+- shares = QUANTITY, price = LAST PRICE, value = MARKET VALUE.
+Include CASH / SWEEP / money-market as a holding named "Cash & sweep" (shares/price null, value = the cash balance).
+balance = TOTAL ACCOUNT VALUE (or sum of all market values + cash). account_type = "brokerage" (use "roth_ira" / "traditional_ira" if the statement says it's an IRA). institution = the brokerage (e.g. E*TRADE).
+
+── B) 401(k) / PLAN TRANSACTION ACTIVITY LOG (columns: VALUATION DATE, POSTING DATE, ACTIVITY TYPE, PLAN, ACCOUNT, FUND, AMOUNT, FUND NAV/PRICE, FUND UNITS) ──
 1. Group all rows by FUND name
 2. For each fund, sum all FUND UNITS to get current net units held
 3. Use the most recent FUND NAV/PRICE for that fund to calculate current value = units × price
@@ -41,7 +49,7 @@ If it is a TRANSACTION ACTIVITY LOG:
 6. Also look for YTD contributions by summing AMOUNT where ACTIVITY TYPE contains "contribution" or "employee" or "employer"
 7. Use the PLAN name as account_name and infer account_type (401k, roth_ira, hsa, etc.)
 
-If it is a HOLDINGS SUMMARY: extract directly.
+── C) HOLDINGS SUMMARY (current balance per fund/position, no transactions) ── extract directly.
 
 Return ONLY a JSON object with this exact structure (null for missing fields):
 {
