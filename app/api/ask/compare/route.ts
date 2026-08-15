@@ -16,7 +16,12 @@ function allow(userId: string): boolean {
   return true;
 }
 
-interface CompareBody { question: string; models: string[]; synthesize?: boolean; web?: boolean }
+/** One earlier turn of the same thread: the question and what each model said. */
+interface PriorTurn { q: string; answers?: Record<string, string>; synthesis?: string | null }
+interface CompareBody { question: string; models: string[]; synthesize?: boolean; web?: boolean; history?: PriorTurn[] }
+
+const MAX_TURNS = 6;      // how far back the thread is replayed
+const MAX_TURN_CHARS = 1500; // each replayed answer is trimmed to bound cost
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -36,15 +41,33 @@ export async function POST(req: NextRequest) {
   if (!models.length) return NextResponse.json({ error: "Pick at least one model" }, { status: 400 });
 
   const web = !!body.web;
-  const messages = [
-    { role: "system" as const, content: `You are a helpful, accurate assistant. Be clear and concise. Use markdown (headings, bold, bullet lists) when it aids readability.${web ? " When you use web sources, cite them." : ""}` },
-    { role: "user" as const, content: question },
-  ];
+  const history = (Array.isArray(body.history) ? body.history : []).slice(-MAX_TURNS);
+  const system = `You are a helpful, accurate assistant. Be clear and concise. Use markdown (headings, bold, bullet lists) when it aids readability.${
+    history.length ? " This is an ongoing conversation — read the earlier turns and resolve follow-ups, pronouns and references against them." : ""
+  }${web ? " When you use web sources, cite them." : ""}`;
+
+  const clip = (s: string) => (s.length > MAX_TURN_CHARS ? s.slice(0, MAX_TURN_CHARS) + "…" : s);
+
+  // Each model continues its *own* thread. A model added part-way through has no
+  // answers of its own, so it picks up the synthesis (or another model's answer)
+  // for those turns — otherwise the follow-up would land with no context at all.
+  function conversation(model: string) {
+    const msgs: { role: "system" | "user" | "assistant"; content: string }[] = [{ role: "system", content: system }];
+    for (const t of history) {
+      if (!t?.q) continue;
+      const prior = t.answers?.[model] || t.synthesis || Object.values(t.answers ?? {}).find((a) => a && a.trim());
+      if (!prior) continue;
+      msgs.push({ role: "user", content: t.q });
+      msgs.push({ role: "assistant", content: clip(prior) });
+    }
+    msgs.push({ role: "user", content: question });
+    return msgs;
+  }
 
   // Fan out to every chosen model in parallel — one failure never blocks the rest.
   // Perplexity Sonar searches natively, so the web plugin is only added to the others.
   const settled = await Promise.allSettled(
-    models.map((m) => askModel(m, messages, 1200, { web: web && !m.startsWith("perplexity/") })),
+    models.map((m) => askModel(m, conversation(m), 1200, { web: web && !m.startsWith("perplexity/") })),
   );
   const results = models.map((model, i) => {
     const r = settled[i];
@@ -65,7 +88,7 @@ export async function POST(req: NextRequest) {
           SYNTH_MODEL,
           [
             { role: "system", content: "You synthesize multiple AI answers into one best answer. Note where the models agree, flag any disagreements or factual conflicts, and produce a single clear, well-organized response. Be concise; use markdown." },
-            { role: "user", content: `Question: ${question}\n\nHere are ${good.length} answers from different models:\n\n${combined}\n\nProduce the single best merged answer, noting agreements and any conflicts.` },
+            { role: "user", content: `${history.length ? `Earlier in this conversation: ${history.map((t) => t.q).join(" → ")}\n\n` : ""}Question: ${question}\n\nHere are ${good.length} answers from different models:\n\n${combined}\n\nProduce the single best merged answer, noting agreements and any conflicts.` },
           ],
           1400,
         );

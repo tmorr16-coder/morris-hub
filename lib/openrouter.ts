@@ -52,8 +52,11 @@ interface ChatMessage { role: "system" | "user" | "assistant"; content: string }
 export interface Citation { url: string; title: string }
 export interface ModelResult { content: string; cost: number | null; citations: Citation[] }
 
-/** Ask a single model. `web` grounds it in live search results (with citations). */
-export async function askModel(model: string, messages: ChatMessage[], maxTokens = 1200, opts?: { web?: boolean }): Promise<ModelResult> {
+/**
+ * Ask a single model. `web` grounds it in live search results (with citations);
+ * `json` asks for a JSON object back (used by the slide structurer).
+ */
+export async function askModel(model: string, messages: ChatMessage[], maxTokens = 1200, opts?: { web?: boolean; json?: boolean }): Promise<ModelResult> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -65,6 +68,7 @@ export async function askModel(model: string, messages: ChatMessage[], maxTokens
     body: JSON.stringify({
       model, messages, max_tokens: maxTokens, usage: { include: true },
       ...(opts?.web ? { plugins: [{ id: "web" }] } : {}),
+      ...(opts?.json ? { response_format: { type: "json_object" } } : {}),
     }),
   });
   if (!res.ok) {

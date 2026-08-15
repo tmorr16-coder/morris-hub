@@ -163,3 +163,51 @@ html, body {
 }
 /* Reserve room at the top of the title area so the fixed button never overlaps it. */
 body[data-back="true"] .ios-title-block { padding-top: 42px; }
+
+/* ── Pull-to-refresh ──────────────────────────────────────────────────────
+   Fixed dial that rides down with the drag (components/PullToRefresh.tsx).
+   Parked above the viewport at rest; the component moves it via transform. */
+.ptr {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 6px);
+  left: 0;
+  right: 0;
+  z-index: 300;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  will-change: transform;
+}
+.ptr-dial {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #356fb0;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16), 0 0 0 0.5px rgba(16, 24, 40, 0.06);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+.ptr-dial svg { width: 17px; height: 17px; }
+.ptr-spin { animation: ptr-spin 0.75s linear infinite; }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
+/* Screen-reader-only status text. */
+.ptr-sr {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (prefers-color-scheme: dark) {
+  .ptr-dial { color: #5e9bd6; background: rgba(44, 44, 46, 0.92); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45); }
+}
+/* Explicit appearance override (mirrors the ios-theme preference). */
+.ptr[data-theme="dark"] .ptr-dial { color: #5e9bd6; background: rgba(44, 44, 46, 0.92); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45); }
+@media (prefers-reduced-motion: reduce) {
+  .ptr-spin { animation-duration: 1.6s; }
+}
