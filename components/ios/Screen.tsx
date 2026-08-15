@@ -37,10 +37,10 @@ export function IOSScreen({ children, theme }: { children: ReactNode; theme?: "l
  * accessory (avatar, compose button). Not sticky-collapsing yet — that lands
  * with the scroll behavior in a later pass.
  */
-/** The morrisai.family wordmark — an "M" monogram badge + wordmark. */
+/** The morrisai.family wordmark — an "M" monogram badge + wordmark. Taps home. */
 export function BrandMark({ style }: { style?: React.CSSProperties }) {
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 7, ...style }}>
+    <Link href="/home" aria-label="Home" style={{ display: "inline-flex", alignItems: "center", gap: 7, textDecoration: "none", ...style }}>
       <span
         aria-hidden
         style={{
@@ -57,7 +57,7 @@ export function BrandMark({ style }: { style?: React.CSSProperties }) {
       <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: "-0.006em", color: "var(--ios-label)" }}>
         morrisai<span style={{ color: "var(--ios-tint)", fontWeight: 600 }}>.family</span>
       </span>
-    </span>
+    </Link>
   );
 }
 

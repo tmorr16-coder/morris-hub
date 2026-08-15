@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { COMPARE_MODELS, LIVE_MODELS, MORE_MODELS, SYNTH_MODEL, type CompareModel } from "@/lib/openrouter";
 import type { Pricing } from "./page";
 
@@ -66,6 +66,17 @@ export default function CompareClient({ connected, pricing }: { connected: boole
   const [synthCost, setSynthCost] = useState<number | null>(null);
   const [sessionCost, setSessionCost] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+  const [recents, setRecents] = useState<string[]>([]);
+
+  useEffect(() => {
+    try { const r = JSON.parse(localStorage.getItem("compare-recent-searches") || "[]"); if (Array.isArray(r)) setRecents(r); } catch { /* ignore */ }
+  }, []);
+  function persistRecents(next: string[]) {
+    setRecents(next);
+    try { localStorage.setItem("compare-recent-searches", JSON.stringify(next)); } catch { /* ignore */ }
+  }
+  function addRecent(q: string) { persistRecents([q, ...recents.filter((x) => x !== q)].slice(0, 15)); }
+  function removeRecent(q: string) { persistRecents(recents.filter((x) => x !== q)); }
 
   // Rough pre-run estimate: ~700 output tokens/model (+ a synthesis pass).
   const estCost = useMemo(() => {
@@ -129,6 +140,7 @@ export default function CompareClient({ connected, pricing }: { connected: boole
   async function run(text?: string) {
     const q = (text ?? question).trim();
     if (!q || busy || selected.length === 0) return;
+    addRecent(q);
     setErr(null); setBusy(true); setResults(null); setSynthesis(null);
     if (text) setQuestion(text);
     try {
@@ -200,6 +212,23 @@ export default function CompareClient({ connected, pricing }: { connected: boole
         </div>
       </div>
       {notice && <div className="ios-footnote" style={{ color: "var(--ios-green)", marginTop: 10, textAlign: "center" }}>{notice}</div>}
+
+      {results === null && !busy && recents.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <div className="ios-group-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0 7px" }}>
+            <span>RECENT</span>
+            <button onClick={() => persistRecents([])} className="ios-caption" style={{ color: "var(--ios-tint)", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>Clear all</button>
+          </div>
+          <div className="ios-list" style={{ margin: 0 }}>
+            {recents.map((r, i) => (
+              <div key={r} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: i < recents.length - 1 ? "1px solid var(--ios-separator)" : "none" }}>
+                <button onClick={() => run(r)} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", color: "var(--ios-label)", fontSize: 14.5, cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r}</button>
+                <button onClick={() => removeRecent(r)} aria-label="Remove search" style={{ background: "none", border: "none", color: "var(--ios-label-3)", fontSize: 19, lineHeight: 1, cursor: "pointer", padding: "0 4px", flexShrink: 0 }}>×</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {results === null && !busy && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
