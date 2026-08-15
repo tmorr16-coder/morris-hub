@@ -7,23 +7,39 @@ import type { Pricing } from "./page";
 interface Citation { url: string; title: string }
 interface Result { model: string; answer: string; error: string | null; cost: number | null; citations?: Citation[] }
 
-// A saved run — the question *and* every answer it produced, so revisiting a
-// recent search costs nothing.
-interface HistoryEntry {
+// One question and every answer it produced — saved, so revisiting costs nothing.
+interface Turn {
   q: string;
   at: number;                 // epoch ms
-  models: string[];
-  web: boolean;
   results: Result[] | null;   // null for legacy entries (question only)
   synthesis: string | null;
   synthCost: number | null;
-  cost: number | null;        // total cost of that run
+  cost: number | null;
 }
 
-const HISTORY_KEY = "panel-history-v1";
+// A thread of turns. Follow-ups reuse it, so the models answer in context.
+interface Thread {
+  id: number;                 // thread start (stable key)
+  at: number;                 // last activity
+  models: string[];
+  web: boolean;
+  turns: Turn[];
+}
+
+const THREADS_KEY = "panel-threads-v1";
+const RUNS_KEY = "panel-history-v1";          // one saved run per entry
 const LEGACY_KEY = "compare-recent-searches"; // question-only strings
 const MAX_ENTRIES = 15;
 const MAX_BYTES = 1_500_000; // stay well inside the ~5MB localStorage budget
+
+/** What the API needs to replay a thread: each turn's question and answers. */
+function toHistory(turns: Turn[]) {
+  return turns.filter((t) => t.results?.length).map((t) => ({
+    q: t.q,
+    answers: Object.fromEntries((t.results ?? []).filter((r) => r.answer && !r.error).map((r) => [r.model, r.answer])),
+    synthesis: t.synthesis,
+  }));
+}
 
 function ago(ts: number): string {
   const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
@@ -81,8 +97,6 @@ export default function CompareClient({ connected, pricing }: { connected: boole
   const [synthesize, setSynthesize] = useState(false);
   const [web, setWeb] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [results, setResults] = useState<Result[] | null>(null);
-  const [synthesis, setSynthesis] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [exporting, setExporting] = useState<string | null>(null); // "docx"|"pptx"|"md" busy
   const [imgPrompt, setImgPrompt] = useState("");
@@ -90,76 +104,96 @@ export default function CompareClient({ connected, pricing }: { connected: boole
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [imgErr, setImgErr] = useState<string | null>(null);
   const [imgCost, setImgCost] = useState<number | null>(null);
-  const [synthCost, setSynthCost] = useState<number | null>(null);
   const [sessionCost, setSessionCost] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [viewing, setViewing] = useState<number | null>(null); // `at` of a restored run
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [thread, setThread] = useState<Thread | null>(null); // the open conversation
+  const [restored, setRestored] = useState(false);           // opened from history, nothing re-run
 
-  // Load saved runs (migrating the old question-only list), then put the most
-  // recent one back on screen so answers survive a reload or a trip elsewhere.
+  // Load saved threads (migrating the older single-run and question-only
+  // formats), then reopen the latest so the conversation survives a reload.
+  // localStorage is unavailable during SSR, so this has to happen in an effect
+  // after mount rather than in a lazy initializer (same as useChatHistory).
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    let saved: HistoryEntry[] = [];
+    let saved: Thread[] = [];
     try {
-      const raw = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
-      if (Array.isArray(raw)) saved = raw.filter((e) => e && typeof e.q === "string");
+      const raw = JSON.parse(localStorage.getItem(THREADS_KEY) || "[]");
+      if (Array.isArray(raw)) saved = raw.filter((t) => t && Array.isArray(t.turns) && t.turns.length);
     } catch { /* ignore */ }
+    if (!saved.length) {
+      try {
+        const runs = JSON.parse(localStorage.getItem(RUNS_KEY) || "[]");
+        if (Array.isArray(runs)) {
+          saved = runs.filter((e) => e && typeof e.q === "string").map((e) => ({
+            id: e.at, at: e.at, models: e.models ?? [], web: !!e.web,
+            turns: [{ q: e.q, at: e.at, results: e.results ?? null, synthesis: e.synthesis ?? null, synthCost: e.synthCost ?? null, cost: e.cost ?? null }],
+          }));
+        }
+      } catch { /* ignore */ }
+    }
     if (!saved.length) {
       try {
         const old = JSON.parse(localStorage.getItem(LEGACY_KEY) || "[]");
         if (Array.isArray(old)) {
-          saved = old.filter((q: unknown) => typeof q === "string")
-            .map((q: string, i: number) => ({ q, at: Date.now() - i, models: [], web: false, results: null, synthesis: null, synthCost: null, cost: null }));
+          saved = old.filter((q: unknown) => typeof q === "string").map((q: string, i: number) => ({
+            id: Date.now() - i, at: Date.now() - i, models: [], web: false,
+            turns: [{ q, at: Date.now() - i, results: null, synthesis: null, synthCost: null, cost: null }],
+          }));
         }
       } catch { /* ignore */ }
     }
     if (!saved.length) return;
-    setHistory(saved);
-    if (saved[0].results) restore(saved[0], saved);
+    setThreads(saved);
+    if (saved[0].turns.some((t) => t.results)) open(saved[0], true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  function persistHistory(next: HistoryEntry[]) {
+  function persistThreads(next: Thread[]) {
     let list = next.slice(0, MAX_ENTRIES);
-    // Answers are bulky — drop the oldest runs until the payload fits, then
+    // Answers are bulky — drop the oldest threads until the payload fits, then
     // keep dropping if the browser still refuses the write.
     while (list.length > 1 && JSON.stringify(list).length > MAX_BYTES) list = list.slice(0, -1);
-    setHistory(list);
+    setThreads(list);
     for (;;) {
-      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); break; } catch {
-        if (list.length <= 1) { try { localStorage.removeItem(HISTORY_KEY); } catch { /* ignore */ } break; }
+      try { localStorage.setItem(THREADS_KEY, JSON.stringify(list)); break; } catch {
+        if (list.length <= 1) { try { localStorage.removeItem(THREADS_KEY); } catch { /* ignore */ } break; }
         list = list.slice(0, -1);
-        setHistory(list);
+        setThreads(list);
       }
     }
-    try { localStorage.removeItem(LEGACY_KEY); } catch { /* ignore */ }
-  }
-  function removeEntry(at: number) {
-    persistHistory(history.filter((e) => e.at !== at));
-    if (viewing === at) { setViewing(null); setResults(null); setSynthesis(null); setSynthCost(null); }
+    try { localStorage.removeItem(RUNS_KEY); localStorage.removeItem(LEGACY_KEY); } catch { /* ignore */ }
   }
 
-  /** Put a saved run back on screen — no model calls, no cost. */
-  function restore(e: HistoryEntry, list?: HistoryEntry[]) {
-    if (!e.results) { run(e.q); return; }
-    setQuestion(e.q);
-    setResults(e.results);
-    setSynthesis(e.synthesis);
-    setSynthCost(e.synthCost);
-    setWeb(e.web);
-    setSynthesize(!!e.synthesis);
-    if (e.models.length) setSelected(e.models.slice(0, 4));
-    setViewing(e.at);
+  function removeThread(id: number) {
+    persistThreads(threads.filter((t) => t.id !== id));
+    if (thread?.id === id) newThread();
+  }
+
+  /** Reopen a saved conversation — no model calls, no cost. */
+  function open(t: Thread, initial?: boolean) {
+    const answered = t.turns.filter((x) => x.results);
+    if (!answered.length) { run(t.turns[0].q); return; }
+    setThread(t);
+    setQuestion("");
+    setWeb(t.web);
+    setSynthesize(answered.some((x) => x.synthesis));
+    if (t.models.length) setSelected(t.models.slice(0, 4));
+    setRestored(true);
     setErr(null);
-    if (!list) window.scrollTo({ top: 0, behavior: "smooth" });
+    if (!initial) window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function newQuestion() {
-    setViewing(null); setQuestion(""); setResults(null); setSynthesis(null); setSynthCost(null); setErr(null);
+  function newThread() {
+    setThread(null); setRestored(false); setQuestion(""); setErr(null);
   }
 
-  // Rough pre-run estimate: ~700 output tokens/model (+ a synthesis pass).
+  // Rough pre-run estimate: ~700 output tokens/model (+ a synthesis pass). A
+  // follow-up also replays the thread, so those tokens are priced in too.
   const estCost = useMemo(() => {
-    const promptTok = Math.ceil(question.length / 4) + 60;
+    const replay = thread ? toHistory(thread.turns).slice(-6).reduce(
+      (n, t) => n + Math.ceil(t.q.length / 4) + Math.ceil(Math.min(1500, Object.values(t.answers)[0]?.length ?? 0) / 4), 0) : 0;
+    const promptTok = Math.ceil(question.length / 4) + 60 + replay;
     let total = selected.reduce((sum, id) => {
       const p = pricing[id];
       return p ? sum + promptTok * p.prompt + 700 * p.completion : sum;
@@ -169,7 +203,7 @@ export default function CompareClient({ connected, pricing }: { connected: boole
       if (p) total += 1600 * p.prompt + 700 * p.completion;
     }
     return total;
-  }, [question, selected, synthesize, pricing]);
+  }, [question, selected, synthesize, pricing, thread]);
 
   const slug = (s: string) => (s || "morris").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "morris";
 
@@ -216,32 +250,39 @@ export default function CompareClient({ connected, pricing }: { connected: boole
     setSelected((s) => s.includes(id) ? s.filter((x) => x !== id) : s.length >= 4 ? s : [...s, id]);
   }
 
-  async function run(text?: string) {
+  async function run(text?: string, startNew?: boolean) {
     const q = (text ?? question).trim();
     if (!q || busy || selected.length === 0) return;
-    setErr(null); setBusy(true); setResults(null); setSynthesis(null); setSynthCost(null); setViewing(null);
-    if (text) setQuestion(text);
+    // `startNew` forces a fresh thread (a re-ask), otherwise a question typed
+    // while a thread is open continues it.
+    const base = startNew ? null : thread;
+    setErr(null); setBusy(true); setRestored(false);
+    setQuestion("");
     try {
       const res = await fetch("/api/ask/compare", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, models: selected, synthesize, web }),
+        body: JSON.stringify({ question: q, models: selected, synthesize, web, history: base ? toHistory(base.turns) : [] }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? data.error ?? "Failed");
-      setResults(data.results);
-      setSynthesis(data.synthesis ?? null);
-      setSynthCost(data.synthesisCost ?? null);
       if (data.totalCost) setSessionCost((s) => s + data.totalCost);
-      // Keep the whole run, so re-opening this question is free.
-      const entry: HistoryEntry = {
-        q, at: Date.now(), models: selected, web,
+      // Keep the whole turn, so re-opening this conversation is free.
+      const turn: Turn = {
+        q, at: Date.now(),
         results: data.results ?? null,
         synthesis: data.synthesis ?? null,
         synthCost: data.synthesisCost ?? null,
         cost: data.totalCost ?? null,
       };
-      persistHistory([entry, ...history.filter((e) => e.q !== q)]);
-    } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+      const next: Thread = base
+        ? { ...base, at: turn.at, models: selected, web, turns: [...base.turns, turn] }
+        : { id: turn.at, at: turn.at, models: selected, web, turns: [turn] };
+      setThread(next);
+      persistThreads([next, ...threads.filter((t) => t.id !== next.id)]);
+    } catch (e) {
+      setErr((e as Error).message);
+      setQuestion(q); // don't lose what they typed
+    } finally { setBusy(false); }
   }
 
   return (
@@ -270,12 +311,24 @@ export default function CompareClient({ connected, pricing }: { connected: boole
         })}
       </div>
 
-      {/* Question */}
+      {/* Question / follow-up */}
       <div className="ios-list" style={{ margin: 0, padding: 14 }}>
+        {thread && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+            <span className="ios-caption" style={{ color: "var(--ios-label-2)", flex: 1, minWidth: 150, lineHeight: 1.4 }}>
+              In conversation · the panel remembers {thread.turns.length} earlier question{thread.turns.length === 1 ? "" : "s"}
+            </span>
+            <button onClick={newThread} className="ios-caption" style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "5px 10px", flexShrink: 0 }}>
+              New thread
+            </button>
+          </div>
+        )}
         <textarea
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Ask anything — the same question goes to every model on the panel…"
+          placeholder={thread
+            ? "Ask a follow-up — each model sees what it already told you…"
+            : "Ask anything — the same question goes to every model on the panel…"}
           rows={3}
           style={{ width: "100%", background: "var(--ios-fill)", border: "none", borderRadius: 12, padding: "12px 14px", fontSize: 16, color: "var(--ios-label)", resize: "vertical", fontFamily: "inherit" }}
         />
@@ -289,10 +342,11 @@ export default function CompareClient({ connected, pricing }: { connected: boole
         </label>
         <button onClick={() => run()} disabled={busy || !question.trim() || selected.length === 0}
           className="ios-btn ios-btn--primary" style={{ marginTop: 12, opacity: busy || !question.trim() ? 0.5 : 1 }}>
-          {busy ? "Asking…" : `Ask ${selected.length} model${selected.length === 1 ? "" : "s"}`}
+          {busy ? "Asking…" : `${thread ? "Ask follow-up of" : "Ask"} ${selected.length} model${selected.length === 1 ? "" : "s"}`}
         </button>
         <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, textAlign: "center", lineHeight: 1.5 }}>
           {estCost > 0 && <>Est. this run <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>. </>}
+          {thread && <>Follow-ups replay the thread, so they cost a little more. </>}
           {web && <>Live web adds ~$0.01–0.02 per model. </>}
           {sessionCost > 0 && <>Session <strong style={{ color: "var(--ios-label-2)" }}>{fmtCost(sessionCost)}</strong>. </>}
           Exact cost shown after each action.
@@ -300,31 +354,34 @@ export default function CompareClient({ connected, pricing }: { connected: boole
       </div>
       {notice && <div className="ios-footnote" style={{ color: "var(--ios-green)", marginTop: 10, textAlign: "center" }}>{notice}</div>}
 
-      {!busy && history.length > 0 && (
+      {!busy && threads.length > 0 && (
         <div style={{ marginTop: 16 }}>
           <div className="ios-group-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0 7px" }}>
-            <span>RECENT · answers saved</span>
-            <button onClick={() => { persistHistory([]); newQuestion(); }} className="ios-caption" style={{ color: "var(--ios-tint)", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>Clear all</button>
+            <span>RECENT · conversations saved</span>
+            <button onClick={() => { persistThreads([]); newThread(); }} className="ios-caption" style={{ color: "var(--ios-tint)", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>Clear all</button>
           </div>
           <div className="ios-list" style={{ margin: 0 }}>
-            {history.map((e, i) => {
-              const n = e.results?.filter((r) => r.answer && !r.error).length ?? 0;
+            {threads.map((t, i) => {
+              const answers = t.turns.reduce((n, x) => n + (x.results?.filter((r) => r.answer && !r.error).length ?? 0), 0);
+              const cost = t.turns.reduce((n, x) => n + (x.cost ?? 0), 0);
+              const qs = t.turns.length;
               return (
-                <div key={e.at} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: i < history.length - 1 ? "1px solid var(--ios-separator)" : "none", background: viewing === e.at ? "var(--ios-fill)" : "transparent" }}>
-                  <button onClick={() => restore(e)} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
-                    <div style={{ color: "var(--ios-label)", fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.q}</div>
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: i < threads.length - 1 ? "1px solid var(--ios-separator)" : "none", background: thread?.id === t.id ? "var(--ios-fill)" : "transparent" }}>
+                  <button onClick={() => open(t)} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                    <div style={{ color: "var(--ios-label)", fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.turns[0].q}</div>
                     <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 2 }}>
-                      {e.results ? `${n} saved answer${n === 1 ? "" : "s"}${e.synthesis ? " + synthesis" : ""} · ${ago(e.at)}` : "tap to ask again"}
-                      {e.cost != null && e.cost > 0 && ` · ${fmtCost(e.cost)}`}
+                      {answers
+                        ? `${qs} question${qs === 1 ? "" : "s"} · ${answers} saved answer${answers === 1 ? "" : "s"} · ${ago(t.at)}${cost > 0 ? ` · ${fmtCost(cost)}` : ""}`
+                        : "tap to ask again"}
                     </div>
                   </button>
-                  {e.results && (
-                    <button onClick={() => run(e.q)} aria-label="Ask again" title="Ask again (runs the models, costs money)"
+                  {answers > 0 && (
+                    <button onClick={() => run(t.turns[t.turns.length - 1].q, true)} aria-label="Ask again in a new thread" title="Ask again in a new thread (runs the models, costs money)"
                       style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "5px 9px", flexShrink: 0 }}>
                       Re-ask
                     </button>
                   )}
-                  <button onClick={() => removeEntry(e.at)} aria-label="Remove search" style={{ background: "none", border: "none", color: "var(--ios-label-3)", fontSize: 19, lineHeight: 1, cursor: "pointer", padding: "0 4px", flexShrink: 0 }}>×</button>
+                  <button onClick={() => removeThread(t.id)} aria-label="Remove conversation" style={{ background: "none", border: "none", color: "var(--ios-label-3)", fontSize: 19, lineHeight: 1, cursor: "pointer", padding: "0 4px", flexShrink: 0 }}>×</button>
                 </div>
               );
             })}
@@ -332,7 +389,7 @@ export default function CompareClient({ connected, pricing }: { connected: boole
         </div>
       )}
 
-      {results === null && !busy && (
+      {!thread && !busy && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
           {SUGGESTIONS.map((s) => (
             <button key={s} onClick={() => run(s)}
@@ -346,49 +403,61 @@ export default function CompareClient({ connected, pricing }: { connected: boole
       {err && <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", marginTop: 12 }}>{err}</div>}
       {busy && <div className="ios-subhead" style={{ color: "var(--ios-label-2)", marginTop: 16, textAlign: "center" }}>Running against {selected.length} model{selected.length === 1 ? "" : "s"}…</div>}
 
-      {viewing != null && results && !busy && (
+      {restored && thread && !busy && (
         <div className="ios-list" style={{ margin: "16px 0 0", padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span className="ios-caption" style={{ color: "var(--ios-label-2)", flex: 1, minWidth: 140 }}>
-            Saved answers from {ago(viewing)} · no new cost
+            Saved conversation from {ago(thread.at)} · no new cost
           </span>
-          <button onClick={() => run(question)} className="ios-caption" style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "5px 10px" }}>Ask again</button>
-          <button onClick={newQuestion} className="ios-caption" style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "5px 2px" }}>New question</button>
+          <button onClick={newThread} className="ios-caption" style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "5px 2px" }}>New thread</button>
         </div>
       )}
 
-      {/* Synthesis */}
-      {synthesis && (
-        <div className="ios-list" style={{ margin: "16px 0 8px", padding: 16, border: "1.5px solid var(--ios-tint)" }}>
-          <div className="ios-caption" style={{ color: "var(--ios-tint)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 8 }}>✦ Synthesized answer</div>
-          <div className="ios-subhead" style={{ color: "var(--ios-label)" }} dangerouslySetInnerHTML={{ __html: md(synthesis) }} />
-          <ExportBar content={synthesis} title={question} cost={synthCost} exporting={exporting} onExport={exportAs} />
-        </div>
-      )}
+      {/* The conversation — newest turn first, each with its own answers. */}
+      {thread?.turns.map((turn, idx) => {
+        const position = idx + 1; // 1 = the opening question
+        return (
+          <div key={turn.at}>
+            <div className="ios-group-header" style={{ padding: "18px 0 7px" }}>
+              {position === 1 ? "QUESTION" : `FOLLOW-UP ${position - 1}`} · {ago(turn.at)}
+            </div>
+            <div className="ios-list" style={{ margin: 0, padding: "10px 14px" }}>
+              <div className="ios-subhead" style={{ color: "var(--ios-label)", whiteSpace: "pre-wrap" }}>{turn.q}</div>
+            </div>
 
-      {/* Side-by-side answers (horizontal swipe) */}
-      {results && results.length > 0 && (
-        <>
-          <div className="ios-group-header" style={{ padding: "16px 0 7px" }}>ANSWERS · swipe →</div>
-          <div style={{ display: "flex", gap: 12, overflowX: "auto", scrollSnapType: "x mandatory", paddingBottom: 6, margin: "0 -16px", paddingLeft: 16, paddingRight: 16 }}>
-            {results.map((r) => {
-              const m = META(r.model);
-              return (
-                <div key={r.model} className="ios-list" style={{ margin: 0, flex: "0 0 84%", maxWidth: 340, scrollSnapAlign: "start", padding: 16, alignSelf: "flex-start" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color, flexShrink: 0 }} />
-                    <span className="ios-headline" style={{ fontSize: 15 }}>{m.label}</span>
-                  </div>
-                  {r.error
-                    ? <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", lineHeight: 1.5 }}>Couldn&apos;t answer: {r.error}</div>
-                    : <><div className="ios-subhead" style={{ color: "var(--ios-label)", fontSize: 14.5 }} dangerouslySetInnerHTML={{ __html: md(r.answer) }} />
-                        {r.citations && r.citations.length > 0 && <Sources items={r.citations} />}
-                        <ExportBar content={r.answer} title={`${m.label} — ${question}`} cost={r.cost} exporting={exporting} onExport={exportAs} /></>}
+            {turn.synthesis && (
+              <div className="ios-list" style={{ margin: "10px 0 8px", padding: 16, border: "1.5px solid var(--ios-tint)" }}>
+                <div className="ios-caption" style={{ color: "var(--ios-tint)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 8 }}>✦ Synthesized answer</div>
+                <div className="ios-subhead" style={{ color: "var(--ios-label)" }} dangerouslySetInnerHTML={{ __html: md(turn.synthesis) }} />
+                <ExportBar content={turn.synthesis} title={turn.q} cost={turn.synthCost} exporting={exporting} onExport={exportAs} />
+              </div>
+            )}
+
+            {turn.results && turn.results.length > 0 && (
+              <>
+                <div className="ios-group-header" style={{ padding: "12px 0 7px" }}>ANSWERS · swipe →</div>
+                <div style={{ display: "flex", gap: 12, overflowX: "auto", scrollSnapType: "x mandatory", paddingBottom: 6, margin: "0 -16px", paddingLeft: 16, paddingRight: 16 }}>
+                  {turn.results.map((r) => {
+                    const m = META(r.model);
+                    return (
+                      <div key={r.model} className="ios-list" style={{ margin: 0, flex: "0 0 84%", maxWidth: 340, scrollSnapAlign: "start", padding: 16, alignSelf: "flex-start" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                          <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color, flexShrink: 0 }} />
+                          <span className="ios-headline" style={{ fontSize: 15 }}>{m.label}</span>
+                        </div>
+                        {r.error
+                          ? <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", lineHeight: 1.5 }}>Couldn&apos;t answer: {r.error}</div>
+                          : <><div className="ios-subhead" style={{ color: "var(--ios-label)", fontSize: 14.5 }} dangerouslySetInnerHTML={{ __html: md(r.answer) }} />
+                              {r.citations && r.citations.length > 0 && <Sources items={r.citations} />}
+                              <ExportBar content={r.answer} title={`${m.label} — ${turn.q}`} cost={r.cost} exporting={exporting} onExport={exportAs} /></>}
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </>
+            )}
           </div>
-        </>
-      )}
+        );
+      }).reverse()}
 
       {/* Image generation */}
       <div className="ios-group-header" style={{ padding: "18px 0 7px" }}>GENERATE AN IMAGE</div>

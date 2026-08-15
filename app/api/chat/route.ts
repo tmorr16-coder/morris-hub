@@ -159,7 +159,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No messages provided" }, { status: 400 });
   }
 
-  const trimmed = messages.slice(-8);
+  // Keep enough of the thread that follow-ups ("what about the other one?")
+  // still resolve — 8 messages was only four exchanges. The system context block
+  // is cached, so the extra turns are the only added cost.
+  const trimmed = messages.slice(-20);
 
   // If investment context is provided, use simpler investment-focused chat
   if (investmentContext && systemPrompt) {
