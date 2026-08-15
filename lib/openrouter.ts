@@ -15,6 +15,10 @@ export interface CompareModel {
 
 // Model id used to synthesize/merge answers. Kept here so it stays current.
 export const SYNTH_MODEL = "anthropic/claude-sonnet-5";
+// Model that structures prose into slide JSON (fast, good at JSON).
+export const SLIDE_MODEL = "google/gemini-3.5-flash";
+// Image-generation model (returns an image in the message).
+export const IMAGE_MODEL = "google/gemini-2.5-flash-image";
 
 // Curated default line-up (current frontier models). Ids are editable; the route
 // degrades gracefully if an id goes stale (that column shows an error, the
@@ -59,4 +63,29 @@ export async function askModel(model: string, messages: ChatMessage[], maxTokens
   }
   const data = await res.json();
   return data.choices?.[0]?.message?.content ?? "";
+}
+
+/** Generate an image from a prompt. Returns a data/https image URL. */
+export async function generateImage(prompt: string, model: string = IMAGE_MODEL): Promise<string> {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://morrisai.family",
+      "X-Title": "morrisai.family",
+    },
+    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], modalities: ["image", "text"] }),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    let reason = `${res.status}`;
+    try { const j = JSON.parse(t); reason = j.error?.message ?? reason; } catch { /* keep status */ }
+    throw new Error(reason);
+  }
+  const data = await res.json();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const url = data.choices?.[0]?.message?.images?.[0]?.image_url?.url as string | undefined;
+  if (!url) throw new Error("This model returned no image — try a different image model.");
+  return url;
 }

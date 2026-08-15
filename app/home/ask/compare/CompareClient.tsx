@@ -46,6 +46,45 @@ export default function CompareClient({ connected }: { connected: boolean }) {
   const [results, setResults] = useState<Result[] | null>(null);
   const [synthesis, setSynthesis] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null); // "docx"|"pptx"|"md" busy
+  const [imgPrompt, setImgPrompt] = useState("");
+  const [imgBusy, setImgBusy] = useState(false);
+  const [imgUrl, setImgUrl] = useState<string | null>(null);
+  const [imgErr, setImgErr] = useState<string | null>(null);
+
+  const slug = (s: string) => (s || "morris").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "morris";
+
+  async function exportAs(content: string, format: "md" | "docx" | "pptx", title: string) {
+    setExporting(format); setErr(null);
+    try {
+      const res = await fetch("/api/ask/compare/export", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, format, title }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error ?? "Export failed"); }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `${slug(title)}.${format}`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) { setErr((e as Error).message); } finally { setExporting(null); }
+  }
+
+  async function makeImage() {
+    const p = imgPrompt.trim();
+    if (!p || imgBusy) return;
+    setImgBusy(true); setImgErr(null); setImgUrl(null);
+    try {
+      const res = await fetch("/api/ask/compare/image", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: p }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? data.error ?? "Failed");
+      setImgUrl(data.image);
+    } catch (e) { setImgErr((e as Error).message); } finally { setImgBusy(false); }
+  }
 
   function toggle(id: string) {
     setSelected((s) => s.includes(id) ? s.filter((x) => x !== id) : s.length >= 4 ? s : [...s, id]);
@@ -132,6 +171,7 @@ export default function CompareClient({ connected }: { connected: boolean }) {
         <div className="ios-list" style={{ margin: "16px 0 8px", padding: 16, border: "1.5px solid var(--ios-tint)" }}>
           <div className="ios-caption" style={{ color: "var(--ios-tint)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 8 }}>✦ Synthesized answer</div>
           <div className="ios-subhead" style={{ color: "var(--ios-label)" }} dangerouslySetInnerHTML={{ __html: md(synthesis) }} />
+          <ExportBar content={synthesis} title={question} exporting={exporting} onExport={exportAs} />
         </div>
       )}
 
@@ -150,13 +190,62 @@ export default function CompareClient({ connected }: { connected: boolean }) {
                   </div>
                   {r.error
                     ? <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", lineHeight: 1.5 }}>Couldn&apos;t answer: {r.error}</div>
-                    : <div className="ios-subhead" style={{ color: "var(--ios-label)", fontSize: 14.5 }} dangerouslySetInnerHTML={{ __html: md(r.answer) }} />}
+                    : <><div className="ios-subhead" style={{ color: "var(--ios-label)", fontSize: 14.5 }} dangerouslySetInnerHTML={{ __html: md(r.answer) }} />
+                        <ExportBar content={r.answer} title={`${m.label} — ${question}`} exporting={exporting} onExport={exportAs} /></>}
                 </div>
               );
             })}
           </div>
         </>
       )}
+
+      {/* Image generation */}
+      <div className="ios-group-header" style={{ padding: "18px 0 7px" }}>GENERATE AN IMAGE</div>
+      <div className="ios-list" style={{ margin: 0, padding: 14 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            value={imgPrompt}
+            onChange={(e) => setImgPrompt(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") makeImage(); }}
+            placeholder="Describe an image — e.g. a clean infographic of…"
+            style={{ flex: 1, background: "var(--ios-fill)", border: "none", borderRadius: 12, padding: "12px 14px", fontSize: 15, color: "var(--ios-label)" }}
+          />
+          <button onClick={makeImage} disabled={imgBusy || !imgPrompt.trim()}
+            style={{ padding: "0 18px", borderRadius: 12, background: "var(--ios-tint)", color: "var(--ios-on-tint)", border: "none", fontWeight: 700, fontSize: 15, cursor: "pointer", opacity: imgBusy || !imgPrompt.trim() ? 0.5 : 1 }}>
+            {imgBusy ? "…" : "Create"}
+          </button>
+        </div>
+        {imgErr && <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", marginTop: 10 }}>{imgErr}</div>}
+        {imgUrl && (
+          <div style={{ marginTop: 12 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imgUrl} alt={imgPrompt} style={{ width: "100%", borderRadius: 12, display: "block" }} />
+            <a href={imgUrl} download={`${slug(imgPrompt)}.png`} style={{ display: "inline-block", marginTop: 10, color: "var(--ios-tint)", fontWeight: 600, fontSize: 14, textDecoration: "none" }}>
+              Download image ↓
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ExportBar({ content, title, exporting, onExport }: {
+  content: string; title: string; exporting: string | null;
+  onExport: (content: string, format: "md" | "docx" | "pptx", title: string) => void;
+}) {
+  const btn = (fmt: "md" | "docx" | "pptx", label: string) => (
+    <button onClick={() => onExport(content, fmt, title)} disabled={exporting != null}
+      style={{ padding: "6px 11px", borderRadius: 8, border: "1px solid var(--ios-separator)", background: "transparent", color: "var(--ios-tint)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", opacity: exporting != null ? 0.5 : 1 }}>
+      {exporting === fmt ? "…" : label}
+    </button>
+  );
+  return (
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--ios-separator)" }}>
+      <span className="ios-caption" style={{ color: "var(--ios-label-3)", alignSelf: "center", marginRight: 2 }}>Export:</span>
+      {btn("docx", "Word")}
+      {btn("pptx", "PowerPoint")}
+      {btn("md", "Markdown")}
     </div>
   );
 }
