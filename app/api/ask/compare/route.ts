@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { openrouterConfigured, askModel } from "@/lib/openrouter";
+import { openrouterConfigured, askModel, SYNTH_MODEL } from "@/lib/openrouter";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       const combined = good.map((r) => `### Answer from ${r.model}\n${r.answer}`).join("\n\n");
       try {
         synthesis = await askModel(
-          "anthropic/claude-3.7-sonnet",
+          SYNTH_MODEL,
           [
             { role: "system", content: "You synthesize multiple AI answers into one best answer. Note where the models agree, flag any disagreements or factual conflicts, and produce a single clear, well-organized response. Be concise; use markdown." },
             { role: "user", content: `Question: ${question}\n\nHere are ${good.length} answers from different models:\n\n${combined}\n\nProduce the single best merged answer, noting agreements and any conflicts.` },

@@ -13,21 +13,26 @@ export interface CompareModel {
   color: string;   // accent
 }
 
-// Curated default line-up. Ids are editable; the route degrades gracefully if a
-// model id is stale (that column shows an error, the others still answer).
+// Model id used to synthesize/merge answers. Kept here so it stays current.
+export const SYNTH_MODEL = "anthropic/claude-sonnet-5";
+
+// Curated default line-up (current frontier models). Ids are editable; the route
+// degrades gracefully if an id goes stale (that column shows an error, the
+// others still answer).
 export const COMPARE_MODELS: CompareModel[] = [
-  { id: "anthropic/claude-3.7-sonnet", label: "Claude 3.7 Sonnet", vendor: "Claude", color: "var(--ios-morris)" },
-  { id: "google/gemini-2.0-flash-001", label: "Gemini 2.0 Flash", vendor: "Gemini", color: "#2A8390" },
-  { id: "openai/gpt-4o", label: "GPT-4o", vendor: "GPT", color: "#2E7D6B" },
+  { id: "anthropic/claude-sonnet-5", label: "Claude Sonnet 5", vendor: "Claude", color: "var(--ios-morris)" },
+  { id: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", vendor: "Gemini", color: "#2A8390" },
+  { id: "openai/gpt-5.1", label: "GPT-5.1", vendor: "GPT", color: "#2E7D6B" },
 ];
 
 // Extra models the user can add in the picker.
 export const MORE_MODELS: CompareModel[] = [
-  { id: "anthropic/claude-3.5-sonnet", label: "Claude 3.5 Sonnet", vendor: "Claude", color: "var(--ios-morris)" },
-  { id: "openai/gpt-4o-mini", label: "GPT-4o mini", vendor: "GPT", color: "#2E7D6B" },
-  { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro", vendor: "Gemini", color: "#2A8390" },
-  { id: "x-ai/grok-2-1212", label: "Grok 2", vendor: "Grok", color: "#444" },
-  { id: "deepseek/deepseek-chat", label: "DeepSeek V3", vendor: "DeepSeek", color: "#7B5EA8" },
+  { id: "anthropic/claude-opus-4.5", label: "Claude Opus 4.5", vendor: "Claude", color: "var(--ios-morris)" },
+  { id: "openai/gpt-5", label: "GPT-5", vendor: "GPT", color: "#2E7D6B" },
+  { id: "openai/gpt-5-mini", label: "GPT-5 mini", vendor: "GPT", color: "#2E7D6B" },
+  { id: "google/gemini-3.5-flash", label: "Gemini 3.5 Flash", vendor: "Gemini", color: "#2A8390" },
+  { id: "x-ai/grok-4.6", label: "Grok 4.6", vendor: "Grok", color: "#444" },
+  { id: "deepseek/deepseek-chat", label: "DeepSeek", vendor: "DeepSeek", color: "#7B5EA8" },
   { id: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B", vendor: "Llama", color: "#B04A34" },
 ];
 
