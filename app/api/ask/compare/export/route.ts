@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { openrouterConfigured, askModel, SLIDE_MODEL } from "@/lib/openrouter";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
-import PptxGenJS from "pptxgenjs";
+import { outlineFromMarkdown, paginate, parseSlideJson, renderDeck, type Slide } from "@/lib/slides";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -45,70 +45,32 @@ function buildDocx(content: string, title: string): Document {
   });
 }
 
-interface Slide { title: string; subtitle?: string; bullets: string[] }
-
 async function buildPptx(content: string, title: string): Promise<{ buffer: Buffer; cost: number | null }> {
-  // Ask a model to structure the prose into slides.
+  // Ask a model to structure the prose into slides — a nicer narrative than the
+  // raw outline when it works, but never load-bearing: the markdown outline
+  // takes over if the call fails or comes back unusable.
   let slides: Slide[] = [];
   let cost: number | null = null;
-  try {
-    const raw = await askModel(SLIDE_MODEL, [
-      { role: "system", content: "You are a presentation designer. Turn the content into a clean, well-structured deck. Return ONLY JSON: {\"slides\":[{\"title\":\"Short slide title\",\"subtitle\":\"optional one-line framing\",\"bullets\":[\"concise point\",\"concise point\"]}]}. Rules: 5-9 slides. Open with an agenda/overview slide and CLOSE with a \"Key Takeaways\" slide. 3-5 bullets per slide, each ≤14 words, parallel phrasing, no markdown symbols, no sub-bullets. Titles are punchy (≤6 words)." },
-      { role: "user", content: `Deck title: ${title}\n\nSource content:\n${content.slice(0, 9000)}` },
-    ], 1800);
-    cost = raw.cost;
-    const cleaned = raw.content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-    const parsed = JSON.parse(cleaned);
-    slides = Array.isArray(parsed.slides) ? parsed.slides : [];
-  } catch { slides = []; }
-
-  const pptx = new PptxGenJS();
-  pptx.defineLayout({ name: "WIDE", width: 13.33, height: 7.5 });
-  pptx.layout = "WIDE";
-  const NAVY = "1C2B45", BLUE = "356FB0", GRAY = "44454A", MUTE = "8A8D96", BG = "FBFCFD";
-  const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  const FONT = "Helvetica Neue";
-
-  // Reusable footer band drawn on every content slide.
-  const footer = (s: PptxGenJS.Slide, n: number) => {
-    s.addShape(pptx.ShapeType.line, { x: 0.7, y: 6.95, w: 11.93, h: 0, line: { color: "E3E6EB", width: 1 } });
-    s.addText("morrisai.family", { x: 0.7, y: 7.0, w: 6, h: 0.35, fontSize: 10, color: MUTE, fontFace: FONT });
-    s.addText(String(n), { x: 12.0, y: 7.0, w: 0.6, h: 0.35, fontSize: 10, color: MUTE, align: "right", fontFace: FONT });
-  };
-
-  // ── Title slide ──
-  const t = pptx.addSlide();
-  t.background = { color: NAVY };
-  t.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.28, h: 7.5, fill: { color: BLUE } });
-  t.addText("M", { x: 0.7, y: 1.9, w: 1.0, h: 1.0, fontSize: 44, bold: true, color: "FFFFFF", fontFace: FONT });
-  t.addText(title, { x: 0.7, y: 3.0, w: 11.9, h: 1.8, fontSize: 38, bold: true, color: "FFFFFF", fontFace: FONT });
-  t.addText(`Generated with Ask Morris · ${dateStr}`, { x: 0.72, y: 4.9, w: 11.9, h: 0.5, fontSize: 15, color: "AEC3DE", fontFace: FONT });
-
-  if (slides.length === 0) {
-    const s = pptx.addSlide();
-    s.background = { color: BG };
-    s.addText(title, { x: 0.7, y: 0.55, w: 11.9, h: 0.8, fontSize: 26, bold: true, color: NAVY, fontFace: FONT });
-    s.addText(content.slice(0, 2200), { x: 0.7, y: 1.5, w: 11.9, h: 5.2, fontSize: 14, color: GRAY, fontFace: FONT, valign: "top" });
-    footer(s, 1);
-  } else {
-    slides.forEach((sl, i) => {
-      const s = pptx.addSlide();
-      s.background = { color: BG };
-      s.addText(sl.title || "", { x: 0.7, y: 0.5, w: 11.9, h: 0.75, fontSize: 30, bold: true, color: NAVY, fontFace: FONT });
-      s.addShape(pptx.ShapeType.rect, { x: 0.72, y: 1.3, w: 1.9, h: 0.07, fill: { color: BLUE } });
-      let bulletsY = 1.75;
-      if (sl.subtitle) {
-        s.addText(sl.subtitle, { x: 0.72, y: 1.42, w: 11.9, h: 0.45, fontSize: 15, italic: true, color: MUTE, fontFace: FONT });
-        bulletsY = 2.15;
-      }
-      const bullets = (sl.bullets || []).map((b) => ({ text: b, options: { bullet: { code: "2022", indent: 18 }, fontSize: 19, color: GRAY, paraSpaceAfter: 14, lineSpacingMultiple: 1.05 } }));
-      if (bullets.length) s.addText(bullets, { x: 0.95, y: bulletsY, w: 11.4, h: 6.7 - bulletsY, fontFace: FONT, valign: "top" });
-      footer(s, i + 1);
-    });
+  if (openrouterConfigured()) {
+    try {
+      const raw = await askModel(SLIDE_MODEL, [
+        { role: "system", content: "You are a presentation designer. Turn the content into a clean, well-structured deck. Return ONLY JSON: {\"slides\":[{\"title\":\"Short slide title\",\"subtitle\":\"optional one-line framing\",\"bullets\":[\"concise point\",\"concise point\"]}]}. Rules: 5-9 slides. Open with an agenda/overview slide and CLOSE with a \"Key Takeaways\" slide. 3-5 bullets per slide, each ≤14 words, parallel phrasing, no markdown symbols, no sub-bullets. Titles are punchy (≤6 words)." },
+        { role: "user", content: `Deck title: ${title}\n\nSource content:\n${content.slice(0, 9000)}` },
+      ], 2600, { json: true });
+      cost = raw.cost;
+      slides = parseSlideJson(raw.content);
+    } catch { slides = []; }
   }
 
-  const buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
-  return { buffer, cost };
+  // One slide back from the model means it summarised instead of structuring —
+  // the outline gives a real breakdown rather than a wall of text.
+  if (slides.length < 2) {
+    const outline = outlineFromMarkdown(content, title);
+    if (outline.length > slides.length) slides = outline;
+  }
+  if (!slides.length) slides = [{ title, bullets: [content] }];
+
+  return { buffer: await renderDeck(title, paginate(slides)), cost };
 }
 
 export async function POST(req: NextRequest) {
@@ -137,7 +99,8 @@ export async function POST(req: NextRequest) {
       });
     }
     if (body.format === "pptx") {
-      if (!openrouterConfigured()) return NextResponse.json({ error: "PowerPoint needs the OpenRouter key (to structure slides)." }, { status: 503 });
+      // No OpenRouter key is needed any more — without one the deck is built
+      // from the content's own outline instead of a model's.
       const { buffer, cost } = await buildPptx(content, title);
       return new Response(new Uint8Array(buffer), {
         headers: {
