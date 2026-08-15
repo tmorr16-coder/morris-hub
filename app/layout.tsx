@@ -3,6 +3,7 @@ import { Geist, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { RateLimitErrorBoundary } from "@/components/RateLimitErrorBoundary";
 import ThemeApplier from "@/components/ThemeApplier";
 import GlobalBackButton from "@/components/GlobalBackButton";
+import PullToRefresh from "@/components/PullToRefresh";
 import { NavModeProvider } from "@/components/NavModeProvider";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { isPersonalPersona } from "@/lib/prefs";
@@ -80,6 +81,7 @@ export default async function RootLayout({
       <body>
         <ThemeApplier />
         <GlobalBackButton />
+        <PullToRefresh />
         <NavModeProvider personal={personal}>
           <RateLimitErrorBoundary>{children}</RateLimitErrorBoundary>
         </NavModeProvider>
