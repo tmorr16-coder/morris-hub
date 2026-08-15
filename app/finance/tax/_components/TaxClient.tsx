@@ -69,7 +69,7 @@ export default function TaxClient({ snapshot }: { snapshot: TaxSnapshot }) {
           Estimated income tax · this year
         </div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginTop: 4, flexWrap: "wrap" }}>
-          <div className="ios-num" style={{ fontSize: 34, fontWeight: 700 }}>{money(snapshot.estimatedTax)}</div>
+          <div className="ios-num ios-hero-num" style={{ fontSize: 36 }}>{money(snapshot.estimatedTax)}</div>
           <div className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>on {money(snapshot.grossIncome)} income</div>
         </div>
         <div style={{ display: "flex", gap: 20, marginTop: 12, flexWrap: "wrap" }}>

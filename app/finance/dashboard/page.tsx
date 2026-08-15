@@ -356,7 +356,7 @@ export default async function DashboardPage() {
           <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Net position</div>
           <SyncNowButton />
         </div>
-        <div className="ios-num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.01em", marginTop: 4 }}>
+        <div className="ios-num ios-hero-num" style={{ fontSize: 36, marginTop: 4 }}>
           {fmtMoney(netPosition)}
         </div>
         {netDelta != null && netDelta !== 0 && (

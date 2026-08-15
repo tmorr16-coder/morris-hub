@@ -412,7 +412,7 @@ export default async function DashboardPage() {
               value={s.value != null ? s.value / 100 : 0}
               color={s.color}
               label={s.label}
-              center={<span className="ios-num" style={{ fontSize: 22, fontWeight: 700, color: s.value != null ? undefined : "var(--ios-label-2)" }}>{s.value != null ? s.value : "—"}</span>}
+              center={<span className="ios-num ios-hero-num" style={{ fontSize: 23, color: s.value != null ? undefined : "var(--ios-label-2)" }}>{s.value != null ? s.value : "—"}</span>}
             />
           ))}
         </div>

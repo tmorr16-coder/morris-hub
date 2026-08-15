@@ -37,13 +37,25 @@ export function IOSScreen({ children, theme }: { children: ReactNode; theme?: "l
  * accessory (avatar, compose button). Not sticky-collapsing yet — that lands
  * with the scroll behavior in a later pass.
  */
-/** The morrisai.family wordmark — a small brand eyebrow. */
+/** The morrisai.family wordmark — an "M" monogram badge + wordmark. */
 export function BrandMark({ style }: { style?: React.CSSProperties }) {
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, ...style }}>
-      <span aria-hidden style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--ios-tint)", flexShrink: 0 }} />
-      <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.01em", color: "var(--ios-label-2)" }}>
-        morrisai<span style={{ color: "var(--ios-tint)" }}>.family</span>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 7, ...style }}>
+      <span
+        aria-hidden
+        style={{
+          width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+          background: "linear-gradient(140deg, #4A86C6 0%, #2F62A0 100%)",
+          boxShadow: "inset 0 0.5px 0 rgba(255,255,255,0.30), 0 1px 2px rgba(16,24,40,0.20)",
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+        }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.7" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 19V6l8 8 8-8v13" />
+        </svg>
+      </span>
+      <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: "-0.006em", color: "var(--ios-label)" }}>
+        morrisai<span style={{ color: "var(--ios-tint)", fontWeight: 600 }}>.family</span>
       </span>
     </span>
   );
@@ -94,6 +106,7 @@ export function LargeTitle({
               width: 32, height: 32, borderRadius: "50%", background: "var(--ios-tint)", color: "#fff",
               display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 600,
               textDecoration: "none", flexShrink: 0,
+              boxShadow: "inset 0 0.5px 0 rgba(255,255,255,0.25), 0 1px 2px rgba(16,24,40,0.16)",
             }}
           >
             {avatarInitial}

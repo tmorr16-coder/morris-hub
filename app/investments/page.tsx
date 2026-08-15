@@ -86,7 +86,7 @@ export default async function InvestmentsPage() {
         <>
           {account && equity != null && (
             <div className="ios-list" style={{ margin: "8px 16px 0", padding: 16 }}>
-              <div className="ios-num" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.01em" }}>{usd(equity)}</div>
+              <div className="ios-num ios-hero-num" style={{ fontSize: 36 }}>{usd(equity)}</div>
               {dayChange != null && (
                 <div className="ios-subhead" style={{ color: trendColor, marginTop: 2 }}>
                   {up ? "▲" : "▼"} {usd(Math.abs(dayChange), 2)}{dayPct != null && ` (${dayPct.toFixed(2)}%)`} today

@@ -244,7 +244,7 @@ export default function TodayHubIOS({
           {family.map((m) => (
             <Cell
               key={m.id}
-              lead={<span aria-hidden style={{ width: 30, height: 30, borderRadius: "50%", background: m.color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 600 }}>{m.initial}</span>}
+              lead={<span aria-hidden style={{ width: 30, height: 30, borderRadius: "50%", background: m.color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 600, boxShadow: "inset 0 0.5px 0 rgba(255,255,255,0.25), 0 1px 2px rgba(16,24,40,0.14)" }}>{m.initial}</span>}
               title={m.name}
               subtitle={m.status}
               href={m.href}

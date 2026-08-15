@@ -151,6 +151,8 @@
 .ios-footnote    { font-size: 13px; line-height: 18px; font-weight: 400; }
 .ios-caption     { font-size: 12px; line-height: 16px; font-weight: 400; }
 .ios-num         { font-variant-numeric: tabular-nums; }
+/* Big hero figures (net worth, projections, scores) — tight, confident. */
+.ios-hero-num    { font-variant-numeric: tabular-nums; letter-spacing: -0.032em; font-weight: 700; }
 
 /* ══ Legacy-token remap ══════════════════════════════════════════════════════
    Old "paper" widgets (interactive client components not yet fully rebuilt)
@@ -254,11 +256,15 @@ button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed);
 .ios-chip {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 7px 14px; border-radius: 999px;
-  background: var(--ios-fill); color: var(--ios-label);
-  font-size: 15px; line-height: 1; white-space: nowrap;
+  background: var(--ios-fill); color: var(--ios-label-2);
+  font-size: 15px; font-weight: 500; line-height: 1; white-space: nowrap;
+  letter-spacing: -0.008em;
+  transition: background 0.14s ease, color 0.14s ease, transform 0.12s ease;
 }
+.ios-chip:active { transform: scale(0.96); }
 .ios-chip[aria-pressed="true"], .ios-chip.is-selected {
-  background: var(--ios-tint); color: var(--ios-on-tint);
+  background: var(--ios-tint); color: var(--ios-on-tint); font-weight: 600;
+  box-shadow: 0 1px 2px rgba(53,111,176,0.28);
 }
 .ios-chip--sm { padding: 5px 11px; font-size: 13px; }
 
@@ -275,17 +281,18 @@ button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed);
 /* ══ Segmented control ═══════════════════════════════════════════════════════ */
 .ios-segmented {
   display: flex; gap: 2px; padding: 2px;
-  background: var(--ios-fill); border-radius: 9px;
+  background: var(--ios-fill); border-radius: 10px;
   margin: 12px var(--ios-gutter) 0;
 }
 .ios-segmented button {
-  flex: 1 1 0; padding: 6px 10px; border-radius: 7px;
-  font-size: 14px; font-weight: 500; color: var(--ios-label);
-  transition: background 0.18s ease;
+  flex: 1 1 0; padding: 7px 10px; border-radius: 8px;
+  font-size: 14px; font-weight: 500; color: var(--ios-label-2);
+  letter-spacing: -0.008em;
+  transition: background 0.18s ease, color 0.18s ease;
 }
 .ios-segmented button[aria-selected="true"] {
-  background: var(--ios-bg-elevated); font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.10), 0 0 0 0.5px rgba(0,0,0,0.04);
+  background: var(--ios-bg-elevated); color: var(--ios-label); font-weight: 600;
+  box-shadow: 0 1px 3px rgba(16,24,40,0.12), 0 0 0 0.5px rgba(16,24,40,0.05);
 }
 
 /* ══ Glance tiles (2×2 one-tap summary) ══════════════════════════════════════ */
