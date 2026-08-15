@@ -32,12 +32,12 @@ export default async function ComparePage() {
 
   return (
     <IOSScreen>
-      <LargeTitle brand title="Compare models" subtitle="Ask once · Claude, Gemini & GPT side by side" />
+      <LargeTitle brand title="Ask the panel" subtitle="One question · Claude, Gemini & GPT each weigh in" />
       <div style={{ padding: "0 16px" }}>
         <CompareClient connected={openrouterConfigured()} pricing={pricing} />
       </div>
       <p className="ios-caption" style={{ color: "var(--ios-label-3)", padding: "10px 20px 0", lineHeight: 1.5 }}>
-        Runs your question against multiple models via OpenRouter (billed per use). Swipe between answers, or synthesize them into one.
+        Puts your question to a panel of models via OpenRouter (billed per use). Swipe between answers, or synthesize them into one.
       </p>
       <div style={{ height: 12 }} />
       <TabBar current="more" currentUserId={user.id} sourceApp="hub" />

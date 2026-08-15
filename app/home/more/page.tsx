@@ -40,7 +40,7 @@ export default async function MorePage() {
       <Group header="Stay informed">
         <Cell lead={<IconBadge color="var(--ios-news)"><Icons.NewsIcon /></IconBadge>} title="News" subtitle="Topics · local · company" href="/news" />
         <Cell lead={<IconBadge color="var(--ios-morris)"><Icons.SparkleIcon /></IconBadge>} title="Ask Morris" subtitle="Your AI across everything" href="/home/ask" />
-        <Cell lead={<IconBadge color="var(--ios-family)"><Icons.SparkleIcon /></IconBadge>} title="Compare models" subtitle="Claude · Gemini · GPT, side by side" href="/home/ask/compare" />
+        <Cell lead={<IconBadge color="var(--ios-family)"><Icons.SparkleIcon /></IconBadge>} title="Ask the panel" subtitle="Claude · Gemini · GPT, side by side" href="/home/ask/compare" />
       </Group>
 
       <Group header="You">

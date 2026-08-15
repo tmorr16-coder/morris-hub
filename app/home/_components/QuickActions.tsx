@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 const ACTIONS: { label: string; href: string; color: string; icon: ReactNode }[] = [
   // Ask Morris intentionally omitted here — the hero Ask pill right below is the
   // primary global entry point (avoids the Today triple-up).
-  { label: "Compare", href: "/home/ask/compare", color: "var(--ios-family)", icon: <Icons.SparkleIcon /> },
+  { label: "Panel", href: "/home/ask/compare", color: "var(--ios-family)", icon: <Icons.SparkleIcon /> },
   { label: "Workout", href: "/health/workout/builder", color: "var(--ios-health)", icon: <Icons.DumbbellIcon /> },
   { label: "Bible", href: "/bible/read", color: "var(--ios-bible)", icon: <Icons.BookIcon /> },
   { label: "Meal", href: "/health/nutrition", color: "var(--ios-orange)", icon: <Icons.ForkKnifeIcon /> },
