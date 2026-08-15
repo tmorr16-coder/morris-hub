@@ -29,6 +29,13 @@ export const COMPARE_MODELS: CompareModel[] = [
   { id: "openai/gpt-5.1", label: "GPT-5.1", vendor: "GPT", color: "#2E7D6B" },
 ];
 
+// Live/news models — Perplexity Sonar searches the web natively (cited, current).
+export const LIVE_MODELS: CompareModel[] = [
+  { id: "perplexity/sonar", label: "Sonar", vendor: "Perplexity", color: "#20808D" },
+  { id: "perplexity/sonar-pro", label: "Sonar Pro", vendor: "Perplexity", color: "#20808D" },
+  { id: "perplexity/sonar-reasoning-pro", label: "Sonar Reasoning", vendor: "Perplexity", color: "#20808D" },
+];
+
 // Extra models the user can add in the picker.
 export const MORE_MODELS: CompareModel[] = [
   { id: "anthropic/claude-opus-4.5", label: "Claude Opus 4.5", vendor: "Claude", color: "var(--ios-morris)" },
@@ -42,10 +49,11 @@ export const MORE_MODELS: CompareModel[] = [
 
 interface ChatMessage { role: "system" | "user" | "assistant"; content: string }
 
-export interface ModelResult { content: string; cost: number | null }
+export interface Citation { url: string; title: string }
+export interface ModelResult { content: string; cost: number | null; citations: Citation[] }
 
-/** Ask a single model. Returns its text + actual OpenRouter cost, or throws. */
-export async function askModel(model: string, messages: ChatMessage[], maxTokens = 1200): Promise<ModelResult> {
+/** Ask a single model. `web` grounds it in live search results (with citations). */
+export async function askModel(model: string, messages: ChatMessage[], maxTokens = 1200, opts?: { web?: boolean }): Promise<ModelResult> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -54,7 +62,10 @@ export async function askModel(model: string, messages: ChatMessage[], maxTokens
       "HTTP-Referer": "https://morrisai.family",
       "X-Title": "morrisai.family",
     },
-    body: JSON.stringify({ model, messages, max_tokens: maxTokens, usage: { include: true } }),
+    body: JSON.stringify({
+      model, messages, max_tokens: maxTokens, usage: { include: true },
+      ...(opts?.web ? { plugins: [{ id: "web" }] } : {}),
+    }),
   });
   if (!res.ok) {
     const t = await res.text().catch(() => "");
@@ -64,7 +75,21 @@ export async function askModel(model: string, messages: ChatMessage[], maxTokens
     throw new Error(reason);
   }
   const data = await res.json();
-  return { content: data.choices?.[0]?.message?.content ?? "", cost: data.usage?.cost ?? null };
+  const msg = data.choices?.[0]?.message ?? {};
+  // Citations come back either as message.annotations (url_citation) or a
+  // top-level citations array (Perplexity Sonar).
+  const citations: Citation[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const a of (msg.annotations ?? []) as any[]) {
+    const c = a?.url_citation;
+    if (c?.url) citations.push({ url: c.url, title: c.title || c.url });
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const u of (data.citations ?? []) as any[]) {
+    const url = typeof u === "string" ? u : u?.url;
+    if (url && !citations.some((c) => c.url === url)) citations.push({ url, title: (typeof u === "object" && u?.title) || url });
+  }
+  return { content: msg.content ?? "", cost: data.usage?.cost ?? null, citations };
 }
 
 /** Generate an image from a prompt. Returns a data/https image URL + cost. */

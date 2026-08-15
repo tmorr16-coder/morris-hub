@@ -16,7 +16,7 @@ function allow(userId: string): boolean {
   return true;
 }
 
-interface CompareBody { question: string; models: string[]; synthesize?: boolean }
+interface CompareBody { question: string; models: string[]; synthesize?: boolean; web?: boolean }
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -35,18 +35,22 @@ export async function POST(req: NextRequest) {
   if (!question) return NextResponse.json({ error: "Missing question" }, { status: 400 });
   if (!models.length) return NextResponse.json({ error: "Pick at least one model" }, { status: 400 });
 
+  const web = !!body.web;
   const messages = [
-    { role: "system" as const, content: "You are a helpful, accurate assistant. Be clear and concise. Use markdown (headings, bold, bullet lists) when it aids readability." },
+    { role: "system" as const, content: `You are a helpful, accurate assistant. Be clear and concise. Use markdown (headings, bold, bullet lists) when it aids readability.${web ? " When you use web sources, cite them." : ""}` },
     { role: "user" as const, content: question },
   ];
 
   // Fan out to every chosen model in parallel — one failure never blocks the rest.
-  const settled = await Promise.allSettled(models.map((m) => askModel(m, messages)));
+  // Perplexity Sonar searches natively, so the web plugin is only added to the others.
+  const settled = await Promise.allSettled(
+    models.map((m) => askModel(m, messages, 1200, { web: web && !m.startsWith("perplexity/") })),
+  );
   const results = models.map((model, i) => {
     const r = settled[i];
     return r.status === "fulfilled"
-      ? { model, answer: r.value.content, error: null as string | null, cost: r.value.cost }
-      : { model, answer: "", error: (r.reason as Error)?.message ?? "Failed", cost: null as number | null };
+      ? { model, answer: r.value.content, error: null as string | null, cost: r.value.cost, citations: r.value.citations }
+      : { model, answer: "", error: (r.reason as Error)?.message ?? "Failed", cost: null as number | null, citations: [] };
   });
 
   // Optional synthesis — one model reads all answers and merges them.

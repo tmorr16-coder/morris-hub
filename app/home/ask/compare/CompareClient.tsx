@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { COMPARE_MODELS, MORE_MODELS, SYNTH_MODEL, type CompareModel } from "@/lib/openrouter";
+import { COMPARE_MODELS, LIVE_MODELS, MORE_MODELS, SYNTH_MODEL, type CompareModel } from "@/lib/openrouter";
 import type { Pricing } from "./page";
 
-interface Result { model: string; answer: string; error: string | null; cost: number | null }
+interface Citation { url: string; title: string }
+interface Result { model: string; answer: string; error: string | null; cost: number | null; citations?: Citation[] }
 
 function fmtCost(c: number | null | undefined): string {
   if (c == null) return "";
@@ -13,7 +14,8 @@ function fmtCost(c: number | null | undefined): string {
   return "$" + c.toFixed(c < 0.1 ? 4 : 2);
 }
 
-const ALL: CompareModel[] = [...COMPARE_MODELS, ...MORE_MODELS];
+const ALL: CompareModel[] = [...COMPARE_MODELS, ...LIVE_MODELS, ...MORE_MODELS];
+const LIVE_IDS = new Set(LIVE_MODELS.map((m) => m.id));
 const META = (id: string) => ALL.find((m) => m.id === id) ?? { id, label: id, vendor: "Model", color: "var(--ios-label-2)" };
 
 // ── tiny safe markdown → html ──────────────────────────────────────
@@ -50,6 +52,7 @@ export default function CompareClient({ connected, pricing }: { connected: boole
   const [question, setQuestion] = useState("");
   const [selected, setSelected] = useState<string[]>(COMPARE_MODELS.map((m) => m.id));
   const [synthesize, setSynthesize] = useState(false);
+  const [web, setWeb] = useState(false);
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<Result[] | null>(null);
   const [synthesis, setSynthesis] = useState<string | null>(null);
@@ -131,7 +134,7 @@ export default function CompareClient({ connected, pricing }: { connected: boole
     try {
       const res = await fetch("/api/ask/compare", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, models: selected, synthesize }),
+        body: JSON.stringify({ question: q, models: selected, synthesize, web }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? data.error ?? "Failed");
@@ -162,7 +165,7 @@ export default function CompareClient({ connected, pricing }: { connected: boole
               style={{ padding: "7px 13px", borderRadius: 999, fontSize: 14, fontWeight: 600, cursor: "pointer",
                 border: `1px solid ${on ? "transparent" : "var(--ios-separator)"}`,
                 background: on ? m.color : "transparent", color: on ? "#fff" : "var(--ios-label)" }}>
-              {m.label}
+              {LIVE_IDS.has(m.id) ? "🌐 " : ""}{m.label}
             </button>
           );
         })}
@@ -178,6 +181,10 @@ export default function CompareClient({ connected, pricing }: { connected: boole
           style={{ width: "100%", background: "var(--ios-fill)", border: "none", borderRadius: 12, padding: "12px 14px", fontSize: 16, color: "var(--ios-label)", resize: "vertical", fontFamily: "inherit" }}
         />
         <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, cursor: "pointer" }}>
+          <input type="checkbox" checked={web} onChange={(e) => setWeb(e.target.checked)} style={{ width: 18, height: 18 }} />
+          <span className="ios-subhead">🌐 Live web — ground answers in current search results</span>
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, cursor: "pointer" }}>
           <input type="checkbox" checked={synthesize} onChange={(e) => setSynthesize(e.target.checked)} style={{ width: 18, height: 18 }} />
           <span className="ios-subhead">Synthesize into one merged answer</span>
         </label>
@@ -187,6 +194,7 @@ export default function CompareClient({ connected, pricing }: { connected: boole
         </button>
         <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, textAlign: "center", lineHeight: 1.5 }}>
           {estCost > 0 && <>Est. this run <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>. </>}
+          {web && <>Live web adds ~$0.01–0.02 per model. </>}
           {sessionCost > 0 && <>Session <strong style={{ color: "var(--ios-label-2)" }}>{fmtCost(sessionCost)}</strong>. </>}
           Exact cost shown after each action.
         </div>
@@ -232,6 +240,7 @@ export default function CompareClient({ connected, pricing }: { connected: boole
                   {r.error
                     ? <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", lineHeight: 1.5 }}>Couldn&apos;t answer: {r.error}</div>
                     : <><div className="ios-subhead" style={{ color: "var(--ios-label)", fontSize: 14.5 }} dangerouslySetInnerHTML={{ __html: md(r.answer) }} />
+                        {r.citations && r.citations.length > 0 && <Sources items={r.citations} />}
                         <ExportBar content={r.answer} title={`${m.label} — ${question}`} cost={r.cost} exporting={exporting} onExport={exportAs} /></>}
                 </div>
               );
@@ -269,6 +278,24 @@ export default function CompareClient({ connected, pricing }: { connected: boole
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function Sources({ items }: { items: Citation[] }) {
+  let host = (u: string) => u;
+  host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div className="ios-caption" style={{ color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 5 }}>Sources</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        {items.slice(0, 8).map((c, i) => (
+          <a key={i} href={c.url} target="_blank" rel="noopener noreferrer" className="ios-caption"
+            style={{ color: "var(--ios-tint)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {i + 1}. {c.title || host(c.url)} <span style={{ color: "var(--ios-label-3)" }}>· {host(c.url)}</span>
+          </a>
+        ))}
       </div>
     </div>
   );
