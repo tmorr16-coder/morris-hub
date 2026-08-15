@@ -162,13 +162,13 @@ export default function CompareClient({ connected, pricing }: { connected: boole
       {!connected && (
         <div className="ios-list" style={{ margin: "0 0 10px", padding: 14 }}>
           <div className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}>
-            Add an <strong>OPENROUTER_API_KEY</strong> to enable comparison. Get one at openrouter.ai.
+            Add an <strong>OPENROUTER_API_KEY</strong> to enable the panel. Get one at openrouter.ai.
           </div>
         </div>
       )}
 
       {/* Model picker */}
-      <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>MODELS · pick up to 4</div>
+      <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>PANEL · pick up to 4</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
         {ALL.map((m) => {
           const on = selected.includes(m.id);
@@ -188,7 +188,7 @@ export default function CompareClient({ connected, pricing }: { connected: boole
         <textarea
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Ask anything — the same question goes to every selected model…"
+          placeholder="Ask anything — the same question goes to every model on the panel…"
           rows={3}
           style={{ width: "100%", background: "var(--ios-fill)", border: "none", borderRadius: 12, padding: "12px 14px", fontSize: 16, color: "var(--ios-label)", resize: "vertical", fontFamily: "inherit" }}
         />
@@ -202,7 +202,7 @@ export default function CompareClient({ connected, pricing }: { connected: boole
         </label>
         <button onClick={() => run()} disabled={busy || !question.trim() || selected.length === 0}
           className="ios-btn ios-btn--primary" style={{ marginTop: 12, opacity: busy || !question.trim() ? 0.5 : 1 }}>
-          {busy ? "Asking…" : `Compare ${selected.length} model${selected.length === 1 ? "" : "s"}`}
+          {busy ? "Asking…" : `Ask ${selected.length} model${selected.length === 1 ? "" : "s"}`}
         </button>
         <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, textAlign: "center", lineHeight: 1.5 }}>
           {estCost > 0 && <>Est. this run <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>. </>}
