@@ -28,8 +28,8 @@ export async function POST(req: NextRequest) {
   if (!prompt) return NextResponse.json({ error: "Describe the image you want" }, { status: 400 });
 
   try {
-    const image = await generateImage(prompt, body.model);
-    return NextResponse.json({ image });
+    const { url, cost } = await generateImage(prompt, body.model);
+    return NextResponse.json({ image: url, cost });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502 });
   }

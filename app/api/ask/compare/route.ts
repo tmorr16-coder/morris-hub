@@ -45,18 +45,19 @@ export async function POST(req: NextRequest) {
   const results = models.map((model, i) => {
     const r = settled[i];
     return r.status === "fulfilled"
-      ? { model, answer: r.value, error: null as string | null }
-      : { model, answer: "", error: (r.reason as Error)?.message ?? "Failed" };
+      ? { model, answer: r.value.content, error: null as string | null, cost: r.value.cost }
+      : { model, answer: "", error: (r.reason as Error)?.message ?? "Failed", cost: null as number | null };
   });
 
   // Optional synthesis — one model reads all answers and merges them.
   let synthesis: string | null = null;
+  let synthesisCost: number | null = null;
   if (body.synthesize) {
     const good = results.filter((r) => r.answer && !r.error);
     if (good.length >= 2) {
       const combined = good.map((r) => `### Answer from ${r.model}\n${r.answer}`).join("\n\n");
       try {
-        synthesis = await askModel(
+        const s = await askModel(
           SYNTH_MODEL,
           [
             { role: "system", content: "You synthesize multiple AI answers into one best answer. Note where the models agree, flag any disagreements or factual conflicts, and produce a single clear, well-organized response. Be concise; use markdown." },
@@ -64,9 +65,12 @@ export async function POST(req: NextRequest) {
           ],
           1400,
         );
+        synthesis = s.content;
+        synthesisCost = s.cost;
       } catch { synthesis = null; }
     }
   }
 
-  return NextResponse.json({ results, synthesis });
+  const totalCost = results.reduce((sum, r) => sum + (r.cost ?? 0), 0) + (synthesisCost ?? 0);
+  return NextResponse.json({ results, synthesis, synthesisCost, totalCost });
 }

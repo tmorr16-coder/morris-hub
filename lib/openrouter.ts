@@ -42,8 +42,10 @@ export const MORE_MODELS: CompareModel[] = [
 
 interface ChatMessage { role: "system" | "user" | "assistant"; content: string }
 
-/** Ask a single model. Returns its text or throws. */
-export async function askModel(model: string, messages: ChatMessage[], maxTokens = 1200): Promise<string> {
+export interface ModelResult { content: string; cost: number | null }
+
+/** Ask a single model. Returns its text + actual OpenRouter cost, or throws. */
+export async function askModel(model: string, messages: ChatMessage[], maxTokens = 1200): Promise<ModelResult> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -52,7 +54,7 @@ export async function askModel(model: string, messages: ChatMessage[], maxTokens
       "HTTP-Referer": "https://morrisai.family",
       "X-Title": "morrisai.family",
     },
-    body: JSON.stringify({ model, messages, max_tokens: maxTokens }),
+    body: JSON.stringify({ model, messages, max_tokens: maxTokens, usage: { include: true } }),
   });
   if (!res.ok) {
     const t = await res.text().catch(() => "");
@@ -62,11 +64,11 @@ export async function askModel(model: string, messages: ChatMessage[], maxTokens
     throw new Error(reason);
   }
   const data = await res.json();
-  return data.choices?.[0]?.message?.content ?? "";
+  return { content: data.choices?.[0]?.message?.content ?? "", cost: data.usage?.cost ?? null };
 }
 
-/** Generate an image from a prompt. Returns a data/https image URL. */
-export async function generateImage(prompt: string, model: string = IMAGE_MODEL): Promise<string> {
+/** Generate an image from a prompt. Returns a data/https image URL + cost. */
+export async function generateImage(prompt: string, model: string = IMAGE_MODEL): Promise<{ url: string; cost: number | null }> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -75,7 +77,7 @@ export async function generateImage(prompt: string, model: string = IMAGE_MODEL)
       "HTTP-Referer": "https://morrisai.family",
       "X-Title": "morrisai.family",
     },
-    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], modalities: ["image", "text"] }),
+    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], modalities: ["image", "text"], usage: { include: true } }),
   });
   if (!res.ok) {
     const t = await res.text().catch(() => "");
@@ -87,5 +89,5 @@ export async function generateImage(prompt: string, model: string = IMAGE_MODEL)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const url = data.choices?.[0]?.message?.images?.[0]?.image_url?.url as string | undefined;
   if (!url) throw new Error("This model returned no image — try a different image model.");
-  return url;
+  return { url, cost: data.usage?.cost ?? null };
 }

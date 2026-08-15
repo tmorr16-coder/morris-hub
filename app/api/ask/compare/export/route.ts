@@ -38,15 +38,17 @@ function buildDocx(content: string, title: string): Document {
 
 interface Slide { title: string; bullets: string[] }
 
-async function buildPptx(content: string, title: string): Promise<Buffer> {
+async function buildPptx(content: string, title: string): Promise<{ buffer: Buffer; cost: number | null }> {
   // Ask a model to structure the prose into slides.
   let slides: Slide[] = [];
+  let cost: number | null = null;
   try {
     const raw = await askModel(SLIDE_MODEL, [
       { role: "system", content: "You turn content into a concise slide deck. Return ONLY JSON: {\"slides\":[{\"title\":\"...\",\"bullets\":[\"...\",\"...\"]}]}. 4-8 slides, 3-5 short bullets each, no markdown symbols in the text." },
       { role: "user", content: `Title: ${title}\n\nContent:\n${content.slice(0, 8000)}` },
     ], 1500);
-    const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+    cost = raw.cost;
+    const cleaned = raw.content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
     const parsed = JSON.parse(cleaned);
     slides = Array.isArray(parsed.slides) ? parsed.slides : [];
   } catch { slides = []; }
@@ -77,7 +79,8 @@ async function buildPptx(content: string, title: string): Promise<Buffer> {
     }
   }
 
-  return (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
+  const buffer = (await pptx.write({ outputType: "nodebuffer" })) as Buffer;
+  return { buffer, cost };
 }
 
 export async function POST(req: NextRequest) {
@@ -107,9 +110,14 @@ export async function POST(req: NextRequest) {
     }
     if (body.format === "pptx") {
       if (!openrouterConfigured()) return NextResponse.json({ error: "PowerPoint needs the OpenRouter key (to structure slides)." }, { status: 503 });
-      const buf = await buildPptx(content, title);
-      return new Response(new Uint8Array(buf), {
-        headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation", "Content-Disposition": `attachment; filename="${name}.pptx"` },
+      const { buffer, cost } = await buildPptx(content, title);
+      return new Response(new Uint8Array(buffer), {
+        headers: {
+          "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+          "Content-Disposition": `attachment; filename="${name}.pptx"`,
+          "X-Generation-Cost": cost != null ? String(cost) : "",
+          "Access-Control-Expose-Headers": "X-Generation-Cost",
+        },
       });
     }
     return NextResponse.json({ error: "Unknown format" }, { status: 400 });

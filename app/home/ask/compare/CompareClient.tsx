@@ -3,7 +3,14 @@
 import { useState } from "react";
 import { COMPARE_MODELS, MORE_MODELS, type CompareModel } from "@/lib/openrouter";
 
-interface Result { model: string; answer: string; error: string | null }
+interface Result { model: string; answer: string; error: string | null; cost: number | null }
+
+function fmtCost(c: number | null | undefined): string {
+  if (c == null) return "";
+  if (c <= 0) return "$0";
+  if (c < 0.001) return "<$0.001";
+  return "$" + c.toFixed(c < 0.1 ? 4 : 2);
+}
 
 const ALL: CompareModel[] = [...COMPARE_MODELS, ...MORE_MODELS];
 const META = (id: string) => ALL.find((m) => m.id === id) ?? { id, label: id, vendor: "Model", color: "var(--ios-label-2)" };
@@ -51,6 +58,10 @@ export default function CompareClient({ connected }: { connected: boolean }) {
   const [imgBusy, setImgBusy] = useState(false);
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [imgErr, setImgErr] = useState<string | null>(null);
+  const [imgCost, setImgCost] = useState<number | null>(null);
+  const [synthCost, setSynthCost] = useState<number | null>(null);
+  const [sessionCost, setSessionCost] = useState(0);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const slug = (s: string) => (s || "morris").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "morris";
 
@@ -68,6 +79,11 @@ export default function CompareClient({ connected }: { connected: boolean }) {
       a.href = url; a.download = `${slug(title)}.${format}`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
+      const ch = res.headers.get("X-Generation-Cost");
+      const c = ch ? parseFloat(ch) : 0;
+      if (c > 0) { setSessionCost((s) => s + c); setNotice(`PowerPoint generated · ${fmtCost(c)}`); }
+      else setNotice(`${format === "docx" ? "Word doc" : format === "pptx" ? "PowerPoint" : "Markdown"} downloaded · no model cost`);
+      setTimeout(() => setNotice(null), 4000);
     } catch (e) { setErr((e as Error).message); } finally { setExporting(null); }
   }
 
@@ -83,6 +99,8 @@ export default function CompareClient({ connected }: { connected: boolean }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? data.error ?? "Failed");
       setImgUrl(data.image);
+      setImgCost(data.cost ?? null);
+      if (data.cost) setSessionCost((s) => s + data.cost);
     } catch (e) { setImgErr((e as Error).message); } finally { setImgBusy(false); }
   }
 
@@ -104,6 +122,8 @@ export default function CompareClient({ connected }: { connected: boolean }) {
       if (!res.ok) throw new Error(data.message ?? data.error ?? "Failed");
       setResults(data.results);
       setSynthesis(data.synthesis ?? null);
+      setSynthCost(data.synthesisCost ?? null);
+      if (data.totalCost) setSessionCost((s) => s + data.totalCost);
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
 
@@ -150,7 +170,13 @@ export default function CompareClient({ connected }: { connected: boolean }) {
           className="ios-btn ios-btn--primary" style={{ marginTop: 12, opacity: busy || !question.trim() ? 0.5 : 1 }}>
           {busy ? "Asking…" : `Compare ${selected.length} model${selected.length === 1 ? "" : "s"}`}
         </button>
+        <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, textAlign: "center" }}>
+          {sessionCost > 0
+            ? <>Session so far: <strong style={{ color: "var(--ios-label-2)" }}>{fmtCost(sessionCost)}</strong> · exact OpenRouter cost shown after each action</>
+            : "Exact OpenRouter cost is shown after each action"}
+        </div>
       </div>
+      {notice && <div className="ios-footnote" style={{ color: "var(--ios-green)", marginTop: 10, textAlign: "center" }}>{notice}</div>}
 
       {results === null && !busy && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
@@ -171,7 +197,7 @@ export default function CompareClient({ connected }: { connected: boolean }) {
         <div className="ios-list" style={{ margin: "16px 0 8px", padding: 16, border: "1.5px solid var(--ios-tint)" }}>
           <div className="ios-caption" style={{ color: "var(--ios-tint)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 8 }}>✦ Synthesized answer</div>
           <div className="ios-subhead" style={{ color: "var(--ios-label)" }} dangerouslySetInnerHTML={{ __html: md(synthesis) }} />
-          <ExportBar content={synthesis} title={question} exporting={exporting} onExport={exportAs} />
+          <ExportBar content={synthesis} title={question} cost={synthCost} exporting={exporting} onExport={exportAs} />
         </div>
       )}
 
@@ -191,7 +217,7 @@ export default function CompareClient({ connected }: { connected: boolean }) {
                   {r.error
                     ? <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", lineHeight: 1.5 }}>Couldn&apos;t answer: {r.error}</div>
                     : <><div className="ios-subhead" style={{ color: "var(--ios-label)", fontSize: 14.5 }} dangerouslySetInnerHTML={{ __html: md(r.answer) }} />
-                        <ExportBar content={r.answer} title={`${m.label} — ${question}`} exporting={exporting} onExport={exportAs} /></>}
+                        <ExportBar content={r.answer} title={`${m.label} — ${question}`} cost={r.cost} exporting={exporting} onExport={exportAs} /></>}
                 </div>
               );
             })}
@@ -220,9 +246,12 @@ export default function CompareClient({ connected }: { connected: boolean }) {
           <div style={{ marginTop: 12 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={imgUrl} alt={imgPrompt} style={{ width: "100%", borderRadius: 12, display: "block" }} />
-            <a href={imgUrl} download={`${slug(imgPrompt)}.png`} style={{ display: "inline-block", marginTop: 10, color: "var(--ios-tint)", fontWeight: 600, fontSize: 14, textDecoration: "none" }}>
-              Download image ↓
-            </a>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
+              <a href={imgUrl} download={`${slug(imgPrompt)}.png`} style={{ color: "var(--ios-tint)", fontWeight: 600, fontSize: 14, textDecoration: "none" }}>
+                Download image ↓
+              </a>
+              {imgCost != null && <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>cost {fmtCost(imgCost)}</span>}
+            </div>
           </div>
         )}
       </div>
@@ -230,10 +259,14 @@ export default function CompareClient({ connected }: { connected: boolean }) {
   );
 }
 
-function ExportBar({ content, title, exporting, onExport }: {
-  content: string; title: string; exporting: string | null;
+function ExportBar({ content, title, cost, exporting, onExport }: {
+  content: string; title: string; cost: number | null; exporting: string | null;
   onExport: (content: string, format: "md" | "docx" | "pptx", title: string) => void;
 }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try { await navigator.clipboard.writeText(content); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard blocked */ }
+  }
   const btn = (fmt: "md" | "docx" | "pptx", label: string) => (
     <button onClick={() => onExport(content, fmt, title)} disabled={exporting != null}
       style={{ padding: "6px 11px", borderRadius: 8, border: "1px solid var(--ios-separator)", background: "transparent", color: "var(--ios-tint)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", opacity: exporting != null ? 0.5 : 1 }}>
@@ -241,11 +274,15 @@ function ExportBar({ content, title, exporting, onExport }: {
     </button>
   );
   return (
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--ios-separator)" }}>
-      <span className="ios-caption" style={{ color: "var(--ios-label-3)", alignSelf: "center", marginRight: 2 }}>Export:</span>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--ios-separator)" }}>
+      <button onClick={copy}
+        style={{ padding: "6px 11px", borderRadius: 8, border: "1px solid var(--ios-separator)", background: copied ? "var(--ios-tint)" : "transparent", color: copied ? "var(--ios-on-tint)" : "var(--ios-tint)", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+        {copied ? "Copied ✓" : "Copy"}
+      </button>
       {btn("docx", "Word")}
       {btn("pptx", "PowerPoint")}
       {btn("md", "Markdown")}
+      {cost != null && <span className="ios-caption" style={{ color: "var(--ios-label-3)", marginLeft: "auto" }}>{fmtCost(cost)}</span>}
     </div>
   );
 }
