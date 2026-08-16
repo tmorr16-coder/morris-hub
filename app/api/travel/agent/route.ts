@@ -1,10 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { searchFlights, searchHotels } from "@/lib/travel-search";
+import { searchFlights, searchHotels, cheapestFlightPrice } from "@/lib/travel-search";
 import { thingsToDo, carRentals, searchEvents, serpapiConfigured } from "@/lib/serpapi-travel";
 import { computeDrive, gmapsConfigured } from "@/lib/gmaps";
-import { cheapestFlightPrice } from "@/lib/serpapi-travel";
 import { flightBookingLinks, hotelBookingLinks } from "@/lib/booking-links";
 
 export const runtime = "nodejs";
@@ -149,7 +148,7 @@ async function runTool(name: string, input: any): Promise<unknown> {
   try {
     switch (name) {
       case "search_flights": {
-        const offers = await searchFlights({
+        const { offers } = await searchFlights({
           origin: input.origin, destination: input.destination, departDate: input.depart_date,
           returnDate: input.return_date, adults: input.adults ?? 1, cabin: input.cabin, nonStop: input.nonstop, maxResults: 8,
         });
@@ -159,7 +158,7 @@ async function runTool(name: string, input: any): Promise<unknown> {
         }));
       }
       case "search_hotels": {
-        const offers = await searchHotels({ query: input.city, checkIn: input.check_in, checkOut: input.check_out, adults: input.adults ?? 1, maxResults: 8 });
+        const { offers } = await searchHotels({ query: input.city, checkIn: input.check_in, checkOut: input.check_out, adults: input.adults ?? 1, maxResults: 8 });
         return offers.slice(0, 6).map((h) => ({ name: h.name, price: h.price, currency: h.currency, rating: h.rating, address: h.address }));
       }
       case "things_to_do":

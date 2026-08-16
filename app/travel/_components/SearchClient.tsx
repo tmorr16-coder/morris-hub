@@ -52,9 +52,13 @@ export default function SearchClient({
   const preferredChains = prefs.preferred_hotel_chains.map((c) => c.toUpperCase());
 
   const [watchMsg, setWatchMsg] = useState<string | null>(null);
+  // How the last search was served — provider, whether it was a fallback, cache.
+  const [served, setServed] = useState<{ provider?: string; fellBackFrom?: { provider: string; reason: string }; cached?: boolean } | null>(null);
+  // Validation problems read as guidance, not as a provider failure.
+  const [invalid, setInvalid] = useState<string | null>(null);
 
   async function searchFlights() {
-    setErr(null); setBusy(true); setFlights(null);
+    setErr(null); setInvalid(null); setServed(null); setBusy(true); setFlights(null);
     try {
       const res = await fetch("/api/travel/flights", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -65,13 +69,15 @@ export default function SearchClient({
         }),
       });
       const data = await res.json();
+      if (res.status === 400) { setInvalid(data.message ?? "Check the search details."); return; }
       if (!res.ok) throw new Error(data.message ?? data.error ?? "Search failed");
       setFlights(data.offers ?? []);
+      setServed({ provider: data.provider, fellBackFrom: data.fellBackFrom, cached: data.cached });
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
 
   async function searchHotels() {
-    setErr(null); setBusy(true); setHotels(null);
+    setErr(null); setInvalid(null); setServed(null); setBusy(true); setHotels(null);
     try {
       const res = await fetch("/api/travel/hotels", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -82,8 +88,10 @@ export default function SearchClient({
         }),
       });
       const data = await res.json();
+      if (res.status === 400) { setInvalid(data.message ?? "Check the search details."); return; }
       if (!res.ok) throw new Error(data.message ?? data.error ?? "Search failed");
       setHotels(data.offers ?? []);
+      setServed({ provider: data.provider, fellBackFrom: data.fellBackFrom, cached: data.cached });
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
 
@@ -166,7 +174,26 @@ export default function SearchClient({
         </div>
       )}
 
-      {err && <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", padding: "0 4px 12px", lineHeight: 1.5 }}>{err}</div>}
+      {invalid && (
+        <div className="ios-list" style={{ margin: "0 0 12px", padding: 14, border: "1.5px solid var(--ios-orange, #D9772B)" }}>
+          <div className="ios-subhead" style={{ color: "var(--ios-label)", lineHeight: 1.5 }}>{invalid}</div>
+        </div>
+      )}
+      {err && (
+        <div className="ios-list" style={{ margin: "0 0 12px", padding: 14 }}>
+          <div className="ios-subhead" style={{ color: "var(--ios-red, #FF3B30)", lineHeight: 1.5 }}>Search couldn&apos;t complete: {err}</div>
+          <button onClick={() => (mode === "flights" ? searchFlights() : searchHotels())} disabled={busy}
+            className="ios-caption" style={{ marginTop: 10, background: "none", border: "1px solid var(--ios-separator)", borderRadius: 10, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "7px 14px" }}>
+            Try again
+          </button>
+        </div>
+      )}
+      {served?.fellBackFrom && (
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "0 4px 12px", lineHeight: 1.5 }}>
+          {served.fellBackFrom.provider === "duffel" ? "Duffel" : "SerpApi"} didn&apos;t answer, so these came from{" "}
+          {served.provider === "duffel" ? "Duffel" : "SerpApi"} instead.
+        </div>
+      )}
       {watchMsg && <div className="ios-footnote" style={{ color: "var(--ios-green)", padding: "0 4px 12px" }}>{watchMsg}</div>}
 
       {/* ── Flight results ── */}
@@ -177,7 +204,7 @@ export default function SearchClient({
             const bl = flightBookingLinks({ origin, destination, departDate, returnDate: returnDate || undefined });
             return <BookRow label="Ready to book?" links={[["Google Flights", bl.google_flights], ["Kayak", bl.kayak]]} />;
           })()}
-          {flights.length === 0 && <Empty />}
+          {flights.length === 0 && <Empty mode="flights" />}
           {flights.map((o) => {
             const preferred = o.carriers.some((c) => preferredAir.includes(c));
             const loyaltyMatch = o.carriers.some((c) => airPrograms.some((p) => p.includes(c.toLowerCase())));
@@ -213,7 +240,7 @@ export default function SearchClient({
             const bl = hotelBookingLinks({ city, checkIn, checkOut, adults });
             return <BookRow label="Ready to book?" links={[["Booking.com", bl.booking_com], ["Kayak", bl.kayak], ["Google", bl.google_hotels]]} />;
           })()}
-          {hotels.length === 0 && <Empty />}
+          {hotels.length === 0 && <Empty mode="hotels" />}
           {hotels.map((h) => {
             const hay = `${h.name} ${h.chain ?? ""}`.toUpperCase();
             const preferred = preferredChains.some((c) => c && hay.includes(c));
@@ -278,8 +305,17 @@ function BookRow({ label, links }: { label: string; links: [string, string][] })
   );
 }
 
-function Empty() {
-  return <div className="ios-list" style={{ margin: "0 0 8px", padding: 18 }}><div className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>No results for those dates. Try adjusting your search.</div></div>;
+function Empty({ mode }: { mode?: Mode }) {
+  return (
+    <div className="ios-list" style={{ margin: "0 0 8px", padding: 18 }}>
+      <div className="ios-subhead" style={{ color: "var(--ios-label)", marginBottom: 6 }}>Nothing came back for that search.</div>
+      <div className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}>
+        {mode === "hotels"
+          ? "Try a nearby date, a broader area, or fewer guests — some properties only publish rates closer to the stay."
+          : "Try a day either side, a nearby airport, or turning off non-stop only — thin routes often have no same-day inventory."}
+      </div>
+    </div>
+  );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

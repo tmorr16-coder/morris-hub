@@ -5,6 +5,7 @@
 //
 // Docs: https://serpapi.com/google-flights-api · https://serpapi.com/google-hotels-api
 
+import { fetchWithRetry } from "./http-retry";
 import type {
   FlightOffer, FlightSegment, HotelOffer, FlightSearchParams, HotelSearchParams,
 } from "./duffel";
@@ -19,7 +20,7 @@ async function serpGet(params: Record<string, string | number | undefined>): Pro
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") qs.set(k, String(v));
   qs.set("api_key", process.env.SERPAPI_API_KEY ?? "");
-  const res = await fetch(`${BASE}?${qs.toString()}`);
+  const res = await fetchWithRetry(`${BASE}?${qs.toString()}`, {}, { label: "SerpApi" });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.error) {
     throw new Error(`SerpApi failed (${res.status}): ${(data.error ?? "").toString().slice(0, 200)}`);

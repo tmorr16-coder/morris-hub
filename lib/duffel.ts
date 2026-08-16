@@ -6,6 +6,8 @@
 //
 // Docs: https://duffel.com/docs/api
 
+import { fetchWithRetry } from "./http-retry";
+
 const BASE = "https://api.duffel.com";
 const VERSION = "v2";
 
@@ -23,7 +25,11 @@ function headers(): Record<string, string> {
 }
 
 async function duffelPost(path: string, body: unknown): Promise<any> {
-  const res = await fetch(`${BASE}${path}`, { method: "POST", headers: headers(), body: JSON.stringify(body) });
+  const res = await fetchWithRetry(
+    `${BASE}${path}`,
+    { method: "POST", headers: headers(), body: JSON.stringify(body) },
+    { label: `Duffel ${path}` },
+  );
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw new Error(`Duffel ${path} failed (${res.status}): ${txt.slice(0, 300)}`);
@@ -32,7 +38,7 @@ async function duffelPost(path: string, body: unknown): Promise<any> {
 }
 
 async function duffelGet(path: string): Promise<any> {
-  const res = await fetch(`${BASE}${path}`, { headers: headers() });
+  const res = await fetchWithRetry(`${BASE}${path}`, { headers: headers() }, { label: `Duffel ${path}` });
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
     throw new Error(`Duffel ${path} failed (${res.status}): ${txt.slice(0, 300)}`);

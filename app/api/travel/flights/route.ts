@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { travelConfigured, searchFlights, type FlightSearchParams } from "@/lib/travel-search";
+import { validateFlightSearch } from "@/lib/travel-validate";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -19,14 +20,13 @@ export async function POST(req: NextRequest) {
 
   let body: FlightSearchParams;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }); }
-  if (!body.origin || !body.destination || !body.departDate) {
-    return NextResponse.json({ error: "Missing origin, destination, or departure date" }, { status: 400 });
-  }
+  const problem = validateFlightSearch(body);
+  if (problem) return NextResponse.json({ error: "invalid_search", message: problem }, { status: 400 });
 
   try {
-    const offers = await searchFlights(body);
+    const { offers, provider, fellBackFrom, cached } = await searchFlights(body);
     offers.sort((a, b) => a.price - b.price);
-    return NextResponse.json({ offers });
+    return NextResponse.json({ offers, provider, fellBackFrom, cached });
   } catch (err) {
     return NextResponse.json({ error: "search_failed", message: (err as Error).message }, { status: 502 });
   }
