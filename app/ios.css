@@ -193,6 +193,10 @@
 
 /* ══ Layout scaffold ═════════════════════════════════════════════════════════ */
 .ios-scroll {
+  /* Clear the status bar / Dynamic Island: the app renders edge-to-edge
+     (viewport-fit=cover + black-translucent), so without this the first row of
+     content sits underneath the clock. */
+  padding-top: var(--ios-safe-top, env(safe-area-inset-top, 0px));
   padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   max-width: 640px; margin: 0 auto;
 }

@@ -138,10 +138,16 @@ html, body {
   .subnav-mobile  { display: none; }
 }
 
+/* The status-bar / Dynamic Island inset, as a variable so the fixed chrome and
+   the scroll container can agree on it (and so tests can simulate a notch). */
+:root {
+  --ios-safe-top: env(safe-area-inset-top, 0px);
+}
+
 /* ── Global back button (mounted in root layout, outside the iOS scope) ─────── */
 .global-back-btn {
   position: fixed;
-  top: max(10px, env(safe-area-inset-top, 0px));
+  top: calc(var(--ios-safe-top) + 6px);
   left: 10px;
   z-index: 60;
   width: 34px;
@@ -161,8 +167,12 @@ html, body {
 @media (prefers-color-scheme: dark) {
   .global-back-btn { color: #5e9bd6; background: rgba(44, 44, 46, 0.82); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4); }
 }
-/* Reserve room at the top of the title area so the fixed button never overlaps it. */
-body[data-back="true"] .ios-title-block { padding-top: 42px; }
+/* Reserve room at the top of the title area so the fixed button never overlaps
+   it. The scroll container already absorbs the status-bar inset, so this is just
+   the button's own height (34px) plus its offset and a little breathing room —
+   a fixed 42px used to fall short of the button on notched devices, which put
+   the back arrow straight on top of the first line of the title. */
+body[data-back="true"] .ios-title-block { padding-top: 46px; }
 
 /* ── Pull-to-refresh ──────────────────────────────────────────────────────
    Fixed dial that rides down with the drag (components/PullToRefresh.tsx).
