@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { carRateLinks } from "@/lib/car-rate-links";
 import type { CarOffer, FlightOffer, HotelOffer } from "@/lib/travel-search";
 import {
   EMPTY_FLIGHT_FILTERS, EMPTY_HOTEL_FILTERS, filterFlights, filterHotels, recommendHotel, sortFlights, sortHotels,
@@ -313,7 +314,7 @@ export default function SearchClient({
             {busy ? "Searching…" : "Find car rental"}
           </button>
           <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, lineHeight: 1.45 }}>
-            With dates and a car-rates engine configured, this quotes actual cars. Without either, it falls back to rental locations near you and says so.
+            No rates feed we hold covers cars, so this finds the rental companies near you — ratings, addresses, phone — and hands your dates straight to the sites that do quote rates.
           </div>
         </div>
       )}
@@ -428,6 +429,26 @@ export default function SearchClient({
           <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>
             {cars.length} {carMode === "rates" ? (cars.length === 1 ? "CAR" : "CARS") : (cars.length === 1 ? "RENTAL COMPANY" : "RENTAL COMPANIES")}
           </div>
+          {/* Nobody we call sells car rates, so the next best thing is to carry
+              the search — place and both dates — to somewhere that does. */}
+          {carMode === "agency" && carRateLinks(carCity, carPickUp, carDropOff).length > 0 && (
+            <div className="ios-list" style={{ margin: "0 0 8px", padding: 14 }}>
+              <div className="ios-caption" style={{ color: "var(--ios-label-3)", fontWeight: 700, marginBottom: 7 }}>
+                LIVE RATES FOR {carPickUp} → {carDropOff}
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {carRateLinks(carCity, carPickUp, carDropOff).map((l) => (
+                  <a key={l.name} href={l.url} target="_blank" rel="noopener noreferrer" className="ios-subhead"
+                    style={{ padding: "8px 14px", borderRadius: 999, border: "1px solid var(--ios-separator)", color: "var(--ios-tint)", fontWeight: 700, textDecoration: "none" }}>
+                    {l.name} →
+                  </a>
+                ))}
+              </div>
+              <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, lineHeight: 1.45 }}>
+                Opens {carCity} for your dates, already filled in.
+              </div>
+            </div>
+          )}
           {ratesNote && (
             <div className="ios-list" style={{ margin: "0 0 8px", padding: "10px 14px" }}>
               <div className="ios-caption" style={{ color: "var(--ios-label-2)", lineHeight: 1.45 }}>{ratesNote}</div>
