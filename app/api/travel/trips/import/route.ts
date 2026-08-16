@@ -16,11 +16,12 @@ const INSTRUCTIONS = `You read travel confirmations (airline, hotel, car rental,
 
 Return ONLY JSON shaped like:
 {"trip":{"name":"Madrid, Sept 2026","origin":"ATL","destination":"MAD","depart_date":"2026-09-01","return_date":"2026-09-08","travelers":2},
- "segments":[{"kind":"flight","title":"Delta 30","carrier":"DL","number":"30","confirmation_code":"ABC123","start_at":"2026-09-01T20:15:00Z","end_at":"2026-09-02T10:05:00Z","origin":"ATL","destination":"MAD","seat":"12A","terminal":"I"}]}
+ "segments":[{"kind":"flight","title":"Delta 30","carrier":"DL","number":"30","confirmation_code":"ABC123","start_at":"2026-09-02T00:15:00Z","start_tz":"America/New_York","end_at":"2026-09-02T08:05:00Z","end_tz":"Europe/Madrid","origin":"ATL","destination":"MAD","seat":"12A","terminal":"I"}]}
 
 Rules:
 - kind is one of flight, hotel, car, rail, activity, note.
-- Times must be ISO 8601 UTC ("2026-09-01T20:15:00Z"). Convert local times using the airport/city time zone. If a time is genuinely unknown, use null — never invent one.
+- Times must be ISO 8601 UTC ("2026-09-02T00:15:00Z"). Confirmations print LOCAL times, so convert: a flight leaving Atlanta at 8:15pm on Sep 1 is "2026-09-02T00:15:00Z" in summer.
+- Also return start_tz and end_tz as IANA zone names for where each end happens ("America/New_York", "Europe/Madrid"). These are what the itinerary is displayed in, so get them right even if a time is missing.
 - For hotels, start_at is check-in and end_at is check-out; put the address in "location" and the property name in "carrier".
 - Keep confirmation codes exactly as written.
 - Name the trip after its main destination and month.
@@ -43,6 +44,8 @@ function cleanSegments(input: any[]): TripSegment[] {
       confirmation_code: s?.confirmation_code ?? null,
       start_at: s?.start_at ?? null,
       end_at: s?.end_at ?? null,
+      start_tz: typeof s?.start_tz === "string" ? s.start_tz : null,
+      end_tz: typeof s?.end_tz === "string" ? s.end_tz : null,
       origin: s?.origin ?? null,
       destination: s?.destination ?? null,
       location: s?.location ?? null,

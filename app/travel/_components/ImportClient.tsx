@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { TripSegment } from "@/lib/trips";
+import { endZone, startZone, type TripSegment } from "@/lib/trips";
+import { formatInZone } from "@/lib/timezones";
 import { ICON } from "./TripsClient";
 
 interface ParsedTrip {
@@ -10,9 +11,8 @@ interface ParsedTrip {
   depart_date?: string | null; return_date?: string | null; travelers?: number | null;
 }
 
-function time(iso?: string | null): string {
-  if (!iso) return "time TBD";
-  return new Date(iso).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }) + " UTC";
+function time(iso?: string | null, tz?: string | null): string {
+  return formatInZone(iso, tz, { withDate: true }) || "time TBD";
 }
 
 export default function ImportClient() {
@@ -107,7 +107,8 @@ export default function ImportClient() {
                   {s.title || [s.carrier, s.number].filter(Boolean).join(" ") || s.kind}
                 </div>
                 <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>
-                  {s.kind === "flight" && s.origin && s.destination ? `${s.origin} → ${s.destination} · ` : ""}{time(s.start_at)}
+                  {s.kind === "flight" && s.origin && s.destination ? `${s.origin} → ${s.destination} · ` : ""}{time(s.start_at, startZone(s))}
+                  {s.end_at ? ` – ${time(s.end_at, endZone(s))}` : ""}
                 </div>
                 {(s.location || s.confirmation_code || s.seat) && (
                   <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 3 }}>
