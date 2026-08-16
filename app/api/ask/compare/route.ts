@@ -72,8 +72,8 @@ export async function POST(req: NextRequest) {
   const results = models.map((model, i) => {
     const r = settled[i];
     return r.status === "fulfilled"
-      ? { model, answer: r.value.content, error: null as string | null, cost: r.value.cost, citations: r.value.citations }
-      : { model, answer: "", error: (r.reason as Error)?.message ?? "Failed", cost: null as number | null, citations: [] };
+      ? { model, answer: r.value.content, error: null as string | null, cost: r.value.cost, citations: r.value.citations, served: r.value.served }
+      : { model, answer: "", error: (r.reason as Error)?.message ?? "Failed", cost: null as number | null, citations: [], served: null as string | null };
   });
 
   // Optional synthesis — one model reads all answers and merges them.
