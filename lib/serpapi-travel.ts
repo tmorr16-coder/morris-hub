@@ -228,8 +228,14 @@ export function carRatesConfigured(): boolean {
   return Boolean(process.env.SERPAPI_API_KEY && process.env.CAR_RATES_ENGINE);
 }
 
-export async function carRates(p: CarSearchParams): Promise<CarOffer[]> {
-  if (!carRatesConfigured()) return [];
+/**
+ * Returns the cars plus a short description of the payload's shape. When the
+ * engine answers but nothing maps, that description is what turns "no rates"
+ * into a fixable report: it names the keys the provider actually sent, without
+ * echoing any of their values.
+ */
+export async function carRates(p: CarSearchParams): Promise<{ offers: CarOffer[]; shape: string | null }> {
+  if (!carRatesConfigured()) return { offers: [], shape: null };
   const days = rentalDays(p.pickUp, p.dropOff);
 
   const data = await serpGet({
@@ -246,7 +252,14 @@ export async function carRates(p: CarSearchParams): Promise<CarOffer[]> {
   const rows: any[] = [data.car_rentals, data.rentals, data.results, data.cars, data.local_results]
     .find((x) => Array.isArray(x) && x.length) ?? [];
 
-  return rows.slice(0, p.maxResults ?? 20).map((r, idx): CarOffer => {
+  // Key names only — never values, which can carry personal or licensed data.
+  const topKeys = Object.keys(data ?? {}).filter((k) => k !== "search_metadata" && k !== "search_parameters");
+  const arrayKeys = topKeys.filter((k) => Array.isArray((data as any)[k]));
+  const shape = rows.length
+    ? null
+    : `engine replied with: ${topKeys.slice(0, 10).join(", ") || "nothing"}${arrayKeys.length ? ` (lists: ${arrayKeys.join(", ")})` : " (no lists)"}`;
+
+  const offers = rows.slice(0, p.maxResults ?? 20).map((r, idx): CarOffer => {
     const total = num(r.total_price ?? r.price?.total ?? r.extracted_price ?? r.price);
     const perDay = num(r.price_per_day ?? r.daily_rate ?? r.price?.per_day) ?? (total != null && days ? Math.round(total / days) : null);
     return {
@@ -268,6 +281,15 @@ export async function carRates(p: CarSearchParams): Promise<CarOffer[]> {
       unlimitedMileage: typeof r.unlimited_mileage === "boolean" ? r.unlimited_mileage : null,
     };
   }).filter((c) => c.company);
+
+  // Rows found but no prices parsed is the other fixable case — say which keys
+  // the first row carries so the mapping can be corrected.
+  const priced = offers.filter((c) => c.price != null || c.perDay != null).length;
+  const rowShape = rows.length && !priced
+    ? `found ${rows.length} rows but no price — row keys: ${Object.keys(rows[0] ?? {}).slice(0, 14).join(", ")}`
+    : null;
+
+  return { offers, shape: shape ?? rowShape };
 }
 
 function num(v: unknown): number | null {

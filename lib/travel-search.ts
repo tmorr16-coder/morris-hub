@@ -130,13 +130,15 @@ export async function searchCars(p: CarSearchParams): Promise<SearchOutcome<CarO
   let ratesNote: string | undefined;
   if (serp.carRatesConfigured() && p.pickUp && p.dropOff) {
     try {
-      const rated = await serp.carRates(p);
-      if (rated.length) {
+      const { offers: rated, shape } = await serp.carRates(p);
+      if (rated.length && rated.some((c) => c.price != null || c.perDay != null)) {
         const outcome = { offers: rated, provider: "serpapi" as const, mode: "rates" as const };
         cacheSet(key, outcome);
         return outcome;
       }
-      ratesNote = "The rates engine returned no cars for those dates.";
+      ratesNote = shape
+        ? `Rates engine answered but nothing priced — ${shape}`
+        : "The rates engine returned no cars for those dates.";
     } catch (err) {
       ratesNote = `Rates unavailable: ${(err as Error).message}`;
       console.error("[travel] car rates failed, falling back to agency search:", ratesNote);
