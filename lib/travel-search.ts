@@ -143,8 +143,10 @@ export async function searchCars(p: CarSearchParams): Promise<SearchOutcome<CarO
       ratesNote = `Rates unavailable: ${(err as Error).message}`;
       console.error("[travel] car rates failed, falling back to agency search:", ratesNote);
     }
+  } else if (serp.carRatesRejected()) {
+    ratesNote = `SerpApi has no "${serp.carRatesRejected()}" engine, so there are no live rates to quote here. These are rental locations — use the rate links to price your dates.`;
   } else if (!serp.carRatesConfigured()) {
-    ratesNote = "No car-rates engine configured — showing rental locations instead.";
+    ratesNote = "Car rates come from the links above — these are the rental locations near you.";
   } else {
     ratesNote = "Add pick-up and drop-off dates to price actual cars.";
   }

@@ -216,16 +216,28 @@ export async function searchEvents(city: string, when?: string, maxResults = 12)
  * dropped in behind this signature later without the callers changing.
  */
 /**
- * Bookable car rates, when the account's plan carries a car-rentals engine.
+ * Bookable car rates, when a rates engine is configured.
  *
- * Written against the documented response shape; it has never been run against
- * the live engine from here, so it is defensive throughout — an unexpected
- * payload yields an empty list, and the caller falls back to agency search
- * rather than showing nothing. Set CAR_RATES_ENGINE to the engine name to turn
- * it on (e.g. "google_car_rentals"); unset means "don't try".
+ * SerpApi itself has no car-rentals engine — `google_car_rentals` is rejected
+ * with "Unsupported search engine", and there is no other name for it. This
+ * hook stays because it costs nothing and a future provider can be pointed at
+ * it, but with SerpApi alone the cars tab is agency listings plus the handoff
+ * links in `car-rate-links.ts`. Set CAR_RATES_ENGINE to try an engine; unset
+ * means "don't try".
  */
 export function carRatesConfigured(): boolean {
-  return Boolean(process.env.SERPAPI_API_KEY && process.env.CAR_RATES_ENGINE);
+  const engine = process.env.CAR_RATES_ENGINE;
+  return Boolean(process.env.SERPAPI_API_KEY && engine && engine !== rejectedEngine);
+}
+
+// An engine name SerpApi doesn't recognise will never start working, so one
+// rejection retires it for the life of the process — otherwise every car search
+// spends a credit and a round-trip to be told the same thing.
+let rejectedEngine: string | null = null;
+
+/** The engine name SerpApi refused, if it has refused one. */
+export function carRatesRejected(): string | null {
+  return rejectedEngine;
 }
 
 /**
@@ -236,17 +248,28 @@ export function carRatesConfigured(): boolean {
  */
 export async function carRates(p: CarSearchParams): Promise<{ offers: CarOffer[]; shape: string | null }> {
   if (!carRatesConfigured()) return { offers: [], shape: null };
+  const engine = process.env.CAR_RATES_ENGINE as string;
   const days = rentalDays(p.pickUp, p.dropOff);
 
-  const data = await serpGet({
-    engine: process.env.CAR_RATES_ENGINE,
-    q: p.city,
-    pickup_date: p.pickUp,
-    return_date: p.dropOff,
-    currency: "USD",
-    hl: "en",
-    gl: "us",
-  });
+  let data: any;
+  try {
+    data = await serpGet({
+      engine,
+      q: p.city,
+      pickup_date: p.pickUp,
+      return_date: p.dropOff,
+      currency: "USD",
+      hl: "en",
+      gl: "us",
+    });
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (/unsupported[\s\S]*search engine/i.test(msg)) {
+      rejectedEngine = engine;
+      throw new Error(`SerpApi has no "${engine}" engine — it sells flights and hotels, not car rates. Unset CAR_RATES_ENGINE.`);
+    }
+    throw err;
+  }
 
   // Providers disagree on the container name; take whichever is an array.
   const rows: any[] = [data.car_rentals, data.rentals, data.results, data.cars, data.local_results]
