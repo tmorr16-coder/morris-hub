@@ -1,7 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { FlightOffer, HotelOffer } from "@/lib/travel-search";
+import {
+  EMPTY_FLIGHT_FILTERS, EMPTY_HOTEL_FILTERS, filterFlights, filterHotels, sortFlights, sortHotels,
+  type FlightFilters, type FlightSort, type HotelFilters, type HotelSort,
+} from "@/lib/offer-filters";
+import { airportLabel } from "@/lib/airports";
+import AirportField from "./AirportField";
+import SaveToTrip from "./SaveToTrip";
+import { FlightShopControls, HotelShopControls } from "./ShopControls";
 import { flightBookingLinks, hotelBookingLinks } from "@/lib/booking-links";
 import { CABINS, type TravelPreferences, type LoyaltyProgram } from "../types";
 
@@ -52,13 +60,27 @@ export default function SearchClient({
   const preferredChains = prefs.preferred_hotel_chains.map((c) => c.toUpperCase());
 
   const [watchMsg, setWatchMsg] = useState<string | null>(null);
+
   // How the last search was served — provider, whether it was a fallback, cache.
   const [served, setServed] = useState<{ provider?: string; fellBackFrom?: { provider: string; reason: string }; cached?: boolean } | null>(null);
   // Validation problems read as guidance, not as a provider failure.
   const [invalid, setInvalid] = useState<string | null>(null);
+  // Shopping state — applied to the offers already on screen, never re-queried.
+  const [flightSort, setFlightSort] = useState<FlightSort>("price");
+  const [flightFilters, setFlightFilters] = useState<FlightFilters>(EMPTY_FLIGHT_FILTERS);
+  const [hotelSort, setHotelSort] = useState<HotelSort>("price");
+  const [hotelFilters, setHotelFilters] = useState<HotelFilters>(EMPTY_HOTEL_FILTERS);
+  const visibleFlights = useMemo(
+    () => (flights ? sortFlights(filterFlights(flights, flightFilters), flightSort) : []),
+    [flights, flightFilters, flightSort],
+  );
+  const visibleHotels = useMemo(
+    () => (hotels ? sortHotels(filterHotels(hotels, hotelFilters), hotelSort) : []),
+    [hotels, hotelFilters, hotelSort],
+  );
 
   async function searchFlights() {
-    setErr(null); setInvalid(null); setServed(null); setBusy(true); setFlights(null);
+    setErr(null); setInvalid(null); setServed(null); setBusy(true); setFlights(null); setFlightFilters(EMPTY_FLIGHT_FILTERS);
     try {
       const res = await fetch("/api/travel/flights", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -77,7 +99,7 @@ export default function SearchClient({
   }
 
   async function searchHotels() {
-    setErr(null); setInvalid(null); setServed(null); setBusy(true); setHotels(null);
+    setErr(null); setInvalid(null); setServed(null); setBusy(true); setHotels(null); setHotelFilters(EMPTY_HOTEL_FILTERS);
     try {
       const res = await fetch("/api/travel/hotels", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -135,8 +157,8 @@ export default function SearchClient({
       {/* ── Flight form ── */}
       {mode === "flights" && (
         <div className="ios-list" style={{ margin: "0 0 12px", padding: 16 }}>
-          <Field label="From (airport code)"><Text value={origin} onChange={setOrigin} placeholder="IND" upper /></Field>
-          <Field label="To (airport code)"><Text value={destination} onChange={setDestination} placeholder="LAX" upper /></Field>
+          <AirportField label="From" value={origin} onChange={setOrigin} placeholder="City or code" />
+          <AirportField label="To" value={destination} onChange={setDestination} placeholder="City or code" />
           <Field label="Depart"><Text value={departDate} onChange={setDepartDate} placeholder="YYYY-MM-DD" type="date" /></Field>
           <Field label="Return (optional)"><Text value={returnDate} onChange={setReturnDate} placeholder="YYYY-MM-DD" type="date" /></Field>
           <Field label="Travelers"><Num value={adults} onChange={setAdults} min={1} max={9} /></Field>
@@ -199,13 +221,19 @@ export default function SearchClient({
       {/* ── Flight results ── */}
       {mode === "flights" && flights && (
         <>
-          <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>{flights.length} FLIGHT{flights.length === 1 ? "" : "S"}</div>
+          <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>
+            {flights.length} FLIGHT{flights.length === 1 ? "" : "S"}
+            {origin && destination ? ` · ${airportLabel(origin)} → ${airportLabel(destination)}` : ""}
+          </div>
+          {flights.length > 1 && (
+            <FlightShopControls offers={flights} shown={visibleFlights.length} sort={flightSort} setSort={setFlightSort} filters={flightFilters} setFilters={setFlightFilters} />
+          )}
           {flights.length > 0 && (() => {
             const bl = flightBookingLinks({ origin, destination, departDate, returnDate: returnDate || undefined });
             return <BookRow label="Ready to book?" links={[["Google Flights", bl.google_flights], ["Kayak", bl.kayak]]} />;
           })()}
           {flights.length === 0 && <Empty mode="flights" />}
-          {flights.map((o) => {
+          {visibleFlights.map((o) => {
             const preferred = o.carriers.some((c) => preferredAir.includes(c));
             const loyaltyMatch = o.carriers.some((c) => airPrograms.some((p) => p.includes(c.toLowerCase())));
             return (
@@ -226,6 +254,7 @@ export default function SearchClient({
                 <button onClick={() => watchFlight(o.price)} style={{ marginTop: 8, padding: 0, background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
                   🔔 Watch this price
                 </button>
+                <SaveToTrip offer={o} kind="flight" />
               </div>
             );
           })}
@@ -236,12 +265,15 @@ export default function SearchClient({
       {mode === "hotels" && hotels && (
         <>
           <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>{hotels.length} HOTEL{hotels.length === 1 ? "" : "S"}</div>
+          {hotels.length > 1 && (
+            <HotelShopControls offers={hotels} shown={visibleHotels.length} sort={hotelSort} setSort={setHotelSort} filters={hotelFilters} setFilters={setHotelFilters} />
+          )}
           {hotels.length > 0 && (() => {
             const bl = hotelBookingLinks({ city, checkIn, checkOut, adults });
             return <BookRow label="Ready to book?" links={[["Booking.com", bl.booking_com], ["Kayak", bl.kayak], ["Google", bl.google_hotels]]} />;
           })()}
           {hotels.length === 0 && <Empty mode="hotels" />}
-          {hotels.map((h) => {
+          {visibleHotels.map((h) => {
             const hay = `${h.name} ${h.chain ?? ""}`.toUpperCase();
             const preferred = preferredChains.some((c) => c && hay.includes(c));
             const hayLower = hay.toLowerCase();
@@ -260,6 +292,7 @@ export default function SearchClient({
                   {h.price == null && <Tag color="#8E8E93">Rate on request</Tag>}
                 </div>
                 {h.address && <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 6 }}>{h.address}</div>}
+                <SaveToTrip offer={h} kind="hotel" />
               </div>
             );
           })}
