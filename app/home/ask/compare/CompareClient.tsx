@@ -69,7 +69,8 @@ const metaOf = (id: string, extra: CompareModel[] = []): CompareModel =>
 /** "$3.00/M out" — the rate a chip is charging, for anything priced. */
 function rateLabel(p?: { completion: number }): string {
   const perM = perMillion(p?.completion);
-  return perM > 0 ? `$${perM < 1 ? perM.toFixed(2) : perM.toFixed(perM < 10 ? 1 : 0)}/M` : "";
+  if (perM <= 0) return "";
+  return `$${perM.toFixed(perM < 1 ? 2 : perM < 10 ? 1 : 0).replace(/\.0$/, "")}/M`;
 }
 
 // ── tiny safe markdown → html ──────────────────────────────────────
@@ -120,11 +121,45 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   const [threads, setThreads] = useState<Thread[]>([]);
   const [thread, setThread] = useState<Thread | null>(null); // the open conversation
   const [restored, setRestored] = useState(false);           // opened from history, nothing re-run
-  const META = (id: string) => metaOf(id, newest);
   const [showNewest, setShowNewest] = useState(false);
+  const [query, setQuery] = useState("");
+  const [found, setFound] = useState<CatalogModel[] | null>(null); // catalog search results
+  const [searching, setSearching] = useState(false);
+  const [searchErr, setSearchErr] = useState<string | null>(null);
+  const [picked, setPicked] = useState<CatalogModel[]>([]);        // added from search
   const [acceptedRates, setAcceptedRates] = useState<string[]>([]); // higher-rate models you've okayed
   const [confirmRates, setConfirmRates] = useState(false);          // the extra-click panel is open
   const abortRef = useRef<AbortController | null>(null);
+
+  // Every model we know a price for: the curated line-up, the newest list, and
+  // anything picked out of the catalog. Estimates and the rate gate read this,
+  // so a searched-for model is treated exactly like a built-in one.
+  const known = useMemo(() => [...newest, ...picked], [newest, picked]);
+  const rates: Pricing = useMemo(() => {
+    const m: Pricing = { ...pricing };
+    for (const x of known) m[x.id] = { prompt: x.prompt, completion: x.completion };
+    return m;
+  }, [pricing, known]);
+  const META = (id: string) => metaOf(id, known);
+
+  // Debounced catalog search — typing narrows the whole of OpenRouter.
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) return; // clearing the box clears results in the change handler
+    const t = setTimeout(async () => {
+      setSearching(true); setSearchErr(null);
+      try {
+        const res = await fetch(`/api/ask/compare/models?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message ?? data.error ?? "Search failed");
+        setFound(data.models ?? []);
+      } catch (e) {
+        setFound(null);
+        setSearchErr((e as Error).message);
+      } finally { setSearching(false); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
 
   // Load saved threads (migrating the older single-run and question-only
   // formats), then reopen the latest so the conversation survives a reload.
@@ -211,21 +246,21 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
       (n, t) => n + Math.ceil(t.q.length / 4) + Math.ceil(Math.min(1500, Object.values(t.answers)[0]?.length ?? 0) / 4), 0) : 0;
     const promptTok = Math.ceil(question.length / 4) + 60 + replay;
     let total = selected.reduce((sum, id) => {
-      const p = pricing[id];
+      const p = rates[id];
       return p ? sum + promptTok * p.prompt + 700 * p.completion : sum;
     }, 0);
     if (synthesize && selected.length >= 2) {
-      const p = pricing[SYNTH_MODEL];
+      const p = rates[SYNTH_MODEL];
       if (p) total += 1600 * p.prompt + 700 * p.completion;
     }
     return total;
-  }, [question, selected, synthesize, pricing, thread]);
+  }, [question, selected, synthesize, rates, thread]);
 
   // The Auto Router's price is whatever model it picks, so it can't be quoted.
-  const hasUnpriced = selected.some((id) => id === AUTO_MODEL || !pricing[id]);
+  const hasUnpriced = selected.some((id) => id === AUTO_MODEL || !rates[id]);
 
   // Higher-rate models need one explicit tap before they can spend anything.
-  const needsAccepting = selected.filter((id) => isPremiumRate(pricing[id]) && !acceptedRates.includes(id));
+  const needsAccepting = selected.filter((id) => isPremiumRate(rates[id]) && !acceptedRates.includes(id));
   const gated = needsAccepting.length > 0;
 
   const slug = (s: string) => (s || "morris").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "morris";
@@ -338,22 +373,91 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
         {ALL.map((m) => {
           const on = selected.includes(m.id);
-          const premium = isPremiumRate(pricing[m.id]);
+          const premium = isPremiumRate(rates[m.id]);
           return (
             <button key={m.id} onClick={() => toggle(m.id)}
-              title={m.id === AUTO_MODEL ? "OpenRouter picks the best model for each question" : `${m.id}${rateLabel(pricing[m.id]) ? ` · ${rateLabel(pricing[m.id])} out` : ""}`}
+              title={m.id === AUTO_MODEL ? "OpenRouter picks the best model for each question" : `${m.id}${rateLabel(rates[m.id]) ? ` · ${rateLabel(rates[m.id])} out` : ""}`}
               style={{ padding: "7px 13px", borderRadius: 999, fontSize: 14, fontWeight: 600, cursor: "pointer",
                 border: `1px solid ${on ? "transparent" : "var(--ios-separator)"}`,
                 background: on ? m.color : "transparent", color: on ? "#fff" : "var(--ios-label)" }}>
               {m.id === AUTO_MODEL ? "✨ " : LIVE_IDS.has(m.id) ? "🌐 " : ""}{m.label}
-              {premium && <span style={{ opacity: 0.75, fontWeight: 600 }}> · {rateLabel(pricing[m.id])}</span>}
+              {premium && <span style={{ opacity: 0.75, fontWeight: 600 }}> · {rateLabel(rates[m.id])}</span>}
             </button>
           );
         })}
       </div>
 
+      {/* Anything picked out of the full catalog gets its own chip row */}
+      {picked.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+          {picked.map((m) => {
+            const on = selected.includes(m.id);
+            return (
+              <button key={m.id} onClick={() => toggle(m.id)} title={m.id}
+                style={{ padding: "7px 13px", borderRadius: 999, fontSize: 14, fontWeight: 600, cursor: "pointer",
+                  border: `1px solid ${on ? "transparent" : "var(--ios-separator)"}`,
+                  background: on ? m.color : "transparent", color: on ? "#fff" : "var(--ios-label)" }}>
+                {m.label}
+                <span style={{ opacity: on ? 0.8 : 0.55 }}> · {rateLabel(m) || "free"}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginBottom: 12, lineHeight: 1.45 }}>
         Default panel: {COMPARE_MODELS.map((m) => m.label).join(" · ")} — preselected each visit.
+      </div>
+
+      {/* Any model on OpenRouter, by search */}
+      <div style={{ marginBottom: 14 }}>
+        <input
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            if (!e.target.value.trim()) { setFound(null); setSearchErr(null); }
+          }}
+          placeholder="Search all OpenRouter models — name or id…"
+          aria-label="Search all OpenRouter models"
+          style={{ width: "100%", background: "var(--ios-fill)", border: "none", borderRadius: 12, padding: "10px 14px", fontSize: 15, color: "var(--ios-label)" }}
+        />
+        {searching && <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>Searching…</div>}
+        {searchErr && <div className="ios-caption" style={{ color: "var(--ios-red, #FF3B30)", marginTop: 6 }}>{searchErr}</div>}
+        {found && found.length === 0 && !searching && (
+          <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>No models match “{query.trim()}”.</div>
+        )}
+        {found && found.length > 0 && (
+          <div className="ios-list" style={{ margin: "8px 0 0", maxHeight: 260, overflowY: "auto" }}>
+            {found.map((m, i) => {
+              const already = selected.includes(m.id);
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => {
+                    setPicked((p) => (p.some((x) => x.id === m.id) ? p : [...p, m]));
+                    if (!already) toggle(m.id);
+                    setQuery("");
+                  }}
+                  disabled={already || selected.length >= 4}
+                  style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", background: "none", cursor: already || selected.length >= 4 ? "default" : "pointer",
+                    border: "none", borderBottom: i < found.length - 1 ? "1px solid var(--ios-separator)" : "none", textAlign: "left", opacity: already || selected.length >= 4 ? 0.45 : 1 }}
+                >
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: m.color, flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", color: "var(--ios-label)", fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.label}</span>
+                    <span className="ios-caption" style={{ color: "var(--ios-label-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>{m.id}</span>
+                  </span>
+                  <span className="ios-caption" style={{ color: isPremiumRate(m) ? "var(--ios-orange, #D9772B)" : "var(--ios-label-3)", flexShrink: 0 }}>
+                    {rateLabel(m) || "free"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {selected.length >= 4 && found && found.length > 0 && (
+          <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>Panel is full — drop a model to add another.</div>
+        )}
       </div>
 
       {/* Newest models, straight from OpenRouter's catalog */}
@@ -429,7 +533,7 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
           <div className="ios-list" style={{ margin: "10px 0 0", padding: 12, border: "1.5px solid var(--ios-orange, #D9772B)" }}>
             <div className="ios-subhead" style={{ color: "var(--ios-label)", fontWeight: 700, marginBottom: 6 }}>Higher rates on this run</div>
             {needsAccepting.map((id) => {
-              const p = pricing[id];
+              const p = rates[id];
               return (
                 <div key={id} className="ios-caption" style={{ color: "var(--ios-label-2)", display: "flex", justifyContent: "space-between", gap: 10, padding: "3px 0" }}>
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{META(id).label}</span>

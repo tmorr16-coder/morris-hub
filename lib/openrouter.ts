@@ -102,29 +102,63 @@ export function vendorOf(id: string): { vendor: string; color: string } {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+function toCatalogModel(m: any): CatalogModel {
+  const { vendor, color } = vendorOf(m.id);
+  const name = String(m.name ?? m.id);
+  return {
+    id: m.id,
+    label: (name.includes(": ") ? name.slice(name.indexOf(": ") + 2) : name).slice(0, 28),
+    vendor, color,
+    prompt: parseFloat(m.pricing?.prompt ?? "0"),
+    completion: parseFloat(m.pricing?.completion ?? "0"),
+    created: m.created ?? 0,
+  };
+}
+
+/** Text models that can answer a prompt — anything else can't join a panel. */
+function answerable(m: any): boolean {
+  if (!m?.id) return false;
+  const out = m.architecture?.output_modalities;
+  return !Array.isArray(out) || out.includes("text");
+}
+
 /** Newest chat models in the catalog, most recent first. */
 export function newestFrom(models: any[], exclude: Set<string>, limit = 12): CatalogModel[] {
   return models
-    .filter((m) => {
-      if (!m?.id || exclude.has(m.id) || m.id.includes(":free")) return false;
-      const out = m.architecture?.output_modalities;
-      if (Array.isArray(out) && !out.includes("text")) return false;
-      return parseFloat(m.pricing?.completion ?? "0") > 0;
-    })
+    .filter((m) => answerable(m) && !exclude.has(m.id) && !m.id.includes(":free") && parseFloat(m.pricing?.completion ?? "0") > 0)
     .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))
     .slice(0, limit)
-    .map((m) => {
-      const { vendor, color } = vendorOf(m.id);
-      const name = String(m.name ?? m.id);
-      return {
-        id: m.id,
-        label: (name.includes(": ") ? name.slice(name.indexOf(": ") + 2) : name).slice(0, 28),
-        vendor, color,
-        prompt: parseFloat(m.pricing?.prompt ?? "0"),
-        completion: parseFloat(m.pricing?.completion ?? "0"),
-        created: m.created ?? 0,
-      };
-    });
+    .map(toCatalogModel);
+}
+
+/**
+ * Free-text search over the whole catalog, so any model on OpenRouter can be
+ * put on the panel — not just the curated line-up. Matches on id and name,
+ * ranks whole-word and prefix hits first, then by recency.
+ */
+export function searchCatalog(models: any[], query: string, limit = 40): CatalogModel[] {
+  const q = query.trim().toLowerCase();
+  const terms = q.split(/\s+/).filter(Boolean);
+  const scored: { m: any; score: number }[] = [];
+
+  for (const m of models) {
+    if (!answerable(m)) continue;
+    const hay = `${m.id} ${m.name ?? ""}`.toLowerCase();
+    if (!terms.every((t) => hay.includes(t))) continue;
+    let score = 0;
+    if (!q) score = 0;
+    else if (m.id.toLowerCase() === q) score = 100;
+    else if (hay.startsWith(q)) score = 60;
+    else if (new RegExp(`\\b${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(hay)) score = 40;
+    else score = 10;
+    if (m.id.includes(":free")) score -= 5;
+    scored.push({ m, score });
+  }
+
+  return scored
+    .sort((a, b) => b.score - a.score || (b.m.created ?? 0) - (a.m.created ?? 0))
+    .slice(0, limit)
+    .map(({ m }) => toCatalogModel(m));
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
