@@ -6,16 +6,13 @@ import { fetchWeather } from "@/lib/weather";
 import { fetchQuotes } from "@/lib/stocks";
 import { getAllUpcomingReminders } from "@/lib/reminders";
 import { logEvent } from "@/lib/usage";
+import { ASK_MORRIS_MODEL, type Router } from "@/lib/ask-morris";
+import { AUTO_MODEL, askModel, openrouterConfigured } from "@/lib/openrouter";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const client = new Anthropic();
-
-// The unscoped "Ask Morris" runs on Sonnet 5 — it reasons across the whole
-// platform. Scoped assistants (Career Advisor, Health, LSAT, Bible, etc.) live
-// in their own routes and keep their own branding + models.
-const ASK_MORRIS_MODEL = "claude-sonnet-5";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -38,6 +35,7 @@ interface ChatRequest {
   messages: ChatMessage[];
   investmentContext?: InvestmentContext;
   systemPrompt?: string;
+  router?: Router; // "auto" hands the turn to OpenRouter's Auto Router
 }
 
 const rateLimiter = new Map<string, { count: number; resetAt: number }>();
@@ -154,7 +152,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Too many requests — wait a moment." }, { status: 429 });
   }
 
-  const { messages, investmentContext, systemPrompt } = (await req.json()) as ChatRequest;
+  const { messages, investmentContext, systemPrompt, router } = (await req.json()) as ChatRequest;
   if (!messages?.length) {
     return NextResponse.json({ error: "No messages provided" }, { status: 400 });
   }
@@ -304,6 +302,31 @@ export async function POST(req: NextRequest) {
     familySummary,
   });
 
+  // Auto Router: OpenRouter picks the model for this turn. Morris's whole
+  // system context goes along, so it answers with the same knowledge — only the
+  // brain changes. Falls back to the default if there's no OpenRouter key.
+  if (router === "auto" && openrouterConfigured()) {
+    try {
+      const out = await askModel(
+        AUTO_MODEL,
+        [
+          { role: "system", content: `${SYSTEM_INSTRUCTIONS}\n\n${context}` },
+          ...trimmed.map((m) => ({ role: m.role, content: m.content })),
+        ],
+        1024,
+      );
+      logEvent({
+        eventType: "chat",
+        userId: user.id,
+        metadata: { model: out.served ?? AUTO_MODEL, source: "hub", router: "auto", cost: out.cost },
+      });
+      return NextResponse.json({ reply: out.content, model: out.served ?? AUTO_MODEL, router: "auto", cost: out.cost });
+    } catch (err) {
+      console.error("[hub-chat] auto router", err);
+      return NextResponse.json({ error: `Auto Router failed: ${(err as Error).message}` }, { status: 502 });
+    }
+  }
+
   let response;
   try {
     response = await client.messages.create({
@@ -338,5 +361,5 @@ export async function POST(req: NextRequest) {
     metadata: { model: ASK_MORRIS_MODEL, source: "hub" },
   });
 
-  return NextResponse.json({ reply });
+  return NextResponse.json({ reply, model: ASK_MORRIS_MODEL, router: "default" });
 }

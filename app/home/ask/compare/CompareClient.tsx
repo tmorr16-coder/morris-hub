@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AUTO_MODEL, AUTO_MODEL_META, COMPARE_MODELS, LIVE_MODELS, MORE_MODELS, SYNTH_MODEL,
   isPremiumRate, perMillion, PREMIUM_PER_M, type CatalogModel, type CompareModel,
@@ -124,6 +124,7 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   const [showNewest, setShowNewest] = useState(false);
   const [acceptedRates, setAcceptedRates] = useState<string[]>([]); // higher-rate models you've okayed
   const [confirmRates, setConfirmRates] = useState(false);          // the extra-click panel is open
+  const abortRef = useRef<AbortController | null>(null);
 
   // Load saved threads (migrating the older single-run and question-only
   // formats), then reopen the latest so the conversation survives a reload.
@@ -287,10 +288,13 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
     const base = startNew ? null : thread;
     setErr(null); setBusy(true); setRestored(false);
     setQuestion("");
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const res = await fetch("/api/ask/compare", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: q, models: selected, synthesize, web, history: base ? toHistory(base.turns) : [] }),
+        signal: controller.signal,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? data.error ?? "Failed");
@@ -309,9 +313,14 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
       setThread(next);
       persistThreads([next, ...threads.filter((t) => t.id !== next.id)]);
     } catch (e) {
-      setErr((e as Error).message);
       setQuestion(q); // don't lose what they typed
-    } finally { setBusy(false); }
+      if ((e as Error).name === "AbortError") {
+        // Cancelling stops the waiting, not the models — say so rather than
+        // implying the run was free.
+        setNotice("Cancelled — models already asked may still be billed.");
+        setTimeout(() => setNotice(null), 5000);
+      } else setErr((e as Error).message);
+    } finally { abortRef.current = null; setBusy(false); }
   }
 
   return (
@@ -341,6 +350,10 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
             </button>
           );
         })}
+      </div>
+
+      <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginBottom: 12, lineHeight: 1.45 }}>
+        Default panel: {COMPARE_MODELS.map((m) => m.label).join(" · ")} — preselected each visit.
       </div>
 
       {/* Newest models, straight from OpenRouter's catalog */}
@@ -499,7 +512,15 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
       )}
 
       {err && <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", marginTop: 12 }}>{err}</div>}
-      {busy && <div className="ios-subhead" style={{ color: "var(--ios-label-2)", marginTop: 16, textAlign: "center" }}>Running against {selected.length} model{selected.length === 1 ? "" : "s"}…</div>}
+      {busy && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 16 }}>
+          <div className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>Running against {selected.length} model{selected.length === 1 ? "" : "s"}…</div>
+          <button onClick={() => abortRef.current?.abort()} className="ios-caption"
+            style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 10, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "7px 16px" }}>
+            Cancel
+          </button>
+        </div>
+      )}
 
       {restored && thread && !busy && (
         <div className="ios-list" style={{ margin: "16px 0 0", padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>

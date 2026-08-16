@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Chip } from "@/components/ios";
 import MarkdownMessage from "@/components/MarkdownMessage";
 import { useChatHistory, type ChatMessage as Message } from "@/hooks/useChatHistory";
+import { ASK_MORRIS_MODEL_LABEL, type Router } from "@/lib/ask-morris";
 
 const SUGGESTED_PROMPTS = [
   "What's the weather looking like today?",
@@ -19,7 +20,10 @@ export default function HubChat({ firstName }: { firstName: string }) {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [router, setRouter] = useState<Router>("default");
+  const [servedBy, setServedBy] = useState<string | null>(null); // model behind the last reply
   const scrollRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -32,22 +36,34 @@ export default function HubChat({ firstName }: { firstName: string }) {
     setInput("");
     setSending(true);
     setError(null);
+    setServedBy(null);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: newMessages, router }),
+        signal: controller.signal,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Chat failed");
       setMessages([...newMessages, { role: "assistant", content: data.reply }]);
+      setServedBy(data.model ?? null);
     } catch (e) {
-      setError((e as Error).message);
-      setMessages(newMessages);
+      // Stopping isn't an error — leave the question in place and say nothing.
+      if ((e as Error).name === "AbortError") setMessages(newMessages);
+      else { setError((e as Error).message); setMessages(newMessages); }
     } finally {
+      abortRef.current = null;
       setSending(false);
     }
+  }
+
+  /** Stop waiting on the current answer. */
+  function stop() {
+    abortRef.current?.abort();
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -108,8 +124,17 @@ export default function HubChat({ firstName }: { firstName: string }) {
             </div>
           ))}
           {sending && (
-            <div className="ios-bubble ios-bubble--ai" style={{ color: "var(--ios-label-2)", fontStyle: "italic" }}>
-              Thinking…
+            <div className="ios-bubble ios-bubble--ai" style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--ios-label-2)" }}>
+              <span style={{ fontStyle: "italic" }}>Thinking…</span>
+              <button type="button" onClick={stop} className="ios-caption"
+                style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "3px 9px" }}>
+                Stop
+              </button>
+            </div>
+          )}
+          {!sending && servedBy && router === "auto" && (
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", textAlign: "right", paddingRight: 4 }}>
+              answered by {servedBy}
             </div>
           )}
         </div>
@@ -129,6 +154,29 @@ export default function HubChat({ firstName }: { firstName: string }) {
           {error}
         </div>
       )}
+
+      {/* Which brain answers — the pinned default, or OpenRouter picking per question. */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        {([
+          { key: "default" as Router, label: `Default · ${ASK_MORRIS_MODEL_LABEL}` },
+          { key: "auto" as Router, label: "✨ Auto · OpenRouter picks" },
+        ]).map((o) => (
+          <button
+            key={o.key}
+            type="button"
+            onClick={() => setRouter(o.key)}
+            className="ios-caption"
+            style={{
+              padding: "6px 11px", borderRadius: 999, fontWeight: 600, cursor: "pointer",
+              border: `1px solid ${router === o.key ? "transparent" : "var(--ios-separator)"}`,
+              background: router === o.key ? "var(--ios-tint)" : "transparent",
+              color: router === o.key ? "var(--ios-on-tint)" : "var(--ios-label)",
+            }}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
 
       <form onSubmit={handleSubmit} style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <input
@@ -161,7 +209,9 @@ export default function HubChat({ firstName }: { firstName: string }) {
         </button>
       </form>
       <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, textAlign: "center", lineHeight: 1.4 }}>
-        Not saved · answers from your tasks, weather &amp; watchlist
+        {router === "auto"
+          ? <>Auto routes each question to whichever model OpenRouter judges best — billed per use, and the model can change between questions. Default is {ASK_MORRIS_MODEL_LABEL}.</>
+          : <>Default is {ASK_MORRIS_MODEL_LABEL} · answers from your tasks, weather &amp; watchlist</>}
       </div>
     </div>
   );
