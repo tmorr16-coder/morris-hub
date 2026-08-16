@@ -215,6 +215,74 @@ export async function searchEvents(city: string, when?: string, maxResults = 12)
  * says so rather than implying we shopped rates. A real rates engine can be
  * dropped in behind this signature later without the callers changing.
  */
+/**
+ * Bookable car rates, when the account's plan carries a car-rentals engine.
+ *
+ * Written against the documented response shape; it has never been run against
+ * the live engine from here, so it is defensive throughout — an unexpected
+ * payload yields an empty list, and the caller falls back to agency search
+ * rather than showing nothing. Set CAR_RATES_ENGINE to the engine name to turn
+ * it on (e.g. "google_car_rentals"); unset means "don't try".
+ */
+export function carRatesConfigured(): boolean {
+  return Boolean(process.env.SERPAPI_API_KEY && process.env.CAR_RATES_ENGINE);
+}
+
+export async function carRates(p: CarSearchParams): Promise<CarOffer[]> {
+  if (!carRatesConfigured()) return [];
+  const days = rentalDays(p.pickUp, p.dropOff);
+
+  const data = await serpGet({
+    engine: process.env.CAR_RATES_ENGINE,
+    q: p.city,
+    pickup_date: p.pickUp,
+    return_date: p.dropOff,
+    currency: "USD",
+    hl: "en",
+    gl: "us",
+  });
+
+  // Providers disagree on the container name; take whichever is an array.
+  const rows: any[] = [data.car_rentals, data.rentals, data.results, data.cars, data.local_results]
+    .find((x) => Array.isArray(x) && x.length) ?? [];
+
+  return rows.slice(0, p.maxResults ?? 20).map((r, idx): CarOffer => {
+    const total = num(r.total_price ?? r.price?.total ?? r.extracted_price ?? r.price);
+    const perDay = num(r.price_per_day ?? r.daily_rate ?? r.price?.per_day) ?? (total != null && days ? Math.round(total / days) : null);
+    return {
+      id: String(r.id ?? r.booking_token ?? `rate-${idx}`),
+      company: String(r.company ?? r.provider ?? r.supplier ?? r.title ?? "Rental"),
+      type: r.car_class ?? r.type ?? r.category ?? null,
+      rating: num(r.rating),
+      reviews: num(r.reviews),
+      address: r.pickup_location ?? r.address ?? null,
+      phone: r.phone ?? null,
+      price: total,
+      perDay,
+      currency: r.currency ?? "USD",
+      link: r.link ?? r.booking_link ?? null,
+      source: "rates",
+      vehicle: r.car_name ?? r.model ?? r.name ?? null,
+      seats: num(r.seats ?? r.passengers),
+      transmission: r.transmission ?? null,
+      unlimitedMileage: typeof r.unlimited_mileage === "boolean" ? r.unlimited_mileage : null,
+    };
+  }).filter((c) => c.company);
+}
+
+function num(v: unknown): number | null {
+  const n = typeof v === "string" ? parseFloat(v.replace(/[^0-9.]/g, "")) : typeof v === "number" ? v : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Whole days between pick-up and drop-off, for a per-day figure. */
+export function rentalDays(pickUp?: string, dropOff?: string): number | null {
+  if (!pickUp || !dropOff) return null;
+  const ms = Date.parse(`${dropOff}T12:00:00Z`) - Date.parse(`${pickUp}T12:00:00Z`);
+  const days = Math.round(ms / 86400000);
+  return days > 0 ? days : null;
+}
+
 export async function searchCars(p: CarSearchParams): Promise<CarOffer[]> {
   const data = await serpGet({ engine: "google_maps", type: "search", q: `car rental in ${p.city}`, hl: "en" });
   const rows: any[] = data.local_results ?? [];
@@ -227,7 +295,9 @@ export async function searchCars(p: CarSearchParams): Promise<CarOffer[]> {
     address: r.address ?? null,
     phone: r.phone ?? null,
     price: typeof r.price === "number" ? r.price : null,
+    perDay: null,
     currency: null,
     link: r.website ?? null,
+    source: "agency" as const,
   }));
 }

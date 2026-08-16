@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { plannedAlerts } from "@/lib/trips";
-import { isValidZone, zoneForAirport, zonedTimeToUtc } from "@/lib/timezones";
+import { isValidZone, zoneForAirport, zonedTimeToUtc } from "@/lib/travel-timezones";
 
 export const runtime = "nodejs";
 

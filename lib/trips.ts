@@ -2,7 +2,7 @@
 // turn a pasted calendar invite into segments. Pure functions — the routes and
 // the cron both read from here so the rules live in one place.
 
-import { dayInZone, formatInZone, localZone, zoneForAirport, zonedTimeToUtc, isValidZone } from "./timezones";
+import { dayInZone, formatInZone, localZone, zoneForAirport, zonedTimeToUtc, isValidZone } from "./travel-timezones";
 
 export type SegmentKind = "flight" | "hotel" | "car" | "rail" | "activity" | "note";
 export type TripState = "active" | "upcoming" | "past";
