@@ -10,6 +10,7 @@ import { isPreferredBrand } from "@/lib/brands";
 import { pointsQuote, formatPoints, type LoyaltyBalance } from "@/lib/points";
 import { airportLabel } from "@/lib/airports";
 import AirportField from "./AirportField";
+import DestinationField from "./DestinationField";
 import SaveToTrip from "./SaveToTrip";
 import { FlightShopControls, HotelShopControls } from "./ShopControls";
 import { flightBookingLinks, hotelBookingLinks } from "@/lib/booking-links";
@@ -61,6 +62,10 @@ export default function SearchClient({
   const [cars, setCars] = useState<CarOffer[] | null>(null);
   // Show prices as points wherever we can value them.
   const [inPoints, setInPoints] = useState(false);
+  // Cheapest fare on adjacent days — each one costs a provider call, so it is
+  // asked for, never automatic.
+  const [nearby, setNearby] = useState<{ date: string; price: number | null }[] | null>(null);
+  const [nearbyBusy, setNearbyBusy] = useState(false);
 
   const balances: LoyaltyBalance[] = loyalty.map((l) => ({
     program_name: l.program_name, category: l.category, points_balance: l.points_balance ?? null, tier: l.tier,
@@ -104,7 +109,7 @@ export default function SearchClient({
   );
 
   async function searchFlights() {
-    setErr(null); setInvalid(null); setServed(null); setBusy(true); setFlights(null); setFlightFilters(EMPTY_FLIGHT_FILTERS);
+    setErr(null); setInvalid(null); setServed(null); setBusy(true); setFlights(null); setFlightFilters(EMPTY_FLIGHT_FILTERS); setNearby(null);
     try {
       const res = await fetch("/api/travel/flights", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -139,6 +144,19 @@ export default function SearchClient({
       setHotels(data.offers ?? []);
       setServed({ provider: data.provider, fellBackFrom: data.fellBackFrom, cached: data.cached });
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  }
+
+  async function loadNearby() {
+    setNearbyBusy(true); setErr(null);
+    try {
+      const res = await fetch("/api/travel/flights/nearby", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ origin, destination, departDate, returnDate: returnDate || undefined, adults, cabin, nonStop, currency: prefs.currency, spread: 2 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? data.error ?? "Couldn't price nearby dates.");
+      setNearby(data.days ?? []);
+    } catch (e) { setErr((e as Error).message); } finally { setNearbyBusy(false); }
   }
 
   async function searchCars() {
@@ -222,16 +240,19 @@ export default function SearchClient({
       {/* ── Hotel form ── */}
       {mode === "hotels" && (
         <div className="ios-list" style={{ margin: "0 0 12px", padding: 16 }}>
-          <Field label="City"><Text value={city} onChange={setCity} placeholder="New York" /></Field>
+          <DestinationField value={city} onChange={setCity} />
           <Field label="Check-in"><Text value={checkIn} onChange={setCheckIn} placeholder="YYYY-MM-DD" type="date" /></Field>
           <Field label="Check-out"><Text value={checkOut} onChange={setCheckOut} placeholder="YYYY-MM-DD" type="date" /></Field>
           <Field label="Guests"><Num value={adults} onChange={setAdults} min={1} max={9} /></Field>
           {preferredChains.length > 0 && (
             <div className="ios-caption" style={{ color: "var(--ios-label-3)", lineHeight: 1.4 }}>Highlighting preferred chains: {preferredChains.join(", ")} · min {prefs.hotel_min_rating}★</div>
           )}
-          <button onClick={searchHotels} disabled={busy || !city || !checkIn || !checkOut} style={primaryBtn(busy)}>
+          <button onClick={searchHotels} disabled={busy || city.trim().length < 2 || !checkIn || !checkOut} style={primaryBtn(busy)}>
             {busy ? "Searching…" : "Search hotels"}
           </button>
+          <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, lineHeight: 1.45 }}>
+            Search a city, a whole state (&ldquo;Colorado&rdquo;), an area (&ldquo;Napa Valley&rdquo;), or a property by name.
+          </div>
         </div>
       )}
 
@@ -288,6 +309,50 @@ export default function SearchClient({
             {flights.length} FLIGHT{flights.length === 1 ? "" : "S"}
             {origin && destination ? ` · ${airportLabel(origin)} → ${airportLabel(destination)}` : ""}
           </div>
+          {flights.length > 0 && (
+            <div className="ios-list" style={{ margin: "0 0 10px", padding: 14 }}>
+              {!nearby && (
+                <>
+                  <button onClick={loadNearby} disabled={nearbyBusy} className="ios-caption"
+                    style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 10, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "8px 14px" }}>
+                    {nearbyBusy ? "Pricing nearby dates…" : "Check nearby dates"}
+                  </button>
+                  <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6, lineHeight: 1.45 }}>
+                    Prices the two days either side. That&apos;s four more provider searches, so it only runs when you ask.
+                  </div>
+                </>
+              )}
+              {nearby && (
+                <>
+                  <div className="ios-caption" style={{ color: "var(--ios-label-3)", fontWeight: 700, marginBottom: 6 }}>NEARBY DATES</div>
+                  <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+                    {[...nearby, { date: departDate, price: flights.length ? Math.min(...flights.map((f) => f.price)) : null }]
+                      .sort((a, b) => a.date.localeCompare(b.date))
+                      .map((d) => {
+                        const isCurrent = d.date === departDate;
+                        const cheapest = nearby.every((x) => x.price == null || (d.price != null && d.price <= x.price));
+                        return (
+                          <button key={d.date} onClick={() => { if (!isCurrent) { setDepartDate(d.date); setNearby(null); } }}
+                            style={{ flex: "0 0 auto", padding: "8px 12px", borderRadius: 12, cursor: isCurrent ? "default" : "pointer", textAlign: "center",
+                              border: `1px solid ${isCurrent ? "var(--ios-tint)" : "var(--ios-separator)"}`,
+                              background: isCurrent ? "var(--ios-fill)" : "transparent" }}>
+                            <div className="ios-caption" style={{ color: "var(--ios-label-3)" }}>
+                              {new Date(`${d.date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
+                            </div>
+                            <div className="ios-num" style={{ fontWeight: 700, color: d.price == null ? "var(--ios-label-3)" : cheapest && !isCurrent ? "var(--ios-green)" : "var(--ios-label)" }}>
+                              {d.price == null ? "—" : money(d.price, prefs.currency)}
+                            </div>
+                          </button>
+                        );
+                      })}
+                  </div>
+                  <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>
+                    Tap a date to search it. Cheapest fare found on each day; &ldquo;—&rdquo; means that day returned nothing.
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {flights.length > 1 && (
             <FlightShopControls offers={flights} shown={visibleFlights.length} sort={flightSort} setSort={setFlightSort} filters={flightFilters} setFilters={setFlightFilters} />
           )}
@@ -398,7 +463,14 @@ export default function SearchClient({
             return (
               <div key={h.id} className="ios-list" style={{ margin: "0 0 8px", padding: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-                  <div className="ios-headline" style={{ fontSize: 16 }}>{h.name}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                    {h.thumbnail && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={h.thumbnail} alt="" loading="lazy" width={48} height={48}
+                        style={{ width: 48, height: 48, borderRadius: 10, objectFit: "cover", flexShrink: 0 }} />
+                    )}
+                    <div className="ios-headline" style={{ fontSize: 16 }}>{h.name}</div>
+                  </div>
                   <div className="ios-num" style={{ fontSize: 18, fontWeight: 700, whiteSpace: "nowrap" }}>{h.price != null ? money(h.price, h.currency ?? "USD") : "—"}</div>
                 </div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
