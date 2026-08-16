@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
         max_stops: p.max_stops ?? 2,
         preferred_airlines: p.preferred_airlines ?? [],
         preferred_hotel_chains: p.preferred_hotel_chains ?? [],
+        preferred_car_companies: p.preferred_car_companies ?? [],
         hotel_min_rating: p.hotel_min_rating ?? 3,
         currency: p.currency ?? "USD",
         notify_email: p.notify_email ?? true,

@@ -4,7 +4,7 @@
 // narrow, and see at a glance how much of the result set you're looking at.
 
 import {
-  TIME_WINDOWS, airlinesIn, priceRange,
+  EMPTY_HOTEL_FILTERS, TIME_WINDOWS, airlinesIn, priceRange,
   type FlightFilters, type FlightSort, type HotelFilters, type HotelSort, type TimeWindow,
 } from "@/lib/offer-filters";
 import type { FlightOffer, HotelOffer } from "@/lib/travel-search";
@@ -100,24 +100,35 @@ export function HotelShopControls({
   filters: HotelFilters; setFilters: (f: HotelFilters) => void;
 }) {
   const range = priceRange(offers);
-  const active = filters.minRating != null || filters.maxPrice != null || filters.pricedOnly;
+  const active = filters.minRating != null || filters.minGuestScore != null || filters.maxPrice != null || filters.pricedOnly || filters.preferredOnly;
 
   return (
     <div className="ios-list" style={{ margin: "0 0 10px", padding: 14 }}>
       <Row label="SORT BY">
-        {([["price", "Cheapest"], ["rating", "Top rated"], ["name", "Name"]] as [HotelSort, string][]).map(([key, label]) => (
+        {([["recommended", "Recommended"], ["price", "Cheapest"], ["guests", "Guest score"], ["rating", "Stars"], ["name", "Name"]] as [HotelSort, string][]).map(([key, label]) => (
           <button key={key} onClick={() => setSort(key)} style={chip(sort === key)}>{label}</button>
         ))}
       </Row>
 
-      <Row label="RATING">
+      <Row label="STARS">
         {[3, 4, 5].map((r) => (
           <button key={r} onClick={() => setFilters({ ...filters, minRating: filters.minRating === r ? null : r })} style={chip(filters.minRating === r)}>
             {r}★ and up
           </button>
         ))}
+      </Row>
+
+      <Row label="GUEST SCORE">
+        {[4, 4.5].map((g) => (
+          <button key={g} onClick={() => setFilters({ ...filters, minGuestScore: filters.minGuestScore === g ? null : g })} style={chip(filters.minGuestScore === g)}>
+            {g.toFixed(1)}+ from guests
+          </button>
+        ))}
         <button onClick={() => setFilters({ ...filters, pricedOnly: !filters.pricedOnly })} style={chip(filters.pricedOnly)}>
           Priced only
+        </button>
+        <button onClick={() => setFilters({ ...filters, preferredOnly: !filters.preferredOnly })} style={chip(filters.preferredOnly)}>
+          My brands
         </button>
       </Row>
 
@@ -139,7 +150,7 @@ export function HotelShopControls({
         </div>
       )}
 
-      <Summary shown={shown} total={offers.length} active={active} onReset={() => setFilters({ minRating: null, maxPrice: null, pricedOnly: false })} />
+      <Summary shown={shown} total={offers.length} active={active} onReset={() => setFilters(EMPTY_HOTEL_FILTERS)} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ export interface TravelPreferences {
   max_stops: number;
   preferred_airlines: string[];
   preferred_hotel_chains: string[];
+  preferred_car_companies: string[];
   hotel_min_rating: number;
   currency: string;
   notify_email: boolean;
@@ -42,6 +43,7 @@ export const DEFAULT_PREFS: TravelPreferences = {
   max_stops: 2,
   preferred_airlines: [],
   preferred_hotel_chains: [],
+  preferred_car_companies: [],
   hotel_min_rating: 3,
   currency: "USD",
   notify_email: true,

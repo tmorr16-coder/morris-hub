@@ -2,6 +2,35 @@
 
 import { useState } from "react";
 import { CABINS, type TravelPreferences } from "../types";
+import { brandsIn } from "@/lib/brands";
+
+
+type BrandField = "preferred_hotel_chains" | "preferred_car_companies" | "preferred_airlines";
+
+/** Tap-to-pick brands. Declared at module scope so it keeps its identity
+ *  across renders — an inline component would remount on every keystroke. */
+function BrandPicker({ category, chosen, onToggle }: {
+  category: "hotel" | "car" | "air";
+  chosen: string[];
+  onToggle: (key: string) => void;
+}) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "6px 0 2px" }}>
+      {brandsIn(category).map((b) => {
+        const on = chosen.some((c) => c.toLowerCase() === b.key.toLowerCase() || c.toLowerCase() === b.name.toLowerCase());
+        return (
+          <button key={b.key} onClick={() => onToggle(b.key)}
+            title={b.program ? `${b.program}${b.centsPerPoint ? ` · ~${b.centsPerPoint}¢ per point` : ""}` : b.name}
+            style={{ padding: "6px 11px", borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: "pointer",
+              border: `1px solid ${on ? "transparent" : "var(--ios-separator)"}`,
+              background: on ? "var(--ios-tint)" : "transparent", color: on ? "var(--ios-on-tint)" : "var(--ios-label)" }}>
+            {b.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function PreferencesClient({ initial }: { initial: TravelPreferences }) {
   const [p, setP] = useState<TravelPreferences>(initial);
@@ -22,6 +51,13 @@ export default function PreferencesClient({ initial }: { initial: TravelPreferen
     } catch { setSaveState("error"); }
   }
 
+  const brandsFor = (field: BrandField): string[] => ((p as unknown as Record<string, string[]>)[field] ?? []);
+  const toggleBrand = (field: BrandField, key: string) => {
+    const current = brandsFor(field);
+    const has = current.some((c) => c.toLowerCase() === key.toLowerCase());
+    set(field as never, (has ? current.filter((c) => c.toLowerCase() !== key.toLowerCase()) : [...current, key]) as never);
+  };
+
   return (
     <div>
       <div className="ios-group-header" style={{ padding: "8px 0 7px" }}>FLIGHTS</div>
@@ -34,13 +70,23 @@ export default function PreferencesClient({ initial }: { initial: TravelPreferen
         </Field>
         <Field label="Max stops"><Inp value={String(p.max_stops)} onChange={(v) => set("max_stops", Math.max(0, Math.min(3, parseInt(v) || 0)))} width={70} /></Field>
         <Field label="Preferred airlines"><Inp value={p.preferred_airlines.join(", ")} onChange={(v) => set("preferred_airlines", splitCodes(v))} placeholder="UA, DL, AA" width={170} /></Field>
-        <div className="ios-caption" style={{ color: "var(--ios-label-3)", lineHeight: 1.4 }}>Two-letter IATA airline codes, comma-separated.</div>
+        <BrandPicker category="air" chosen={brandsFor("preferred_airlines")} onToggle={(k) => toggleBrand("preferred_airlines", k)} />
+        <div className="ios-caption" style={{ color: "var(--ios-label-3)", lineHeight: 1.4 }}>Tap the airlines you fly, or type IATA codes for any others.</div>
+      </div>
+
+      <div className="ios-group-header" style={{ padding: "12px 0 7px" }}>CARS</div>
+      <div className="ios-list" style={{ margin: 0, padding: 16 }}>
+        <BrandPicker category="car" chosen={brandsFor("preferred_car_companies")} onToggle={(k) => toggleBrand("preferred_car_companies", k)} />
+        <div className="ios-caption" style={{ color: "var(--ios-label-3)", lineHeight: 1.4 }}>Rental companies you hold status or points with — flagged in car results.</div>
       </div>
 
       <div className="ios-group-header" style={{ padding: "12px 0 7px" }}>HOTELS</div>
       <div className="ios-list" style={{ margin: 0, padding: 16 }}>
         <Field label="Preferred chains"><Inp value={p.preferred_hotel_chains.join(", ")} onChange={(v) => set("preferred_hotel_chains", splitCodes(v))} placeholder="Marriott, Hilton, Hyatt" width={170} /></Field>
-        <div className="ios-caption" style={{ color: "var(--ios-label-3)", lineHeight: 1.4 }}>Brand names, comma-separated. Matching results get a “Preferred chain” flag.</div>
+        <BrandPicker category="hotel" chosen={brandsFor("preferred_hotel_chains")} onToggle={(k) => toggleBrand("preferred_hotel_chains", k)} />
+        <div className="ios-caption" style={{ color: "var(--ios-label-3)", lineHeight: 1.4 }}>
+          Sub-brands count too — picking Marriott flags Courtyard, Westin and the rest. Results from your brands get a badge, a “My brands” filter, and a points price.
+        </div>
         <Field label="Minimum rating">
           <select value={p.hotel_min_rating} onChange={(e) => set("hotel_min_rating", parseInt(e.target.value))} style={sel(110)}>
             {[1, 2, 3, 4, 5].map((r) => <option key={r} value={r}>{"★".repeat(r)}</option>)}

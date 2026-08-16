@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { LOYALTY_CATEGORIES, type LoyaltyProgram } from "../types";
+import { balanceValue } from "@/lib/points";
 
 function points(n: number | null): string {
   if (n == null) return "";
@@ -57,6 +58,10 @@ export default function LoyaltyClient({ initial }: { initial: LoyaltyProgram[] }
                   <div className="ios-headline" style={{ fontSize: 16 }}>{p.program_name}</div>
                   <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>
                     {[p.tier, p.member_number, points(p.points_balance)].filter(Boolean).join(" · ") || "—"}
+                    {(() => {
+                      const worth = balanceValue({ program_name: p.program_name, category: p.category, points_balance: p.points_balance });
+                      return worth ? ` · ≈ $${Math.round(worth).toLocaleString()}` : "";
+                    })()}
                   </div>
                 </div>
                 <button onClick={() => remove(p.id)} aria-label="Remove" style={{ background: "none", border: "none", color: "var(--ios-red, #FF3B30)", fontSize: 20, cursor: "pointer", padding: "0 4px" }}>×</button>

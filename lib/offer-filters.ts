@@ -7,7 +7,7 @@
 import type { FlightOffer, HotelOffer } from "./travel-search";
 
 export type FlightSort = "price" | "duration" | "departure" | "stops";
-export type HotelSort = "price" | "rating" | "name";
+export type HotelSort = "recommended" | "price" | "guests" | "rating" | "name";
 
 export interface FlightFilters {
   maxStops: number | null;        // 0 = non-stop only
@@ -88,25 +88,43 @@ export function sortFlights(offers: FlightOffer[], sort: FlightSort): FlightOffe
 }
 
 export interface HotelFilters {
-  minRating: number | null;
+  minRating: number | null;      // star class
+  minGuestScore: number | null;  // what guests said, out of 5
   maxPrice: number | null;
   pricedOnly: boolean;
+  preferredOnly: boolean;        // only brands you collect with
 }
 
-export const EMPTY_HOTEL_FILTERS: HotelFilters = { minRating: null, maxPrice: null, pricedOnly: false };
+export const EMPTY_HOTEL_FILTERS: HotelFilters = {
+  minRating: null, minGuestScore: null, maxPrice: null, pricedOnly: false, preferredOnly: false,
+};
 
-export function filterHotels(offers: HotelOffer[], f: HotelFilters): HotelOffer[] {
+export function filterHotels(
+  offers: HotelOffer[],
+  f: HotelFilters,
+  isPreferred: (h: HotelOffer) => boolean = () => false,
+): HotelOffer[] {
   return offers.filter((h) => {
     if (f.pricedOnly && h.price == null) return false;
     if (f.minRating != null && (h.rating ?? 0) < f.minRating) return false;
+    // A property with no guest score isn't evidence of a bad one — but when
+    // you ask for "4.0+ guests" you mean rated, so unrated drops out.
+    if (f.minGuestScore != null && (h.guestScore ?? 0) < f.minGuestScore) return false;
     if (f.maxPrice != null && h.price != null && h.price > f.maxPrice) return false;
+    if (f.preferredOnly && !isPreferred(h)) return false;
     return true;
   });
 }
 
-export function sortHotels(offers: HotelOffer[], sort: HotelSort): HotelOffer[] {
+export function sortHotels(
+  offers: HotelOffer[],
+  sort: HotelSort,
+  score: (h: HotelOffer) => number = () => 0,
+): HotelOffer[] {
   const out = [...offers];
   switch (sort) {
+    case "recommended": return out.sort((a, b) => score(b) - score(a));
+    case "guests": return out.sort((a, b) => (b.guestScore ?? 0) - (a.guestScore ?? 0) || (b.reviews ?? 0) - (a.reviews ?? 0));
     case "rating": return out.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
     case "name": return out.sort((a, b) => a.name.localeCompare(b.name));
     default:
@@ -118,4 +136,47 @@ export function sortHotels(offers: HotelOffer[], sort: HotelSort): HotelOffer[] 
         return a.price - b.price;
       });
   }
+}
+
+// ── Recommendation ──────────────────────────────────────────────────────
+// "Should I book this one?" is a mix of how guests rate it, how many said so,
+// its class, and whether it's a brand you actually collect points with. A 4.9
+// from six reviews is noise; a 4.4 from three thousand is a signal.
+
+export interface Recommendation {
+  score: number;            // 0–100, for ordering
+  label: string | null;     // badge text, when it earns one
+  reasons: string[];        // why, in plain words
+}
+
+export function recommendHotel(
+  h: { guestScore?: number | null; reviews?: number | null; rating: number | null; price: number | null },
+  opts: { preferred?: boolean; cheapest?: number | null } = {},
+): Recommendation {
+  const reasons: string[] = [];
+  let score = 0;
+
+  const guests = h.guestScore ?? null;
+  const reviews = h.reviews ?? 0;
+  if (guests != null) {
+    // Weight the score by how much evidence sits behind it.
+    const confidence = Math.min(1, reviews / 300);
+    score += (guests / 5) * 60 * (0.45 + 0.55 * confidence);
+    if (guests >= 4.5 && reviews >= 300) reasons.push(`${guests.toFixed(1)}★ from ${reviews.toLocaleString()} guests`);
+    else if (guests >= 4.3 && reviews >= 100) reasons.push(`Well reviewed (${guests.toFixed(1)})`);
+    else if (reviews > 0 && reviews < 50) reasons.push(`Only ${reviews} reviews`);
+  }
+  if (h.rating) score += h.rating * 4;
+  if (opts.preferred) { score += 15; reasons.push("A brand you collect with"); }
+  if (h.price != null && opts.cheapest != null && h.price <= opts.cheapest * 1.1) {
+    score += 10;
+    reasons.push("Among the cheapest here");
+  }
+
+  const label =
+    score >= 70 ? "Recommended" :
+    opts.preferred ? "Your brand" :
+    guests != null && guests >= 4.6 && reviews >= 500 ? "Guest favourite" : null;
+
+  return { score: Math.round(score), label, reasons };
 }

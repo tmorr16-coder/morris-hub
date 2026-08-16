@@ -7,7 +7,7 @@
 
 import { fetchWithRetry } from "./http-retry";
 import type {
-  FlightOffer, FlightSegment, HotelOffer, FlightSearchParams, HotelSearchParams,
+  FlightOffer, FlightSegment, HotelOffer, FlightSearchParams, HotelSearchParams, CarOffer, CarSearchParams,
 } from "./duffel";
 
 const BASE = "https://serpapi.com/search.json";
@@ -120,6 +120,11 @@ export async function searchHotels(p: HotelSearchParams): Promise<HotelOffer[]> 
       chain: null,
       cityCode: p.query,
       rating: starClass(h),
+      guestScore: typeof h.overall_rating === "number" ? h.overall_rating : null,
+      reviews: typeof h.reviews === "number" ? h.reviews : null,
+      amenities: Array.isArray(h.amenities) ? h.amenities.slice(0, 8).map((a: any) => String(a)) : [],
+      link: h.link ?? null,
+      thumbnail: h.images?.[0]?.thumbnail ?? null,
       price: typeof total === "number" ? total : (typeof nightly === "number" ? nightly : null),
       currency: p.currency ?? "USD",
       checkIn: p.checkIn,
@@ -198,5 +203,31 @@ export async function searchEvents(city: string, when?: string, maxResults = 12)
     venue: e.venue?.name ?? null,
     address: Array.isArray(e.address) ? e.address.join(", ") : (e.address ?? null),
     link: e.link ?? null,
+  }));
+}
+
+/**
+ * Car rental options near a city.
+ *
+ * This is agency search (Google Maps local results), so it returns companies,
+ * their ratings and where they are — not per-day quotes. Anything the listing
+ * happens to price is passed through, but most rows have no price, and the UI
+ * says so rather than implying we shopped rates. A real rates engine can be
+ * dropped in behind this signature later without the callers changing.
+ */
+export async function searchCars(p: CarSearchParams): Promise<CarOffer[]> {
+  const data = await serpGet({ engine: "google_maps", type: "search", q: `car rental in ${p.city}`, hl: "en" });
+  const rows: any[] = data.local_results ?? [];
+  return rows.slice(0, p.maxResults ?? 20).map((r, idx) => ({
+    id: r.place_id ?? `serp-car-${idx}`,
+    company: r.title ?? "Car rental",
+    type: r.type ?? null,
+    rating: typeof r.rating === "number" ? r.rating : null,
+    reviews: typeof r.reviews === "number" ? r.reviews : null,
+    address: r.address ?? null,
+    phone: r.phone ?? null,
+    price: typeof r.price === "number" ? r.price : null,
+    currency: null,
+    link: r.website ?? null,
   }));
 }

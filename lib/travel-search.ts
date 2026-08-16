@@ -9,10 +9,10 @@
 
 import * as duffel from "./duffel";
 import * as serp from "./serpapi-travel";
-import type { FlightSearchParams, HotelSearchParams, FlightOffer, HotelOffer } from "./duffel";
+import type { FlightSearchParams, HotelSearchParams, FlightOffer, HotelOffer, CarOffer, CarSearchParams } from "./duffel";
 
 export type {
-  FlightOffer, FlightSegment, HotelOffer, FlightSearchParams, HotelSearchParams,
+  FlightOffer, FlightSegment, HotelOffer, FlightSearchParams, HotelSearchParams, CarOffer, CarSearchParams,
 } from "./duffel";
 
 export type TravelProvider = "duffel" | "serpapi" | null;
@@ -103,6 +103,25 @@ export function searchFlights(p: FlightSearchParams): Promise<SearchOutcome<Flig
 
 export function searchHotels(p: HotelSearchParams): Promise<SearchOutcome<HotelOffer>> {
   return run("hotels", p, { duffel: duffel.searchHotels, serpapi: serp.searchHotels });
+}
+
+/**
+ * Cars come from SerpApi only — Duffel has no car inventory, so there is no
+ * second provider to fall back to and no point pretending otherwise.
+ */
+export function carsConfigured(): boolean {
+  return serp.serpapiConfigured();
+}
+
+export async function searchCars(p: CarSearchParams): Promise<SearchOutcome<CarOffer>> {
+  if (!serp.serpapiConfigured()) throw new Error("Car search needs a SerpApi token.");
+  const key = `cars:serpapi:${JSON.stringify(p)}`;
+  const hit = cacheGet<SearchOutcome<CarOffer>>(key);
+  if (hit) return { ...hit, cached: true };
+  const offers = await serp.searchCars(p);
+  const outcome: SearchOutcome<CarOffer> = { offers, provider: "serpapi" };
+  cacheSet(key, outcome);
+  return outcome;
 }
 
 /** Cheapest fare for a watch check — falls back the same way, price only. */
