@@ -65,7 +65,7 @@ export default function TripDetailClient({ trip, segments, alerts }: { trip: Tri
       <div className="ios-list" style={{ margin: "0 0 14px", padding: 14 }}>
         {pending.length === 0 && sent.length === 0 && (
           <div className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}>
-            Add a flight and you&apos;ll get a check-in reminder when check-in opens, 24 hours before departure.
+            Add a flight and you&apos;ll get a check-in reminder for it. Reminders go out in one daily run, so each arrives on or shortly before the time shown.
           </div>
         )}
         {pending.map((a) => (
@@ -197,7 +197,7 @@ function AddSegment({ tripId, onDone }: { tripId: string; onDone: () => void }) 
       </button>
       {kind === "flight" && (
         <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, textAlign: "center" }}>
-          You&apos;ll get a check-in reminder 24 hours before, and a nudge to leave 3 hours before.
+          Check-in opens 24h before departure and you&apos;ll be reminded, plus a heads-up to leave about 3h before. Both arrive in the daily reminder run.
         </div>
       )}
     </div>

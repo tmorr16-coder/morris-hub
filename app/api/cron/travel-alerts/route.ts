@@ -12,7 +12,12 @@ export const maxDuration = 60;
 // Send the trip nudges that have come due — check-in opening, time to leave for
 // the airport, hotel check-in tomorrow. Alerts are rows queued when a segment is
 // saved, so this job only decides "is it time, and did we already send it".
-// Runs hourly; a missed hour still sends late rather than never.
+//
+// Vercel's Hobby plan allows one run per cron per day, so this runs daily and
+// looks a day AHEAD as well as behind: anything due before the next run goes out
+// now. That is why alert bodies say when check-in opens rather than claiming it
+// is open this second. On Pro, move the schedule in vercel.json to hourly and
+// the same code delivers much closer to the moment.
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
   const expected = process.env.CRON_SECRET;
@@ -22,15 +27,18 @@ export async function GET(request: NextRequest) {
 
   const db = createServiceClient() as any;
   const now = new Date();
+  const DAY_MS = 24 * 60 * 60 * 1000;
   // Don't send anything that came due more than a day ago — a check-in reminder
   // after the flight has left is worse than silence.
-  const floor = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const floor = new Date(now.getTime() - DAY_MS).toISOString();
+  // Reach forward to the next daily run so nothing is delivered a day late.
+  const horizon = new Date(now.getTime() + DAY_MS).toISOString();
 
   const { data: due, error } = await db
     .schema("travel").from("trip_alerts")
     .select("*")
     .is("sent_at", null)
-    .lte("send_at", now.toISOString())
+    .lte("send_at", horizon)
     .gte("send_at", floor)
     .order("send_at", { ascending: true })
     .limit(50);

@@ -105,7 +105,7 @@ export function plannedAlerts(segment: TripSegment, now = Date.now()): PlannedAl
       out.push({
         kind: "checkin", segmentId: segment.id, sendAt: new Date(checkinAt).toISOString(),
         title: `Check in for ${flightLabel(segment)}`,
-        body: `Check-in is open now. ${flightLabel(segment)} departs ${fmtTime(segment.start_at)}${segment.confirmation_code ? ` · confirmation ${segment.confirmation_code}` : ""}.`,
+        body: `Check-in opens ${fmtTime(new Date(checkinAt).toISOString())}. ${flightLabel(segment)} departs ${fmtTime(segment.start_at)}${segment.confirmation_code ? ` · confirmation ${segment.confirmation_code}` : ""}.`,
       });
     }
     const leaveAt = startMs - LEAVE_LEAD_MS;
@@ -113,7 +113,7 @@ export function plannedAlerts(segment: TripSegment, now = Date.now()): PlannedAl
       out.push({
         kind: "leave_for_airport", segmentId: segment.id, sendAt: new Date(leaveAt).toISOString(),
         title: `Time to head to the airport — ${flightLabel(segment)}`,
-        body: `${flightLabel(segment)} departs ${fmtTime(segment.start_at)}. Leaving now puts you there about two hours ahead${segment.terminal ? ` · terminal ${segment.terminal}` : ""}${segment.seat ? ` · seat ${segment.seat}` : ""}.`,
+        body: `${flightLabel(segment)} departs ${fmtTime(segment.start_at)}. Head out around ${fmtTime(new Date(leaveAt).toISOString())} to be there about two hours ahead${segment.terminal ? ` · terminal ${segment.terminal}` : ""}${segment.seat ? ` · seat ${segment.seat}` : ""}.`,
       });
     }
   }

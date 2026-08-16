@@ -131,7 +131,7 @@ export default function ImportClient() {
           </div>
           {flights > 0 && (
             <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, textAlign: "center", lineHeight: 1.45 }}>
-              {flights === 1 ? "The flight gets" : `All ${flights} flights get`} a check-in reminder 24 hours before departure, and a nudge to leave 3 hours before.
+              {flights === 1 ? "The flight gets" : `All ${flights} flights get`} a check-in reminder and a heads-up to leave for the airport, delivered in the daily reminder run.
             </div>
           )}
         </>

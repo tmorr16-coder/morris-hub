@@ -87,7 +87,7 @@ export default function TripsClient({ trips, segments }: { trips: Trip[]; segmen
         <div className="ios-list" style={{ margin: 0, padding: 18 }}>
           <div className="ios-subhead" style={{ color: "var(--ios-label)", marginBottom: 6 }}>No trips yet.</div>
           <div className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}>
-            Paste an airline or hotel confirmation and it becomes a tracked trip — with a check-in reminder 24 hours before each flight.
+            Paste an airline or hotel confirmation and it becomes a tracked trip — with a check-in reminder for every flight in it.
           </div>
         </div>
       )}
