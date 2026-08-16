@@ -2,6 +2,8 @@
 // turn a pasted calendar invite into segments. Pure functions — the routes and
 // the cron both read from here so the rules live in one place.
 
+import { dayInZone, formatInZone, localZone, zoneForAirport, zonedTimeToUtc, isValidZone } from "./timezones";
+
 export type SegmentKind = "flight" | "hotel" | "car" | "rail" | "activity" | "note";
 export type TripState = "active" | "upcoming" | "past";
 
@@ -10,8 +12,10 @@ export interface TripSegment {
   kind: SegmentKind;
   title?: string | null;
   confirmation_code?: string | null;
-  start_at?: string | null;   // ISO
+  start_at?: string | null;   // ISO instant
   end_at?: string | null;
+  start_tz?: string | null;   // IANA zone the start reads in ("America/New_York")
+  end_tz?: string | null;
   origin?: string | null;
   destination?: string | null;
   location?: string | null;
@@ -79,8 +83,17 @@ export interface PlannedAlert {
   body: string;
 }
 
-function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }) + " UTC";
+/** Times in a notification read on the clock of the place they happen. */
+function fmtTime(iso: string, tz?: string | null): string {
+  return formatInZone(iso, tz, { withDate: true });
+}
+
+/** The zone a segment starts in: stored, else inferred from the airport. */
+export function startZone(s: TripSegment): string | null {
+  return (isValidZone(s.start_tz) ? s.start_tz : null) ?? zoneForAirport(s.origin) ?? null;
+}
+export function endZone(s: TripSegment): string | null {
+  return (isValidZone(s.end_tz) ? s.end_tz : null) ?? zoneForAirport(s.destination) ?? startZone(s);
 }
 
 function flightLabel(s: TripSegment): string {
@@ -99,13 +112,14 @@ export function plannedAlerts(segment: TripSegment, now = Date.now()): PlannedAl
   if (Number.isNaN(startMs) || startMs < now) return [];
 
   const out: PlannedAlert[] = [];
+  const zone = startZone(segment);
   if (segment.kind === "flight") {
     const checkinAt = startMs - CHECKIN_LEAD_MS;
     if (checkinAt > now) {
       out.push({
         kind: "checkin", segmentId: segment.id, sendAt: new Date(checkinAt).toISOString(),
         title: `Check in for ${flightLabel(segment)}`,
-        body: `Check-in opens ${fmtTime(new Date(checkinAt).toISOString())}. ${flightLabel(segment)} departs ${fmtTime(segment.start_at)}${segment.confirmation_code ? ` · confirmation ${segment.confirmation_code}` : ""}.`,
+        body: `Check-in opens ${fmtTime(new Date(checkinAt).toISOString(), zone)}. ${flightLabel(segment)} departs ${fmtTime(segment.start_at, zone)}${segment.confirmation_code ? ` · confirmation ${segment.confirmation_code}` : ""}.`,
       });
     }
     const leaveAt = startMs - LEAVE_LEAD_MS;
@@ -113,7 +127,7 @@ export function plannedAlerts(segment: TripSegment, now = Date.now()): PlannedAl
       out.push({
         kind: "leave_for_airport", segmentId: segment.id, sendAt: new Date(leaveAt).toISOString(),
         title: `Time to head to the airport — ${flightLabel(segment)}`,
-        body: `${flightLabel(segment)} departs ${fmtTime(segment.start_at)}. Head out around ${fmtTime(new Date(leaveAt).toISOString())} to be there about two hours ahead${segment.terminal ? ` · terminal ${segment.terminal}` : ""}${segment.seat ? ` · seat ${segment.seat}` : ""}.`,
+        body: `${flightLabel(segment)} departs ${fmtTime(segment.start_at, zone)}. Head out around ${fmtTime(new Date(leaveAt).toISOString(), zone)} to be there about two hours ahead${segment.terminal ? ` · terminal ${segment.terminal}` : ""}${segment.seat ? ` · seat ${segment.seat}` : ""}.`,
       });
     }
   }
@@ -124,7 +138,7 @@ export function plannedAlerts(segment: TripSegment, now = Date.now()): PlannedAl
       out.push({
         kind: "hotel_checkin", segmentId: segment.id, sendAt: new Date(dayBefore).toISOString(),
         title: `${segment.carrier || segment.title || "Hotel"} check-in tomorrow`,
-        body: `Check in ${fmtTime(segment.start_at)}${segment.location ? ` · ${segment.location}` : ""}${segment.confirmation_code ? ` · confirmation ${segment.confirmation_code}` : ""}.`,
+        body: `Check in ${fmtTime(segment.start_at, zone)}${segment.location ? ` · ${segment.location}` : ""}${segment.confirmation_code ? ` · confirmation ${segment.confirmation_code}` : ""}.`,
       });
     }
   }
@@ -132,11 +146,14 @@ export function plannedAlerts(segment: TripSegment, now = Date.now()): PlannedAl
   return out;
 }
 
-/** Segments grouped by local calendar day, for a day-by-day itinerary. */
+/**
+ * Segments grouped by the calendar day they fall on *where they happen* — a
+ * red-eye landing at 6am local belongs to that morning, not to the UTC date.
+ */
 export function groupByDay(segments: TripSegment[]): { day: string; items: TripSegment[] }[] {
   const days = new Map<string, TripSegment[]>();
   for (const s of [...segments].sort((a, b) => (a.start_at ?? "").localeCompare(b.start_at ?? ""))) {
-    const day = (s.start_at ?? "").slice(0, 10) || "unscheduled";
+    const day = (s.start_at ? dayInZone(s.start_at, startZone(s)) : "") || "unscheduled";
     if (!days.has(day)) days.set(day, []);
     days.get(day)!.push(s);
   }
@@ -150,12 +167,21 @@ export function groupByDay(segments: TripSegment[]): { day: string; items: TripS
 // Airlines and hotels attach these to confirmations, and they're structured,
 // so they parse exactly — no model call and no guessing.
 
-function icsDate(value: string): string | null {
-  // 20260901T080000Z, 20260901T080000, or 20260901
+/**
+ * An ICS date-time to an absolute instant.
+ *   20260901T201500Z          — already UTC
+ *   20260901T201500 + TZID    — wall time in that zone
+ *   20260901T201500 (neither) — "floating"; read as the viewer's own clock
+ *   20260901                  — a whole day
+ */
+function icsDate(value: string, tzid?: string | null): string | null {
   const m = value.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/);
   if (!m) return null;
-  const [, y, mo, d, h = "00", mi = "00", s = "00"] = m;
-  return `${y}-${mo}-${d}T${h}:${mi}:${s}${m[7] === "Z" || !m[4] ? "Z" : "Z"}`;
+  const [, y, mo, d, h = "00", mi = "00", sec = "00"] = m;
+  const wall = `${y}-${mo}-${d}T${h}:${mi}:${sec}`;
+  if (m[7] === "Z" || !m[4]) return `${wall}Z`;          // UTC, or a date with no time
+  if (tzid && isValidZone(tzid)) return zonedTimeToUtc(wall, tzid);
+  return zonedTimeToUtc(wall, localZone());              // floating
 }
 
 function unfold(text: string): string[] {
@@ -181,8 +207,10 @@ export function parseIcs(text: string): TripSegment[] {
     if (/^END:VEVENT/i.test(line)) {
       if (current) {
         const summary = unescapeIcs(current.SUMMARY ?? "");
-        const start = icsDate(current.DTSTART ?? "");
-        const end = icsDate(current.DTEND ?? "");
+        const startTz = current.DTSTART_TZID ?? null;
+        const endTz = current.DTEND_TZID ?? null;
+        const start = icsDate(current.DTSTART ?? "", startTz);
+        const end = icsDate(current.DTEND ?? "", endTz);
         if (summary || start) {
           const description = unescapeIcs(current.DESCRIPTION ?? "");
           const flightBits = flightBitsFrom(summary);
@@ -194,6 +222,9 @@ export function parseIcs(text: string): TripSegment[] {
             title: summary || null,
             start_at: start,
             end_at: end,
+            // Prefer the invite's own zone; fall back to the airport's.
+            start_tz: startTz ?? zoneForAirport(flightBits.origin) ?? null,
+            end_tz: endTz ?? zoneForAirport(flightBits.destination) ?? null,
             location: unescapeIcs(current.LOCATION ?? "") || null,
             confirmation_code: confirmationFrom(`${summary} ${description}`),
             notes: description.slice(0, 500) || null,
@@ -207,8 +238,12 @@ export function parseIcs(text: string): TripSegment[] {
     if (!current) continue;
     const idx = line.indexOf(":");
     if (idx < 0) continue;
-    const key = line.slice(0, idx).split(";")[0].toUpperCase();
+    const [name, ...params] = line.slice(0, idx).split(";");
+    const key = name.toUpperCase();
     current[key] = line.slice(idx + 1);
+    // DTSTART;TZID=America/New_York:20260901T201500 — the zone is the point.
+    const tzid = params.map((p) => p.match(/^TZID=(.+)$/i)?.[1]).find(Boolean);
+    if (tzid) current[`${key}_TZID`] = tzid.replace(/^"|"$/g, "");
   }
   return out;
 }

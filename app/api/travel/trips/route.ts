@@ -84,6 +84,8 @@ export async function saveSegments(db: any, userId: string, tripId: string, segm
     confirmation_code: s.confirmation_code ?? null,
     start_at: s.start_at ?? null,
     end_at: s.end_at ?? null,
+    start_tz: s.start_tz ?? null,
+    end_tz: s.end_tz ?? null,
     origin: s.origin ?? null,
     destination: s.destination ?? null,
     location: s.location ?? null,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { plannedAlerts } from "@/lib/trips";
+import { isValidZone, zoneForAirport, zonedTimeToUtc } from "@/lib/timezones";
 
 export const runtime = "nodejs";
 
@@ -47,10 +48,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (body.segment) {
     const s = body.segment;
+    // A time typed into datetime-local is wall-clock. Read it in the departure
+    // airport's zone when we know one — that's what a boarding pass says —
+    // otherwise in whatever zone the browser reported.
+    let startAt: string | null = s.start_at || null;
+    let startTz: string | null = isValidZone(s.start_tz) ? s.start_tz : null;
+    if (s.start_local) {
+      const airportZone = zoneForAirport(s.origin);
+      startTz = airportZone ?? startTz;
+      startAt = zonedTimeToUtc(s.start_local, startTz ?? "UTC");
+    }
     const { data: row, error } = await db.schema("travel").from("trip_segments").insert({
       trip_id: id, user_id: user!.id,
       kind: s.kind ?? "note", title: s.title ?? null, confirmation_code: s.confirmation_code ?? null,
-      start_at: s.start_at || null, end_at: s.end_at || null,
+      start_at: startAt, end_at: s.end_at || null,
+      start_tz: startTz, end_tz: isValidZone(s.end_tz) ? s.end_tz : zoneForAirport(s.destination),
       origin: s.origin ?? null, destination: s.destination ?? null, location: s.location ?? null,
       carrier: s.carrier ?? null, number: s.number ?? null, seat: s.seat ?? null, terminal: s.terminal ?? null,
       notes: s.notes ?? null, source: "manual",

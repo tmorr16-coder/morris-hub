@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { groupByDay, tripState, whenLabel, type TripSegment } from "@/lib/trips";
+import { endZone, groupByDay, startZone, tripState, whenLabel, type TripSegment } from "@/lib/trips";
+import { formatInZone, localZone } from "@/lib/timezones";
 import { ICON } from "./TripsClient";
 
 interface Trip {
@@ -19,12 +20,13 @@ const ALERT_LABEL: Record<string, string> = {
   trip_tomorrow: "Trip starts tomorrow",
 };
 
-function time(iso?: string | null): string {
-  if (!iso) return "";
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" }) + " UTC";
+/** A time on the clock of wherever it happens ("8:15 PM EDT"). */
+function time(iso?: string | null, tz?: string | null): string {
+  return formatInZone(iso, tz);
 }
 function dayLabel(day: string): string {
   if (day === "unscheduled") return "No time set";
+  // `day` is already a local calendar date; render it without re-zoning.
   return new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
 }
 
@@ -71,7 +73,7 @@ export default function TripDetailClient({ trip, segments, alerts }: { trip: Tri
         {pending.map((a) => (
           <div key={a.id} className="ios-footnote" style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "3px 0", color: "var(--ios-label-2)" }}>
             <span>{ALERT_LABEL[a.kind] ?? a.kind}</span>
-            <span style={{ color: "var(--ios-label-3)", flexShrink: 0 }}>{whenLabel(a.send_at)} · {time(a.send_at)}</span>
+            <span style={{ color: "var(--ios-label-3)", flexShrink: 0 }}>{whenLabel(a.send_at)} · {time(a.send_at, localZone())}</span>
           </div>
         ))}
         {sent.map((a) => (
@@ -114,8 +116,8 @@ export default function TripDetailClient({ trip, segments, alerts }: { trip: Tri
                   </div>
                   <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>
                     {s.kind === "flight" && s.origin && s.destination ? `${s.origin} → ${s.destination} · ` : ""}
-                    {s.start_at ? time(s.start_at) : "time TBD"}
-                    {s.end_at ? ` – ${time(s.end_at)}` : ""}
+                    {s.start_at ? time(s.start_at, startZone(s)) : "time TBD"}
+                    {s.end_at ? ` – ${time(s.end_at, endZone(s))}` : ""}
                   </div>
                   {(s.location || s.seat || s.terminal || s.confirmation_code) && (
                     <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 4 }}>
@@ -153,9 +155,11 @@ function AddSegment({ tripId, onDone }: { tripId: string; onDone: () => void }) 
         body: JSON.stringify({
           segment: {
             kind, title: title || null, confirmation_code: code || null,
-            // datetime-local has no zone; treat what you typed as UTC so the
-            // stored instant matches what's on screen.
-            start_at: start ? new Date(`${start}:00Z`).toISOString() : null,
+            // datetime-local has no zone — what you typed is wall-clock time
+            // where you are, so send that zone along and let the server resolve
+            // it (against the airport's zone when it knows one).
+            start_local: start || null,
+            start_tz: localZone(),
             origin: origin || null, destination: destination || null,
           },
         }),
@@ -197,7 +201,7 @@ function AddSegment({ tripId, onDone }: { tripId: string; onDone: () => void }) 
       </button>
       {kind === "flight" && (
         <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, textAlign: "center" }}>
-          Check-in opens 24h before departure and you&apos;ll be reminded, plus a heads-up to leave about 3h before. Both arrive in the daily reminder run.
+          Times are read in the departure airport&apos;s local zone when we know it, otherwise yours. Check-in and departure reminders arrive in the daily run.
         </div>
       )}
     </div>

@@ -19,6 +19,8 @@ type Segment = TripSegment & { id: string; trip_id: string };
 const ICON: Record<string, string> = { flight: "✈️", hotel: "🏨", car: "🚗", rail: "🚆", activity: "🎟️", note: "📝" };
 
 function dateRange(t: Trip): string {
+  // Trip dates are calendar dates, not instants — pin them to midday UTC and
+  // read them back in UTC so no zone can shift them onto the wrong day.
   const fmt = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   if (t.depart_date && t.return_date) return `${fmt(t.depart_date)} – ${fmt(t.return_date)}`;
   if (t.depart_date) return fmt(t.depart_date);
