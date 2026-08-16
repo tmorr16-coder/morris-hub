@@ -1,8 +1,10 @@
 export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { travelConfigured } from "@/lib/travel-search";
+import { whenLabel } from "@/lib/trips";
 import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 import WatchList from "./_components/WatchList";
 
@@ -13,10 +15,18 @@ export default async function TravelPage() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
-  const [{ data: prefs }, { count: loyaltyCount }] = await Promise.all([
+  const [{ data: prefs }, { count: loyaltyCount }, { data: upcoming }] = await Promise.all([
     db.schema("travel").from("preferences").select("home_airport").eq("user_id", user.id).maybeSingle(), // scoping-ok: user-scoped read
     db.schema("travel").from("loyalty_programs").select("id", { count: "exact", head: true }).eq("user_id", user.id), // scoping-ok: user-scoped read
+    // Next trip that hasn't finished yet, for the hub row.
+    db.schema("travel").from("trips")
+      .select("id, name, depart_date, return_date")
+      .eq("user_id", user.id) // scoping-ok: user-scoped read
+      .or(`return_date.gte.${new Date().toISOString().slice(0, 10)},and(return_date.is.null,depart_date.gte.${new Date().toISOString().slice(0, 10)})`)
+      .order("depart_date", { ascending: true })
+      .limit(1),
   ]);
+  const nextTrip = upcoming?.[0] as { id: string; name: string; depart_date: string | null } | undefined;
 
   const connected = travelConfigured();
   const home = prefs?.home_airport as string | undefined;
@@ -44,6 +54,20 @@ export default async function TravelPage() {
           </div>
           <IconBadge color="#8E44AD"><Icons.SparkleIcon /></IconBadge>
         </a>
+
+        <Link href="/travel/trips" className="ios-list" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, margin: "0 0 12px", padding: 18, textDecoration: "none" }}>
+          <div>
+            <div className="ios-headline" style={{ color: "var(--ios-label)", fontSize: 19 }}>
+              {nextTrip ? `${nextTrip.name} →` : "Trips →"}
+            </div>
+            <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 3 }}>
+              {nextTrip
+                ? `${whenLabel(nextTrip.depart_date)} · import confirmations, track check-ins`
+                : "Import a confirmation · check-in reminders · itinerary"}
+            </div>
+          </div>
+          <IconBadge color="#2A7B8C"><Icons.PlaneIcon /></IconBadge>
+        </Link>
 
         <a href="/travel/search" className="ios-list" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, margin: "0 0 12px", padding: 18, textDecoration: "none" }}>
           <div>
