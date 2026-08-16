@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { FlightOffer, HotelOffer } from "@/lib/travel-search";
+import type { CarOffer, FlightOffer, HotelOffer } from "@/lib/travel-search";
 import {
-  EMPTY_FLIGHT_FILTERS, EMPTY_HOTEL_FILTERS, filterFlights, filterHotels, sortFlights, sortHotels,
+  EMPTY_FLIGHT_FILTERS, EMPTY_HOTEL_FILTERS, filterFlights, filterHotels, recommendHotel, sortFlights, sortHotels,
   type FlightFilters, type FlightSort, type HotelFilters, type HotelSort,
 } from "@/lib/offer-filters";
+import { isPreferredBrand } from "@/lib/brands";
+import { pointsQuote, formatPoints, type LoyaltyBalance } from "@/lib/points";
 import { airportLabel } from "@/lib/airports";
 import AirportField from "./AirportField";
 import SaveToTrip from "./SaveToTrip";
@@ -27,7 +29,7 @@ function day(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
-type Mode = "flights" | "hotels";
+type Mode = "flights" | "hotels" | "cars";
 
 export default function SearchClient({
   prefs, loyalty, connected,
@@ -54,6 +56,16 @@ export default function SearchClient({
   const [checkOut, setCheckOut] = useState("");
   const [hotels, setHotels] = useState<HotelOffer[] | null>(null);
 
+  // Car form
+  const [carCity, setCarCity] = useState("");
+  const [cars, setCars] = useState<CarOffer[] | null>(null);
+  // Show prices as points wherever we can value them.
+  const [inPoints, setInPoints] = useState(false);
+
+  const balances: LoyaltyBalance[] = loyalty.map((l) => ({
+    program_name: l.program_name, category: l.category, points_balance: l.points_balance ?? null, tier: l.tier,
+  }));
+  const preferredCarCompanies = (prefs as { preferred_car_companies?: string[] }).preferred_car_companies ?? [];
   const airPrograms = loyalty.filter((l) => l.category === "air").map((l) => l.program_name.toLowerCase());
   const hotelPrograms = loyalty.filter((l) => l.category === "hotel").map((l) => l.program_name.toLowerCase());
   const preferredAir = prefs.preferred_airlines.map((a) => a.toUpperCase());
@@ -68,15 +80,27 @@ export default function SearchClient({
   // Shopping state — applied to the offers already on screen, never re-queried.
   const [flightSort, setFlightSort] = useState<FlightSort>("price");
   const [flightFilters, setFlightFilters] = useState<FlightFilters>(EMPTY_FLIGHT_FILTERS);
-  const [hotelSort, setHotelSort] = useState<HotelSort>("price");
+  const [hotelSort, setHotelSort] = useState<HotelSort>("recommended");
   const [hotelFilters, setHotelFilters] = useState<HotelFilters>(EMPTY_HOTEL_FILTERS);
   const visibleFlights = useMemo(
     () => (flights ? sortFlights(filterFlights(flights, flightFilters), flightSort) : []),
     [flights, flightFilters, flightSort],
   );
+  const hotelPreferred = useMemo(
+    () => (h: HotelOffer) => isPreferredBrand(`${h.name} ${h.chain ?? ""}`, prefs.preferred_hotel_chains, "hotel"),
+    [prefs.preferred_hotel_chains],
+  );
+  const cheapestHotel = useMemo(
+    () => (hotels ?? []).reduce<number | null>((min, h) => (h.price != null && (min == null || h.price < min) ? h.price : min), null),
+    [hotels],
+  );
+  const hotelScore = useMemo(
+    () => (h: HotelOffer) => recommendHotel(h, { preferred: hotelPreferred(h), cheapest: cheapestHotel }).score,
+    [hotelPreferred, cheapestHotel],
+  );
   const visibleHotels = useMemo(
-    () => (hotels ? sortHotels(filterHotels(hotels, hotelFilters), hotelSort) : []),
-    [hotels, hotelFilters, hotelSort],
+    () => (hotels ? sortHotels(filterHotels(hotels, hotelFilters, hotelPreferred), hotelSort, hotelScore) : []),
+    [hotels, hotelFilters, hotelSort, hotelPreferred, hotelScore],
   );
 
   async function searchFlights() {
@@ -117,6 +141,21 @@ export default function SearchClient({
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
 
+  async function searchCars() {
+    setErr(null); setInvalid(null); setServed(null); setBusy(true); setCars(null);
+    try {
+      const res = await fetch("/api/travel/cars", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ city: carCity, maxResults: 20 }),
+      });
+      const data = await res.json();
+      if (res.status === 400) { setInvalid(data.message ?? "Check the search details."); return; }
+      if (!res.ok) throw new Error(data.message ?? data.error ?? "Search failed");
+      setCars(data.offers ?? []);
+      setServed({ provider: data.provider, cached: data.cached });
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  }
+
   async function watchFlight(price: number) {
     setWatchMsg(null);
     const target = window.prompt(`Alert me when ${origin} → ${destination} drops to (USD):`, String(Math.round(price * 0.9)));
@@ -137,11 +176,11 @@ export default function SearchClient({
     <div>
       {/* Segmented mode */}
       <div style={{ display: "flex", gap: 6, background: "var(--ios-fill)", borderRadius: 10, padding: 3, margin: "0 0 12px" }}>
-        {(["flights", "hotels"] as Mode[]).map((m) => (
+        {(["flights", "hotels", "cars"] as Mode[]).map((m) => (
           <button key={m} onClick={() => setMode(m)}
             style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: "none", fontSize: 15, fontWeight: 600, cursor: "pointer",
               background: mode === m ? "var(--ios-bg-elevated, #fff)" : "transparent", color: mode === m ? "var(--ios-label)" : "var(--ios-label-2)" }}>
-            {m === "flights" ? "✈️ Flights" : "🏨 Hotels"}
+            {m === "flights" ? "✈️ Flights" : m === "hotels" ? "🏨 Hotels" : "🚗 Cars"}
           </button>
         ))}
       </div>
@@ -218,6 +257,30 @@ export default function SearchClient({
       )}
       {watchMsg && <div className="ios-footnote" style={{ color: "var(--ios-green)", padding: "0 4px 12px" }}>{watchMsg}</div>}
 
+      {/* ── Car form ── */}
+      {mode === "cars" && (
+        <div className="ios-list" style={{ margin: "0 0 12px", padding: 16 }}>
+          <Field label="Near"><Text value={carCity} onChange={setCarCity} placeholder="Madrid or MAD" /></Field>
+          {preferredCarCompanies.length > 0 && (
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", lineHeight: 1.4 }}>Highlighting your companies: {preferredCarCompanies.join(", ")}</div>
+          )}
+          <button onClick={searchCars} disabled={busy || carCity.trim().length < 2} style={primaryBtn(busy)}>
+            {busy ? "Searching…" : "Find car rental"}
+          </button>
+          <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, lineHeight: 1.45 }}>
+            Shows rental companies near you with their guest ratings. Per-day rates aren&apos;t quoted — no car-rates provider is connected — so book through the company once you&apos;ve picked one.
+          </div>
+        </div>
+      )}
+
+      {/* Points toggle — only worth showing once there are balances to price against */}
+      {balances.length > 0 && (mode !== "cars") && (
+        <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 4px 10px", cursor: "pointer" }}>
+          <input type="checkbox" checked={inPoints} onChange={(e) => setInPoints(e.target.checked)} style={{ width: 18, height: 18 }} />
+          <span className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>Also show prices in points</span>
+        </label>
+      )}
+
       {/* ── Flight results ── */}
       {mode === "flights" && flights && (
         <>
@@ -249,12 +312,64 @@ export default function SearchClient({
                   {loyaltyMatch && <Tag color="#8E44AD">Earns miles</Tag>}
                   {o.seatsLeft != null && o.seatsLeft <= 5 && <Tag color="#C97A3A">{o.seatsLeft} left</Tag>}
                 </div>
+                {inPoints && (() => {
+                  const q = pointsQuote(o.price, o.carriers.join(" "), "air", balances);
+                  return q ? (
+                    <div className="ios-footnote" style={{ color: q.covers ? "var(--ios-green)" : "var(--ios-label-2)", margin: "2px 0 6px" }}>
+                      ≈ {formatPoints(q.points)} {q.program} pts
+                      {q.balance != null && (q.covers ? ` · your ${q.balance.toLocaleString()} covers it` : ` · ${q.shortfall?.toLocaleString()} short`)}
+                    </div>
+                  ) : null;
+                })()}
                 <SegList segs={o.outbound} label="Outbound" />
                 {o.inbound && <SegList segs={o.inbound} label="Return" />}
                 <button onClick={() => watchFlight(o.price)} style={{ marginTop: 8, padding: 0, background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
                   🔔 Watch this price
                 </button>
                 <SaveToTrip offer={o} kind="flight" />
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      {/* ── Car results ── */}
+      {mode === "cars" && cars && (
+        <>
+          <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>{cars.length} RENTAL {cars.length === 1 ? "COMPANY" : "COMPANIES"}</div>
+          {cars.length === 0 && (
+            <div className="ios-list" style={{ margin: 0, padding: 18 }}>
+              <div className="ios-subhead" style={{ color: "var(--ios-label)", marginBottom: 6 }}>No rental companies came back.</div>
+              <div className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}>Try the airport code, or a larger city nearby.</div>
+            </div>
+          )}
+          {cars.map((c) => {
+            const mine = isPreferredBrand(c.company, preferredCarCompanies, "car");
+            return (
+              <div key={c.id} className="ios-list" style={{ margin: "0 0 8px", padding: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+                  <div className="ios-headline" style={{ fontSize: 16 }}>{c.company}</div>
+                  {c.price != null && <div className="ios-num" style={{ fontSize: 18, fontWeight: 700 }}>{money(c.price, c.currency ?? "USD")}</div>}
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                  {c.rating != null && (
+                    <Tag color={c.rating >= 4.5 ? "#2F8F4E" : c.rating >= 4 ? "#2A7B8C" : undefined}>
+                      {c.rating.toFixed(1)}/5{c.reviews ? ` · ${c.reviews.toLocaleString()} reviews` : ""}
+                    </Tag>
+                  )}
+                  {c.type && <Tag>{c.type}</Tag>}
+                  {mine && <Tag color="#2A7B8C">Your company</Tag>}
+                  {c.price == null && <Tag color="#8E8E93">Rate not quoted</Tag>}
+                </div>
+                {c.address && <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 6 }}>{c.address}</div>}
+                <div style={{ display: "flex", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
+                  {c.link && (
+                    <a href={c.link} target="_blank" rel="noopener noreferrer" className="ios-footnote" style={{ color: "var(--ios-tint)", fontWeight: 600, textDecoration: "none" }}>
+                      Book with {c.company.split(" ")[0]} →
+                    </a>
+                  )}
+                  {c.phone && <span className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>{c.phone}</span>}
+                </div>
               </div>
             );
           })}
@@ -278,6 +393,8 @@ export default function SearchClient({
             const preferred = preferredChains.some((c) => c && hay.includes(c));
             const hayLower = hay.toLowerCase();
             const loyaltyMatch = hotelPrograms.some((p) => p && hayLower.includes(p.split(" ")[0]));
+            const rec = recommendHotel(h, { preferred: hotelPreferred(h), cheapest: cheapestHotel });
+            const hotelPoints = pointsQuote(h.price, `${h.name} ${h.chain ?? ""}`, "hotel", balances);
             return (
               <div key={h.id} className="ios-list" style={{ margin: "0 0 8px", padding: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
@@ -286,12 +403,38 @@ export default function SearchClient({
                 </div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
                   {h.rating && <Tag>{"★".repeat(h.rating)}</Tag>}
+                  {h.guestScore != null && (
+                    <Tag color={h.guestScore >= 4.5 ? "#2F8F4E" : h.guestScore >= 4 ? "#2A7B8C" : undefined}>
+                      {h.guestScore.toFixed(1)}/5{h.reviews ? ` · ${h.reviews.toLocaleString()} reviews` : ""}
+                    </Tag>
+                  )}
+                  {rec.label && <Tag color="#8E44AD">{rec.label}</Tag>}
                   {h.chain && <Tag>{h.chain}</Tag>}
                   {preferred && <Tag color="#2A7B8C">Preferred chain</Tag>}
                   {loyaltyMatch && <Tag color="#8E44AD">Earns points</Tag>}
                   {h.price == null && <Tag color="#8E8E93">Rate on request</Tag>}
                 </div>
+                {rec.reasons.length > 0 && (
+                  <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 5 }}>{rec.reasons.join(" · ")}</div>
+                )}
+                {inPoints && hotelPoints && (
+                  <div className="ios-footnote" style={{ color: hotelPoints.covers ? "var(--ios-green)" : "var(--ios-label-2)", marginTop: 5 }}>
+                    ≈ {formatPoints(hotelPoints.points)} {hotelPoints.program} pts
+                    {hotelPoints.balance != null && (hotelPoints.covers
+                      ? ` · your ${hotelPoints.balance.toLocaleString()} covers it`
+                      : ` · ${hotelPoints.shortfall?.toLocaleString()} short`)}
+                  </div>
+                )}
+                {h.amenities && h.amenities.length > 0 && (
+                  <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 5 }}>{h.amenities.slice(0, 4).join(" · ")}</div>
+                )}
                 {h.address && <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 6 }}>{h.address}</div>}
+                {h.link && (
+                  <a href={h.link} target="_blank" rel="noopener noreferrer" className="ios-footnote"
+                    style={{ display: "inline-block", marginTop: 6, color: "var(--ios-tint)", fontWeight: 600, textDecoration: "none" }}>
+                    Read the reviews →
+                  </a>
+                )}
                 <SaveToTrip offer={h} kind="hotel" />
               </div>
             );

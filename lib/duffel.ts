@@ -75,7 +75,15 @@ export interface HotelOffer {
   name: string;
   chain: string | null;
   cityCode: string;
-  rating: number | null;
+  rating: number | null;          // star class (1–5)
+  /** Guest score out of 5, as travellers actually rated it. */
+  guestScore?: number | null;
+  /** How many reviews that score is based on — a 4.9 from 6 people is noise. */
+  reviews?: number | null;
+  amenities?: string[];
+  /** The property's own listing, for reading the reviews in full. */
+  link?: string | null;
+  thumbnail?: string | null;
   price: number | null;
   currency: string | null;
   checkIn: string | null;
@@ -278,4 +286,25 @@ export async function createOrder(args: {
   const data = await duffelPost("/air/orders", body);
   const order = data.data;
   return { orderId: order?.id, bookingReference: order?.booking_reference ?? null };
+}
+
+/** A car-rental option. Pricing depends on the provider; agency search has none. */
+export interface CarOffer {
+  id: string;
+  company: string;             // "Hertz", "Enterprise"
+  type: string | null;         // listing type / vehicle class when given
+  rating: number | null;       // guest score out of 5
+  reviews: number | null;
+  address: string | null;
+  phone: string | null;
+  price: number | null;        // per-day when the provider quotes one
+  currency: string | null;
+  link: string | null;
+}
+
+export interface CarSearchParams {
+  city: string;
+  pickUp?: string;             // YYYY-MM-DD
+  dropOff?: string;
+  maxResults?: number;
 }
