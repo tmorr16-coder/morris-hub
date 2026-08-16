@@ -79,3 +79,15 @@ CREATE POLICY "own segments" ON travel.trip_segments
 DROP POLICY IF EXISTS "own alerts" ON travel.trip_alerts;
 CREATE POLICY "own alerts" ON travel.trip_alerts
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+-- ── Grants ─────────────────────────────────────────────────────────────
+-- Tables in a non-public schema start with no privileges for the API roles, so
+-- without these every query fails with "permission denied for table" before RLS
+-- is ever consulted. The default privileges line covers whatever is added to
+-- this schema next.
+GRANT USAGE ON SCHEMA travel TO authenticated, service_role;
+GRANT ALL ON travel.trip_segments TO authenticated, service_role;
+GRANT ALL ON travel.trip_alerts   TO authenticated, service_role;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA travel
+  GRANT ALL ON TABLES TO authenticated, service_role;
