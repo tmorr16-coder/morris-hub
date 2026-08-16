@@ -36,6 +36,14 @@ export const LIVE_MODELS: CompareModel[] = [
   { id: "perplexity/sonar-reasoning-pro", label: "Sonar Reasoning", vendor: "Perplexity", color: "#20808D" },
 ];
 
+// OpenRouter's Auto Router picks the model it judges best for each prompt, so
+// the panel can include a "let OpenRouter decide" column. Its price is whatever
+// the chosen model charges, which is why estimates for it read as "varies".
+export const AUTO_MODEL = "openrouter/auto";
+export const AUTO_MODEL_META: CompareModel = {
+  id: AUTO_MODEL, label: "Auto · best fit", vendor: "OpenRouter", color: "#6366F1",
+};
+
 // Extra models the user can add in the picker.
 export const MORE_MODELS: CompareModel[] = [
   { id: "anthropic/claude-opus-4.5", label: "Claude Opus 4.5", vendor: "Claude", color: "var(--ios-morris)" },
@@ -47,10 +55,83 @@ export const MORE_MODELS: CompareModel[] = [
   { id: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B", vendor: "Llama", color: "#B04A34" },
 ];
 
+// ── Live catalog ────────────────────────────────────────────────────────
+// The newest models on OpenRouter, read from its catalog rather than pinned
+// here, so a model released today is selectable today. Anything above
+// PREMIUM_PER_M costs enough that the panel asks before spending it.
+
+export interface CatalogModel extends CompareModel {
+  prompt: number;      // $ per token in
+  completion: number;  // $ per token out
+  created: number;     // epoch seconds
+}
+
+/**
+ * Output $/1M above which a model counts as a higher-rate pick and needs an
+ * explicit tap before it runs. Set above the standard frontier line-up (Sonnet
+ * ~$15/M, GPT-5.1 ~$10/M) so ordinary runs are never interrupted — it's the
+ * genuinely expensive picks (Opus-class and new premium releases) that ask.
+ */
+export const PREMIUM_PER_M = 20;
+
+export function perMillion(rate: number | undefined): number {
+  return (rate ?? 0) * 1_000_000;
+}
+
+export function isPremiumRate(p?: { completion: number }): boolean {
+  return perMillion(p?.completion) >= PREMIUM_PER_M;
+}
+
+const VENDOR_COLORS: [prefix: string, vendor: string, color: string][] = [
+  ["anthropic/", "Claude", "var(--ios-morris)"],
+  ["google/", "Gemini", "#2A8390"],
+  ["openai/", "GPT", "#2E7D6B"],
+  ["x-ai/", "Grok", "#444"],
+  ["deepseek/", "DeepSeek", "#7B5EA8"],
+  ["meta-llama/", "Llama", "#B04A34"],
+  ["perplexity/", "Perplexity", "#20808D"],
+  ["mistralai/", "Mistral", "#C9611F"],
+  ["qwen/", "Qwen", "#5B6B9E"],
+  ["moonshotai/", "Moonshot", "#8A5AA8"],
+];
+
+export function vendorOf(id: string): { vendor: string; color: string } {
+  const hit = VENDOR_COLORS.find(([p]) => id.startsWith(p));
+  if (hit) return { vendor: hit[1], color: hit[2] };
+  return { vendor: id.split("/")[0] || "Model", color: "var(--ios-label-2)" };
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/** Newest chat models in the catalog, most recent first. */
+export function newestFrom(models: any[], exclude: Set<string>, limit = 12): CatalogModel[] {
+  return models
+    .filter((m) => {
+      if (!m?.id || exclude.has(m.id) || m.id.includes(":free")) return false;
+      const out = m.architecture?.output_modalities;
+      if (Array.isArray(out) && !out.includes("text")) return false;
+      return parseFloat(m.pricing?.completion ?? "0") > 0;
+    })
+    .sort((a, b) => (b.created ?? 0) - (a.created ?? 0))
+    .slice(0, limit)
+    .map((m) => {
+      const { vendor, color } = vendorOf(m.id);
+      const name = String(m.name ?? m.id);
+      return {
+        id: m.id,
+        label: (name.includes(": ") ? name.slice(name.indexOf(": ") + 2) : name).slice(0, 28),
+        vendor, color,
+        prompt: parseFloat(m.pricing?.prompt ?? "0"),
+        completion: parseFloat(m.pricing?.completion ?? "0"),
+        created: m.created ?? 0,
+      };
+    });
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 interface ChatMessage { role: "system" | "user" | "assistant"; content: string }
 
 export interface Citation { url: string; title: string }
-export interface ModelResult { content: string; cost: number | null; citations: Citation[] }
+export interface ModelResult { content: string; cost: number | null; citations: Citation[]; served: string | null }
 
 /**
  * Ask a single model. `web` grounds it in live search results (with citations);
@@ -93,7 +174,9 @@ export async function askModel(model: string, messages: ChatMessage[], maxTokens
     const url = typeof u === "string" ? u : u?.url;
     if (url && !citations.some((c) => c.url === url)) citations.push({ url, title: (typeof u === "object" && u?.title) || url });
   }
-  return { content: msg.content ?? "", cost: data.usage?.cost ?? null, citations };
+  // With the Auto Router the id that actually answered is worth surfacing.
+  const served = typeof data.model === "string" ? data.model : null;
+  return { content: msg.content ?? "", cost: data.usage?.cost ?? null, citations, served };
 }
 
 /** Generate an image from a prompt. Returns a data/https image URL + cost. */
@@ -115,7 +198,6 @@ export async function generateImage(prompt: string, model: string = IMAGE_MODEL)
     throw new Error(reason);
   }
   const data = await res.json();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const url = data.choices?.[0]?.message?.images?.[0]?.image_url?.url as string | undefined;
   if (!url) throw new Error("This model returned no image — try a different image model.");
   return { url, cost: data.usage?.cost ?? null };

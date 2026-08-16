@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { COMPARE_MODELS, LIVE_MODELS, MORE_MODELS, SYNTH_MODEL, type CompareModel } from "@/lib/openrouter";
+import {
+  AUTO_MODEL, AUTO_MODEL_META, COMPARE_MODELS, LIVE_MODELS, MORE_MODELS, SYNTH_MODEL,
+  isPremiumRate, perMillion, PREMIUM_PER_M, type CatalogModel, type CompareModel,
+} from "@/lib/openrouter";
 import type { Pricing } from "./page";
 
 interface Citation { url: string; title: string }
-interface Result { model: string; answer: string; error: string | null; cost: number | null; citations?: Citation[] }
+interface Result { model: string; answer: string; error: string | null; cost: number | null; citations?: Citation[]; served?: string | null }
 
 // One question and every answer it produced — saved, so revisiting costs nothing.
 interface Turn {
@@ -57,9 +60,17 @@ function fmtCost(c: number | null | undefined): string {
   return "$" + c.toFixed(c < 0.1 ? 4 : 2);
 }
 
-const ALL: CompareModel[] = [...COMPARE_MODELS, ...LIVE_MODELS, ...MORE_MODELS];
+const ALL: CompareModel[] = [AUTO_MODEL_META, ...COMPARE_MODELS, ...LIVE_MODELS, ...MORE_MODELS];
 const LIVE_IDS = new Set(LIVE_MODELS.map((m) => m.id));
-const META = (id: string) => ALL.find((m) => m.id === id) ?? { id, label: id, vendor: "Model", color: "var(--ios-label-2)" };
+
+const metaOf = (id: string, extra: CompareModel[] = []): CompareModel =>
+  ALL.find((m) => m.id === id) ?? extra.find((m) => m.id === id) ?? { id, label: id, vendor: "Model", color: "var(--ios-label-2)" };
+
+/** "$3.00/M out" — the rate a chip is charging, for anything priced. */
+function rateLabel(p?: { completion: number }): string {
+  const perM = perMillion(p?.completion);
+  return perM > 0 ? `$${perM < 1 ? perM.toFixed(2) : perM.toFixed(perM < 10 ? 1 : 0)}/M` : "";
+}
 
 // ── tiny safe markdown → html ──────────────────────────────────────
 function esc(s: string) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
@@ -91,7 +102,7 @@ const SUGGESTIONS = [
   "What are the risks of a portfolio concentrated in one stock?",
 ];
 
-export default function CompareClient({ connected, pricing }: { connected: boolean; pricing: Pricing }) {
+export default function CompareClient({ connected, pricing, newest = [] }: { connected: boolean; pricing: Pricing; newest?: CatalogModel[] }) {
   const [question, setQuestion] = useState("");
   const [selected, setSelected] = useState<string[]>(COMPARE_MODELS.map((m) => m.id));
   const [synthesize, setSynthesize] = useState(false);
@@ -109,6 +120,10 @@ export default function CompareClient({ connected, pricing }: { connected: boole
   const [threads, setThreads] = useState<Thread[]>([]);
   const [thread, setThread] = useState<Thread | null>(null); // the open conversation
   const [restored, setRestored] = useState(false);           // opened from history, nothing re-run
+  const META = (id: string) => metaOf(id, newest);
+  const [showNewest, setShowNewest] = useState(false);
+  const [acceptedRates, setAcceptedRates] = useState<string[]>([]); // higher-rate models you've okayed
+  const [confirmRates, setConfirmRates] = useState(false);          // the extra-click panel is open
 
   // Load saved threads (migrating the older single-run and question-only
   // formats), then reopen the latest so the conversation survives a reload.
@@ -173,7 +188,7 @@ export default function CompareClient({ connected, pricing }: { connected: boole
   /** Reopen a saved conversation — no model calls, no cost. */
   function open(t: Thread, initial?: boolean) {
     const answered = t.turns.filter((x) => x.results);
-    if (!answered.length) { run(t.turns[0].q); return; }
+    if (!answered.length) { submit(t.turns[0].q); return; }
     setThread(t);
     setQuestion("");
     setWeb(t.web);
@@ -204,6 +219,13 @@ export default function CompareClient({ connected, pricing }: { connected: boole
     }
     return total;
   }, [question, selected, synthesize, pricing, thread]);
+
+  // The Auto Router's price is whatever model it picks, so it can't be quoted.
+  const hasUnpriced = selected.some((id) => id === AUTO_MODEL || !pricing[id]);
+
+  // Higher-rate models need one explicit tap before they can spend anything.
+  const needsAccepting = selected.filter((id) => isPremiumRate(pricing[id]) && !acceptedRates.includes(id));
+  const gated = needsAccepting.length > 0;
 
   const slug = (s: string) => (s || "morris").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "morris";
 
@@ -248,6 +270,13 @@ export default function CompareClient({ connected, pricing }: { connected: boole
 
   function toggle(id: string) {
     setSelected((s) => s.includes(id) ? s.filter((x) => x !== id) : s.length >= 4 ? s : [...s, id]);
+    setConfirmRates(false);
+  }
+
+  /** Ask, unless a higher-rate model still needs the extra tap. */
+  function submit(text?: string, startNew?: boolean) {
+    if (gated) { setConfirmRates(true); return; }
+    run(text, startNew);
   }
 
   async function run(text?: string, startNew?: boolean) {
@@ -297,19 +326,54 @@ export default function CompareClient({ connected, pricing }: { connected: boole
 
       {/* Model picker */}
       <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>PANEL · pick up to 4</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
         {ALL.map((m) => {
           const on = selected.includes(m.id);
+          const premium = isPremiumRate(pricing[m.id]);
           return (
             <button key={m.id} onClick={() => toggle(m.id)}
+              title={m.id === AUTO_MODEL ? "OpenRouter picks the best model for each question" : `${m.id}${rateLabel(pricing[m.id]) ? ` · ${rateLabel(pricing[m.id])} out` : ""}`}
               style={{ padding: "7px 13px", borderRadius: 999, fontSize: 14, fontWeight: 600, cursor: "pointer",
                 border: `1px solid ${on ? "transparent" : "var(--ios-separator)"}`,
                 background: on ? m.color : "transparent", color: on ? "#fff" : "var(--ios-label)" }}>
-              {LIVE_IDS.has(m.id) ? "🌐 " : ""}{m.label}
+              {m.id === AUTO_MODEL ? "✨ " : LIVE_IDS.has(m.id) ? "🌐 " : ""}{m.label}
+              {premium && <span style={{ opacity: 0.75, fontWeight: 600 }}> · {rateLabel(pricing[m.id])}</span>}
             </button>
           );
         })}
       </div>
+
+      {/* Newest models, straight from OpenRouter's catalog */}
+      {newest.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <button onClick={() => setShowNewest((v) => !v)} className="ios-caption"
+            style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "2px 0" }}>
+            {showNewest ? "▾" : "▸"} Newest models on OpenRouter ({newest.length})
+          </button>
+          {showNewest && (
+            <>
+              <div className="ios-caption" style={{ color: "var(--ios-label-3)", margin: "4px 0 8px", lineHeight: 1.45 }}>
+                Just-released models, listed live — anything at {`$${PREMIUM_PER_M}`}/M output or more asks you to accept the rate before it runs.
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {newest.map((m) => {
+                  const on = selected.includes(m.id);
+                  const premium = isPremiumRate(m);
+                  return (
+                    <button key={m.id} onClick={() => toggle(m.id)} title={m.id}
+                      style={{ padding: "7px 13px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, cursor: "pointer",
+                        border: `1px solid ${on ? "transparent" : premium ? "var(--ios-orange, #D9772B)" : "var(--ios-separator)"}`,
+                        background: on ? m.color : "transparent", color: on ? "#fff" : "var(--ios-label)" }}>
+                      {m.label}
+                      <span style={{ opacity: on ? 0.8 : 0.55, fontWeight: 600 }}> · {rateLabel(m) || "—"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Question / follow-up */}
       <div className="ios-list" style={{ margin: 0, padding: 14 }}>
@@ -340,12 +404,46 @@ export default function CompareClient({ connected, pricing }: { connected: boole
           <input type="checkbox" checked={synthesize} onChange={(e) => setSynthesize(e.target.checked)} style={{ width: 18, height: 18 }} />
           <span className="ios-subhead">Synthesize into one merged answer</span>
         </label>
-        <button onClick={() => run()} disabled={busy || !question.trim() || selected.length === 0}
+        <button onClick={() => submit()} disabled={busy || !question.trim() || selected.length === 0}
           className="ios-btn ios-btn--primary" style={{ marginTop: 12, opacity: busy || !question.trim() ? 0.5 : 1 }}>
-          {busy ? "Asking…" : `${thread ? "Ask follow-up of" : "Ask"} ${selected.length} model${selected.length === 1 ? "" : "s"}`}
+          {busy ? "Asking…"
+            : gated ? `Review rates · ${needsAccepting.length} higher-rate model${needsAccepting.length === 1 ? "" : "s"}`
+            : `${thread ? "Ask follow-up of" : "Ask"} ${selected.length} model${selected.length === 1 ? "" : "s"}`}
         </button>
+
+        {/* The extra click: rates spelled out, then an explicit accept. */}
+        {confirmRates && gated && !busy && (
+          <div className="ios-list" style={{ margin: "10px 0 0", padding: 12, border: "1.5px solid var(--ios-orange, #D9772B)" }}>
+            <div className="ios-subhead" style={{ color: "var(--ios-label)", fontWeight: 700, marginBottom: 6 }}>Higher rates on this run</div>
+            {needsAccepting.map((id) => {
+              const p = pricing[id];
+              return (
+                <div key={id} className="ios-caption" style={{ color: "var(--ios-label-2)", display: "flex", justifyContent: "space-between", gap: 10, padding: "3px 0" }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{META(id).label}</span>
+                  <span style={{ flexShrink: 0 }}>{rateLabel(p)} out · {`$${perMillion(p?.prompt).toFixed(2)}`}/M in</span>
+                </div>
+              );
+            })}
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", margin: "7px 0 9px", lineHeight: 1.45 }}>
+              {estCost > 0 ? <>This run is estimated at <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>. </> : null}
+              Accepting keeps {needsAccepting.length === 1 ? "this model" : "these models"} unlocked until you leave the page.
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={() => { setAcceptedRates((a) => [...a, ...needsAccepting]); setConfirmRates(false); run(); }}
+                className="ios-btn ios-btn--primary" style={{ flex: 1, minWidth: 160 }}>
+                Accept rates &amp; ask
+              </button>
+              <button onClick={() => setConfirmRates(false)} className="ios-caption"
+                style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 10, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "8px 14px" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, textAlign: "center", lineHeight: 1.5 }}>
-          {estCost > 0 && <>Est. this run <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>. </>}
+          {estCost > 0 && <>Est. this run <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>{hasUnpriced ? " + Auto (varies)" : ""}. </>}
+          {estCost === 0 && hasUnpriced && <>Auto Router price varies with the model it picks. </>}
           {thread && <>Follow-ups replay the thread, so they cost a little more. </>}
           {web && <>Live web adds ~$0.01–0.02 per model. </>}
           {sessionCost > 0 && <>Session <strong style={{ color: "var(--ios-label-2)" }}>{fmtCost(sessionCost)}</strong>. </>}
@@ -376,7 +474,7 @@ export default function CompareClient({ connected, pricing }: { connected: boole
                     </div>
                   </button>
                   {answers > 0 && (
-                    <button onClick={() => run(t.turns[t.turns.length - 1].q, true)} aria-label="Ask again in a new thread" title="Ask again in a new thread (runs the models, costs money)"
+                    <button onClick={() => submit(t.turns[t.turns.length - 1].q, true)} aria-label="Ask again in a new thread" title="Ask again in a new thread (runs the models, costs money)"
                       style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "5px 9px", flexShrink: 0 }}>
                       Re-ask
                     </button>
@@ -392,7 +490,7 @@ export default function CompareClient({ connected, pricing }: { connected: boole
       {!thread && !busy && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
           {SUGGESTIONS.map((s) => (
-            <button key={s} onClick={() => run(s)}
+            <button key={s} onClick={() => submit(s)}
               style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid var(--ios-separator)", background: "transparent", color: "var(--ios-tint)", fontSize: 13, fontWeight: 500, cursor: "pointer", textAlign: "left" }}>
               {s}
             </button>
@@ -440,9 +538,12 @@ export default function CompareClient({ connected, pricing }: { connected: boole
                     const m = META(r.model);
                     return (
                       <div key={r.model} className="ios-list" style={{ margin: 0, flex: "0 0 84%", maxWidth: 340, scrollSnapAlign: "start", padding: 16, alignSelf: "flex-start" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
                           <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color, flexShrink: 0 }} />
                           <span className="ios-headline" style={{ fontSize: 15 }}>{m.label}</span>
+                          {r.served && r.served !== r.model && (
+                            <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>via {metaOf(r.served, newest).label}</span>
+                          )}
                         </div>
                         {r.error
                           ? <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", lineHeight: 1.5 }}>Couldn&apos;t answer: {r.error}</div>
