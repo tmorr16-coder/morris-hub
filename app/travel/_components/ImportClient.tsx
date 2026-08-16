@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { endZone, startZone, type TripSegment } from "@/lib/trips";
-import { formatInZone } from "@/lib/timezones";
+import { formatInZone } from "@/lib/travel-timezones";
 import { ICON } from "./TripsClient";
 
 interface ParsedTrip {

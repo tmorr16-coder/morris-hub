@@ -113,15 +113,51 @@ export function carsConfigured(): boolean {
   return serp.serpapiConfigured();
 }
 
-export async function searchCars(p: CarSearchParams): Promise<SearchOutcome<CarOffer>> {
+/**
+ * Cars: try for bookable rates, fall back to agency listings.
+ *
+ * Rates need both dates and a configured rates engine. If that path is off,
+ * errors, or comes back empty, we return location results instead of nothing —
+ * and `mode` tells the UI which it got, so it never implies a quote it lacks.
+ */
+export async function searchCars(p: CarSearchParams): Promise<SearchOutcome<CarOffer> & { mode: "rates" | "agency"; ratesNote?: string }> {
   if (!serp.serpapiConfigured()) throw new Error("Car search needs a SerpApi token.");
+
   const key = `cars:serpapi:${JSON.stringify(p)}`;
-  const hit = cacheGet<SearchOutcome<CarOffer>>(key);
+  const hit = cacheGet<SearchOutcome<CarOffer> & { mode: "rates" | "agency"; ratesNote?: string }>(key);
   if (hit) return { ...hit, cached: true };
+
+  let ratesNote: string | undefined;
+  if (serp.carRatesConfigured() && p.pickUp && p.dropOff) {
+    try {
+      const rated = await serp.carRates(p);
+      if (rated.length) {
+        const outcome = { offers: rated, provider: "serpapi" as const, mode: "rates" as const };
+        cacheSet(key, outcome);
+        return outcome;
+      }
+      ratesNote = "The rates engine returned no cars for those dates.";
+    } catch (err) {
+      ratesNote = `Rates unavailable: ${(err as Error).message}`;
+      console.error("[travel] car rates failed, falling back to agency search:", ratesNote);
+    }
+  } else if (!serp.carRatesConfigured()) {
+    ratesNote = "No car-rates engine configured — showing rental locations instead.";
+  } else {
+    ratesNote = "Add pick-up and drop-off dates to price actual cars.";
+  }
+
   const offers = await serp.searchCars(p);
-  const outcome: SearchOutcome<CarOffer> = { offers, provider: "serpapi" };
+  const outcome = { offers, provider: "serpapi" as const, mode: "agency" as const, ratesNote };
   cacheSet(key, outcome);
   return outcome;
+}
+
+/** Cheapest stay total for a set of dates — used by the nearby-date strip. */
+export async function cheapestHotelPrice(p: HotelSearchParams): Promise<number | null> {
+  const { offers } = await searchHotels(p);
+  const prices = offers.map((h) => h.price).filter((x): x is number => typeof x === "number" && x > 0);
+  return prices.length ? Math.min(...prices) : null;
 }
 
 /** Cheapest fare for a watch check — falls back the same way, price only. */

@@ -60,6 +60,13 @@ export default function SearchClient({
   // Car form
   const [carCity, setCarCity] = useState("");
   const [cars, setCars] = useState<CarOffer[] | null>(null);
+  const [carPickUp, setCarPickUp] = useState("");
+  const [carDropOff, setCarDropOff] = useState("");
+  const [carMode, setCarMode] = useState<"rates" | "agency" | null>(null);
+  const [ratesNote, setRatesNote] = useState<string | null>(null);
+  // Nearby stay prices, same opt-in shape as flights.
+  const [hotelNearby, setHotelNearby] = useState<{ date: string; checkOut?: string; price: number | null }[] | null>(null);
+  const [hotelNearbyBusy, setHotelNearbyBusy] = useState(false);
   // Show prices as points wherever we can value them.
   const [inPoints, setInPoints] = useState(false);
   // Cheapest fare on adjacent days — each one costs a provider call, so it is
@@ -128,7 +135,7 @@ export default function SearchClient({
   }
 
   async function searchHotels() {
-    setErr(null); setInvalid(null); setServed(null); setBusy(true); setHotels(null); setHotelFilters(EMPTY_HOTEL_FILTERS);
+    setErr(null); setInvalid(null); setServed(null); setBusy(true); setHotels(null); setHotelFilters(EMPTY_HOTEL_FILTERS); setHotelNearby(null);
     try {
       const res = await fetch("/api/travel/hotels", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -144,6 +151,19 @@ export default function SearchClient({
       setHotels(data.offers ?? []);
       setServed({ provider: data.provider, fellBackFrom: data.fellBackFrom, cached: data.cached });
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  }
+
+  async function loadHotelNearby() {
+    setHotelNearbyBusy(true); setErr(null);
+    try {
+      const res = await fetch("/api/travel/hotels/nearby", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: city, checkIn, checkOut, adults, currency: prefs.currency, spread: 2 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? data.error ?? "Couldn't price nearby dates.");
+      setHotelNearby(data.days ?? []);
+    } catch (e) { setErr((e as Error).message); } finally { setHotelNearbyBusy(false); }
   }
 
   async function loadNearby() {
@@ -164,12 +184,14 @@ export default function SearchClient({
     try {
       const res = await fetch("/api/travel/cars", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ city: carCity, maxResults: 20 }),
+        body: JSON.stringify({ city: carCity, pickUp: carPickUp || undefined, dropOff: carDropOff || undefined, maxResults: 20 }),
       });
       const data = await res.json();
       if (res.status === 400) { setInvalid(data.message ?? "Check the search details."); return; }
       if (!res.ok) throw new Error(data.message ?? data.error ?? "Search failed");
       setCars(data.offers ?? []);
+      setCarMode(data.mode ?? "agency");
+      setRatesNote(data.ratesNote ?? null);
       setServed({ provider: data.provider, cached: data.cached });
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
@@ -282,6 +304,8 @@ export default function SearchClient({
       {mode === "cars" && (
         <div className="ios-list" style={{ margin: "0 0 12px", padding: 16 }}>
           <Field label="Near"><Text value={carCity} onChange={setCarCity} placeholder="Madrid or MAD" /></Field>
+          <Field label="Pick up"><Text value={carPickUp} onChange={setCarPickUp} placeholder="YYYY-MM-DD" type="date" /></Field>
+          <Field label="Drop off"><Text value={carDropOff} onChange={setCarDropOff} placeholder="YYYY-MM-DD" type="date" /></Field>
           {preferredCarCompanies.length > 0 && (
             <div className="ios-caption" style={{ color: "var(--ios-label-3)", lineHeight: 1.4 }}>Highlighting your companies: {preferredCarCompanies.join(", ")}</div>
           )}
@@ -289,7 +313,7 @@ export default function SearchClient({
             {busy ? "Searching…" : "Find car rental"}
           </button>
           <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, lineHeight: 1.45 }}>
-            Shows rental companies near you with their guest ratings. Per-day rates aren&apos;t quoted — no car-rates provider is connected — so book through the company once you&apos;ve picked one.
+            With dates and a car-rates engine configured, this quotes actual cars. Without either, it falls back to rental locations near you and says so.
           </div>
         </div>
       )}
@@ -401,7 +425,14 @@ export default function SearchClient({
       {/* ── Car results ── */}
       {mode === "cars" && cars && (
         <>
-          <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>{cars.length} RENTAL {cars.length === 1 ? "COMPANY" : "COMPANIES"}</div>
+          <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>
+            {cars.length} {carMode === "rates" ? (cars.length === 1 ? "CAR" : "CARS") : (cars.length === 1 ? "RENTAL COMPANY" : "RENTAL COMPANIES")}
+          </div>
+          {ratesNote && (
+            <div className="ios-list" style={{ margin: "0 0 8px", padding: "10px 14px" }}>
+              <div className="ios-caption" style={{ color: "var(--ios-label-2)", lineHeight: 1.45 }}>{ratesNote}</div>
+            </div>
+          )}
           {cars.length === 0 && (
             <div className="ios-list" style={{ margin: 0, padding: 18 }}>
               <div className="ios-subhead" style={{ color: "var(--ios-label)", marginBottom: 6 }}>No rental companies came back.</div>
@@ -413,8 +444,18 @@ export default function SearchClient({
             return (
               <div key={c.id} className="ios-list" style={{ margin: "0 0 8px", padding: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-                  <div className="ios-headline" style={{ fontSize: 16 }}>{c.company}</div>
-                  {c.price != null && <div className="ios-num" style={{ fontSize: 18, fontWeight: 700 }}>{money(c.price, c.currency ?? "USD")}</div>}
+                  <div style={{ minWidth: 0 }}>
+                    <div className="ios-headline" style={{ fontSize: 16 }}>{c.company}</div>
+                    {c.vehicle && <div className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>{c.vehicle}</div>}
+                  </div>
+                  {(c.price != null || c.perDay != null) && (
+                    <div style={{ textAlign: "right" }}>
+                      <div className="ios-num" style={{ fontSize: 18, fontWeight: 700 }}>{money(c.price ?? c.perDay, c.currency ?? "USD")}</div>
+                      {c.perDay != null && c.price != null && (
+                        <div className="ios-caption" style={{ color: "var(--ios-label-3)" }}>{money(c.perDay, c.currency ?? "USD")}/day</div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
                   {c.rating != null && (
@@ -423,8 +464,11 @@ export default function SearchClient({
                     </Tag>
                   )}
                   {c.type && <Tag>{c.type}</Tag>}
+                  {c.seats != null && <Tag>{c.seats} seats</Tag>}
+                  {c.transmission && <Tag>{c.transmission}</Tag>}
+                  {c.unlimitedMileage && <Tag color="#2F8F4E">Unlimited miles</Tag>}
                   {mine && <Tag color="#2A7B8C">Your company</Tag>}
-                  {c.price == null && <Tag color="#8E8E93">Rate not quoted</Tag>}
+                  {c.price == null && c.perDay == null && <Tag color="#8E8E93">Rate not quoted</Tag>}
                 </div>
                 {c.address && <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 6 }}>{c.address}</div>}
                 <div style={{ display: "flex", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
@@ -445,6 +489,57 @@ export default function SearchClient({
       {mode === "hotels" && hotels && (
         <>
           <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>{hotels.length} HOTEL{hotels.length === 1 ? "" : "S"}</div>
+          {hotels.length > 0 && (
+            <div className="ios-list" style={{ margin: "0 0 10px", padding: 14 }}>
+              {!hotelNearby && (
+                <>
+                  <button onClick={loadHotelNearby} disabled={hotelNearbyBusy} className="ios-caption"
+                    style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 10, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "8px 14px" }}>
+                    {hotelNearbyBusy ? "Pricing nearby dates…" : "Check nearby dates"}
+                  </button>
+                  <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6, lineHeight: 1.45 }}>
+                    Shifts the whole stay two days either way. Four more provider searches, so it only runs when you ask.
+                  </div>
+                </>
+              )}
+              {hotelNearby && (
+                <>
+                  <div className="ios-caption" style={{ color: "var(--ios-label-3)", fontWeight: 700, marginBottom: 6 }}>NEARBY CHECK-IN DATES</div>
+                  <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+                    {[...hotelNearby, { date: checkIn, checkOut, price: cheapestHotel }]
+                      .sort((a, b) => a.date.localeCompare(b.date))
+                      .map((d) => {
+                        const isCurrent = d.date === checkIn;
+                        const best = hotelNearby.every((x) => x.price == null || (d.price != null && d.price <= x.price));
+                        return (
+                          <button key={d.date} onClick={() => {
+                              if (isCurrent) return;
+                              // Move the whole stay — check-out shifts with it, or
+                              // the stay silently changes length.
+                              setCheckIn(d.date);
+                              if (d.checkOut) setCheckOut(d.checkOut);
+                              setHotelNearby(null);
+                            }}
+                            style={{ flex: "0 0 auto", padding: "8px 12px", borderRadius: 12, cursor: isCurrent ? "default" : "pointer", textAlign: "center",
+                              border: `1px solid ${isCurrent ? "var(--ios-tint)" : "var(--ios-separator)"}`,
+                              background: isCurrent ? "var(--ios-fill)" : "transparent" }}>
+                            <div className="ios-caption" style={{ color: "var(--ios-label-3)" }}>
+                              {new Date(`${d.date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
+                            </div>
+                            <div className="ios-num" style={{ fontWeight: 700, color: d.price == null ? "var(--ios-label-3)" : best && !isCurrent ? "var(--ios-green)" : "var(--ios-label)" }}>
+                              {d.price == null ? "—" : money(d.price, prefs.currency)}
+                            </div>
+                          </button>
+                        );
+                      })}
+                  </div>
+                  <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>
+                    Cheapest stay found for the same length. Tap a date to move the whole stay; check-out follows.
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {hotels.length > 1 && (
             <HotelShopControls offers={hotels} shown={visibleHotels.length} sort={hotelSort} setSort={setHotelSort} filters={hotelFilters} setFilters={setHotelFilters} />
           )}

@@ -288,18 +288,30 @@ export async function createOrder(args: {
   return { orderId: order?.id, bookingReference: order?.booking_reference ?? null };
 }
 
-/** A car-rental option. Pricing depends on the provider; agency search has none. */
+/**
+ * A car-rental option. Two sources fill this in:
+ *   "rates"  — a rates provider quoting an actual bookable car
+ *   "agency" — location search: a company, where it is, how it's rated
+ * The UI reads `source` so it never implies a quote it doesn't have.
+ */
 export interface CarOffer {
   id: string;
   company: string;             // "Hertz", "Enterprise"
-  type: string | null;         // listing type / vehicle class when given
+  type: string | null;         // listing type / vehicle class
   rating: number | null;       // guest score out of 5
   reviews: number | null;
   address: string | null;
   phone: string | null;
-  price: number | null;        // per-day when the provider quotes one
+  price: number | null;        // total for the rental, when quoted
+  perDay: number | null;       // nightly equivalent, when quoted
   currency: string | null;
   link: string | null;
+  source: "rates" | "agency";
+  // Rates-only detail.
+  vehicle?: string | null;     // "Toyota Corolla or similar"
+  seats?: number | null;
+  transmission?: string | null;
+  unlimitedMileage?: boolean | null;
 }
 
 export interface CarSearchParams {
