@@ -73,6 +73,18 @@ function relativeTime(iso: string | null): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+// How fresh a balance timestamp is, for the account-status card.
+function freshnessTone(iso: string | null): "fresh" | "aging" | "stale" {
+  if (!iso) return "stale";
+  const days = (Date.now() - new Date(iso).getTime()) / 86_400_000;
+  if (days <= 2) return "fresh";
+  if (days <= 5) return "aging";
+  return "stale";
+}
+function normName(s: string | null): string {
+  return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 24);
+}
+
 export default async function DashboardPage() {
   const { user } = await requireFinanceAccess();
 
@@ -340,6 +352,39 @@ export default async function DashboardPage() {
     return latest;
   }, null);
 
+  // ── Account status: freshness + duplicate detection ───────────────────────
+  const itemById = new Map(items.map((it) => [it.id, it]));
+  const staleLinked = items.filter((it) => freshnessTone(it.last_synced_at) === "stale");
+
+  // Candidate accounts for duplicate detection (linked + imported/manual not
+  // already linked to a Plaid account).
+  const dupCandidates = [
+    ...accounts.map((a) => ({
+      label: a.name, inst: itemById.get(a.item_id)?.institution_name ?? "", mask: a.mask ?? null,
+      bal: a.current_balance ?? 0, source: "Linked",
+    })),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...manualAccounts.filter((a) => !(a as any).plaid_account_id).map((a) => ({
+      label: a.name, inst: a.institution ?? "", mask: null as string | null,
+      bal: a.balance ?? 0, source: a.source === "statement" ? "Imported" : "Manual",
+    })),
+  ];
+  const duplicates: { a: string; b: string; reason: string }[] = [];
+  for (let i = 0; i < dupCandidates.length; i++) {
+    for (let j = i + 1; j < dupCandidates.length; j++) {
+      const x = dupCandidates[i], y = dupCandidates[j];
+      const nx = normName(x.label), ny = normName(y.label);
+      let reason = "";
+      if (x.mask && y.mask && x.mask === y.mask) reason = `share ····${x.mask}`;
+      else if (nx && ny && (nx === ny || (nx.length >= 6 && (nx.includes(ny) || ny.includes(nx))))) {
+        const instClose = !x.inst || !y.inst || normName(x.inst) === normName(y.inst);
+        const balClose = Math.abs(x.bal - y.bal) < Math.max(1, Math.abs(x.bal)) * 0.02;
+        if (instClose || balClose) reason = balClose ? "same name & balance" : "same name";
+      }
+      if (reason) duplicates.push({ a: `${x.label} (${x.source})`, b: `${y.label} (${y.source})`, reason });
+    }
+  }
+
   // Use the user's saved timezone so the date agrees with every other module.
   const userTz = getUserTimezone(user.user_metadata);
   const greeting = greetingForTz(userTz);
@@ -413,6 +458,36 @@ export default async function DashboardPage() {
         </Group>
       )}
 
+      {(accounts.length + manualAccounts.length) > 0 && (
+        <div className="ios-list" style={{ margin: "0 16px 8px", padding: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+              <span style={{ width: 9, height: 9, borderRadius: "50%", flexShrink: 0, background: staleLinked.length ? "var(--ios-orange)" : "var(--ios-green)" }} />
+              <div>
+                <div className="ios-subhead" style={{ fontWeight: 600 }}>
+                  {staleLinked.length ? `${staleLinked.length} account${staleLinked.length > 1 ? "s" : ""} may be out of date` : "Balances up to date"}
+                </div>
+                <div className="ios-caption" style={{ color: "var(--ios-label-2)" }}>
+                  {lastSyncAcrossItems ? `Linked accounts synced ${relativeTime(lastSyncAcrossItems)}` : "Manual & imported balances only"}
+                </div>
+              </div>
+            </div>
+            {items.length > 0 && <SyncNowButton />}
+          </div>
+          {duplicates.length > 0 && (
+            <div style={{ marginTop: 11, paddingTop: 10, borderTop: "1px solid var(--ios-separator)" }}>
+              <div className="ios-footnote" style={{ color: "var(--ios-orange)", fontWeight: 700, marginBottom: 4 }}>⚠ Possible duplicate{duplicates.length > 1 ? "s" : ""}</div>
+              {duplicates.slice(0, 4).map((d, i) => (
+                <div key={i} className="ios-caption" style={{ color: "var(--ios-label-2)", lineHeight: 1.55 }}>
+                  {d.a} ↔ {d.b} <span style={{ color: "var(--ios-label-3)" }}>· {d.reason}</span>
+                </div>
+              ))}
+              <a href="/finance/dashboard/settings" className="ios-caption" style={{ color: "var(--ios-tint)", fontWeight: 600, display: "inline-block", marginTop: 6 }}>Review &amp; hide duplicates →</a>
+            </div>
+          )}
+        </div>
+      )}
+
       {BUCKETS.map((b) => {
         const list = accountsByBucket[b.key];
         if (!list.length) return null;
@@ -426,7 +501,7 @@ export default async function DashboardPage() {
                 chevron={false}
                 lead={<IconBadge color={b.color}><Icons.WalletIcon /></IconBadge>}
                 title={a.name}
-                subtitle={[a.subtype || a.type, a.mask ? `····${a.mask}` : null].filter(Boolean).join(" · ") || undefined}
+                subtitle={[a.subtype || a.type, a.mask ? `····${a.mask}` : null, itemById.get(a.item_id)?.last_synced_at ? `updated ${relativeTime(itemById.get(a.item_id)!.last_synced_at)}` : null].filter(Boolean).join(" · ") || undefined}
                 trailing={<span className="ios-num" style={isLiab ? { color: "var(--ios-red)" } : undefined}>{isLiab ? `−${fmtMoney(Math.abs(a.current_balance ?? 0))}` : fmtMoney(a.current_balance ?? 0)}</span>}
               />
             ))}
