@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/supabase/server";
+import { getCurrentUser, createServiceClient } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
 import { getAccount, getPositions, getAlpacaStatus, type AlpacaPosition } from "@/lib/alpaca";
 import { fetchQuotes, type Quote } from "@/lib/stocks";
@@ -55,6 +55,22 @@ export default async function InvestmentsPage() {
     getUserInvestmentIdeas(user.id).catch(() => []),
   ]);
   const brokerageConnected = alpaca.connected;
+
+  // Employee stock-plan "potential value": vested balance + unvested/pending
+  // grants (RSUs, restricted ESPP) imported into manual_accounts. Kept separate
+  // from the Alpaca equity hero so paper-trading equity stays accurate.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const svc = createServiceClient() as any;
+  const { data: manualRows } = await svc
+    .schema("finance")
+    .from("manual_accounts")
+    .select("balance, unvested_value")
+    .eq("user_id", user.id)
+    .not("unvested_value", "is", null);
+  const stockPlanRows = (manualRows ?? []) as { balance: number | null; unvested_value: number | null }[];
+  const stockPlanVested = stockPlanRows.reduce((s, r) => s + (r.balance ?? 0), 0);
+  const stockPlanUnvested = stockPlanRows.reduce((s, r) => s + (r.unvested_value ?? 0), 0);
+  const hasStockPlan = stockPlanUnvested > 0;
 
   const equity = account ? Number(account.equity) : null;
   const lastEquity = account ? Number(account.last_equity) : null;
@@ -119,6 +135,21 @@ export default async function InvestmentsPage() {
             </Group>
           )}
         </>
+      )}
+
+      {hasStockPlan && (
+        <div className="ios-list" style={{ margin: "8px 16px 0", padding: 16 }}>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            Stock plan · potential value
+          </div>
+          <div className="ios-num ios-hero-num" style={{ fontSize: 32, marginTop: 2 }}>{usd(stockPlanVested + stockPlanUnvested)}</div>
+          <div className="ios-subhead" style={{ color: "var(--ios-label-2)", marginTop: 4 }}>
+            Vested {usd(stockPlanVested)} + {usd(stockPlanUnvested)} unvested
+          </div>
+          <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6, lineHeight: 1.4 }}>
+            Unvested RSUs / pending grants from your imported statements. Not part of paper-trading equity above.
+          </div>
+        </div>
       )}
 
       <GlanceGrid>

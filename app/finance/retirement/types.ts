@@ -22,6 +22,7 @@ export interface RetirementAccount {
   type: string;
   owner: string;
   balance: number;
+  unvested_value: number | null; // stock-plan unvested/pending grant value (potential)
   monthly_contribution: number;
   employer_match_pct: number;
   return_override: number | null;

@@ -134,9 +134,11 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
   // Net worth today (incl. home): investable portfolio + home value − all debts.
   // The home is NOT part of the spendable retirement portfolio above.
   const currentPortfolio = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
+  const totalUnvested = accounts.reduce((s, a) => s + (a.unvested_value ?? 0), 0);
   const homeValue = scenario.home_value ?? 0;
   const totalDebt = debts.reduce((s, d) => s + (d.balance ?? 0), 0);
   const netWorth = currentPortfolio + homeValue - totalDebt;
+  const potentialNetWorth = netWorth + totalUnvested;
 
   // Roth-conversion impact: compare the current plan (conversions on) with an
   // identical plan that skips them. Lifetime tax = income tax + IRMAA in retirement.
@@ -396,18 +398,24 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
         </div>
       </div>
 
-      {/* Net worth today (incl. home) */}
-      {homeValue > 0 && (
+      {/* Net worth today (incl. home and/or unvested stock plan) */}
+      {(homeValue > 0 || totalUnvested > 0) && (
         <div className="ios-list" style={{ margin: "0 0 8px", padding: 16 }}>
           <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-            Net worth today · incl. home
+            Net worth today{homeValue > 0 ? " · incl. home" : ""}
           </div>
           <div className="ios-num" style={{ fontSize: 28, fontWeight: 700, marginTop: 2 }}>{fmtLarge(netWorth)}</div>
           <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 4 }}>
-            Portfolio {fmtLarge(currentPortfolio)} + home {fmtLarge(homeValue)}
+            Portfolio {fmtLarge(currentPortfolio)}
+            {homeValue > 0 ? <> + home {fmtLarge(homeValue)}</> : null}
             {totalDebt > 0 ? <> − debts {fmtLarge(totalDebt)}</> : null}
             {scenario.home_address ? <span style={{ color: "var(--ios-label-3)" }}> · {scenario.home_address}</span> : null}
           </div>
+          {totalUnvested > 0 && (
+            <div className="ios-footnote" style={{ color: "var(--ios-tint)", marginTop: 6, fontWeight: 500 }}>
+              Potential {fmtLarge(potentialNetWorth)} · incl. {fmtLarge(totalUnvested)} unvested stock plan
+            </div>
+          )}
         </div>
       )}
 

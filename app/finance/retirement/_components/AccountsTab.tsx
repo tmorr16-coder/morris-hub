@@ -85,7 +85,7 @@ function Pill({ children, color }: { children: React.ReactNode; color: string })
 }
 
 const EMPTY_FORM = {
-  name: "", type: "401k", owner: "self", balance: "",
+  name: "", type: "401k", owner: "self", balance: "", unvested_value: "",
   monthly_contribution: "", employer_match_pct: "", return_override: "",
   plaid_account_id: "",
 };
@@ -101,6 +101,7 @@ export default function AccountsTab({
   const [form, setForm] = useState({ ...EMPTY_FORM });
 
   const totalPortfolio = accounts.reduce((s, a) => s + (a.balance ?? 0), 0);
+  const totalUnvested = accounts.reduce((s, a) => s + (a.unvested_value ?? 0), 0);
 
   // Filter sources that have data
   const availableSources = SOURCES.filter((s) => {
@@ -122,6 +123,7 @@ export default function AccountsTab({
     setForm({
       name: acct.name, type: acct.type, owner: acct.owner,
       balance: String(acct.balance ?? ""),
+      unvested_value: acct.unvested_value != null ? String(acct.unvested_value) : "",
       monthly_contribution: String(acct.monthly_contribution ?? ""),
       employer_match_pct: String(acct.employer_match_pct ?? ""),
       return_override: acct.return_override != null ? String(acct.return_override * 100) : "",
@@ -176,6 +178,7 @@ export default function AccountsTab({
           ...a,
           name: form.name, type: form.type, owner: form.owner,
           balance: parseFloat(form.balance) || 0,
+          unvested_value: form.unvested_value !== "" ? parseFloat(form.unvested_value) || 0 : null,
           monthly_contribution: parseFloat(form.monthly_contribution) || 0,
           employer_match_pct: parseFloat(form.employer_match_pct) || 0,
           return_override: returnOverride,
@@ -187,6 +190,7 @@ export default function AccountsTab({
         id: crypto.randomUUID(), profile_id: "",
         name: form.name, type: form.type, owner: form.owner,
         balance: parseFloat(form.balance) || 0,
+        unvested_value: form.unvested_value !== "" ? parseFloat(form.unvested_value) || 0 : null,
         monthly_contribution: parseFloat(form.monthly_contribution) || 0,
         employer_match_pct: parseFloat(form.employer_match_pct) || 0,
         return_override: returnOverride,
@@ -337,6 +341,11 @@ export default function AccountsTab({
           {accounts.length > 0 && (
             <div className="ios-subhead ios-num" style={{ marginTop: 2, color: "var(--ios-green)" }}>
               +{fmtMoney(accounts.reduce((s, a) => s + a.monthly_contribution, 0))}/mo contributions
+            </div>
+          )}
+          {totalUnvested > 0 && (
+            <div className="ios-subhead ios-num" style={{ marginTop: 2, color: "var(--ios-tint)" }}>
+              Potential {fmtLarge(totalPortfolio + totalUnvested)} · incl. {fmtLarge(totalUnvested)} unvested
             </div>
           )}
         </div>
@@ -494,6 +503,11 @@ export default function AccountsTab({
             <div>
               <label style={labelStyle}>Current balance ($)</label>
               <input type="number" min="0" step="0.01" value={form.balance} onChange={(e) => setForm((f) => ({ ...f, balance: e.target.value }))} placeholder="0" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>Unvested stock-plan value ($)</label>
+              <input type="number" min="0" step="0.01" value={form.unvested_value} onChange={(e) => setForm((f) => ({ ...f, unvested_value: e.target.value }))} placeholder="0 — unvested RSUs / pending grants" style={inputStyle} />
+              <p style={{ margin: "6px 2px 0", fontSize: 12, color: "var(--ios-label-3)", lineHeight: 1.4 }}>Shown as &ldquo;potential value&rdquo; on your plan, on top of the vested balance above.</p>
             </div>
             <div>
               <label style={labelStyle}>Monthly contribution ($)</label>
