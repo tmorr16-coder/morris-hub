@@ -213,7 +213,12 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   const [picked, setPicked] = useState<CatalogModel[]>([]);        // added from search
   const [acceptedRates, setAcceptedRates] = useState<string[]>([]); // higher-rate models you've okayed
   const [confirmRates, setConfirmRates] = useState(false);          // the extra-click panel is open
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set()); // collapsed turns (by turn.at)
   const abortRef = useRef<AbortController | null>(null);
+
+  const toggleCollapse = (key: number) => setCollapsed((s) => {
+    const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n;
+  });
 
   // ── Attachments + debate ────────────────────────────────────────────────
   // `attachments` is the working set for the next turn. When a thread is open
@@ -905,10 +910,18 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
       {/* The conversation, oldest first — it reads downward like a chat. */}
       {thread?.turns.map((turn, idx) => {
         const position = idx + 1; // 1 = the opening question
+        const isCollapsed = collapsed.has(turn.at);
+        const hasBody = Boolean(turn.synthesis || (turn.results && turn.results.length));
         return (
           <div key={turn.at}>
-            <div className="ios-group-header" style={{ padding: "18px 0 7px" }}>
-              {position === 1 ? "QUESTION" : `FOLLOW-UP ${position - 1}`} · {ago(turn.at)}
+            <div className="ios-group-header" style={{ padding: "18px 0 7px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+              <span>{position === 1 ? "QUESTION" : `FOLLOW-UP ${position - 1}`} · {ago(turn.at)}</span>
+              {hasBody && (
+                <button onClick={() => toggleCollapse(turn.at)} className="ios-caption"
+                  style={{ color: "var(--ios-tint)", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "none", letterSpacing: 0 }}>
+                  {isCollapsed ? "Show answers" : "Hide"}
+                </button>
+              )}
             </div>
             <div className="ios-list" style={{ margin: 0, padding: "10px 14px" }}>
               <div className="ios-subhead" style={{ color: "var(--ios-label)", whiteSpace: "pre-wrap" }}>{turn.q}</div>
@@ -929,22 +942,22 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
               )}
             </div>
 
-            {turn.synthesis && (
+            {!isCollapsed && turn.synthesis && (
               <div className="ios-list" style={{ margin: "10px 0 8px", padding: 16, border: "1.5px solid var(--ios-tint)" }}>
                 <div className="ios-caption" style={{ color: "var(--ios-tint)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 8 }}>✦ Synthesized answer</div>
-                <div className="ios-subhead" style={{ color: "var(--ios-label)" }} dangerouslySetInnerHTML={{ __html: md(turn.synthesis) }} />
+                <div className="ios-subhead" style={{ color: "var(--ios-label)", maxHeight: "min(60vh, 560px)", overflowY: "auto", overscrollBehavior: "contain" }} dangerouslySetInnerHTML={{ __html: md(turn.synthesis) }} />
                 <ExportBar content={turn.synthesis} title={turn.q} cost={turn.synthCost} exporting={exporting} onExport={exportAs} />
               </div>
             )}
 
-            {turn.results && turn.results.length > 0 && (
+            {!isCollapsed && turn.results && turn.results.length > 0 && (
               <>
                 <div className="ios-group-header" style={{ padding: "12px 0 7px" }}>ANSWERS · swipe →</div>
-                <div style={{ display: "flex", gap: 12, overflowX: "auto", scrollSnapType: "x mandatory", paddingBottom: 6, margin: "0 -16px", paddingLeft: 16, paddingRight: 16 }}>
+                <div style={{ display: "flex", gap: 12, overflowX: "auto", scrollSnapType: "x mandatory", paddingBottom: 6, margin: "0 -16px", paddingLeft: 16, paddingRight: 16, alignItems: "flex-start" }}>
                   {turn.results.map((r) => {
                     const m = META(r.model);
                     return (
-                      <div key={r.model} className="ios-list" style={{ margin: 0, flex: "0 0 84%", maxWidth: 340, scrollSnapAlign: "start", padding: 16, alignSelf: "flex-start" }}>
+                      <div key={r.model} className="ios-list" style={{ margin: 0, flex: "0 0 84%", maxWidth: 340, scrollSnapAlign: "start", padding: 16, alignSelf: "flex-start", display: "flex", flexDirection: "column" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
                           <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color, flexShrink: 0 }} />
                           <span className="ios-headline" style={{ fontSize: 15 }}>{m.label}</span>
@@ -954,16 +967,21 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
                         </div>
                         {r.error
                           ? <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", lineHeight: 1.5 }}>Couldn&apos;t answer: {r.error}</div>
-                          : <><div className="ios-subhead" style={{ color: "var(--ios-label)", fontSize: 14.5 }} dangerouslySetInnerHTML={{ __html: md(r.answer) }} />
-                              {r.citations && r.citations.length > 0 && <Sources items={r.citations} />}
-                              {r.reaction && (
-                                <div style={{ marginTop: 12, paddingTop: 10, borderTop: `2px solid ${m.color}` }}>
-                                  <div className="ios-caption" style={{ color: m.color, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 6 }}>
-                                    ⇄ On the other answers
+                          : <>
+                              {/* Long answers scroll inside the card so a wall of text
+                                  doesn't stretch the row past the short ones. */}
+                              <div style={{ maxHeight: "min(58vh, 520px)", overflowY: "auto", overscrollBehavior: "contain", marginRight: -6, paddingRight: 6 }}>
+                                <div className="ios-subhead" style={{ color: "var(--ios-label)", fontSize: 14.5 }} dangerouslySetInnerHTML={{ __html: md(r.answer) }} />
+                                {r.citations && r.citations.length > 0 && <Sources items={r.citations} />}
+                                {r.reaction && (
+                                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: `2px solid ${m.color}` }}>
+                                    <div className="ios-caption" style={{ color: m.color, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 6 }}>
+                                      ⇄ On the other answers
+                                    </div>
+                                    <div className="ios-subhead" style={{ color: "var(--ios-label-2)", fontSize: 14 }} dangerouslySetInnerHTML={{ __html: md(r.reaction) }} />
                                   </div>
-                                  <div className="ios-subhead" style={{ color: "var(--ios-label-2)", fontSize: 14 }} dangerouslySetInnerHTML={{ __html: md(r.reaction) }} />
-                                </div>
-                              )}
+                                )}
+                              </div>
                               <ExportBar content={r.reaction ? `${r.answer}\n\n## On the other answers\n${r.reaction}` : r.answer} title={`${m.label} — ${turn.q}`} cost={(r.cost ?? 0) + (r.reactionCost ?? 0) || r.cost} exporting={exporting} onExport={exportAs} /></>}
                       </div>
                     );
