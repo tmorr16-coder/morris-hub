@@ -222,6 +222,7 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   const [attachBusy, setAttachBusy] = useState(false);
   const [attachErr, setAttachErr] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [debate, setDebate] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [library, setLibrary] = useState<LibraryFile[] | null>(null);
@@ -977,30 +978,121 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
       {/* Scroll anchor — the newest answers sit just above this. */}
       <div ref={bottomRef} />
 
-      {/* The composer sits below the transcript and pins to the bottom, so the
-          conversation reads downward into the box you type in. `bottom` clears
-          the fixed tab bar (50px + the home-indicator inset). */}
-      <div style={{ position: "sticky", bottom: "calc(50px + env(safe-area-inset-bottom, 0px))", zIndex: 50, marginTop: 16, paddingTop: 8, background: "var(--ios-bg)" }}>
-        {/* Question / follow-up */}
-        <div className="ios-list" style={{ margin: 0, padding: 14 }}>
-          {thread && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-              <span className="ios-caption" style={{ color: "var(--ios-label-2)", flex: 1, minWidth: 150, lineHeight: 1.4 }}>
-                In conversation · the panel remembers {thread.turns.length} earlier question{thread.turns.length === 1 ? "" : "s"}
-              </span>
-              <button onClick={newThread} className="ios-caption" style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "5px 10px", flexShrink: 0 }}>
-                New thread
+      {/* ── Composer ────────────────────────────────────────────────────────
+          Pinned to the bottom, so it has to stay SHORT. The first version put
+          the toggles, the full-width button and a four-line cost caption in
+          here too: ~450px of permanently-pinned bar, which on a phone covered
+          the answers it was supposed to sit beneath. Everything that isn't
+          "type and send" now lives behind Options. `bottom` clears the fixed
+          tab bar (50px + the home-indicator inset). */}
+      <div
+        style={{
+          position: "sticky",
+          bottom: "calc(50px + env(safe-area-inset-bottom, 0px))",
+          zIndex: 50,
+          marginTop: 16,
+          paddingTop: 8,
+          background: "var(--ios-bg)",
+          borderTop: "0.5px solid var(--ios-separator)",
+        }}
+      >
+        {/* Higher rates still interrupt — never fold a spend behind a menu. */}
+        {confirmRates && gated && !busy && (
+          <div className="ios-list" style={{ margin: "0 0 8px", padding: 12, border: "1.5px solid var(--ios-orange, #D9772B)" }}>
+            <div className="ios-subhead" style={{ color: "var(--ios-label)", fontWeight: 700, marginBottom: 6 }}>Higher rates on this run</div>
+            {needsAccepting.map((id) => {
+              const p = rates[id];
+              return (
+                <div key={id} className="ios-caption" style={{ color: "var(--ios-label-2)", display: "flex", justifyContent: "space-between", gap: 10, padding: "3px 0" }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{META(id).label}</span>
+                  <span style={{ flexShrink: 0 }}>{rateLabel(p)} out · {`$${perMillion(p?.prompt).toFixed(2)}`}/M in</span>
+                </div>
+              );
+            })}
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", margin: "7px 0 9px", lineHeight: 1.45 }}>
+              {estCost > 0 ? <>This run is estimated at <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>. </> : null}
+              Accepting keeps {needsAccepting.length === 1 ? "this model" : "these models"} unlocked until you leave the page.
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={() => { setAcceptedRates((a) => [...a, ...needsAccepting]); setConfirmRates(false); run(); }}
+                className="ios-btn ios-btn--primary" style={{ flex: 1, minWidth: 160 }}>
+                Accept rates &amp; ask
+              </button>
+              <button onClick={() => setConfirmRates(false)} className="ios-caption"
+                style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 10, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "8px 14px" }}>
+                Cancel
               </button>
             </div>
-          )}
+          </div>
+        )}
+
+        {/* Options — everything that used to be stacked in the bar. */}
+        {optionsOpen && (
+          <div className="ios-list" style={{ margin: "0 0 8px", padding: "12px 14px", maxHeight: "45vh", overflowY: "auto" }}>
+            {thread && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                <span className="ios-caption" style={{ color: "var(--ios-label-2)", flex: 1, minWidth: 150, lineHeight: 1.4 }}>
+                  In conversation · the panel remembers {thread.turns.length} earlier question{thread.turns.length === 1 ? "" : "s"}
+                </span>
+                <button onClick={() => { newThread(); setOptionsOpen(false); }} className="ios-caption"
+                  style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "5px 10px", flexShrink: 0 }}>
+                  New thread
+                </button>
+              </div>
+            )}
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={openLibrary} disabled={attachBusy} className="ios-caption"
+                style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "6px 10px" }}>
+                Attach from Morris Hub
+              </button>
+              {attachments.length > 0 && (
+                <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>
+                  {describeAttachments(attachments)} · sent every turn
+                </span>
+              )}
+            </div>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, cursor: "pointer" }}>
+              <input type="checkbox" checked={web} onChange={(e) => setWeb(e.target.checked)} style={{ width: 18, height: 18 }} />
+              <span className="ios-subhead">🌐 Live web — ground answers in current search results</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, cursor: "pointer" }}>
+              <input type="checkbox" checked={debate} onChange={(e) => setDebate(e.target.checked)} style={{ width: 18, height: 18 }} />
+              <span className="ios-subhead">💬 Let the models respond to each other <span style={{ color: "var(--ios-label-3)" }}>— a second round, so roughly double the cost</span></span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, cursor: "pointer" }}>
+              <input type="checkbox" checked={synthesize} onChange={(e) => setSynthesize(e.target.checked)} style={{ width: 18, height: 18 }} />
+              <span className="ios-subhead">Synthesize into one merged answer</span>
+            </label>
+
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 10, lineHeight: 1.5 }}>
+              {estCost > 0 && <>Est. this run <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>{hasUnpriced ? " + Auto (varies)" : ""}. </>}
+              {estCost === 0 && hasUnpriced && <>Auto Router price varies with the model it picks. </>}
+              {thread && <>Follow-ups replay the thread, so they cost a little more. </>}
+              {web && <>Live web adds ~$0.01–0.02 per model. </>}
+              {attachmentTokens > 0 && (
+                <>Attached files add ~{attachmentTokens.toLocaleString()} tokens to <em>each</em> model, every turn. </>
+              )}
+              {debate && <>The reaction round asks every model a second time. </>}
+              {attachments.some((a) => a.remoteParse) && (
+                <>A scanned PDF is read by OCR at $0.002/page — charged once; after that its text is held here. </>
+              )}
+              {sessionCost > 0 && <>Session <strong style={{ color: "var(--ios-label-2)" }}>{fmtCost(sessionCost)}</strong>. </>}
+              Exact cost shown after each action.
+            </div>
+          </div>
+        )}
+
+        <div className="ios-list" style={{ margin: 0, padding: "8px 10px" }}>
           {/* Attached files — chips stay put across follow-ups. */}
           {attachments.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 9 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 7 }}>
               {attachments.map((a) => (
                 <span key={a.id} className="ios-caption"
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--ios-fill)", borderRadius: 8, padding: "5px 7px 5px 9px", maxWidth: "100%" }}>
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--ios-fill)", borderRadius: 8, padding: "4px 6px 4px 8px", maxWidth: "100%" }}>
                   <span aria-hidden>{fileIcon(a.kind)}</span>
-                  <span style={{ color: "var(--ios-label)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>{a.name}</span>
+                  <span style={{ color: "var(--ios-label)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>{a.name}</span>
                   {(a.remoteParse || a.ocrDone) && (
                     <span
                       style={{ color: a.ocrDone ? "var(--ios-green)" : "var(--ios-orange, #D9772B)" }}
@@ -1018,13 +1110,29 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
               ))}
             </div>
           )}
+          {attachErr && <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", marginBottom: 6, lineHeight: 1.45 }}>{attachErr}</div>}
 
+          {/* The bar itself: attach · type · send. One row, always. */}
           <div
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={(e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files); }}
-            style={{ borderRadius: 12, outline: dragging ? "2px dashed var(--ios-tint)" : "none", outlineOffset: 2 }}
+            style={{ display: "flex", alignItems: "flex-end", gap: 7, borderRadius: 12, outline: dragging ? "2px dashed var(--ios-tint)" : "none", outlineOffset: 3 }}
           >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.docx,.doc,.txt,.md,.csv,.tsv,.json,.yaml,.yml,.xml,.html,.log,.ts,.tsx,.js,.jsx,.py,.rb,.go,.java,.sql,.sh,.css,image/*"
+              onChange={(e) => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; }}
+              style={{ display: "none" }}
+            />
+            <button onClick={() => fileInputRef.current?.click()} disabled={attachBusy}
+              aria-label="Attach a file" title="Attach a file"
+              style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 17, background: "var(--ios-fill)", border: "none", color: "var(--ios-tint)", fontSize: 15, cursor: attachBusy ? "wait" : "pointer", lineHeight: 1 }}>
+              {attachBusy ? "…" : "📎"}
+            </button>
+
             <textarea
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
@@ -1036,104 +1144,41 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
                 }
               }}
               placeholder={dragging
-                ? "Drop the file to attach it…"
+                ? "Drop to attach…"
                 : thread
-                ? "Ask a follow-up — each model sees what it already told you…"
-                : "Ask anything — the same question goes to every model on the panel…"}
-              rows={3}
-              style={{ width: "100%", background: "var(--ios-fill)", border: "none", borderRadius: 12, padding: "12px 14px", fontSize: 16, color: "var(--ios-label)", resize: "vertical", fontFamily: "inherit" }}
+                ? "Ask a follow-up…"
+                : "Ask the panel anything…"}
+              rows={1}
+              style={{ flex: 1, minWidth: 0, background: "var(--ios-fill)", border: "none", borderRadius: 17, padding: "8px 13px", fontSize: 16, lineHeight: 1.35, color: "var(--ios-label)", resize: "none", fontFamily: "inherit", maxHeight: 110, overflowY: "auto" }}
             />
+
+            <button onClick={() => submit()} disabled={busy || !question.trim() || selected.length === 0}
+              aria-label={gated ? "Review rates before asking" : "Ask the panel"}
+              title={gated ? `Review rates · ${needsAccepting.length} higher-rate model${needsAccepting.length === 1 ? "" : "s"}` : `Ask ${selected.length} model${selected.length === 1 ? "" : "s"}`}
+              style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 17, background: gated ? "var(--ios-orange, #D9772B)" : "var(--ios-tint)", border: "none", color: "var(--ios-on-tint)", fontSize: 16, fontWeight: 700, cursor: "pointer", opacity: busy || !question.trim() || selected.length === 0 ? 0.4 : 1, lineHeight: 1 }}>
+              {busy ? "…" : gated ? "!" : "↑"}
+            </button>
           </div>
 
-          {/* Attach row */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept=".pdf,.docx,.doc,.txt,.md,.csv,.tsv,.json,.yaml,.yml,.xml,.html,.log,.ts,.tsx,.js,.jsx,.py,.rb,.go,.java,.sql,.sh,.css,image/*"
-              onChange={(e) => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; }}
-              style={{ display: "none" }}
-            />
-            <button onClick={() => fileInputRef.current?.click()} disabled={attachBusy} className="ios-caption"
-              style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: attachBusy ? "wait" : "pointer", padding: "6px 10px" }}>
-              {attachBusy ? "Reading…" : "📎 Attach"}
+          {/* One quiet line: what's on, what it'll cost, and the way to change it. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+            <button onClick={() => setOptionsOpen((v) => !v)} className="ios-caption"
+              aria-expanded={optionsOpen}
+              style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "2px 0", flexShrink: 0 }}>
+              Options {optionsOpen ? "▾" : "▸"}
             </button>
-            <button onClick={openLibrary} disabled={attachBusy} className="ios-caption"
-              style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "6px 10px" }}>
-              From Morris Hub
-            </button>
-            {attachments.length > 0 && (
-              <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>
-                {describeAttachments(attachments)} · sent every turn
-              </span>
+            <span className="ios-caption" style={{ color: "var(--ios-label-3)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {selected.length} model{selected.length === 1 ? "" : "s"}
+              {web ? " · web" : ""}{debate ? " · debate" : ""}{synthesize ? " · synthesis" : ""}
+              {thread ? ` · ${thread.turns.length} asked` : ""}
+              {estCost > 0 ? ` · ~${fmtCost(estCost)}` : ""}
+            </span>
+            {busy && (
+              <button onClick={() => abortRef.current?.abort()} className="ios-caption"
+                style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                Stop
+              </button>
             )}
-          </div>
-          {attachErr && <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", marginTop: 6, lineHeight: 1.45 }}>{attachErr}</div>}
-
-          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, cursor: "pointer" }}>
-            <input type="checkbox" checked={web} onChange={(e) => setWeb(e.target.checked)} style={{ width: 18, height: 18 }} />
-            <span className="ios-subhead">🌐 Live web — ground answers in current search results</span>
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, cursor: "pointer" }}>
-            <input type="checkbox" checked={debate} onChange={(e) => setDebate(e.target.checked)} style={{ width: 18, height: 18 }} />
-            <span className="ios-subhead">💬 Let the models respond to each other <span style={{ color: "var(--ios-label-3)" }}>— a second round, so roughly double the cost</span></span>
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, cursor: "pointer" }}>
-            <input type="checkbox" checked={synthesize} onChange={(e) => setSynthesize(e.target.checked)} style={{ width: 18, height: 18 }} />
-            <span className="ios-subhead">Synthesize into one merged answer</span>
-          </label>
-          <button onClick={() => submit()} disabled={busy || !question.trim() || selected.length === 0}
-            className="ios-btn ios-btn--primary" style={{ marginTop: 12, opacity: busy || !question.trim() ? 0.5 : 1 }}>
-            {busy ? "Asking…"
-              : gated ? `Review rates · ${needsAccepting.length} higher-rate model${needsAccepting.length === 1 ? "" : "s"}`
-              : `${thread ? "Ask follow-up of" : "Ask"} ${selected.length} model${selected.length === 1 ? "" : "s"}`}
-          </button>
-
-          {/* The extra click: rates spelled out, then an explicit accept. */}
-          {confirmRates && gated && !busy && (
-            <div className="ios-list" style={{ margin: "10px 0 0", padding: 12, border: "1.5px solid var(--ios-orange, #D9772B)" }}>
-              <div className="ios-subhead" style={{ color: "var(--ios-label)", fontWeight: 700, marginBottom: 6 }}>Higher rates on this run</div>
-              {needsAccepting.map((id) => {
-                const p = rates[id];
-                return (
-                  <div key={id} className="ios-caption" style={{ color: "var(--ios-label-2)", display: "flex", justifyContent: "space-between", gap: 10, padding: "3px 0" }}>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{META(id).label}</span>
-                    <span style={{ flexShrink: 0 }}>{rateLabel(p)} out · {`$${perMillion(p?.prompt).toFixed(2)}`}/M in</span>
-                  </div>
-                );
-              })}
-              <div className="ios-caption" style={{ color: "var(--ios-label-3)", margin: "7px 0 9px", lineHeight: 1.45 }}>
-                {estCost > 0 ? <>This run is estimated at <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>. </> : null}
-                Accepting keeps {needsAccepting.length === 1 ? "this model" : "these models"} unlocked until you leave the page.
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button onClick={() => { setAcceptedRates((a) => [...a, ...needsAccepting]); setConfirmRates(false); run(); }}
-                  className="ios-btn ios-btn--primary" style={{ flex: 1, minWidth: 160 }}>
-                  Accept rates &amp; ask
-                </button>
-                <button onClick={() => setConfirmRates(false)} className="ios-caption"
-                  style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 10, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "8px 14px" }}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, textAlign: "center", lineHeight: 1.5 }}>
-            {estCost > 0 && <>Est. this run <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>{hasUnpriced ? " + Auto (varies)" : ""}. </>}
-            {estCost === 0 && hasUnpriced && <>Auto Router price varies with the model it picks. </>}
-            {thread && <>Follow-ups replay the thread, so they cost a little more. </>}
-            {web && <>Live web adds ~$0.01–0.02 per model. </>}
-            {attachmentTokens > 0 && (
-              <>Attached files add ~{attachmentTokens.toLocaleString()} tokens to <em>each</em> model, every turn. </>
-            )}
-            {debate && <>The reaction round asks every model a second time. </>}
-            {attachments.some((a) => a.remoteParse) && (
-              <>A scanned PDF is read by OCR at $0.002/page — charged once; after that its text is held here. </>
-            )}
-            {sessionCost > 0 && <>Session <strong style={{ color: "var(--ios-label-2)" }}>{fmtCost(sessionCost)}</strong>. </>}
-            Exact cost shown after each action.
           </div>
         </div>
       </div>
