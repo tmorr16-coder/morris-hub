@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Morris Hub
 
-## Getting Started
+The application behind [morrisai.family](https://morrisai.family) — a private, invitation-only platform for one family, organized as eight independent apps that share a single account, design system, and Supabase backend.
 
-First, run the development server:
+| App | Route | What it does |
+| --- | --- | --- |
+| Hub | `/home` | Today view, reminders, weather, news, sports, family overview |
+| Health | `/health` | Workouts, nutrition, body composition, medications, Oura + Withings sync |
+| Finance | `/finance` | Connected accounts, net worth, retirement projections, tax |
+| Investments | `/investments` | Stock research, live charts, watchlist, paper trading via Alpaca |
+| Career | `/career` | AI advisor, goals, timeline, certifications, LSAT prep |
+| Student Success | `/home/me/courses` | Courses, grades, flashcards — plus certifications and LSAT under `/career` |
+| Bible | `/bible` | Reading plans, hands-free audio, highlights, notes, family challenges |
+| Travel | `/travel` | Flight/stay/car search, trips, loyalty programs, check-in alerts |
+
+Access to each app is granted per user; see `lib/module-access.ts`.
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev          # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+You will need a `.env.local` with Supabase credentials at minimum. Every other integration degrades gracefully when its key is absent — the feature reports that it is unconfigured rather than crashing.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Commands
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev            # development server
+npm run build          # production build (includes type checking)
+npm start              # serve the production build
+npm run lint           # eslint
+npm run check:scoping  # guard: finance queries must stay user-scoped
+```
 
-## Learn More
+## Stack
 
-To learn more about Next.js, take a look at the following resources:
+- **Next.js 16** (App Router) + **React 19** + **Tailwind 4**
+- **Supabase** — auth and Postgres, split across `hub`, `bible`, `finance`, `health`, `career`, `family`, and `student_support` schemas with row-level security. Migrations live in `supabase/migrations/`.
+- **Anthropic SDK** for in-app AI, plus **OpenRouter** for the multi-model comparison panel
+- Deployed on **Vercel**; scheduled syncs are declared in `vercel.json`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Layout
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+app/<module>/       feature modules — page.tsx, layout.tsx, _components/
+app/api/            route handlers, grouped by module
+components/ios/     the iOS-native design system (Screen, Cell, GroupedList, …)
+lib/                shared clients and helpers (Supabase, integrations, models)
+supabase/migrations schema history
+```
 
-## Deploy on Vercel
+Two conventions worth knowing before you edit:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Model IDs live in `lib/models.ts`.** Pick a tier (`MODEL_FAST`, `MODEL_BALANCED`, `MODEL_DEEP`) rather than inlining a string, so upgrades are one edit. `lib/openrouter.ts` uses OpenRouter's separate `anthropic/…` namespace.
+- **The iOS design system is opt-in**, scoped under `[data-ui="ios"]` in `app/ios.css`. A screen adopts it by rendering inside `IOSScreen`; screens that haven't migrated are unaffected.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See [CLAUDE.md](CLAUDE.md) for the fuller architecture notes.

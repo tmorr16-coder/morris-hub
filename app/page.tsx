@@ -62,6 +62,24 @@ const MODULES = [
     description: "LSAT prep with AI scoring, certification paths, course tracking, and performance analytics.",
     tags: ["LSAT prep", "Certifications", "Course log"],
   },
+  {
+    key: "bible",
+    label: "Bible",
+    dot: "#5B6B9E",
+    icon: "✝",
+    headline: "Scripture, read together",
+    description: "Reading plans that keep the whole family in step, hands-free audio that plays straight through, plus highlights and notes.",
+    tags: ["Reading plans", "Audio", "Family challenges"],
+  },
+  {
+    key: "travel",
+    label: "Travel",
+    dot: "#2A8390",
+    icon: "✈",
+    headline: "Plan the trip, then track it",
+    description: "Search flights, stays, and cars with real prices and points, build the itinerary, and get check-in reminders when it's time.",
+    tags: ["Flights", "Stays & cars", "Trip alerts"],
+  },
 ];
 
 // ── Waitlist form ───────────────────────────────────────────────────────────
@@ -163,7 +181,7 @@ export default function LandingPage() {
           Your family&rsquo;s<br />intelligent platform.
         </h1>
         <p className="ios-body" style={{ color: "var(--ios-label-2)", maxWidth: 440, margin: "0 auto 28px", lineHeight: 1.5 }}>
-          Six integrated apps — health, finance, investments, career, academics, and a shared family hub — powered by AI and built for one family.
+          Eight integrated apps — health, finance, investments, career, academics, scripture, travel, and a shared family hub — powered by AI and built for one family.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 340, margin: "0 auto" }}>
           <a href="#waitlist" className="ios-btn ios-btn--primary">Request Access</a>
@@ -175,7 +193,7 @@ export default function LandingPage() {
 
       {/* Module list */}
       <section style={{ padding: "0 var(--ios-gutter) 8px" }}>
-        <h2 className="ios-group-header" style={{ padding: "0 4px 10px" }}>Six apps, one platform</h2>
+        <h2 className="ios-group-header" style={{ padding: "0 4px 10px" }}>Eight apps, one platform</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {MODULES.map((mod) => (
             <div key={mod.key} style={{ background: "var(--ios-cell)", borderRadius: "var(--ios-radius-tile)", padding: "18px 18px 16px" }}>
