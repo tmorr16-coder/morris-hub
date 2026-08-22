@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
 import { getUserTimezone } from "@/lib/timezone";
 import { getAllUpcomingReminders, type Reminder } from "@/lib/reminders";
@@ -13,8 +13,7 @@ import type { Todo } from "../actions";
 // One logical home for reminders + to-dos, where every item can be added,
 // completed, edited, snoozed, or deleted. The Today hub links here.
 export default async function TasksPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const prefs = await getPreferences(user.id);

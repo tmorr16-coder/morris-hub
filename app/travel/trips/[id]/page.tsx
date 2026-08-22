@@ -1,14 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import { notFound, redirect } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { LargeTitle } from "@/components/ios";
 import TripDetailClient from "../../_components/TripDetailClient";
 
 export default async function TripPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

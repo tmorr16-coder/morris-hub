@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { LargeTitle } from "@/components/ios";
 import type { Traveler } from "../types";
 import TravelersClient from "../_components/TravelersClient";
@@ -9,8 +9,7 @@ import TravelersClient from "../_components/TravelersClient";
 export interface FamilySuggestion { id: string; name: string; birthYear: number | null }
 
 export default async function TravelersPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

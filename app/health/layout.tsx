@@ -1,13 +1,12 @@
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/health/auth";
 import { getPreferences } from "@/lib/prefs";
 import { TabBar } from "@/components/ios";
 
 export default async function HealthLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   // Skip approval/access gate in local dev bypass mode
   if (process.env.NEXT_PUBLIC_AUTH_BYPASS !== "true") {

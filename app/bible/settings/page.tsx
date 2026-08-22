@@ -1,14 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { LargeTitle } from "@/components/ios";
 import SettingsClient from "./_components/SettingsClient";
 import { KNOWN_VERSIONS } from "@/lib/bible-api";
 
 export default async function SettingsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

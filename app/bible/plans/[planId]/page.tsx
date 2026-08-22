@@ -1,5 +1,5 @@
 import { redirect, notFound } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import PlanProgress from "./PlanProgress";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -8,8 +8,7 @@ const BUILT_IN_PLAN_IDS = ["bible-in-a-year", "nt-in-90-days", "psalms-30-days",
 
 export default async function PlanDetailPage({ params }: { params: Promise<{ planId: string }> }) {
   const { planId } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   const db = createServiceClient() as any;

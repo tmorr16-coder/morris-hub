@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect, notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server";
 import { TabBar } from "@/components/ios";
 import { getChildWorkspace } from "../_lib/children";
 import ParentVisibilityNotice from "../_components/ParentVisibilityNotice";
@@ -15,8 +15,7 @@ export default async function ChildWorkspacePage({
   params: Promise<{ childId: string }>;
 }) {
   const { childId } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const workspace = await getChildWorkspace(childId, user.id, new Date());

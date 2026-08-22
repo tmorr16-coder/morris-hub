@@ -1,16 +1,13 @@
 export const dynamic = "force-dynamic";
 
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getPreferences } from "@/lib/prefs";
 import { getAlpacaStatus } from "@/lib/alpaca";
 import ResearchLayout from "../_components/ResearchLayout";
 
 export default async function InvestmentsStocksPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   const prefs = await getPreferences(user.id);

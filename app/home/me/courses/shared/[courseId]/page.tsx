@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { IOSScreen, LargeTitle, Chip, TabBar } from "@/components/ios";
 import SharedCourseClient from "./_components/SharedCourseClient";
@@ -10,8 +10,7 @@ export default async function SharedCoursePage({
 }: {
   params: Promise<{ courseId: string }>;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
   // Note: no app_access check here — recipients don't need student-success
   // in their own prefs to view a course that was explicitly shared with them.

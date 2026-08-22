@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
 import { getAccount, getPositions, getAlpacaStatus, type AlpacaPosition } from "@/lib/alpaca";
 import { fetchQuotes, type Quote } from "@/lib/stocks";
@@ -40,8 +40,7 @@ function PriceTrail({ price, pct }: { price: string; pct: number }) {
 }
 
 export default async function InvestmentsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   const prefs = await getPreferences(user.id);

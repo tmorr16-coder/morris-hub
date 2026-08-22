@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 import { LargeTitle, Group, Cell, IconBadge, GlanceGrid, GlanceTile, BarRows, Icons } from "@/components/ios";
@@ -15,8 +15,7 @@ export default async function LSATPrepPage() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   // Check LSAT is enabled for this user

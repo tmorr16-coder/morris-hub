@@ -1,5 +1,5 @@
 import { redirect, notFound } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { fetchChapter, bookById, BIBLE_BOOKS, KNOWN_VERSIONS, DEFAULT_VERSION_ID } from "@/lib/bible-api";
 import ChapterReader from "./ChapterReader";
 
@@ -28,8 +28,7 @@ export default async function ChapterPage({ params, searchParams }: Props) {
   const { bookId, chapter } = await params;
   const { v, bibleId: bibleIdParam, plan: planId, day, ridx } = await searchParams;
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   const book = bookById(bookId.toUpperCase());

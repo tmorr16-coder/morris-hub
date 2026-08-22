@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { IOSScreen, LargeTitle, Group, Cell, IconBadge, Sparkline, BarRows, TabBar, Icons } from "@/components/ios";
 import {
   type DailyCount,
@@ -32,8 +32,7 @@ function fmtCurrency(n: number): string {
 }
 
 export default async function AnalyticsPage() {
-  const supabase = await createClient();
-  const { data: { user: authUser } } = await supabase.auth.getUser();
+  const authUser = await getCurrentUser();
   if (!authUser) redirect("/");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;

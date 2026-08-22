@@ -1,14 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
 import { LargeTitle } from "@/components/ios";
 import WeatherWidget from "../_components/WeatherWidget";
 
 export default async function WeatherPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   const prefs = await getPreferences(user.id);

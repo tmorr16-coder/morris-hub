@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { LargeTitle, Group, Cell, IconBadge, GlanceGrid, GlanceTile, AskMorrisPill, BarRows, Icons } from "@/components/ios";
 
 interface Goal {
@@ -22,8 +22,7 @@ function fmtTarget(d: string | null): string | null {
 }
 
 export default async function CareerPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

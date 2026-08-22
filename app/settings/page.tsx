@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isCurrentUserAdmin } from "@/lib/supabase/auth-utils";
 import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
@@ -43,8 +43,7 @@ function StatusBadge({ on }: { on: boolean }) {
 }
 
 export default async function SettingsHubPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const email = user.email ?? "";

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { KNOWN_VERSIONS } from "@/lib/bible-api";
 import SearchAndAsk from "./_components/SearchAndAsk";
 
@@ -8,8 +8,7 @@ export default async function SearchPage({
 }: {
   searchParams: Promise<{ tab?: string }>;
 }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

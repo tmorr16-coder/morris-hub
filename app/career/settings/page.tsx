@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { LargeTitle, Icons } from "@/components/ios";
 import CareerSettingsClient from "./_components/CareerSettingsClient";
@@ -8,8 +8,7 @@ import LsatSettingsClient from "./_components/LsatSettingsClient";
 
 // Career layout provides the iOS scope + tab bar; this page returns iOS content
 export default async function CareerSettingsPage({ searchParams }: { searchParams: Promise<{ linkedin?: string }> }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

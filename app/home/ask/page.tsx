@@ -1,13 +1,12 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server";
 import { IOSScreen, LargeTitle, TabBar } from "@/components/ios";
 import HubChat from "../_components/HubChat";
 
 export default async function AskPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const name = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email ?? "there";

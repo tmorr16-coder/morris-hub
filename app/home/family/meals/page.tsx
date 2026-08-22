@@ -1,14 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { IOSScreen, LargeTitle, TabBar } from "@/components/ios";
 import { circleContext } from "@/lib/family/circle";
 import MealPlan from "../_components/MealPlan";
 
 export default async function FamilyMealsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

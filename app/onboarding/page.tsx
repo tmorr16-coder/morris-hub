@@ -1,13 +1,12 @@
 export const dynamic = "force-dynamic";
 
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getPreferences } from "@/lib/prefs";
 import OnboardingFlow from "./_components/OnboardingFlow";
 
 export default async function OnboardingPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const prefs = await getPreferences(user.id);

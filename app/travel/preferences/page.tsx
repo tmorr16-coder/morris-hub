@@ -1,14 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { LargeTitle } from "@/components/ios";
 import { DEFAULT_PREFS, type TravelPreferences } from "../types";
 import PreferencesClient from "../_components/PreferencesClient";
 
 export default async function TravelPreferencesPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

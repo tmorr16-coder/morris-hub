@@ -1,14 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server";
 import { serpapiConfigured } from "@/lib/serpapi-travel";
 import { LargeTitle } from "@/components/ios";
 import PlanClient from "../_components/PlanClient";
 
 export default async function TravelPlanPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   return (

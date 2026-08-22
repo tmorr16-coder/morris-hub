@@ -1,14 +1,13 @@
 export const dynamic = "force-dynamic";
 
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getPreferences } from "@/lib/prefs";
 import { IOSScreen, LargeTitle, TabBar } from "@/components/ios";
 import SettingsForm from "../_components/SettingsForm";
 
 export default async function ModulesSettingsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
   const prefs = await getPreferences(user.id);
   return (

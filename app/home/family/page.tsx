@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { getFamilyCalendarEvents, getWeekRange } from "@/lib/familyCalendar";
 import { getUserTimezone } from "@/lib/timezone";
 import { LargeTitle, Group, Cell, IconBadge, TabBar, WeekStrip, Icons } from "@/components/ios";
@@ -39,8 +39,7 @@ function Avatar({ color, initial }: { color: string; initial: string }) {
 }
 
 export default async function FamilyPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const userTz = getUserTimezone(user.user_metadata);

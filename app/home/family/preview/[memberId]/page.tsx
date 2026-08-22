@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect, notFound } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { IOSScreen, LargeTitle, Group, Cell, IconBadge, TabBar, Icons } from "@/components/ios";
 
 export default async function PreviewAsMemberPage({
@@ -10,8 +10,7 @@ export default async function PreviewAsMemberPage({
   params: Promise<{ memberId: string }>;
 }) {
   const { memberId } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -1,12 +1,11 @@
 import { redirect } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { BIBLE_BOOKS } from "@/lib/bible-api";
 import { LargeTitle } from "@/components/ios";
 import BookPickerClient from "./_components/BookPickerClient";
 
 export default async function ReadPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   // Load user's preferred translation

@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getPreferences } from "@/lib/prefs";
 import { getUserInvestmentIdeas } from "@/lib/investment-ideas";
@@ -8,8 +8,7 @@ import { LargeTitle } from "@/components/ios";
 import InvestmentsClient from "../_components/InvestmentsClient";
 
 export default async function InvestmentsIdeasPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   const prefs = await getPreferences(user.id);

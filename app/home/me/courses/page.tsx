@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { IOSScreen, LargeTitle, Group, Cell, IconBadge, TabBar, Icons } from "@/components/ios";
@@ -10,10 +10,7 @@ import UpcomingRemindersSection from "./_components/UpcomingRemindersSection";
 import SharedCoursesSection from "./_components/SharedCoursesSection";
 
 export default async function CoursesPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   // Check if user has access to the (internal) student-success flag

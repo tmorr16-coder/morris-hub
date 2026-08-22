@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server";
 import { getPreferences } from "@/lib/prefs";
 import { getUserTimezone } from "@/lib/timezone";
 import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
@@ -11,8 +11,7 @@ import { WIDGET_LABELS } from "@/app/home/settings/_components/SettingsForm";
 const NEWS_PAGE_WIDGETS = new Set(["news", "city_news", "lly_news", "news_subscriptions", "sports"]);
 
 export default async function NewsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const prefs = await getPreferences(user.id);

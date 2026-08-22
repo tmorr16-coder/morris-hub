@@ -40,14 +40,17 @@ export async function proxy(request: NextRequest) {
     { maxAttempts: 3, initialDelayMs: 100 }
   ).catch(() => null);
 
-  // Cache user info in response headers for downstream handlers
-  // This avoids redundant getUser() calls in protected routes
-  if (user) {
-    response.headers.set("x-user-id", user.id);
-    if (user.email) {
-      response.headers.set("x-user-email", user.email);
-    }
-  }
+  // This used to set x-user-id / x-user-email on the response, described as a
+  // way to avoid redundant getUser() calls downstream. It never could: response
+  // headers travel to the browser, not to the server components rendering this
+  // request, and nothing ever read them. Server components dedupe their own
+  // getUser() via getCurrentUser() in lib/supabase/server.ts instead.
+  //
+  // To also collapse THIS call into that one, forward the verified id on the
+  // *request* headers — delete any client-supplied x-user-id first, then set it
+  // and pass `NextResponse.next({ request: { headers } })` — and have
+  // getCurrentUser() prefer it. Left undone deliberately: it makes a spoofable
+  // header load-bearing for auth, which wants its own review.
 
   const { pathname } = request.nextUrl;
   const isProtected =

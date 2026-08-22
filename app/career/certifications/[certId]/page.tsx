@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { LargeTitle } from "@/components/ios";
 import CertDetailClient from "./_components/CertDetailClient";
@@ -12,10 +12,7 @@ export default async function CertDetailPage({
 }: {
   params: Promise<{ certId: string }>;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   const { certId } = await params;

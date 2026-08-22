@@ -1,15 +1,14 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { travelConfigured } from "@/lib/travel-search";
 import { LargeTitle } from "@/components/ios";
 import { DEFAULT_PREFS, type TravelPreferences, type LoyaltyProgram } from "../types";
 import SearchClient from "../_components/SearchClient";
 
 export default async function TravelSearchPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

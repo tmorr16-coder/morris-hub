@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server";
 import { openrouterConfigured, COMPARE_MODELS, LIVE_MODELS, MORE_MODELS, newestFrom, type CatalogModel } from "@/lib/openrouter";
 import { IOSScreen, LargeTitle, TabBar } from "@/components/ios";
 import CompareClient from "./CompareClient";
@@ -28,8 +28,7 @@ async function loadCatalog(): Promise<{ pricing: Pricing; newest: CatalogModel[]
 }
 
 export default async function ComparePage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   const { pricing, newest } = await loadCatalog();
@@ -41,7 +40,8 @@ export default async function ComparePage() {
         <CompareClient connected={openrouterConfigured()} pricing={pricing} newest={newest} />
       </div>
       <p className="ios-caption" style={{ color: "var(--ios-label-3)", padding: "10px 20px 0", lineHeight: 1.5 }}>
-        Puts your question to a panel of models via OpenRouter (billed per use). Swipe between answers, or synthesize them into one.
+        Puts your question to a panel of models via OpenRouter (billed per use). Attach files or images for them to work from,
+        keep asking follow-ups in the same thread, and let them respond to each other or merge into one answer.
       </p>
       <div style={{ height: 12 }} />
       <TabBar current="more" currentUserId={user.id} sourceApp="hub" />

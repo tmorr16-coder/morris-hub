@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { LargeTitle, Group, Cell, TabBar } from "@/components/ios";
 import ExportDataButton from "./_components/ExportDataButton";
 
@@ -40,8 +40,7 @@ function StateBadge({ state }: { state: Row["state"] }) {
 }
 
 export default async function PrivacySettingsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

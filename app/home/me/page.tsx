@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server";
 import { getPreferences, ME_DOMAINS } from "@/lib/prefs";
 import type { MeDomainKey } from "@/lib/prefs";
 import { IOSScreen, LargeTitle, TabBar } from "@/components/ios";
@@ -9,8 +9,7 @@ import { getMeDomainData } from "./_lib/domains";
 import MeDashboardClient from "./_components/MeDashboardClient";
 
 export default async function MePage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const prefs = await getPreferences(user.id);

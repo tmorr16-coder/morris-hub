@@ -5,7 +5,7 @@ import ThemeApplier from "@/components/ThemeApplier";
 import GlobalBackButton from "@/components/GlobalBackButton";
 import PullToRefresh from "@/components/PullToRefresh";
 import { NavModeProvider } from "@/components/NavModeProvider";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { isPersonalPersona } from "@/lib/prefs";
 import "./globals.css";
 import "./ios.css";
@@ -13,8 +13,7 @@ import "./ios.css";
 /** Whether the signed-in user is a solo (personal) user — drives "Me" vs "Family" nav. */
 async function resolvePersonalMode(): Promise<boolean> {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser();
     if (!user) return false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const service = createServiceClient() as any;

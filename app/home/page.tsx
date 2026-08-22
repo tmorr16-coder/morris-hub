@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getAllUpcomingReminders, getAssignedReminders } from "@/lib/reminders";
 import { findConflicts, type TimelineItem } from "./_components/timelineConflicts";
@@ -9,7 +9,6 @@ import { getFamilyCalendarEvents } from "@/lib/familyCalendar";
 import type { Todo } from "./actions";
 import { Suspense } from "react";
 import { getPreferences } from "@/lib/prefs";
-import { fetchWeather } from "@/lib/weather";
 import { getUserTimezone } from "@/lib/timezone";
 import HomeClient from "./HomeClient";
 import QuickActions from "./_components/QuickActions";
@@ -17,10 +16,10 @@ import SetupChecklist, { type SetupItem } from "./_components/SetupChecklist";
 import TodayMarkets from "./_components/TodayMarkets";
 import TodayNews from "./_components/TodayNews";
 import MoneyGlanceValue from "./_components/MoneyGlanceValue";
+import { TodayWeatherValue, TodayWeatherSub } from "./_components/TodayWeatherGlance";
 
 export default async function HomePage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -543,43 +542,52 @@ export default async function HomePage() {
   const netPct: number | null = netWorth != null && netPrev != null && netPrev !== 0
     ? ((netWorth - netPrev) / Math.abs(netPrev)) * 100 : null;
 
-  const homePrefs = await getPreferences(user.id).catch(() => null);
+  // Preferences and the finance PIN are independent reads — awaiting them one
+  // after the other just added a round-trip to the critical path.
+  const [homePrefs, financeLocked] = await Promise.all([
+    getPreferences(user.id).catch(() => null),
+    // When a finance PIN is set, the money glance must not reveal anything (even
+    // the trend %) in the clear — mirror the PIN that guards the finance section.
+    (async () => {
+      try {
+        const { data: financePinRow } = await service
+          .schema("hub")
+          .from("preferences")
+          .select("finance_pin")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return !!((financePinRow as any)?.finance_pin);
+      } catch {
+        return false; // finance_pin column not present / query failed — leave unlocked
+      }
+    })(),
+  ]);
 
-  // When a finance PIN is set, the money glance must not reveal anything (even the
-  // trend %) in the clear — mirror the PIN that guards the finance section itself.
-  let financeLocked = false;
-  try {
-    const { data: financePinRow } = await service
-      .schema("hub")
-      .from("preferences")
-      .select("finance_pin")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    financeLocked = !!((financePinRow as any)?.finance_pin);
-  } catch {
-    // finance_pin column not present / query failed — leave unlocked
-  }
-
-  // Weather now leads the glance (replacing the calendar tile). Today's high
-  // and current condition, from the user's saved location.
-  let weatherGlance: { value: React.ReactNode; sub: React.ReactNode; href: string } | null = null;
-  if (homePrefs?.latitude && homePrefs?.longitude) {
-    const wx = await fetchWeather(homePrefs.latitude, homePrefs.longitude).catch(() => null);
-    if (wx) {
-      const today = wx.periods.find((p) => p.isDaytime) ?? wx.periods[0];
-      const temp = wx.current.temperature ?? today?.temperature ?? null;
-      const cond = wx.current.description || today?.shortForecast || "—";
-      weatherGlance = {
-        value: temp != null ? `${Math.round(temp)}°` : "—",
-        sub: [cond, today ? `H ${today.temperature}°` : null].filter(Boolean).join(" · "),
-        href: "/home/weather",
-      };
-    }
-  }
+  // Weather leads the glance (replacing the calendar tile). The forecast is NOT
+  // awaited here — it streams in via <Suspense> so two calls to api.weather.gov
+  // can't hold up the whole home screen. We only need the saved coordinates to
+  // know whether the tile belongs on the grid at all.
+  const hasLocation = homePrefs?.latitude != null && homePrefs?.longitude != null;
 
   const iosGlance = {
-    ...(weatherGlance ? { weather: weatherGlance } : {}),
+    ...(hasLocation
+      ? {
+          weather: {
+            value: (
+              <Suspense fallback={<span className="ios-tile-pending">—</span>}>
+                <TodayWeatherValue lat={homePrefs!.latitude!} lon={homePrefs!.longitude!} />
+              </Suspense>
+            ),
+            sub: (
+              <Suspense fallback={<span className="ios-tile-pending">Loading…</span>}>
+                <TodayWeatherSub lat={homePrefs!.latitude!} lon={homePrefs!.longitude!} />
+              </Suspense>
+            ),
+            href: "/home/weather",
+          },
+        }
+      : {}),
     reminders: iosUpcoming.length > 0
       ? { value: `${iosUpcoming.length} due`, sub: iosUpcoming[0].title as string, badge: iosUpcoming.length, href: "/home/tasks" }
       : { value: "None", sub: "All caught up", href: "/home/tasks" },

@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { IOSScreen, LargeTitle, TabBar } from "@/components/ios";
 import { Suspense } from "react";
@@ -8,8 +8,7 @@ import { getPreferences } from "@/lib/prefs";
 import CourseReminderSettingsForm from "./_components/CourseReminderSettingsForm";
 
 export default async function CourseReminderSettingsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   const prefs = await getPreferences(user.id);

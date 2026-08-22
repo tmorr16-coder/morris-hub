@@ -1,16 +1,13 @@
 export const dynamic = "force-dynamic";
 
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { IOSScreen, LargeTitle, TabBar } from "@/components/ios";
 import CourseDetailClient from "./_components/CourseDetailClient";
 
 export default async function CourseDetailPage({ params }: { params: Promise<{ courseId: string }> }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/");
 
   const { courseId } = await params;

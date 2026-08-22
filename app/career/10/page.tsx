@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
 import LearningPageClient from "./_components/LearningPageClient";
@@ -28,10 +28,7 @@ function formatDate(dateStr: string | null): string {
 }
 
 export default async function TenPercentPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) redirect("/auth/login");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
