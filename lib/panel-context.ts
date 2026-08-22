@@ -13,15 +13,32 @@ export interface PanelAttachment {
   id: string;
   name: string;
   kind: "pdf" | "docx" | "text" | "image";
-  /** Extracted text — set for every kind except image. */
+  /** Extracted text — set for every kind except image and remote-parsed PDFs. */
   text?: string;
-  /** data: URI — set only for images, which go to vision models as-is. */
+  /** data: URI — images, and PDFs we couldn't read ourselves. */
   dataUrl?: string;
   /** True when extraction hit the character ceiling. */
   truncated?: boolean;
+  /**
+   * A PDF with no readable text layer — a scan, or a form whose field values
+   * were never rendered into the page. There is nothing to extract locally, so
+   * the file itself is sent and OpenRouter's file-parser (OCR) reads it.
+   */
+  remoteParse?: boolean;
+  /** Page count, when we could read it — used to quote the OCR cost. */
+  pages?: number;
+  /**
+   * Parse annotations returned by OpenRouter the first time this file was read.
+   * Sent back on later turns so the parse is reused rather than re-billed.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  annotations?: Record<string, any>[];
   /** Where it came from, for the chip in the composer. */
   source: "upload" | "library";
 }
+
+/** $2 per 1,000 pages, OpenRouter's Mistral OCR rate. */
+export const OCR_COST_PER_PAGE = 0.002;
 
 /** Rough token estimate for a chunk of English prose (~4 chars/token). */
 export function estimateTokens(text: string): number {
@@ -59,6 +76,34 @@ export function buildImageParts(attachments: PanelAttachment[]) {
   return attachments
     .filter((a) => a.kind === "image" && a.dataUrl)
     .map((a) => ({ type: "image_url" as const, image_url: { url: a.dataUrl as string } }));
+}
+
+/**
+ * PDFs we couldn't read, as `file` content parts for OpenRouter to parse.
+ *
+ * Unlike images, these are safe to send to any model: when the model has no
+ * native file support the file-parser plugin converts the PDF first and passes
+ * text along, so no column of the panel 400s on it.
+ */
+export function buildFileParts(attachments: PanelAttachment[]) {
+  return attachments
+    .filter((a) => a.remoteParse && a.dataUrl)
+    .map((a) => ({
+      type: "file" as const,
+      file: { filename: a.name, file_data: a.dataUrl as string },
+    }));
+}
+
+/** Annotations from earlier parses, so OpenRouter reuses them instead of re-OCR'ing. */
+export function collectAnnotations(attachments: PanelAttachment[]) {
+  return attachments.flatMap((a) => a.annotations ?? []);
+}
+
+/** What the OCR pass will cost for whatever still needs parsing, in dollars. */
+export function estimateOcrCost(attachments: PanelAttachment[]): number {
+  return attachments
+    .filter((a) => a.remoteParse && !a.annotations?.length)
+    .reduce((sum, a) => sum + (a.pages ?? 1) * OCR_COST_PER_PAGE, 0);
 }
 
 /** A short human summary of what's attached, for the cost/notice line. */

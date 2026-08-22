@@ -108,15 +108,20 @@ export async function extractAttachmentText(
   fileName: string,
   mimeType: string,
   limit = 24_000
-): Promise<{ text: string; truncated: boolean; kind: AttachmentKind }> {
+): Promise<{ text: string; truncated: boolean; kind: AttachmentKind; pages?: number }> {
   const kind = classifyAttachment(fileName, mimeType);
   let text = '';
+  let pages: number | undefined;
 
   if (kind === 'pdf') {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const pdf = require('pdf-parse');
-      text = (await pdf(buffer)).text ?? '';
+      const data = await pdf(buffer);
+      text = data.text ?? '';
+      // Kept even when there's no text: it's how the OCR fallback quotes its
+      // per-page cost before spending anything.
+      pages = typeof data.numpages === 'number' ? data.numpages : undefined;
     } catch (err) {
       throw new Error(`Could not read ${fileName}: ${err instanceof Error ? err.message : 'PDF extraction failed'}`);
     }
@@ -139,5 +144,5 @@ export async function extractAttachmentText(
   text = text.replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim();
 
   const truncated = text.length > limit;
-  return { text: truncated ? text.slice(0, limit) : text, truncated, kind };
+  return { text: truncated ? text.slice(0, limit) : text, truncated, kind, pages };
 }

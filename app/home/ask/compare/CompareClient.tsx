@@ -6,7 +6,7 @@ import {
   isPremiumRate, perMillion, PREMIUM_PER_M, type CatalogModel, type CompareModel,
 } from "@/lib/openrouter";
 import type { Pricing } from "./page";
-import { describeAttachments, estimateTokens, type PanelAttachment } from "@/lib/panel-context";
+import { describeAttachments, estimateTokens, estimateOcrCost, type PanelAttachment } from "@/lib/panel-context";
 
 interface Citation { url: string; title: string }
 
@@ -135,6 +135,15 @@ const SUGGESTIONS = [
 ];
 
 const MAX_ATTACHMENTS = 10;
+
+/**
+ * Attachments that carry a base64 payload rather than text — an image, or a
+ * PDF being sent for OCR. These are what blow the localStorage budget, so they
+ * are the first thing shed when a save doesn't fit.
+ */
+function isHeavy(a: PanelAttachment): boolean {
+  return a.kind === "image" || Boolean(a.remoteParse);
+}
 
 /** Icon for an attachment chip, by kind. */
 function fileIcon(kind: PanelAttachment["kind"]): string {
@@ -408,7 +417,8 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   /* eslint-enable react-hooks/set-state-in-effect */
 
   /**
-   * Drop the base64 image payloads from every thread but the newest.
+   * Drop the base64 payloads — images, and PDFs held for OCR — from every
+   * thread but the newest.
    *
    * An attached image is by far the heaviest thing a thread carries, and one
    * image-laden conversation can blow the whole localStorage budget on its own.
@@ -419,9 +429,9 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
    */
   function shedOldImages(list: Thread[]): Thread[] {
     return list.map((t, i) =>
-      i === 0 || !t.attachments?.some((a) => a.kind === "image")
+      i === 0 || !t.attachments?.some(isHeavy)
         ? t
-        : { ...t, attachments: t.attachments.filter((a) => a.kind !== "image") }
+        : { ...t, attachments: t.attachments.filter((a) => !isHeavy(a)) }
     );
   }
 
@@ -437,7 +447,7 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
         // open conversation): save it without its image payloads rather than
         // discarding the conversation entirely.
         if (list.length <= 1) {
-          const stripped = list.map((t) => ({ ...t, attachments: (t.attachments ?? []).filter((a) => a.kind !== "image") }));
+          const stripped = list.map((t) => ({ ...t, attachments: (t.attachments ?? []).filter((a) => !isHeavy(a)) }));
           try { localStorage.setItem(THREADS_KEY, JSON.stringify(stripped)); }
           catch { try { localStorage.removeItem(THREADS_KEY); } catch { /* ignore */ } }
           break;
@@ -506,8 +516,11 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
       const p = rates[SYNTH_MODEL];
       if (p) total += 1600 * p.prompt + 700 * p.completion;
     }
+    // OCR for any PDF with no text layer. Charged once per file, not per model
+    // and not per turn — once parsed, the annotation is reused.
+    total += estimateOcrCost(attachments);
     return total;
-  }, [question, selected, synthesize, debate, rates, thread, attachmentTokens]);
+  }, [question, selected, synthesize, debate, rates, thread, attachmentTokens, attachments]);
 
   // The Auto Router's price is whatever model it picks, so it can't be quoted.
   const hasUnpriced = selected.some((id) => id === AUTO_MODEL || !rates[id]);
@@ -603,9 +616,20 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
         files: turnFiles.map((a) => a.name),
         skippedVision: data.skippedVision ?? [],
       };
+      // Bank the file-parse annotations onto the attachments that needed OCR.
+      // Sent back on the next turn, they make OpenRouter reuse the parse — the
+      // difference between OCR'ing a scan once and paying for it every turn.
+      const banked: PanelAttachment[] =
+        data.fileAnnotations?.length
+          ? turnFiles.map((a) =>
+              a.remoteParse && !a.annotations?.length ? { ...a, annotations: data.fileAnnotations } : a
+            )
+          : turnFiles;
+      if (banked !== turnFiles) setAttachments(banked);
+
       const next: Thread = base
-        ? { ...base, at: turn.at, models: selected, web, turns: [...base.turns, turn], attachments: turnFiles }
-        : { id: turn.at, at: turn.at, models: selected, web, turns: [turn], attachments: turnFiles };
+        ? { ...base, at: turn.at, models: selected, web, turns: [...base.turns, turn], attachments: banked }
+        : { id: turn.at, at: turn.at, models: selected, web, turns: [turn], attachments: banked };
       setThread(next);
       persistThreads([next, ...threads.filter((t) => t.id !== next.id)]);
     } catch (e) {
@@ -951,6 +975,16 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
                   style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--ios-fill)", borderRadius: 8, padding: "5px 7px 5px 9px", maxWidth: "100%" }}>
                   <span aria-hidden>{fileIcon(a.kind)}</span>
                   <span style={{ color: "var(--ios-label)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>{a.name}</span>
+                  {a.remoteParse && (
+                    <span
+                      style={{ color: a.annotations?.length ? "var(--ios-green)" : "var(--ios-orange, #D9772B)" }}
+                      title={a.annotations?.length
+                        ? "Already read by OCR — follow-ups reuse that result at no extra cost"
+                        : `No text layer — a scan, or a form whose values were never drawn onto the page. It'll be read by OCR${a.pages ? ` (${a.pages} page${a.pages === 1 ? "" : "s"})` : ""}.`}
+                    >
+                      {a.annotations?.length ? "OCR ✓" : "OCR"}
+                    </span>
+                  )}
                   {a.truncated && <span style={{ color: "var(--ios-orange, #D9772B)" }} title="Only the beginning of this file was read">clipped</span>}
                   <button onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.name}`}
                     style={{ background: "none", border: "none", color: "var(--ios-label-3)", cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "0 2px" }}>×</button>
@@ -1069,6 +1103,9 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
               <>Attached files add ~{attachmentTokens.toLocaleString()} tokens to <em>each</em> model, every turn. </>
             )}
             {debate && <>The reaction round asks every model a second time. </>}
+            {attachments.some((a) => a.remoteParse && !a.annotations?.length) && (
+              <>A scanned PDF is read by OCR at $0.002/page — charged once, then reused by follow-ups. </>
+            )}
             {sessionCost > 0 && <>Session <strong style={{ color: "var(--ios-label-2)" }}>{fmtCost(sessionCost)}</strong>. </>}
             Exact cost shown after each action.
           </div>

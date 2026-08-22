@@ -169,9 +169,32 @@ export function searchCatalog(models: any[], query: string, limit = 40): Catalog
  */
 export type ContentPart =
   | { type: "text"; text: string }
-  | { type: "image_url"; image_url: { url: string } };
+  | { type: "image_url"; image_url: { url: string } }
+  | { type: "file"; file: { filename: string; file_data: string } };
 
-interface ChatMessage { role: "system" | "user" | "assistant"; content: string | ContentPart[] }
+/**
+ * What OpenRouter returns after parsing a file, and what you send back to avoid
+ * paying for that parse again. Carries a content hash, so a re-send is matched
+ * and skipped rather than re-OCR'd. Shape is passed through opaquely — we only
+ * ever store it and hand it back.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type FileAnnotation = Record<string, any>;
+
+interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string | ContentPart[];
+  /** Reused file annotations ride on the assistant turn that produced them. */
+  annotations?: FileAnnotation[];
+}
+
+/**
+ * PDF parsing engines, for a PDF whose text we couldn't read ourselves.
+ *  - mistral-ocr    rasterises and OCRs; the only one that reads a scan. $2/1k pages.
+ *  - cloudflare-ai  PDF → markdown, free. Replaces the deprecated pdf-text engine.
+ *  - native         only where the model itself accepts files; billed as input tokens.
+ */
+export type PdfEngine = "mistral-ocr" | "cloudflare-ai" | "native";
 
 /**
  * Which catalog models can actually read an image.
@@ -202,13 +225,31 @@ export async function fetchVisionModels(): Promise<Set<string>> {
 }
 
 export interface Citation { url: string; title: string }
-export interface ModelResult { content: string; cost: number | null; citations: Citation[]; served: string | null }
+export interface ModelResult {
+  content: string;
+  cost: number | null;
+  citations: Citation[];
+  served: string | null;
+  /** File-parse results worth keeping, so the next turn doesn't pay to re-parse. */
+  annotations: FileAnnotation[];
+}
 
 /**
  * Ask a single model. `web` grounds it in live search results (with citations);
  * `json` asks for a JSON object back (used by the slide structurer).
  */
-export async function askModel(model: string, messages: ChatMessage[], maxTokens = 1200, opts?: { web?: boolean; json?: boolean }): Promise<ModelResult> {
+export async function askModel(
+  model: string,
+  messages: ChatMessage[],
+  maxTokens = 1200,
+  opts?: { web?: boolean; json?: boolean; pdfEngine?: PdfEngine },
+): Promise<ModelResult> {
+  // Both web search and file parsing are plugins, so they share one array —
+  // setting them independently would have the second overwrite the first.
+  const plugins: Record<string, unknown>[] = [];
+  if (opts?.web) plugins.push({ id: "web" });
+  if (opts?.pdfEngine) plugins.push({ id: "file-parser", pdf: { engine: opts.pdfEngine } });
+
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -219,7 +260,7 @@ export async function askModel(model: string, messages: ChatMessage[], maxTokens
     },
     body: JSON.stringify({
       model, messages, max_tokens: maxTokens, usage: { include: true },
-      ...(opts?.web ? { plugins: [{ id: "web" }] } : {}),
+      ...(plugins.length ? { plugins } : {}),
       ...(opts?.json ? { response_format: { type: "json_object" } } : {}),
     }),
   });
@@ -247,7 +288,13 @@ export async function askModel(model: string, messages: ChatMessage[], maxTokens
   }
   // With the Auto Router the id that actually answered is worth surfacing.
   const served = typeof data.model === "string" ? data.model : null;
-  return { content: msg.content ?? "", cost: data.usage?.cost ?? null, citations, served };
+  // File-parse annotations (a parsed PDF plus its hash). Handing these back on a
+  // later turn makes OpenRouter reuse the parse instead of OCR'ing again, which
+  // is the difference between paying for a scan once and paying every follow-up.
+  const annotations: FileAnnotation[] = Array.isArray(msg.annotations)
+    ? msg.annotations.filter((a: FileAnnotation) => a?.type === "file")
+    : [];
+  return { content: msg.content ?? "", cost: data.usage?.cost ?? null, citations, served, annotations };
 }
 
 /** Generate an image from a prompt. Returns a data/https image URL + cost. */

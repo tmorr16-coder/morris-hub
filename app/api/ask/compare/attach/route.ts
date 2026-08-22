@@ -11,6 +11,9 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB, matching the course uploader
 // client that skipped that step. A data: URI is ~4/3 the size of its bytes, and
 // oversized images cost real money on every turn they stay attached.
 const MAX_IMAGE_BYTES = 1_500_000;
+// A PDF with no text layer travels as base64 for OCR. Bounded because it rides
+// on the thread and gets persisted; well under Vercel's request ceiling.
+const MAX_OCR_PDF_BYTES = 6 * 1024 * 1024;
 
 /**
  * Turn an uploaded file into a PanelAttachment.
@@ -69,13 +72,39 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { text, truncated } = await extractAttachmentText(buffer, file.name, file.type);
+    const { text, truncated, pages } = await extractAttachmentText(buffer, file.name, file.type);
+
     if (!text.trim()) {
+      // A PDF with no text layer — a scan, or a filled form whose field values
+      // live in the AcroForm dictionary and were never drawn onto the page.
+      // Nothing local can read either, so send the file itself and let
+      // OpenRouter's OCR do it. Rejecting here used to be a dead end for
+      // exactly the documents people most want to ask about.
+      if (kind === "pdf") {
+        if (buffer.byteLength > MAX_OCR_PDF_BYTES) {
+          return NextResponse.json(
+            { error: `${file.name} has no readable text and is too large to OCR (limit ${MAX_OCR_PDF_BYTES / 1024 / 1024}MB).` },
+            { status: 413 }
+          );
+        }
+        const attachment: PanelAttachment = {
+          id: crypto.randomUUID(),
+          name: file.name,
+          kind: "pdf",
+          dataUrl: `data:application/pdf;base64,${buffer.toString("base64")}`,
+          remoteParse: true,
+          pages: pages ?? undefined,
+          source: "upload",
+        };
+        return NextResponse.json({ attachment });
+      }
+
       return NextResponse.json(
-        { error: `No text could be read out of ${file.name}. If it's a scanned document, the panel can't see it.` },
+        { error: `No text could be read out of ${file.name}.` },
         { status: 422 }
       );
     }
+
     const attachment: PanelAttachment = {
       id: crypto.randomUUID(),
       name: file.name,

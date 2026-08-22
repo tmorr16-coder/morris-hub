@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { openrouterConfigured, askModel, fetchVisionModels, SYNTH_MODEL, type ContentPart } from "@/lib/openrouter";
-import { buildContextBlock, buildImageParts, type PanelAttachment } from "@/lib/panel-context";
+import { openrouterConfigured, askModel, fetchVisionModels, SYNTH_MODEL, type ContentPart, type FileAnnotation } from "@/lib/openrouter";
+import { buildContextBlock, buildImageParts, buildFileParts, collectAnnotations, type PanelAttachment } from "@/lib/panel-context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -61,6 +61,10 @@ export async function POST(req: NextRequest) {
   // content parts on the user turn, so only vision models can be sent them.
   const contextBlock = buildContextBlock(attachments);
   const imageParts = buildImageParts(attachments);
+  // PDFs with no text layer — a scan, or a form whose values were never drawn
+  // onto the page. These go as `file` parts for OpenRouter's parser to read.
+  const fileParts = buildFileParts(attachments);
+  const priorAnnotations = collectAnnotations(attachments);
   const visionModels = imageParts.length ? await fetchVisionModels() : new Set<string>();
   const skippedVision: string[] = [];
 
@@ -77,9 +81,11 @@ export async function POST(req: NextRequest) {
   // answers of its own, so it picks up the synthesis (or another model's answer)
   // for those turns — otherwise the follow-up would land with no context at all.
   function conversation(model: string) {
-    const msgs: { role: "system" | "user" | "assistant"; content: string | ContentPart[] }[] = [
-      { role: "system", content: system },
-    ];
+    const msgs: {
+      role: "system" | "user" | "assistant";
+      content: string | ContentPart[];
+      annotations?: FileAnnotation[];
+    }[] = [{ role: "system", content: system }];
     for (const t of history) {
       if (!t?.q) continue;
       const prior = t.answers?.[model] || t.synthesis || Object.values(t.answers ?? {}).find((a) => a && a.trim());
@@ -88,26 +94,43 @@ export async function POST(req: NextRequest) {
       msgs.push({ role: "assistant", content: clip(prior) });
     }
 
-    // Text-only models get the question as a plain string. Sending image parts
-    // to one is not a soft failure — it usually 400s the whole request — so
-    // they're told an image exists instead of being handed it.
-    if (imageParts.length && !visionModels.has(model)) {
-      if (!skippedVision.includes(model)) skippedVision.push(model);
-      const note = `\n\n[The user attached ${imageParts.length} image${imageParts.length === 1 ? "" : "s"} that you cannot see. Answer from the text you have, and say the image is not visible to you if it matters.]`;
-      msgs.push({ role: "user", content: question + note });
-    } else if (imageParts.length) {
-      msgs.push({ role: "user", content: [{ type: "text", text: question }, ...imageParts] });
-    } else {
-      msgs.push({ role: "user", content: question });
+    // A file parsed on an earlier turn rides back in on an assistant turn.
+    // OpenRouter matches it by content hash and reuses the parse, so a scanned
+    // PDF is OCR'd once for the thread rather than once per follow-up.
+    if (priorAnnotations.length && fileParts.length) {
+      msgs.push({ role: "assistant", content: "", annotations: priorAnnotations });
     }
+
+    // Images are the fussy case: a text-only model usually 400s on image parts,
+    // so it's told one exists rather than handed it. File parts carry no such
+    // risk — the parser converts the PDF before the model ever sees it.
+    const sendImages = imageParts.length > 0 && visionModels.has(model);
+    if (imageParts.length && !sendImages && !skippedVision.includes(model)) {
+      skippedVision.push(model);
+    }
+    const note = imageParts.length && !sendImages
+      ? `\n\n[The user attached ${imageParts.length} image${imageParts.length === 1 ? "" : "s"} that you cannot see. Answer from the text you have, and say the image is not visible to you if it matters.]`
+      : "";
+
+    const parts: ContentPart[] = [
+      { type: "text", text: question + note },
+      ...(sendImages ? imageParts : []),
+      ...fileParts,
+    ];
+    // Only go multipart when there's actually something beyond the text.
+    msgs.push(parts.length > 1 ? { role: "user", content: parts } : { role: "user", content: question + note });
     return msgs;
   }
 
   // ── Round 1: every model answers independently ────────────────────────────
   // Fan out in parallel — one failure never blocks the rest. Perplexity Sonar
   // searches natively, so the web plugin is only added to the others.
+  // mistral-ocr is the only engine that reads a scan, and we only get here when
+  // local extraction already failed — so the file genuinely has no text layer.
+  const pdfEngine = fileParts.length ? ("mistral-ocr" as const) : undefined;
+
   const settled = await Promise.allSettled(
-    models.map((m) => askModel(m, conversation(m), 1200, { web: web && !m.startsWith("perplexity/") })),
+    models.map((m) => askModel(m, conversation(m), 1200, { web: web && !m.startsWith("perplexity/"), pdfEngine })),
   );
   const results = models.map((model, i) => {
     const r = settled[i];
@@ -115,6 +138,12 @@ export async function POST(req: NextRequest) {
       ? { model, answer: r.value.content, error: null as string | null, cost: r.value.cost, citations: r.value.citations, served: r.value.served, reaction: null as string | null, reactionCost: null as number | null }
       : { model, answer: "", error: (r.reason as Error)?.message ?? "Failed", cost: null as number | null, citations: [], served: null as string | null, reaction: null as string | null, reactionCost: null as number | null };
   });
+
+  // Bank the parse from whichever model got there first, so follow-ups reuse it.
+  // Every model was sent the same file, so any one of them will do.
+  const fileAnnotations: FileAnnotation[] = priorAnnotations.length
+    ? priorAnnotations
+    : settled.flatMap((r) => (r.status === "fulfilled" ? r.value.annotations : [])).slice(0, MAX_ATTACHMENTS);
 
   // ── Round 2 (optional): each model reads the others and responds ──────────
   // Round 1 is four monologues; this is where they actually meet. Each model
@@ -190,5 +219,8 @@ export async function POST(req: NextRequest) {
     // Surfaced so the UI can say which columns couldn't see an attached image,
     // rather than leaving the user to wonder why one answer ignored it.
     skippedVision,
+    // Handed back so the client can store them on the attachment and stop
+    // paying to re-parse the same file on every follow-up.
+    fileAnnotations,
   });
 }
