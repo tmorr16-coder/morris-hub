@@ -106,7 +106,7 @@ export default async function DashboardPage() {
     service
       .schema("finance")
       .from("manual_accounts")
-      .select("id, name, institution, account_type, balance, as_of_date, currency, holdings, source, visible_to_family")
+      .select("id, name, institution, account_type, balance, unvested_value, as_of_date, currency, holdings, source, visible_to_family")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -157,6 +157,7 @@ export default async function DashboardPage() {
     institution: string | null;
     account_type: string;
     balance: number | null;
+    unvested_value: number | null;
     as_of_date: string | null;
     currency: string;
     holdings: { name: string; value: number; pct: number | null }[] | null;
@@ -297,6 +298,9 @@ export default async function DashboardPage() {
     return sum + (a.type === "credit" || a.type === "loan" ? -bal : bal);
   }, 0);
   const netPosition = ownLinkedTotal + manualTotal + sharedPortfolioTotal;
+  // Stock-plan "potential value": unvested grants held on your own accounts.
+  const totalUnvested = ownManualAccounts.reduce((s, a) => s + (a.unvested_value ?? 0), 0);
+  const potentialNetPosition = netPosition + totalUnvested;
 
   // High-level math for the net-position box: gross assets (+) vs liabilities (−)
   // across ALL sources (linked, imported, shared) so nothing is hidden.
@@ -404,6 +408,12 @@ export default async function DashboardPage() {
         <div className="ios-num ios-hero-num" style={{ fontSize: 36, marginTop: 4 }}>
           {fmtMoney(netPosition)}
         </div>
+        {totalUnvested > 0 && (
+          <div className="ios-subhead" style={{ marginTop: 3, color: "var(--ios-label-2)" }}>
+            Potential <span className="ios-num" style={{ fontWeight: 600, color: "var(--ios-label)" }}>{fmtMoney(potentialNetPosition)}</span>
+            <span className="ios-footnote" style={{ color: "var(--ios-label-3)" }}> · incl. {fmtMoney(totalUnvested)} unvested stock plan</span>
+          </div>
+        )}
         {netDelta != null && netDelta !== 0 && (
           <div className="ios-subhead" style={{ marginTop: 2, color: netDelta >= 0 ? "var(--ios-green)" : "var(--ios-red)" }}>
             {netDelta >= 0 ? "▲" : "▼"} {fmtMoney(Math.abs(netDelta))} since last visit
@@ -513,11 +523,11 @@ export default async function DashboardPage() {
         accounts={[
           ...ownManualAccounts.map((a) => ({
             id: a.id, name: a.name, account_type: a.account_type ?? null, institution: a.institution ?? null,
-            balance: a.balance ?? null, currency: a.currency ?? "USD", editable: true,
+            balance: a.balance ?? null, unvested_value: a.unvested_value ?? null, currency: a.currency ?? "USD", editable: true,
           })),
           ...sharedManual.map((a) => ({
             id: a.id, name: a.name, account_type: a.account_type ?? null, institution: a.institution ?? null,
-            balance: a.balance ?? null, currency: a.currency ?? "USD", editable: false,
+            balance: a.balance ?? null, unvested_value: null, currency: a.currency ?? "USD", editable: false,
           })),
         ]}
       />

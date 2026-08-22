@@ -21,6 +21,7 @@ interface ExtractedStatement {
   institution: string | null;
   account_type: string;
   balance: number | null;
+  unvested_value: number | null;
   as_of_date: string | null;
   currency: string;
   holdings: Holding[];
@@ -57,7 +58,8 @@ Return ONLY a JSON object with this exact structure (null for missing fields):
   "account_name": "string — plan/account name",
   "institution": "string or null — provider/institution (e.g. Alight, Fidelity, Vanguard)",
   "account_type": "one of: 401k, roth_ira, traditional_ira, hsa, brokerage, pension, other_investment",
-  "balance": number or null — total current value in dollars,
+  "balance": number or null — total current VESTED/sellable value in dollars,
+  "unvested_value": number or null — total value of UNVESTED / pending / restricted stock-plan grants (RSUs, unvested ESPP) NOT included in balance; null if none or not a stock plan,
   "as_of_date": "YYYY-MM-DD or null — most recent valuation date",
   "currency": "USD",
   "holdings": [
@@ -74,7 +76,9 @@ Return ONLY a JSON object with this exact structure (null for missing fields):
   "notes": "string or null"
 }
 
-Include ALL funds with positive balances. Calculate pct as (fund_value / total_balance) × 100.`;
+Include ALL funds with positive balances. Calculate pct as (fund_value / total_balance) × 100.
+
+For EMPLOYEE STOCK PLAN statements (E*TRADE, Fidelity, Schwab stock plan / equity awards): the sellable/vested market value goes in "balance". If the statement also lists UNVESTED, PENDING, or RESTRICTED shares/grants (RSUs not yet vested, unvested ESPP), sum their value into "unvested_value" — do NOT add it to balance.`;
 
 export async function importStatement(formData: FormData): Promise<{ error?: string; id?: string }> {
   const { user } = await requireFinanceAccess();
@@ -151,6 +155,7 @@ export async function importStatement(formData: FormData): Promise<{ error?: str
       institution: extracted.institution,
       account_type: extracted.account_type || "other_investment",
       balance: extracted.balance,
+      unvested_value: extracted.unvested_value ?? null,
       as_of_date: extracted.as_of_date,
       currency: extracted.currency || "USD",
       holdings: extracted.holdings?.length ? extracted.holdings : null,
@@ -248,6 +253,7 @@ export async function updateManualAccount(data: {
   id: string;
   balance: number;
   name?: string;
+  unvested_value?: number | null;
 }): Promise<{ error?: string }> {
   const { user } = await requireFinanceAccess();
   if (!Number.isFinite(data.balance)) return { error: "Enter a valid amount" };
@@ -259,6 +265,7 @@ export async function updateManualAccount(data: {
     as_of_date: new Date().toISOString().slice(0, 10),
   };
   if (typeof data.name === "string" && data.name.trim()) updates.name = data.name.trim();
+  if (data.unvested_value !== undefined) updates.unvested_value = data.unvested_value && data.unvested_value > 0 ? data.unvested_value : null;
   const { error } = await service
     .schema("finance")
     .from("manual_accounts")
