@@ -28,11 +28,11 @@ export interface PanelAttachment {
   /** Page count, when we could read it — used to quote the OCR cost. */
   pages?: number;
   /**
-   * Parse annotations returned by OpenRouter the first time this file was read.
-   * Sent back on later turns so the parse is reused rather than re-billed.
+   * This attachment's text came from OCR rather than local extraction. Set once
+   * the PDF has been read and discarded, so the chip can show it's done and the
+   * cost line stops quoting a charge that has already been paid.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  annotations?: Record<string, any>[];
+  ocrDone?: boolean;
   /** Where it came from, for the chip in the composer. */
   source: "upload" | "library";
 }
@@ -94,15 +94,44 @@ export function buildFileParts(attachments: PanelAttachment[]) {
     }));
 }
 
-/** Annotations from earlier parses, so OpenRouter reuses them instead of re-OCR'ing. */
-export function collectAnnotations(attachments: PanelAttachment[]) {
-  return attachments.flatMap((a) => a.annotations ?? []);
+/**
+ * Pull the plain text out of OpenRouter's file-parse annotations.
+ *
+ * An annotation's `content` is a mixed array — text blocks *and* any images the
+ * OCR pulled out, as base64 data URLs (up to 8 per PDF). Only the text is worth
+ * keeping: it is what answers questions, and it is a few KB where the images are
+ * megabytes. Once we have it, the PDF itself can be discarded and the attachment
+ * behaves like any other text file for the rest of the thread.
+ */
+export function extractParsedText(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  annotations: Record<string, any>[],
+  limit = 24_000
+): { name: string | null; text: string; truncated: boolean }[] {
+  return annotations
+    .map((a) => {
+      const file = a?.file ?? {};
+      const parts = Array.isArray(file.content) ? file.content : [];
+      const text = parts
+        .filter((p: { type?: string; text?: string }) => p?.type === "text" && typeof p.text === "string")
+        .map((p: { text: string }) => p.text)
+        .join("\n\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      const truncated = text.length > limit;
+      return {
+        name: typeof file.name === "string" ? file.name : null,
+        text: truncated ? text.slice(0, limit) : text,
+        truncated,
+      };
+    })
+    .filter((f) => f.text.length > 0);
 }
 
 /** What the OCR pass will cost for whatever still needs parsing, in dollars. */
 export function estimateOcrCost(attachments: PanelAttachment[]): number {
   return attachments
-    .filter((a) => a.remoteParse && !a.annotations?.length)
+    .filter((a) => a.remoteParse)
     .reduce((sum, a) => sum + (a.pages ?? 1) * OCR_COST_PER_PAGE, 0);
 }
 

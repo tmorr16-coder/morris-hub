@@ -292,6 +292,15 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
     setAttachErr(null);
   }
 
+  // The library sheet covers the screen, so it needs a way out that isn't the
+  // Done button — Escape on a keyboard, and a tap anywhere on the backdrop.
+  useEffect(() => {
+    if (!libraryOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setLibraryOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [libraryOpen]);
+
   /** Documents already in the app — loaded lazily, the first time the sheet opens. */
   async function openLibrary() {
     setLibraryOpen(true);
@@ -619,13 +628,30 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
       // Bank the file-parse annotations onto the attachments that needed OCR.
       // Sent back on the next turn, they make OpenRouter reuse the parse — the
       // difference between OCR'ing a scan once and paying for it every turn.
-      const banked: PanelAttachment[] =
-        data.fileAnnotations?.length
-          ? turnFiles.map((a) =>
-              a.remoteParse && !a.annotations?.length ? { ...a, annotations: data.fileAnnotations } : a
-            )
-          : turnFiles;
-      if (banked !== turnFiles) setAttachments(banked);
+      // Swap each OCR'd PDF for the text that came back and drop the file. The
+      // base64 must not travel again: PDF + annotation images together blew
+      // Vercel's 4.5MB request limit on the second turn and the request died
+      // with no response. Once we hold the text, the PDF is dead weight.
+      const parsed: { name: string | null; text: string; truncated: boolean }[] = data.parsedFiles ?? [];
+      let banked = turnFiles;
+      if (parsed.length) {
+        let next = 0;
+        banked = turnFiles.map((a) => {
+          if (!a.remoteParse) return a;
+          // Match on filename where OpenRouter echoed one, else take them in order.
+          const hit = parsed.find((f) => f.name && f.name === a.name) ?? parsed[next++];
+          if (!hit) return a;
+          return {
+            ...a,
+            text: hit.text,
+            truncated: hit.truncated,
+            dataUrl: undefined,
+            remoteParse: false,
+            ocrDone: true,
+          };
+        });
+        setAttachments(banked);
+      }
 
       const next: Thread = base
         ? { ...base, at: turn.at, models: selected, web, turns: [...base.turns, turn], attachments: banked }
@@ -975,14 +1001,14 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
                   style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--ios-fill)", borderRadius: 8, padding: "5px 7px 5px 9px", maxWidth: "100%" }}>
                   <span aria-hidden>{fileIcon(a.kind)}</span>
                   <span style={{ color: "var(--ios-label)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>{a.name}</span>
-                  {a.remoteParse && (
+                  {(a.remoteParse || a.ocrDone) && (
                     <span
-                      style={{ color: a.annotations?.length ? "var(--ios-green)" : "var(--ios-orange, #D9772B)" }}
-                      title={a.annotations?.length
-                        ? "Already read by OCR — follow-ups reuse that result at no extra cost"
+                      style={{ color: a.ocrDone ? "var(--ios-green)" : "var(--ios-orange, #D9772B)" }}
+                      title={a.ocrDone
+                        ? "Read by OCR — the text is held here now, so follow-ups cost nothing extra"
                         : `No text layer — a scan, or a form whose values were never drawn onto the page. It'll be read by OCR${a.pages ? ` (${a.pages} page${a.pages === 1 ? "" : "s"})` : ""}.`}
                     >
-                      {a.annotations?.length ? "OCR ✓" : "OCR"}
+                      {a.ocrDone ? "OCR ✓" : "OCR"}
                     </span>
                   )}
                   {a.truncated && <span style={{ color: "var(--ios-orange, #D9772B)" }} title="Only the beginning of this file was read">clipped</span>}
@@ -1103,8 +1129,8 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
               <>Attached files add ~{attachmentTokens.toLocaleString()} tokens to <em>each</em> model, every turn. </>
             )}
             {debate && <>The reaction round asks every model a second time. </>}
-            {attachments.some((a) => a.remoteParse && !a.annotations?.length) && (
-              <>A scanned PDF is read by OCR at $0.002/page — charged once, then reused by follow-ups. </>
+            {attachments.some((a) => a.remoteParse) && (
+              <>A scanned PDF is read by OCR at $0.002/page — charged once; after that its text is held here. </>
             )}
             {sessionCost > 0 && <>Session <strong style={{ color: "var(--ios-label-2)" }}>{fmtCost(sessionCost)}</strong>. </>}
             Exact cost shown after each action.

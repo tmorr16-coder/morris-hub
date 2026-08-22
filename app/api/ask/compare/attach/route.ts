@@ -11,9 +11,12 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB, matching the course uploader
 // client that skipped that step. A data: URI is ~4/3 the size of its bytes, and
 // oversized images cost real money on every turn they stay attached.
 const MAX_IMAGE_BYTES = 1_500_000;
-// A PDF with no text layer travels as base64 for OCR. Bounded because it rides
-// on the thread and gets persisted; well under Vercel's request ceiling.
-const MAX_OCR_PDF_BYTES = 6 * 1024 * 1024;
+// A PDF with no text layer is sent as base64 for OCR, which inflates it by ~4/3.
+// Vercel's serverless request body limit is 4.5MB and the compare request also
+// carries the question, the replayed thread and any other attachments — so 2.5MB
+// raw (~3.4MB encoded) leaves real headroom. Going over doesn't fail cleanly:
+// the request is dropped before the handler runs, so there is no error to show.
+const MAX_OCR_PDF_BYTES = 2.5 * 1024 * 1024;
 
 /**
  * Turn an uploaded file into a PanelAttachment.

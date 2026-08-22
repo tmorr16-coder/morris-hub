@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { openrouterConfigured, askModel, fetchVisionModels, SYNTH_MODEL, type ContentPart, type FileAnnotation } from "@/lib/openrouter";
-import { buildContextBlock, buildImageParts, buildFileParts, collectAnnotations, type PanelAttachment } from "@/lib/panel-context";
+import { buildContextBlock, buildImageParts, buildFileParts, extractParsedText, type PanelAttachment } from "@/lib/panel-context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -64,7 +64,6 @@ export async function POST(req: NextRequest) {
   // PDFs with no text layer — a scan, or a form whose values were never drawn
   // onto the page. These go as `file` parts for OpenRouter's parser to read.
   const fileParts = buildFileParts(attachments);
-  const priorAnnotations = collectAnnotations(attachments);
   const visionModels = imageParts.length ? await fetchVisionModels() : new Set<string>();
   const skippedVision: string[] = [];
 
@@ -92,13 +91,6 @@ export async function POST(req: NextRequest) {
       if (!prior) continue;
       msgs.push({ role: "user", content: t.q });
       msgs.push({ role: "assistant", content: clip(prior) });
-    }
-
-    // A file parsed on an earlier turn rides back in on an assistant turn.
-    // OpenRouter matches it by content hash and reuses the parse, so a scanned
-    // PDF is OCR'd once for the thread rather than once per follow-up.
-    if (priorAnnotations.length && fileParts.length) {
-      msgs.push({ role: "assistant", content: "", annotations: priorAnnotations });
     }
 
     // Images are the fussy case: a text-only model usually 400s on image parts,
@@ -139,11 +131,17 @@ export async function POST(req: NextRequest) {
       : { model, answer: "", error: (r.reason as Error)?.message ?? "Failed", cost: null as number | null, citations: [], served: null as string | null, reaction: null as string | null, reactionCost: null as number | null };
   });
 
-  // Bank the parse from whichever model got there first, so follow-ups reuse it.
-  // Every model was sent the same file, so any one of them will do.
-  const fileAnnotations: FileAnnotation[] = priorAnnotations.length
-    ? priorAnnotations
-    : settled.flatMap((r) => (r.status === "fulfilled" ? r.value.annotations : [])).slice(0, MAX_ATTACHMENTS);
+  // Take the OCR text from whichever model got there first — they were all sent
+  // the same file — and hand it back so the client can swap it in for the PDF.
+  //
+  // The PDF must NOT keep travelling: re-sending 6MB of base64 (plus annotation
+  // images, which are base64 too) exceeded Vercel's 4.5MB request body limit on
+  // the second turn, and the request died with no response at all. Once we have
+  // the text, the file is redundant.
+  const rawAnnotations: FileAnnotation[] = settled.flatMap((r) =>
+    r.status === "fulfilled" ? r.value.annotations : []
+  );
+  const parsedFiles = fileParts.length ? extractParsedText(rawAnnotations) : [];
 
   // ── Round 2 (optional): each model reads the others and responds ──────────
   // Round 1 is four monologues; this is where they actually meet. Each model
@@ -219,8 +217,8 @@ export async function POST(req: NextRequest) {
     // Surfaced so the UI can say which columns couldn't see an attached image,
     // rather than leaving the user to wonder why one answer ignored it.
     skippedVision,
-    // Handed back so the client can store them on the attachment and stop
-    // paying to re-parse the same file on every follow-up.
-    fileAnnotations,
+    // OCR'd text, so the client can replace the PDF with it. Text only — the
+    // annotation's images are base64 and would blow the request budget again.
+    parsedFiles,
   });
 }
