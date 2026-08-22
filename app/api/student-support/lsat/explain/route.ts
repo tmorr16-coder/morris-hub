@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
+import { MODEL_DEEP } from "@/lib/models";
 
 const client = new Anthropic();
 
@@ -59,7 +60,7 @@ Please provide:
 Be direct, specific, and use concrete references to the question text. Do not be generic. Treat the student as an intelligent adult preparing seriously for the LSAT.`;
 
   const stream = await client.messages.stream({
-    model: "claude-opus-4-8",
+    model: MODEL_DEEP,
     max_tokens: 600,
     messages: [{ role: "user", content: prompt }],
   });

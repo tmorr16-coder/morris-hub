@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { MODEL_BALANCED } from "@/lib/models";
 
 const anthropic = new Anthropic();
 
@@ -33,7 +34,7 @@ Rules:
   ];
 
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-5",
+    model: MODEL_BALANCED,
     max_tokens: 4096,
     messages,
   });
@@ -52,7 +53,7 @@ async function extractMeta(
   content: Anthropic.ContentBlockParam[]
 ): Promise<{ title: string; description: string; duration_days: number }> {
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-5",
+    model: MODEL_BALANCED,
     max_tokens: 512,
     messages: [
       {

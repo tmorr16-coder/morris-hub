@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { MODEL_DEEP } from "@/lib/models";
 
 const client = new Anthropic();
 
@@ -168,7 +169,7 @@ ${courseBlocks}
 
     // Call Claude API with full conversation history
     const response = await client.messages.create({
-      model: "claude-opus-4-7",
+      model: MODEL_DEEP,
       max_tokens: 1024,
       system: systemPrompt,
       messages: conversationMessages,

@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { MODEL_FAST } from "@/lib/models";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
         };
 
     const response = await client.messages.create({
-      model: "claude-haiku-4-5",
+      model: MODEL_FAST,
       max_tokens: 1024,
       system: SYSTEM,
       messages: [

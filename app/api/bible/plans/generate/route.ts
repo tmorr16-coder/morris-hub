@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { BIBLE_BOOKS } from "@/lib/bible-api";
+import { MODEL_DEEP } from "@/lib/models";
 
 const anthropic = new Anthropic();
 
@@ -49,7 +50,7 @@ Rules:
   const maxTokens = Math.min(Math.max(duration * 80, 4096), 64000);
 
   const stream = anthropic.messages.stream({
-    model: "claude-opus-4-8",
+    model: MODEL_DEEP,
     max_tokens: maxTokens,
     messages: [{ role: "user", content: prompt }],
   });

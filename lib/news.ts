@@ -4,6 +4,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { unstable_cache } from "next/cache";
+import { MODEL_FAST } from "@/lib/models";
 
 const client = new Anthropic();
 
@@ -50,7 +51,7 @@ Sort each topic's stories with the most important first. Prefer reputable source
 
   try {
     const response = await client.messages.create({
-      model: "claude-haiku-4-5",
+      model: MODEL_FAST,
       max_tokens: 2048,
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 6 }],
       messages: [{ role: "user", content: prompt }],
@@ -146,7 +147,7 @@ Prefer reputable sources (Reuters, Bloomberg, WSJ, FT, BioPharma Dive, Fierce Ph
 
   try {
     const response = await client.messages.create({
-      model: "claude-haiku-4-5",
+      model: MODEL_FAST,
       max_tokens: 2048,
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
       messages: [{ role: "user", content: prompt }],
@@ -231,7 +232,7 @@ Sort each city's stories with the most important first. Prefer local news source
 
   try {
     const response = await client.messages.create({
-      model: "claude-haiku-4-5",
+      model: MODEL_FAST,
       max_tokens: 2048,
       tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 6 }],
       messages: [{ role: "user", content: prompt }],

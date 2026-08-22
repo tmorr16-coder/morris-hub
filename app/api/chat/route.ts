@@ -8,6 +8,7 @@ import { getAllUpcomingReminders } from "@/lib/reminders";
 import { logEvent } from "@/lib/usage";
 import { ASK_MORRIS_MODEL, type Router } from "@/lib/ask-morris";
 import { AUTO_MODEL, askModel, openrouterConfigured } from "@/lib/openrouter";
+import { MODEL_FAST } from "@/lib/models";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -166,14 +167,14 @@ export async function POST(req: NextRequest) {
   if (investmentContext && systemPrompt) {
     try {
       const response = await client.messages.create({
-        model: "claude-haiku-4-5",
+        model: MODEL_FAST,
         max_tokens: 1024,
         system: systemPrompt,
         messages: trimmed.map((m) => ({ role: m.role, content: m.content })),
       });
 
       const reply = response.content[0].type === "text" ? response.content[0].text : "";
-      logEvent({ eventType: "chat", userId: user.id, tokensIn: response.usage?.input_tokens ?? 0, tokensOut: response.usage?.output_tokens ?? 0, metadata: { model: "claude-haiku-4-5", source: "investments" } });
+      logEvent({ eventType: "chat", userId: user.id, tokensIn: response.usage?.input_tokens ?? 0, tokensOut: response.usage?.output_tokens ?? 0, metadata: { model: MODEL_FAST, source: "investments" } });
       return NextResponse.json({ reply });
     } catch (err: unknown) {
       if (err instanceof Anthropic.RateLimitError) {

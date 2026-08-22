@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { searchVerses, lookupReference, type VerseResult } from "@/lib/bible-api";
+import { MODEL_FAST } from "@/lib/models";
 
 const anthropic = new Anthropic();
 
@@ -14,7 +15,7 @@ const anthropic = new Anthropic();
 async function aiReferences(topic: string, limit: number): Promise<string[]> {
   try {
     const msg = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
+      model: MODEL_FAST,
       max_tokens: 400,
       system:
         "You find the most relevant Bible verses for a topic, theme, phrase, or paraphrase. " +

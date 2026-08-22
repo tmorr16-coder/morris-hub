@@ -1,6 +1,7 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { MODEL_FAST } from "@/lib/models";
 
 const anthropic = new Anthropic();
 
@@ -109,7 +110,7 @@ Respond with ONLY valid JSON in this exact format:
 
   try {
     const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: MODEL_FAST,
       max_tokens: 2048,
       messages: [{ role: "user", content: prompt }],
     });

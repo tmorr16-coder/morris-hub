@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { PlanSnapshot } from "@/app/finance/retirement/types";
+import { MODEL_FAST } from "@/lib/models";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -182,7 +183,7 @@ export async function POST(req: NextRequest) {
   let response;
   try {
     response = await client.messages.create({
-      model: "claude-haiku-4-5",
+      model: MODEL_FAST,
       max_tokens: 1024,
       system: [
         { type: "text", text: SYSTEM_INSTRUCTIONS },

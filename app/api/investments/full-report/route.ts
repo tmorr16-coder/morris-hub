@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
+import { MODEL_FAST } from "@/lib/models";
 
 export const maxDuration = 60;
 
@@ -127,7 +128,7 @@ const WRITE_REPORT_TOOL: Anthropic.Tool = {
 
 async function fetchFullReport(ticker: string): Promise<FullReport> {
   const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
+    model: MODEL_FAST,
     max_tokens: 2000,
     tools: [
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

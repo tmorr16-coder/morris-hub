@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { MODEL_FAST } from "@/lib/models";
 
 const client = new Anthropic();
 
@@ -103,7 +104,7 @@ Rules:
 
   try {
     const response = await client.messages.create({
-      model: "claude-haiku-4-5",
+      model: MODEL_FAST,
       max_tokens: 1500,
       system:
         "You are an insightful career development coach. Analyze this career interest assessment and professional background to create a personalized career profile.",

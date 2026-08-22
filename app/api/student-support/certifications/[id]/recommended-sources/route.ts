@@ -1,6 +1,7 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { MODEL_FAST } from "@/lib/models";
 
 const client = new Anthropic();
 
@@ -62,7 +63,7 @@ Return ONLY valid JSON in this exact shape:
 
   try {
     const response = await client.messages.create({
-      model: "claude-haiku-4-5",
+      model: MODEL_FAST,
       max_tokens: 1500,
       system: "You are a certification exam expert. Return only valid JSON arrays. No markdown, no code fences, just the raw JSON array.",
       messages: [{ role: "user", content: prompt }],

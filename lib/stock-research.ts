@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk";
 import { getStockQuote, getCompanyProfile, searchSymbol } from "./finnhub";
+import { MODEL_FAST } from "@/lib/models";
 
 export interface Stock {
   ticker: string;
@@ -108,7 +109,7 @@ async function searchStocksByTopic(topic: string): Promise<Stock[]> {
   let tickerSuggestions: Array<{ ticker: string; reason: string }> = [];
   try {
     const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: MODEL_FAST,
       max_tokens: 600,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       tools: [{ type: "web_search_20250305" as any, name: "web_search", max_uses: 3 }],
@@ -197,7 +198,7 @@ export async function generateStockSummary(
   const client = new Anthropic();
 
   const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
+    model: MODEL_FAST,
     max_tokens: 800,
     tools: [
       {

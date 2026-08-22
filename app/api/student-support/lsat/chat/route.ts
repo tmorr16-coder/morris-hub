@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
+import { MODEL_BALANCED } from "@/lib/models";
 
 const client = new Anthropic();
 
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       try {
         const stream = await client.messages.stream({
-          model: "claude-sonnet-4-5",
+          model: MODEL_BALANCED,
           max_tokens: 1024,
           system: systemWithContext,
           messages: messages.map((m: { role: string; content: string }) => ({

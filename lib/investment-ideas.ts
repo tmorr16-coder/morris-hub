@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 import { createServiceClient } from "./supabase/server";
 import type { InvestmentIdea, InvestmentIdeaInput } from "./investment-ideas-constants";
 import { CATEGORY_LABELS } from "./investment-ideas-constants";
+import { MODEL_FAST } from "@/lib/models";
 
 // Re-export constants for convenience
 export {
@@ -68,7 +69,7 @@ Generate ideas that are specific, actionable, and realistic. Focus on diversifie
   // search (higher quality, but slower and occasionally times out).
   async function callModel(useTools: boolean): Promise<InvestmentIdea[]> {
     const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: MODEL_FAST,
       max_tokens: 4096,
       ...(useTools ? { tools: [{ type: "web_search_20250305", name: "web_search" }] } : {}),
       messages: [{ role: "user", content: prompt }],

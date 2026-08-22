@@ -5,6 +5,7 @@ import { searchFlights, searchHotels, cheapestFlightPrice } from "@/lib/travel-s
 import { thingsToDo, carRentals, searchEvents, serpapiConfigured } from "@/lib/serpapi-travel";
 import { computeDrive, gmapsConfigured } from "@/lib/gmaps";
 import { flightBookingLinks, hotelBookingLinks } from "@/lib/booking-links";
+import { MODEL_BALANCED } from "@/lib/models";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -243,7 +244,7 @@ export async function POST(req: NextRequest) {
       try {
         for (let i = 0; i < 6; i++) {
           const s = client.messages.stream({
-            model: "claude-sonnet-5",
+            model: MODEL_BALANCED,
             max_tokens: 1500,
             system: [{ type: "text", text: SYSTEM }, { type: "text", text: `TRAVELER PROFILE:\n${ctx}` }],
             tools: TOOLS,

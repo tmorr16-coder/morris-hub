@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { TaxSnapshot } from "@/app/finance/tax/_lib/snapshot";
+import { MODEL_BALANCED } from "@/lib/models";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
   const trimmed = body.messages.slice(-8);
   try {
     const response = await client.messages.create({
-      model: "claude-sonnet-5",
+      model: MODEL_BALANCED,
       max_tokens: 1024,
       system: [
         { type: "text", text: SYSTEM_INSTRUCTIONS },

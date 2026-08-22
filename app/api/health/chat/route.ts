@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { logEvent } from "@/lib/usage";
+import { MODEL_FAST } from "@/lib/models";
 
 const client = new Anthropic();
 
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest) {
   const trimmed = messages.slice(-8);
 
   const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
+    model: MODEL_FAST,
     max_tokens: 512,
     system: systemContext,
     messages: trimmed.map((m) => ({ role: m.role, content: m.content })),

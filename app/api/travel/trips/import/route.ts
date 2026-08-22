@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { looksLikeIcs, parseIcs, type TripSegment } from "@/lib/trips";
 import { saveSegments } from "../route";
+import { MODEL_BALANCED } from "@/lib/models";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -10,7 +11,7 @@ export const maxDuration = 60;
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const client = new Anthropic();
-const PARSER_MODEL = "claude-sonnet-5";
+const PARSER_MODEL = MODEL_BALANCED;
 
 const INSTRUCTIONS = `You read travel confirmations (airline, hotel, car rental, rail) and turn them into structured itinerary data.
 

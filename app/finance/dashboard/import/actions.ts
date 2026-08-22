@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { revalidatePath } from "next/cache";
 import { requireFinanceAccess } from "@/lib/finance/access";
 import { createServiceClient } from "@/lib/supabase/server";
+import { MODEL_FAST } from "@/lib/models";
 
 const client = new Anthropic();
 
@@ -96,7 +97,7 @@ export async function importStatement(formData: FormData): Promise<{ error?: str
       const b64 = Buffer.from(bytes).toString("base64");
 
       const msg = await client.messages.create({
-        model: "claude-haiku-4-5",
+        model: MODEL_FAST,
         max_tokens: 1500,
         messages: [{
           role: "user",
@@ -119,7 +120,7 @@ export async function importStatement(formData: FormData): Promise<{ error?: str
       const text = await file.text();
 
       const msg = await client.messages.create({
-        model: "claude-haiku-4-5",
+        model: MODEL_FAST,
         max_tokens: 1500,
         messages: [{
           role: "user",

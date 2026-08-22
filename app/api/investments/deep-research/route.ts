@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 import { unstable_cache } from "next/cache";
+import { MODEL_FAST } from "@/lib/models";
 
 export const maxDuration = 60;
 
@@ -21,7 +22,7 @@ const client = new Anthropic();
 // Cache keyed only on ticker — 1 hour TTL so web-search data stays fresh
 async function fetchDeepResearchRaw(ticker: string): Promise<DeepResearch> {
   const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
+    model: MODEL_FAST,
     max_tokens: 1500,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tools: [{ type: "web_search_20250305" as any, name: "web_search", max_uses: 5 }],

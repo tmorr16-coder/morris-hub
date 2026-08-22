@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
+import { MODEL_FAST } from "@/lib/models";
 
 const anthropic = new Anthropic();
 
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         try {
           const stream = await anthropic.messages.stream({
-            model: "claude-haiku-4-5",
+            model: MODEL_FAST,
             max_tokens: 1024,
             system: SYSTEM,
             messages: messages.map((m: { role: string; content: string }) => ({

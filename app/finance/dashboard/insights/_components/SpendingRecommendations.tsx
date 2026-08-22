@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { unstable_cache } from "next/cache";
+import { MODEL_FAST } from "@/lib/models";
 
 interface Props {
   currentMonthSpend: number;
@@ -53,7 +54,7 @@ Return ONLY the JSON array, no other text.`;
   try {
     const client = new Anthropic();
     const msg = await client.messages.create({
-      model: "claude-haiku-4-5",
+      model: MODEL_FAST,
       max_tokens: 512,
       messages: [{ role: "user", content: prompt }],
     });

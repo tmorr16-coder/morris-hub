@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
+import { MODEL_BALANCED } from "@/lib/models";
 
 const client = new Anthropic();
 
@@ -81,7 +82,7 @@ Return ONLY a JSON array of ${count} question object${count > 1 ? "s" : ""}, no 
 
     try {
       const response = await client.messages.create({
-        model: "claude-sonnet-4-5",
+        model: MODEL_BALANCED,
         max_tokens: 8192,
         messages: [{ role: "user", content: batchCount === count ? prompt : batchPrompt }],
       });

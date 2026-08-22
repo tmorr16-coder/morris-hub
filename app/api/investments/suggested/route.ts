@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 import { unstable_cache } from "next/cache";
+import { MODEL_FAST } from "@/lib/models";
 
 export const maxDuration = 30;
 
@@ -16,7 +17,7 @@ async function fetchSuggestionsRaw(tickers: string[]): Promise<SuggestedStock[]>
   if (!tickers.length) return [];
 
   const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
+    model: MODEL_FAST,
     max_tokens: 800,
     messages: [
       {
