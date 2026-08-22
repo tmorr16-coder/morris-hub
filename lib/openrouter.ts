@@ -162,7 +162,44 @@ export function searchCatalog(models: any[], query: string, limit = 40): Catalog
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-interface ChatMessage { role: "system" | "user" | "assistant"; content: string }
+/**
+ * A slice of a multimodal message. OpenRouter speaks the OpenAI content-parts
+ * shape, so an image rides along as an `image_url` part next to the text —
+ * `url` may be an https link or a `data:image/...;base64,...` URI.
+ */
+export type ContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
+interface ChatMessage { role: "system" | "user" | "assistant"; content: string | ContentPart[] }
+
+/**
+ * Which catalog models can actually read an image.
+ *
+ * Sending image parts to a text-only model is not a soft failure — most
+ * providers reject the whole request, so one attached screenshot would take out
+ * that column of the panel. The route asks this first and sends those models a
+ * text-only version of the turn instead.
+ *
+ * Falls open (empty set → nobody gets images) if the catalog can't be read,
+ * which degrades to today's text-only behaviour rather than to an error.
+ */
+export async function fetchVisionModels(): Promise<Set<string>> {
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/models", { next: { revalidate: 3600 } });
+    if (!res.ok) return new Set();
+    const data = await res.json();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const all = (data.data ?? []) as any[];
+    return new Set(
+      all
+        .filter((m) => (m?.architecture?.input_modalities ?? []).includes("image"))
+        .map((m) => m.id as string)
+    );
+  } catch {
+    return new Set();
+  }
+}
 
 export interface Citation { url: string; title: string }
 export interface ModelResult { content: string; cost: number | null; citations: Citation[]; served: string | null }

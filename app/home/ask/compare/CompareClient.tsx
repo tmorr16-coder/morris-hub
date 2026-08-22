@@ -6,9 +6,30 @@ import {
   isPremiumRate, perMillion, PREMIUM_PER_M, type CatalogModel, type CompareModel,
 } from "@/lib/openrouter";
 import type { Pricing } from "./page";
+import { describeAttachments, estimateTokens, type PanelAttachment } from "@/lib/panel-context";
 
 interface Citation { url: string; title: string }
-interface Result { model: string; answer: string; error: string | null; cost: number | null; citations?: Citation[]; served?: string | null }
+
+/** A document already in Morris Hub, offered by the "from the app" picker. */
+interface LibraryFile {
+  id: string;
+  title: string;
+  fileName: string | null;
+  type: string | null;
+  sizeKb: number | null;
+  group: string;
+}
+interface Result {
+  model: string;
+  answer: string;
+  error: string | null;
+  cost: number | null;
+  citations?: Citation[];
+  served?: string | null;
+  /** This model's response to what the others said, when the debate round ran. */
+  reaction?: string | null;
+  reactionCost?: number | null;
+}
 
 // One question and every answer it produced — saved, so revisiting costs nothing.
 interface Turn {
@@ -18,6 +39,10 @@ interface Turn {
   synthesis: string | null;
   synthCost: number | null;
   cost: number | null;
+  /** Names of files this turn was asked with, for the transcript. */
+  files?: string[];
+  /** Models that couldn't see an attached image on this turn. */
+  skippedVision?: string[];
 }
 
 // A thread of turns. Follow-ups reuse it, so the models answer in context.
@@ -27,6 +52,12 @@ interface Thread {
   models: string[];
   web: boolean;
   turns: Turn[];
+  /**
+   * Files the thread carries. Attached once and re-sent on every turn, so a
+   * follow-up still sees the document — the chat API is stateless, so "carried"
+   * means the client keeps supplying it (and the input tokens are re-charged).
+   */
+  attachments?: PanelAttachment[];
 }
 
 const THREADS_KEY = "panel-threads-v1";
@@ -103,6 +134,50 @@ const SUGGESTIONS = [
   "What are the risks of a portfolio concentrated in one stock?",
 ];
 
+const MAX_ATTACHMENTS = 10;
+
+/** Icon for an attachment chip, by kind. */
+function fileIcon(kind: PanelAttachment["kind"]): string {
+  if (kind === "image") return "🖼";
+  if (kind === "pdf") return "📕";
+  if (kind === "docx") return "📘";
+  return "📄";
+}
+
+/**
+ * Shrink an image in the browser before it ever leaves the device.
+ *
+ * Two reasons, both real: an attachment is re-sent on every turn of the thread,
+ * so a 6MB photo is paid for again and again; and the thread is persisted to
+ * localStorage, which has a hard few-MB ceiling. Vision models downscale to
+ * roughly this size internally anyway, so capping the long edge at 1280px costs
+ * no answer quality. Falls back to the original file if canvas is unavailable.
+ */
+async function downscaleImage(file: File, maxEdge = 1280, quality = 0.82): Promise<File> {
+  if (!file.type.startsWith("image/")) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+    // Already small enough and not a heavyweight format — send as-is.
+    if (scale === 1 && file.size < 400_000) return file;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", quality)
+    );
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
+}
+
 export default function CompareClient({ connected, pricing, newest = [] }: { connected: boolean; pricing: Pricing; newest?: CatalogModel[] }) {
   const [question, setQuestion] = useState("");
   const [selected, setSelected] = useState<string[]>(COMPARE_MODELS.map((m) => m.id));
@@ -131,10 +206,142 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   const [confirmRates, setConfirmRates] = useState(false);          // the extra-click panel is open
   const abortRef = useRef<AbortController | null>(null);
 
+  // ── Attachments + debate ────────────────────────────────────────────────
+  // `attachments` is the working set for the next turn. When a thread is open
+  // it mirrors thread.attachments, so files stay put across follow-ups.
+  const [attachments, setAttachments] = useState<PanelAttachment[]>([]);
+  const [attachBusy, setAttachBusy] = useState(false);
+  const [attachErr, setAttachErr] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [debate, setDebate] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [library, setLibrary] = useState<LibraryFile[] | null>(null);
+  const [libraryBusy, setLibraryBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
   // Every model we know a price for: the curated line-up, the newest list, and
   // anything picked out of the catalog. Estimates and the rate gate read this,
   // so a searched-for model is treated exactly like a built-in one.
   const known = useMemo(() => [...newest, ...picked], [newest, picked]);
+
+  // ── Attachment handling ─────────────────────────────────────────────────
+
+  /**
+   * Merge new attachments in, respecting the cap and skipping duplicates.
+   *
+   * Computed from `attachments` directly rather than inside a setState updater:
+   * this has to touch three pieces of state at once, and updaters must stay pure
+   * (StrictMode double-invokes them, so a setState nested in one fires twice).
+   */
+  function mergeAttachments(incoming: PanelAttachment[]) {
+    const seen = new Set(attachments.map((a) => `${a.source}:${a.name}`));
+    const fresh = incoming.filter((a) => !seen.has(`${a.source}:${a.name}`));
+    if (!fresh.length) return;
+
+    const next = [...attachments, ...fresh].slice(0, MAX_ATTACHMENTS);
+    setAttachments(next);
+    // Keep the open thread in sync so follow-ups carry the same files.
+    setThread((t) => (t ? { ...t, attachments: next } : t));
+    if (attachments.length + fresh.length > MAX_ATTACHMENTS) {
+      setAttachErr(`The panel takes up to ${MAX_ATTACHMENTS} files at a time.`);
+    }
+  }
+
+  /** Upload files from the device — extracted server-side, once. */
+  async function addFiles(list: FileList | File[]) {
+    const files = Array.from(list).slice(0, MAX_ATTACHMENTS);
+    if (!files.length) return;
+    setAttachBusy(true);
+    setAttachErr(null);
+
+    const added: PanelAttachment[] = [];
+    const failures: string[] = [];
+    for (const raw of files) {
+      try {
+        const file = await downscaleImage(raw);
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/ask/compare/attach", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) { failures.push(data.error ?? `${raw.name} failed`); continue; }
+        added.push(data.attachment as PanelAttachment);
+      } catch {
+        failures.push(`${raw.name} couldn't be uploaded`);
+      }
+    }
+
+    if (added.length) mergeAttachments(added);
+    if (failures.length) setAttachErr(failures.join(" · "));
+    setAttachBusy(false);
+  }
+
+  function removeAttachment(id: string) {
+    const next = attachments.filter((a) => a.id !== id);
+    setAttachments(next);
+    setThread((t) => (t ? { ...t, attachments: next } : t));
+    setAttachErr(null);
+  }
+
+  /** Documents already in the app — loaded lazily, the first time the sheet opens. */
+  async function openLibrary() {
+    setLibraryOpen(true);
+    if (library) return;
+    setLibraryBusy(true);
+    try {
+      const res = await fetch("/api/ask/compare/library");
+      const data = await res.json();
+      setLibrary(res.ok ? (data.files ?? []) : []);
+    } catch {
+      setLibrary([]);
+    } finally {
+      setLibraryBusy(false);
+    }
+  }
+
+  async function attachFromLibrary(id: string) {
+    setAttachBusy(true);
+    setAttachErr(null);
+    try {
+      const res = await fetch("/api/ask/compare/library", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [id] }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Couldn't attach that file");
+      mergeAttachments((data.attachments ?? []) as PanelAttachment[]);
+      setLibraryOpen(false);
+    } catch (e) {
+      setAttachErr((e as Error).message);
+    } finally {
+      setAttachBusy(false);
+    }
+  }
+
+  /** Roughly what the attached files add to each model, per turn. */
+  const attachmentTokens = useMemo(
+    () => attachments.reduce((n, a) => n + (a.text ? estimateTokens(a.text) : 0), 0),
+    [attachments]
+  );
+
+  // Ride the transcript down to the newest answers — the chat behaviour of
+  // staying at the bottom. Keyed on thread id *and* turn count so it fires both
+  // when a turn lands and when a different conversation is opened; keying on
+  // count alone would sit still when you open a saved thread with the same
+  // number of turns as the one already on screen.
+  const scrollKey = `${thread?.id ?? 0}:${thread?.turns.length ?? 0}`;
+  const firstScroll = useRef(true);
+  useEffect(() => {
+    if (!thread?.turns.length) return;
+    // The restore-on-mount pass jumps straight there; later ones animate.
+    bottomRef.current?.scrollIntoView({
+      behavior: firstScroll.current ? "auto" : "smooth",
+      block: "end",
+    });
+    firstScroll.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollKey]);
   const rates: Pricing = useMemo(() => {
     const m: Pricing = { ...pricing };
     for (const x of known) m[x.id] = { prompt: x.prompt, completion: x.completion };
@@ -196,19 +403,45 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
     }
     if (!saved.length) return;
     setThreads(saved);
-    if (saved[0].turns.some((t) => t.results)) open(saved[0], true);
+    if (saved[0].turns.some((t) => t.results)) open(saved[0]);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  /**
+   * Drop the base64 image payloads from every thread but the newest.
+   *
+   * An attached image is by far the heaviest thing a thread carries, and one
+   * image-laden conversation can blow the whole localStorage budget on its own.
+   * Shedding old images first keeps the text context — the part that actually
+   * answers follow-ups — and keeps the history list intact, instead of the
+   * previous behaviour where an oversized single thread wiped every saved
+   * conversation. The images stay live in memory for the open session.
+   */
+  function shedOldImages(list: Thread[]): Thread[] {
+    return list.map((t, i) =>
+      i === 0 || !t.attachments?.some((a) => a.kind === "image")
+        ? t
+        : { ...t, attachments: t.attachments.filter((a) => a.kind !== "image") }
+    );
+  }
+
   function persistThreads(next: Thread[]) {
     let list = next.slice(0, MAX_ENTRIES);
-    // Answers are bulky — drop the oldest threads until the payload fits, then
-    // keep dropping if the browser still refuses the write.
+    // Shed old images first, then drop the oldest threads until it fits.
+    if (JSON.stringify(list).length > MAX_BYTES) list = shedOldImages(list);
     while (list.length > 1 && JSON.stringify(list).length > MAX_BYTES) list = list.slice(0, -1);
     setThreads(list);
     for (;;) {
       try { localStorage.setItem(THREADS_KEY, JSON.stringify(list)); break; } catch {
-        if (list.length <= 1) { try { localStorage.removeItem(THREADS_KEY); } catch { /* ignore */ } break; }
+        // Last resort for a single thread too big to store (a large image on the
+        // open conversation): save it without its image payloads rather than
+        // discarding the conversation entirely.
+        if (list.length <= 1) {
+          const stripped = list.map((t) => ({ ...t, attachments: (t.attachments ?? []).filter((a) => a.kind !== "image") }));
+          try { localStorage.setItem(THREADS_KEY, JSON.stringify(stripped)); }
+          catch { try { localStorage.removeItem(THREADS_KEY); } catch { /* ignore */ } }
+          break;
+        }
         list = list.slice(0, -1);
         setThreads(list);
       }
@@ -222,7 +455,7 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   }
 
   /** Reopen a saved conversation — no model calls, no cost. */
-  function open(t: Thread, initial?: boolean) {
+  function open(t: Thread) {
     const answered = t.turns.filter((x) => x.results);
     if (!answered.length) { submit(t.turns[0].q); return; }
     setThread(t);
@@ -230,13 +463,22 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
     setWeb(t.web);
     setSynthesize(answered.some((x) => x.synthesis));
     if (t.models.length) setSelected(t.models.slice(0, 4));
+    // Reopening a conversation brings its files back with it, so a follow-up
+    // asked days later still lands with the document attached.
+    setAttachments(t.attachments ?? []);
+    setDebate(answered.some((x) => x.results?.some((r) => r.reaction)));
     setRestored(true);
     setErr(null);
-    if (!initial) window.scrollTo({ top: 0, behavior: "smooth" });
+    setAttachErr(null);
+    // No scroll here on purpose. The transcript now runs oldest-to-newest, so
+    // jumping to the top would land on the opening question; and a scroll fired
+    // here would race the effect below, which already rides down to the latest
+    // answers whenever the open conversation changes.
   }
 
   function newThread() {
     setThread(null); setRestored(false); setQuestion(""); setErr(null);
+    setAttachments([]); setAttachErr(null);
   }
 
   // Rough pre-run estimate: ~700 output tokens/model (+ a synthesis pass). A
@@ -244,17 +486,28 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   const estCost = useMemo(() => {
     const replay = thread ? toHistory(thread.turns).slice(-6).reduce(
       (n, t) => n + Math.ceil(t.q.length / 4) + Math.ceil(Math.min(1500, Object.values(t.answers)[0]?.length ?? 0) / 4), 0) : 0;
-    const promptTok = Math.ceil(question.length / 4) + 60 + replay;
+    // Attached documents are prepended to every model's system prompt, on every
+    // turn — the single biggest thing that can move this number.
+    const promptTok = Math.ceil(question.length / 4) + 60 + replay + attachmentTokens;
     let total = selected.reduce((sum, id) => {
       const p = rates[id];
       return p ? sum + promptTok * p.prompt + 700 * p.completion : sum;
     }, 0);
+    // The reaction round asks each model again, with its own answer plus every
+    // peer's clipped to ~300 tokens each, for a shorter (~350 token) reply.
+    if (debate && selected.length >= 2) {
+      const reactionPrompt = 400 + 300 * selected.length;
+      total += selected.reduce((sum, id) => {
+        const p = rates[id];
+        return p ? sum + reactionPrompt * p.prompt + 350 * p.completion : sum;
+      }, 0);
+    }
     if (synthesize && selected.length >= 2) {
       const p = rates[SYNTH_MODEL];
       if (p) total += 1600 * p.prompt + 700 * p.completion;
     }
     return total;
-  }, [question, selected, synthesize, rates, thread]);
+  }, [question, selected, synthesize, debate, rates, thread, attachmentTokens]);
 
   // The Auto Router's price is whatever model it picks, so it can't be quoted.
   const hasUnpriced = selected.some((id) => id === AUTO_MODEL || !rates[id]);
@@ -326,9 +579,15 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
     const controller = new AbortController();
     abortRef.current = controller;
     try {
+      // A re-ask starts clean; a follow-up carries whatever the thread holds.
+      const turnFiles = startNew ? attachments : (base?.attachments ?? attachments);
       const res = await fetch("/api/ask/compare", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, models: selected, synthesize, web, history: base ? toHistory(base.turns) : [] }),
+        body: JSON.stringify({
+          question: q, models: selected, synthesize, web, debate,
+          history: base ? toHistory(base.turns) : [],
+          attachments: turnFiles,
+        }),
         signal: controller.signal,
       });
       const data = await res.json();
@@ -341,10 +600,12 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
         synthesis: data.synthesis ?? null,
         synthCost: data.synthesisCost ?? null,
         cost: data.totalCost ?? null,
+        files: turnFiles.map((a) => a.name),
+        skippedVision: data.skippedVision ?? [],
       };
       const next: Thread = base
-        ? { ...base, at: turn.at, models: selected, web, turns: [...base.turns, turn] }
-        : { id: turn.at, at: turn.at, models: selected, web, turns: [turn] };
+        ? { ...base, at: turn.at, models: selected, web, turns: [...base.turns, turn], attachments: turnFiles }
+        : { id: turn.at, at: turn.at, models: selected, web, turns: [turn], attachments: turnFiles };
       setThread(next);
       persistThreads([next, ...threads.filter((t) => t.id !== next.id)]);
     } catch (e) {
@@ -492,82 +753,6 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
         </div>
       )}
 
-      {/* Question / follow-up */}
-      <div className="ios-list" style={{ margin: 0, padding: 14 }}>
-        {thread && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-            <span className="ios-caption" style={{ color: "var(--ios-label-2)", flex: 1, minWidth: 150, lineHeight: 1.4 }}>
-              In conversation · the panel remembers {thread.turns.length} earlier question{thread.turns.length === 1 ? "" : "s"}
-            </span>
-            <button onClick={newThread} className="ios-caption" style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "5px 10px", flexShrink: 0 }}>
-              New thread
-            </button>
-          </div>
-        )}
-        <textarea
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          placeholder={thread
-            ? "Ask a follow-up — each model sees what it already told you…"
-            : "Ask anything — the same question goes to every model on the panel…"}
-          rows={3}
-          style={{ width: "100%", background: "var(--ios-fill)", border: "none", borderRadius: 12, padding: "12px 14px", fontSize: 16, color: "var(--ios-label)", resize: "vertical", fontFamily: "inherit" }}
-        />
-        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, cursor: "pointer" }}>
-          <input type="checkbox" checked={web} onChange={(e) => setWeb(e.target.checked)} style={{ width: 18, height: 18 }} />
-          <span className="ios-subhead">🌐 Live web — ground answers in current search results</span>
-        </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, cursor: "pointer" }}>
-          <input type="checkbox" checked={synthesize} onChange={(e) => setSynthesize(e.target.checked)} style={{ width: 18, height: 18 }} />
-          <span className="ios-subhead">Synthesize into one merged answer</span>
-        </label>
-        <button onClick={() => submit()} disabled={busy || !question.trim() || selected.length === 0}
-          className="ios-btn ios-btn--primary" style={{ marginTop: 12, opacity: busy || !question.trim() ? 0.5 : 1 }}>
-          {busy ? "Asking…"
-            : gated ? `Review rates · ${needsAccepting.length} higher-rate model${needsAccepting.length === 1 ? "" : "s"}`
-            : `${thread ? "Ask follow-up of" : "Ask"} ${selected.length} model${selected.length === 1 ? "" : "s"}`}
-        </button>
-
-        {/* The extra click: rates spelled out, then an explicit accept. */}
-        {confirmRates && gated && !busy && (
-          <div className="ios-list" style={{ margin: "10px 0 0", padding: 12, border: "1.5px solid var(--ios-orange, #D9772B)" }}>
-            <div className="ios-subhead" style={{ color: "var(--ios-label)", fontWeight: 700, marginBottom: 6 }}>Higher rates on this run</div>
-            {needsAccepting.map((id) => {
-              const p = rates[id];
-              return (
-                <div key={id} className="ios-caption" style={{ color: "var(--ios-label-2)", display: "flex", justifyContent: "space-between", gap: 10, padding: "3px 0" }}>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{META(id).label}</span>
-                  <span style={{ flexShrink: 0 }}>{rateLabel(p)} out · {`$${perMillion(p?.prompt).toFixed(2)}`}/M in</span>
-                </div>
-              );
-            })}
-            <div className="ios-caption" style={{ color: "var(--ios-label-3)", margin: "7px 0 9px", lineHeight: 1.45 }}>
-              {estCost > 0 ? <>This run is estimated at <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>. </> : null}
-              Accepting keeps {needsAccepting.length === 1 ? "this model" : "these models"} unlocked until you leave the page.
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button onClick={() => { setAcceptedRates((a) => [...a, ...needsAccepting]); setConfirmRates(false); run(); }}
-                className="ios-btn ios-btn--primary" style={{ flex: 1, minWidth: 160 }}>
-                Accept rates &amp; ask
-              </button>
-              <button onClick={() => setConfirmRates(false)} className="ios-caption"
-                style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 10, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "8px 14px" }}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, textAlign: "center", lineHeight: 1.5 }}>
-          {estCost > 0 && <>Est. this run <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>{hasUnpriced ? " + Auto (varies)" : ""}. </>}
-          {estCost === 0 && hasUnpriced && <>Auto Router price varies with the model it picks. </>}
-          {thread && <>Follow-ups replay the thread, so they cost a little more. </>}
-          {web && <>Live web adds ~$0.01–0.02 per model. </>}
-          {sessionCost > 0 && <>Session <strong style={{ color: "var(--ios-label-2)" }}>{fmtCost(sessionCost)}</strong>. </>}
-          Exact cost shown after each action.
-        </div>
-      </div>
-      {notice && <div className="ios-footnote" style={{ color: "var(--ios-green)", marginTop: 10, textAlign: "center" }}>{notice}</div>}
 
       {!busy && threads.length > 0 && (
         <div style={{ marginTop: 16 }}>
@@ -635,56 +820,6 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
         </div>
       )}
 
-      {/* The conversation — newest turn first, each with its own answers. */}
-      {thread?.turns.map((turn, idx) => {
-        const position = idx + 1; // 1 = the opening question
-        return (
-          <div key={turn.at}>
-            <div className="ios-group-header" style={{ padding: "18px 0 7px" }}>
-              {position === 1 ? "QUESTION" : `FOLLOW-UP ${position - 1}`} · {ago(turn.at)}
-            </div>
-            <div className="ios-list" style={{ margin: 0, padding: "10px 14px" }}>
-              <div className="ios-subhead" style={{ color: "var(--ios-label)", whiteSpace: "pre-wrap" }}>{turn.q}</div>
-            </div>
-
-            {turn.synthesis && (
-              <div className="ios-list" style={{ margin: "10px 0 8px", padding: 16, border: "1.5px solid var(--ios-tint)" }}>
-                <div className="ios-caption" style={{ color: "var(--ios-tint)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 8 }}>✦ Synthesized answer</div>
-                <div className="ios-subhead" style={{ color: "var(--ios-label)" }} dangerouslySetInnerHTML={{ __html: md(turn.synthesis) }} />
-                <ExportBar content={turn.synthesis} title={turn.q} cost={turn.synthCost} exporting={exporting} onExport={exportAs} />
-              </div>
-            )}
-
-            {turn.results && turn.results.length > 0 && (
-              <>
-                <div className="ios-group-header" style={{ padding: "12px 0 7px" }}>ANSWERS · swipe →</div>
-                <div style={{ display: "flex", gap: 12, overflowX: "auto", scrollSnapType: "x mandatory", paddingBottom: 6, margin: "0 -16px", paddingLeft: 16, paddingRight: 16 }}>
-                  {turn.results.map((r) => {
-                    const m = META(r.model);
-                    return (
-                      <div key={r.model} className="ios-list" style={{ margin: 0, flex: "0 0 84%", maxWidth: 340, scrollSnapAlign: "start", padding: 16, alignSelf: "flex-start" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-                          <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color, flexShrink: 0 }} />
-                          <span className="ios-headline" style={{ fontSize: 15 }}>{m.label}</span>
-                          {r.served && r.served !== r.model && (
-                            <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>via {metaOf(r.served, newest).label}</span>
-                          )}
-                        </div>
-                        {r.error
-                          ? <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", lineHeight: 1.5 }}>Couldn&apos;t answer: {r.error}</div>
-                          : <><div className="ios-subhead" style={{ color: "var(--ios-label)", fontSize: 14.5 }} dangerouslySetInnerHTML={{ __html: md(r.answer) }} />
-                              {r.citations && r.citations.length > 0 && <Sources items={r.citations} />}
-                              <ExportBar content={r.answer} title={`${m.label} — ${turn.q}`} cost={r.cost} exporting={exporting} onExport={exportAs} /></>}
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-        );
-      }).reverse()}
-
       {/* Image generation */}
       <div className="ios-group-header" style={{ padding: "18px 0 7px" }}>GENERATE AN IMAGE</div>
       <div className="ios-list" style={{ margin: 0, padding: 14 }}>
@@ -715,6 +850,294 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
           </div>
         )}
       </div>
+
+      {/* The conversation, oldest first — it reads downward like a chat. */}
+      {thread?.turns.map((turn, idx) => {
+        const position = idx + 1; // 1 = the opening question
+        return (
+          <div key={turn.at}>
+            <div className="ios-group-header" style={{ padding: "18px 0 7px" }}>
+              {position === 1 ? "QUESTION" : `FOLLOW-UP ${position - 1}`} · {ago(turn.at)}
+            </div>
+            <div className="ios-list" style={{ margin: 0, padding: "10px 14px" }}>
+              <div className="ios-subhead" style={{ color: "var(--ios-label)", whiteSpace: "pre-wrap" }}>{turn.q}</div>
+              {turn.files && turn.files.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 8 }}>
+                  {turn.files.map((name) => (
+                    <span key={name} className="ios-caption"
+                      style={{ background: "var(--ios-fill)", borderRadius: 6, padding: "3px 7px", color: "var(--ios-label-2)", maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      📎 {name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {turn.skippedVision && turn.skippedVision.length > 0 && (
+                <div className="ios-caption" style={{ color: "var(--ios-orange, #D9772B)", marginTop: 7, lineHeight: 1.45 }}>
+                  {turn.skippedVision.map((m) => META(m).label).join(", ")} can&rsquo;t see images — {turn.skippedVision.length === 1 ? "it answered" : "they answered"} from the text alone.
+                </div>
+              )}
+            </div>
+
+            {turn.synthesis && (
+              <div className="ios-list" style={{ margin: "10px 0 8px", padding: 16, border: "1.5px solid var(--ios-tint)" }}>
+                <div className="ios-caption" style={{ color: "var(--ios-tint)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 8 }}>✦ Synthesized answer</div>
+                <div className="ios-subhead" style={{ color: "var(--ios-label)" }} dangerouslySetInnerHTML={{ __html: md(turn.synthesis) }} />
+                <ExportBar content={turn.synthesis} title={turn.q} cost={turn.synthCost} exporting={exporting} onExport={exportAs} />
+              </div>
+            )}
+
+            {turn.results && turn.results.length > 0 && (
+              <>
+                <div className="ios-group-header" style={{ padding: "12px 0 7px" }}>ANSWERS · swipe →</div>
+                <div style={{ display: "flex", gap: 12, overflowX: "auto", scrollSnapType: "x mandatory", paddingBottom: 6, margin: "0 -16px", paddingLeft: 16, paddingRight: 16 }}>
+                  {turn.results.map((r) => {
+                    const m = META(r.model);
+                    return (
+                      <div key={r.model} className="ios-list" style={{ margin: 0, flex: "0 0 84%", maxWidth: 340, scrollSnapAlign: "start", padding: 16, alignSelf: "flex-start" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                          <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color, flexShrink: 0 }} />
+                          <span className="ios-headline" style={{ fontSize: 15 }}>{m.label}</span>
+                          {r.served && r.served !== r.model && (
+                            <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>via {metaOf(r.served, newest).label}</span>
+                          )}
+                        </div>
+                        {r.error
+                          ? <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", lineHeight: 1.5 }}>Couldn&apos;t answer: {r.error}</div>
+                          : <><div className="ios-subhead" style={{ color: "var(--ios-label)", fontSize: 14.5 }} dangerouslySetInnerHTML={{ __html: md(r.answer) }} />
+                              {r.citations && r.citations.length > 0 && <Sources items={r.citations} />}
+                              {r.reaction && (
+                                <div style={{ marginTop: 12, paddingTop: 10, borderTop: `2px solid ${m.color}` }}>
+                                  <div className="ios-caption" style={{ color: m.color, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 6 }}>
+                                    ⇄ On the other answers
+                                  </div>
+                                  <div className="ios-subhead" style={{ color: "var(--ios-label-2)", fontSize: 14 }} dangerouslySetInnerHTML={{ __html: md(r.reaction) }} />
+                                </div>
+                              )}
+                              <ExportBar content={r.reaction ? `${r.answer}\n\n## On the other answers\n${r.reaction}` : r.answer} title={`${m.label} — ${turn.q}`} cost={(r.cost ?? 0) + (r.reactionCost ?? 0) || r.cost} exporting={exporting} onExport={exportAs} /></>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Scroll anchor — the newest answers sit just above this. */}
+      <div ref={bottomRef} />
+
+      {/* The composer sits below the transcript and pins to the bottom, so the
+          conversation reads downward into the box you type in. `bottom` clears
+          the fixed tab bar (50px + the home-indicator inset). */}
+      <div style={{ position: "sticky", bottom: "calc(50px + env(safe-area-inset-bottom, 0px))", zIndex: 50, marginTop: 16, paddingTop: 8, background: "var(--ios-bg)" }}>
+        {/* Question / follow-up */}
+        <div className="ios-list" style={{ margin: 0, padding: 14 }}>
+          {thread && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+              <span className="ios-caption" style={{ color: "var(--ios-label-2)", flex: 1, minWidth: 150, lineHeight: 1.4 }}>
+                In conversation · the panel remembers {thread.turns.length} earlier question{thread.turns.length === 1 ? "" : "s"}
+              </span>
+              <button onClick={newThread} className="ios-caption" style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "5px 10px", flexShrink: 0 }}>
+                New thread
+              </button>
+            </div>
+          )}
+          {/* Attached files — chips stay put across follow-ups. */}
+          {attachments.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 9 }}>
+              {attachments.map((a) => (
+                <span key={a.id} className="ios-caption"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--ios-fill)", borderRadius: 8, padding: "5px 7px 5px 9px", maxWidth: "100%" }}>
+                  <span aria-hidden>{fileIcon(a.kind)}</span>
+                  <span style={{ color: "var(--ios-label)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>{a.name}</span>
+                  {a.truncated && <span style={{ color: "var(--ios-orange, #D9772B)" }} title="Only the beginning of this file was read">clipped</span>}
+                  <button onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.name}`}
+                    style={{ background: "none", border: "none", color: "var(--ios-label-3)", cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "0 2px" }}>×</button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files); }}
+            style={{ borderRadius: 12, outline: dragging ? "2px dashed var(--ios-tint)" : "none", outlineOffset: 2 }}
+          >
+            <textarea
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter sends, Shift+Enter makes a newline — the chat convention.
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
+              placeholder={dragging
+                ? "Drop the file to attach it…"
+                : thread
+                ? "Ask a follow-up — each model sees what it already told you…"
+                : "Ask anything — the same question goes to every model on the panel…"}
+              rows={3}
+              style={{ width: "100%", background: "var(--ios-fill)", border: "none", borderRadius: 12, padding: "12px 14px", fontSize: 16, color: "var(--ios-label)", resize: "vertical", fontFamily: "inherit" }}
+            />
+          </div>
+
+          {/* Attach row */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.docx,.doc,.txt,.md,.csv,.tsv,.json,.yaml,.yml,.xml,.html,.log,.ts,.tsx,.js,.jsx,.py,.rb,.go,.java,.sql,.sh,.css,image/*"
+              onChange={(e) => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; }}
+              style={{ display: "none" }}
+            />
+            <button onClick={() => fileInputRef.current?.click()} disabled={attachBusy} className="ios-caption"
+              style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: attachBusy ? "wait" : "pointer", padding: "6px 10px" }}>
+              {attachBusy ? "Reading…" : "📎 Attach"}
+            </button>
+            <button onClick={openLibrary} disabled={attachBusy} className="ios-caption"
+              style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "6px 10px" }}>
+              From Morris Hub
+            </button>
+            {attachments.length > 0 && (
+              <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>
+                {describeAttachments(attachments)} · sent every turn
+              </span>
+            )}
+          </div>
+          {attachErr && <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", marginTop: 6, lineHeight: 1.45 }}>{attachErr}</div>}
+
+          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, cursor: "pointer" }}>
+            <input type="checkbox" checked={web} onChange={(e) => setWeb(e.target.checked)} style={{ width: 18, height: 18 }} />
+            <span className="ios-subhead">🌐 Live web — ground answers in current search results</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, cursor: "pointer" }}>
+            <input type="checkbox" checked={debate} onChange={(e) => setDebate(e.target.checked)} style={{ width: 18, height: 18 }} />
+            <span className="ios-subhead">💬 Let the models respond to each other <span style={{ color: "var(--ios-label-3)" }}>— a second round, so roughly double the cost</span></span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, cursor: "pointer" }}>
+            <input type="checkbox" checked={synthesize} onChange={(e) => setSynthesize(e.target.checked)} style={{ width: 18, height: 18 }} />
+            <span className="ios-subhead">Synthesize into one merged answer</span>
+          </label>
+          <button onClick={() => submit()} disabled={busy || !question.trim() || selected.length === 0}
+            className="ios-btn ios-btn--primary" style={{ marginTop: 12, opacity: busy || !question.trim() ? 0.5 : 1 }}>
+            {busy ? "Asking…"
+              : gated ? `Review rates · ${needsAccepting.length} higher-rate model${needsAccepting.length === 1 ? "" : "s"}`
+              : `${thread ? "Ask follow-up of" : "Ask"} ${selected.length} model${selected.length === 1 ? "" : "s"}`}
+          </button>
+
+          {/* The extra click: rates spelled out, then an explicit accept. */}
+          {confirmRates && gated && !busy && (
+            <div className="ios-list" style={{ margin: "10px 0 0", padding: 12, border: "1.5px solid var(--ios-orange, #D9772B)" }}>
+              <div className="ios-subhead" style={{ color: "var(--ios-label)", fontWeight: 700, marginBottom: 6 }}>Higher rates on this run</div>
+              {needsAccepting.map((id) => {
+                const p = rates[id];
+                return (
+                  <div key={id} className="ios-caption" style={{ color: "var(--ios-label-2)", display: "flex", justifyContent: "space-between", gap: 10, padding: "3px 0" }}>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{META(id).label}</span>
+                    <span style={{ flexShrink: 0 }}>{rateLabel(p)} out · {`$${perMillion(p?.prompt).toFixed(2)}`}/M in</span>
+                  </div>
+                );
+              })}
+              <div className="ios-caption" style={{ color: "var(--ios-label-3)", margin: "7px 0 9px", lineHeight: 1.45 }}>
+                {estCost > 0 ? <>This run is estimated at <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>. </> : null}
+                Accepting keeps {needsAccepting.length === 1 ? "this model" : "these models"} unlocked until you leave the page.
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={() => { setAcceptedRates((a) => [...a, ...needsAccepting]); setConfirmRates(false); run(); }}
+                  className="ios-btn ios-btn--primary" style={{ flex: 1, minWidth: 160 }}>
+                  Accept rates &amp; ask
+                </button>
+                <button onClick={() => setConfirmRates(false)} className="ios-caption"
+                  style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 10, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "8px 14px" }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, textAlign: "center", lineHeight: 1.5 }}>
+            {estCost > 0 && <>Est. this run <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>{hasUnpriced ? " + Auto (varies)" : ""}. </>}
+            {estCost === 0 && hasUnpriced && <>Auto Router price varies with the model it picks. </>}
+            {thread && <>Follow-ups replay the thread, so they cost a little more. </>}
+            {web && <>Live web adds ~$0.01–0.02 per model. </>}
+            {attachmentTokens > 0 && (
+              <>Attached files add ~{attachmentTokens.toLocaleString()} tokens to <em>each</em> model, every turn. </>
+            )}
+            {debate && <>The reaction round asks every model a second time. </>}
+            {sessionCost > 0 && <>Session <strong style={{ color: "var(--ios-label-2)" }}>{fmtCost(sessionCost)}</strong>. </>}
+            Exact cost shown after each action.
+          </div>
+        </div>
+      </div>
+
+      {/* "From Morris Hub" — documents the app already holds. */}
+      {libraryOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Attach a file from Morris Hub"
+          onClick={() => setLibraryOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: "var(--ios-bg-elevated)", borderRadius: "16px 16px 0 0", width: "100%", maxWidth: 520, maxHeight: "70vh", overflowY: "auto", padding: "16px 16px calc(20px + env(safe-area-inset-bottom, 0px))" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <span className="ios-headline">From Morris Hub</span>
+              <button onClick={() => setLibraryOpen(false)} className="ios-caption"
+                style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer" }}>Done</button>
+            </div>
+
+            {libraryBusy && <div className="ios-subhead" style={{ color: "var(--ios-label-2)", padding: "12px 0" }}>Loading your files…</div>}
+
+            {!libraryBusy && library?.length === 0 && (
+              <div className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5, padding: "8px 0 4px" }}>
+                No documents yet. The panel can read files you&rsquo;ve uploaded to a course under{" "}
+                <strong style={{ color: "var(--ios-label)" }}>Me → Courses</strong> — that&rsquo;s the only place the app keeps
+                your documents today. Anything else, attach from your device.
+              </div>
+            )}
+
+            {!libraryBusy && library && library.length > 0 && (
+              <div className="ios-list" style={{ margin: 0 }}>
+                {library.map((f) => {
+                  const already = attachments.some((a) => a.id === f.id);
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => !already && attachFromLibrary(f.id)}
+                      disabled={already || attachBusy}
+                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", borderBottom: "0.5px solid var(--ios-separator)", padding: "11px 2px", textAlign: "left", cursor: already ? "default" : "pointer", opacity: already ? 0.5 : 1 }}
+                    >
+                      <span aria-hidden>📄</span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span className="ios-subhead" style={{ color: "var(--ios-label)", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {f.title}
+                        </span>
+                        <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>
+                          {f.group}{f.sizeKb ? ` · ${f.sizeKb}KB` : ""}
+                        </span>
+                      </span>
+                      <span className="ios-caption" style={{ color: already ? "var(--ios-label-3)" : "var(--ios-tint)", fontWeight: 700, flexShrink: 0 }}>
+                        {already ? "Attached" : "Attach"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {notice && <div className="ios-footnote" style={{ color: "var(--ios-green)", marginTop: 10, textAlign: "center" }}>{notice}</div>}
+
     </div>
   );
 }
