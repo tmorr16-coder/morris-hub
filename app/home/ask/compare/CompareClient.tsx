@@ -131,12 +131,6 @@ function md(text: string) {
   close(); return out.join("");
 }
 
-const SUGGESTIONS = [
-  "Explain the tradeoffs of Roth vs traditional 401(k)",
-  "Draft a 3-day Tokyo itinerary for a family",
-  "What are the risks of a portfolio concentrated in one stock?",
-];
-
 const MAX_ATTACHMENTS = 10;
 
 /**
@@ -932,16 +926,6 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
       <div ref={bottomRef} />
 
 
-      {!thread && !busy && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
-          {SUGGESTIONS.map((s) => (
-            <button key={s} onClick={() => submit(s)}
-              style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid var(--ios-separator)", background: "transparent", color: "var(--ios-tint)", fontSize: 13, fontWeight: 500, cursor: "pointer", textAlign: "left" }}>
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
 
 
       {/* ── Composer ────────────────────────────────────────────────────────
