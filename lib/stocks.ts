@@ -58,6 +58,7 @@ async function fetchOne(symbol: string, token: string): Promise<Quote | null> {
     const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${token}`;
     const res = await fetch(url, {
       next: { revalidate: 300 }, // 5 min cache
+      signal: AbortSignal.timeout(6000),
     });
     if (!res.ok) {
       console.error(`[stocks] Finnhub ${symbol} HTTP ${res.status}`);

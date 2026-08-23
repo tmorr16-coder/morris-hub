@@ -380,6 +380,7 @@ async function fetchRssFeed(
     const res = await fetch(rssUrl, {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; morrisai-hub/1.0)" },
       next: { revalidate: 1800 }, // cache 30 min
+      signal: AbortSignal.timeout(6000),
     });
     if (!res.ok) return [];
     const xml = await res.text();

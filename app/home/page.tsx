@@ -17,6 +17,33 @@ import TodayMarkets from "./_components/TodayMarkets";
 import TodayNews from "./_components/TodayNews";
 import MoneyGlanceValue from "./_components/MoneyGlanceValue";
 import { TodayWeatherValue, TodayWeatherSub } from "./_components/TodayWeatherGlance";
+import { unstable_cache } from "next/cache";
+
+/**
+ * Display names for family-circle members, cached for five minutes.
+ *
+ * This is a Supabase *admin* call listing every user, and it ran on every
+ * single render of the Today screen — the first thing the app opens — purely to
+ * turn member ids into names. Names change roughly never, so paying an admin
+ * round-trip for them on each load was the wrong trade. Cached across requests,
+ * not just deduped within one.
+ */
+const cachedMemberNames = unstable_cache(
+  async (): Promise<[string, string][]> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const svc = createServiceClient() as any;
+    const { data } = await svc.auth.admin.listUsers({ perPage: 200 });
+    const out: [string, string][] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const u of (data?.users ?? []) as any[]) {
+      const nm = u.user_metadata?.full_name ?? u.user_metadata?.name ?? u.email ?? null;
+      if (nm) out.push([u.id as string, nm as string]);
+    }
+    return out;
+  },
+  ["home-member-names"],
+  { revalidate: 300 },
+);
 
 export default async function HomePage() {
   const user = await getCurrentUser();
@@ -83,12 +110,7 @@ export default async function HomePage() {
   const circleNames = new Map<string, string>();
   if (circleAuthIds.length > 0) {
     try {
-      const { data: usersList } = await service.auth.admin.listUsers({ perPage: 200 });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      for (const u of (usersList?.users ?? []) as any[]) {
-        const nm = u.user_metadata?.full_name ?? u.user_metadata?.name ?? u.email ?? null;
-        if (nm) circleNames.set(u.id, nm);
-      }
+      for (const [id, nm] of await cachedMemberNames()) circleNames.set(id, nm);
     } catch { /* auth admin unavailable — fall back to "Member" */ }
   }
   const circleMembers = rawCircle.map((m) => ({

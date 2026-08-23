@@ -153,14 +153,27 @@ export default async function DashboardPage() {
   // Debt rates, so liabilities can be shown with their cost. The retirement
   // module already stores these; the dashboard drew every balance the same red
   // whether it cost 4% or 24%.
+  //
+  // Scoped by deriving this user's profile ids first rather than filtering on an
+  // embedded resource. The service client bypasses RLS, so the scope has to be
+  // obvious in the query chain — both to a reader and to check:scoping, which
+  // cannot see through a PostgREST embed and flagged the earlier version.
   let debtRowsRaw: { name: string; rate_pct: number | null }[] = [];
   try {
-    const { data } = await service
+    const { data: profRows } = await service
       .schema("finance")
-      .from("retirement_debts")
-      .select("name, rate_pct, retirement_profiles!inner(user_id)")
-      .eq("retirement_profiles.user_id", user.id);
-    debtRowsRaw = (data ?? []) as { name: string; rate_pct: number | null }[];
+      .from("retirement_profiles")
+      .select("id")
+      .eq("user_id", user.id);
+    const profileIds = ((profRows ?? []) as { id: string }[]).map((r) => r.id);
+    if (profileIds.length > 0) {
+      const { data } = await service
+        .schema("finance")
+        .from("retirement_debts")
+        .select("name, rate_pct")
+        .in("profile_id", profileIds);
+      debtRowsRaw = (data ?? []) as { name: string; rate_pct: number | null }[];
+    }
   } catch { /* retirement not set up — liabilities simply show no rate */ }
 
   const items: ItemRow[] = (itemRows as ItemRow[]) ?? [];

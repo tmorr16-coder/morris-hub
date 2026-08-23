@@ -33,10 +33,18 @@ export interface WeatherData {
 
 const UA = "morrisai-hub (https://morrisai.family)";
 
+// A deadline on every outbound call on the Today path. Without one, a single
+// slow or hanging upstream holds the streamed /home response open until the
+// function's own 60s ceiling — and because the PWA shows its white
+// background_color until that response lands, the app looks broken rather than
+// slow. A missing forecast, quote or headline is a far smaller failure.
+const NWS_TIMEOUT_MS = 6000;
+
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url, {
     headers: { "User-Agent": UA, Accept: "application/geo+json" },
     next: { revalidate: 1800 }, // 30 min cache
+    signal: AbortSignal.timeout(NWS_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`NWS ${res.status} on ${url}`);
   return res.json();
