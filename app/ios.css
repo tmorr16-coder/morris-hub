@@ -434,3 +434,10 @@ button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed);
 @media (prefers-reduced-motion: reduce) {
   .ios-sheet, .ios-sheet-backdrop, .ios-segmented button { animation: none; transition: none; }
 }
+
+/* A card or line still waiting on a model. Gently pulses so a long run reads as
+   working rather than stalled; respects a reduced-motion preference. */
+[data-ui="ios"] .ios-pending { animation: ios-pulse 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  [data-ui="ios"] .ios-pending { animation: none; }
+}

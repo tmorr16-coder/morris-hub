@@ -14,6 +14,7 @@ const MORE_ITEMS = [
   { label: "Health",      href: "/health",                                 accessKey: "health" },
   { label: "News",        href: "/news",                                   accessKey: null },
   { label: "Ask Morris",  href: "/home/ask",                                accessKey: null },
+  { label: "Make an image", href: "/home/ask/image",                        accessKey: null },
   { label: "Bible",       href: "/bible/dashboard",                        accessKey: "bible" },
   { label: "Career",      href: "/career",                                 accessKey: "career" },
   { label: "Travel",      href: "/travel",                                 accessKey: null },

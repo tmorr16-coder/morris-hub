@@ -65,6 +65,9 @@ const RUNS_KEY = "panel-history-v1";          // one saved run per entry
 const LEGACY_KEY = "compare-recent-searches"; // question-only strings
 const MAX_ENTRIES = 15;
 const MAX_BYTES = 1_500_000; // stay well inside the ~5MB localStorage budget
+const BUDGET_KEY = "panel-budget-v1";
+/** Enough for a few dozen ordinary runs; raised in one tap when it bites. */
+const DEFAULT_BUDGET = 5;
 
 /** What the API needs to replay a thread: each turn's question and answers. */
 function toHistory(turns: Turn[]) {
@@ -195,11 +198,6 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [exporting, setExporting] = useState<string | null>(null); // "docx"|"pptx"|"md" busy
-  const [imgPrompt, setImgPrompt] = useState("");
-  const [imgBusy, setImgBusy] = useState(false);
-  const [imgUrl, setImgUrl] = useState<string | null>(null);
-  const [imgErr, setImgErr] = useState<string | null>(null);
-  const [imgCost, setImgCost] = useState<number | null>(null);
   const [sessionCost, setSessionCost] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -211,8 +209,11 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   const [searching, setSearching] = useState(false);
   const [searchErr, setSearchErr] = useState<string | null>(null);
   const [picked, setPicked] = useState<CatalogModel[]>([]);        // added from search
-  const [acceptedRates, setAcceptedRates] = useState<string[]>([]); // higher-rate models you've okayed
-  const [confirmRates, setConfirmRates] = useState(false);          // the extra-click panel is open
+  // One ceiling on what a session can spend, instead of a warning on every
+  // surface. The old per-model rate gate asked you to accept a $/M figure —
+  // which is not the thing anyone actually wants bounded. This is.
+  const [budget, setBudget] = useState(DEFAULT_BUDGET);
+  const [overBudget, setOverBudget] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set()); // collapsed turns (by turn.at)
   const abortRef = useRef<AbortController | null>(null);
 
@@ -228,6 +229,13 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   const [attachErr, setAttachErr] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  // The attachment whose extracted text is being inspected. "OCR ✓" is a claim;
+  // this is how someone checks it before trusting an answer about the numbers.
+  const [previewFile, setPreviewFile] = useState<PanelAttachment | null>(null);
+  // The turn currently streaming in — rendered at the foot of the transcript
+  // so answers appear one by one instead of all at once after a long wait.
+  const [liveTurn, setLiveTurn] = useState<Turn | null>(null);
   const [debate, setDebate] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [library, setLibrary] = useState<LibraryFile[] | null>(null);
@@ -301,11 +309,16 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   // The library sheet covers the screen, so it needs a way out that isn't the
   // Done button — Escape on a keyboard, and a tap anywhere on the backdrop.
   useEffect(() => {
-    if (!libraryOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setLibraryOpen(false); };
+    if (!libraryOpen && !panelOpen && !previewFile) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setLibraryOpen(false);
+      setPanelOpen(false);
+      setPreviewFile(null);
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [libraryOpen]);
+  }, [libraryOpen, panelOpen, previewFile]);
 
   /** Documents already in the app — loaded lazily, the first time the sheet opens. */
   async function openLibrary() {
@@ -342,6 +355,23 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
       setAttachBusy(false);
     }
   }
+
+  // The ceiling is a preference, not a per-session decision.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(BUDGET_KEY);
+      if (raw != null) {
+        const n = parseFloat(raw);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (Number.isFinite(n) && n >= 0) setBudget(n);
+      }
+    } catch { /* private mode — the default stands */ }
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem(BUDGET_KEY, String(budget)); } catch { /* ignore */ }
+  }, [budget]);
+
+  const anyOptionOn = web || debate || synthesize;
 
   /** Roughly what the attached files add to each model, per turn. */
   const attachmentTokens = useMemo(
@@ -427,6 +457,23 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
     }
     if (!saved.length) return;
     setThreads(saved);
+
+    // Then reconcile with the server, so a conversation started elsewhere shows
+    // up here. Local wins on a tie: it is the copy with this browser's
+    // attachments still attached.
+    (async () => {
+      try {
+        const res = await fetch("/api/ask/compare/threads");
+        if (!res.ok) return;
+        const { threads: remote } = await res.json();
+        if (!Array.isArray(remote) || !remote.length) return;
+        const byId = new Map<number, Thread>();
+        for (const t of remote as Thread[]) if (t?.id) byId.set(t.id, t);
+        for (const t of saved) if (t?.id) byId.set(t.id, t);
+        const merged = [...byId.values()].sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).slice(0, MAX_ENTRIES);
+        setThreads(merged);
+      } catch { /* keep the local list */ }
+    })();
     if (saved[0].turns.some((t) => t.results)) open(saved[0]);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -448,6 +495,22 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
         ? t
         : { ...t, attachments: t.attachments.filter((a) => !isHeavy(a)) }
     );
+  }
+
+  /**
+   * Mirror a thread to the server, best-effort.
+   *
+   * localStorage stays the source of truth for this browser — it is instant and
+   * works offline — and the server copy is what lets the same conversation open
+   * on another device. A failed sync is silent on purpose: losing the network
+   * should not interrupt someone mid-question.
+   */
+  function syncThread(t: Thread) {
+    fetch("/api/ask/compare/threads", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ thread: t }),
+    }).catch(() => { /* offline, or the table isn't there yet */ });
   }
 
   function persistThreads(next: Thread[]) {
@@ -475,6 +538,7 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   }
 
   function removeThread(id: number) {
+    fetch(`/api/ask/compare/threads?id=${id}`, { method: "DELETE" }).catch(() => { /* best effort */ });
     persistThreads(threads.filter((t) => t.id !== id));
     if (thread?.id === id) newThread();
   }
@@ -541,8 +605,8 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   const hasUnpriced = selected.some((id) => id === AUTO_MODEL || !rates[id]);
 
   // Higher-rate models need one explicit tap before they can spend anything.
-  const needsAccepting = selected.filter((id) => isPremiumRate(rates[id]) && !acceptedRates.includes(id));
-  const gated = needsAccepting.length > 0;
+  // Would this run take the session past its ceiling?
+  const wouldExceed = budget > 0 && sessionCost + estCost > budget;
 
   const slug = (s: string) => (s || "morris").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "morris";
 
@@ -568,31 +632,14 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
     } catch (e) { setErr((e as Error).message); } finally { setExporting(null); }
   }
 
-  async function makeImage() {
-    const p = imgPrompt.trim();
-    if (!p || imgBusy) return;
-    setImgBusy(true); setImgErr(null); setImgUrl(null);
-    try {
-      const res = await fetch("/api/ask/compare/image", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: p }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message ?? data.error ?? "Failed");
-      setImgUrl(data.image);
-      setImgCost(data.cost ?? null);
-      if (data.cost) setSessionCost((s) => s + data.cost);
-    } catch (e) { setImgErr((e as Error).message); } finally { setImgBusy(false); }
-  }
-
   function toggle(id: string) {
     setSelected((s) => s.includes(id) ? s.filter((x) => x !== id) : s.length >= 4 ? s : [...s, id]);
-    setConfirmRates(false);
+    setOverBudget(false);
   }
 
-  /** Ask, unless a higher-rate model still needs the extra tap. */
+  /** Ask, unless this run would take the session past its ceiling. */
   function submit(text?: string, startNew?: boolean) {
-    if (gated) { setConfirmRates(true); return; }
+    if (wouldExceed) { setOverBudget(true); return; }
     run(text, startNew);
   }
 
@@ -606,9 +653,25 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
     setQuestion("");
     const controller = new AbortController();
     abortRef.current = controller;
+
+    // A re-ask starts clean; a follow-up carries whatever the thread holds.
+    const turnFiles = startNew ? attachments : (base?.attachments ?? attachments);
+    const at = Date.now();
+
+    // The turn is built up live. Models that haven't answered yet simply aren't
+    // in `results` — the card grid shows a waiting placeholder for each one it
+    // is still expecting, so the screen is never motionless.
+    let live: Turn = {
+      q, at, results: [], synthesis: null, synthCost: null, cost: null,
+      files: turnFiles.map((a) => a.name), skippedVision: [],
+    };
+    const publish = () => setLiveTurn({ ...live, results: [...(live.results ?? [])] });
+    publish();
+
+    let banked = turnFiles;
+    let totalCost = 0;
+
     try {
-      // A re-ask starts clean; a follow-up carries whatever the thread holds.
-      const turnFiles = startNew ? attachments : (base?.attachments ?? attachments);
       const res = await fetch("/api/ask/compare", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -618,52 +681,95 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
         }),
         signal: controller.signal,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message ?? data.error ?? "Failed");
-      if (data.totalCost) setSessionCost((s) => s + data.totalCost);
-      // Keep the whole turn, so re-opening this conversation is free.
-      const turn: Turn = {
-        q, at: Date.now(),
-        results: data.results ?? null,
-        synthesis: data.synthesis ?? null,
-        synthCost: data.synthesisCost ?? null,
-        cost: data.totalCost ?? null,
-        files: turnFiles.map((a) => a.name),
-        skippedVision: data.skippedVision ?? [],
-      };
-      // Bank the file-parse annotations onto the attachments that needed OCR.
-      // Sent back on the next turn, they make OpenRouter reuse the parse — the
-      // difference between OCR'ing a scan once and paying for it every turn.
-      // Swap each OCR'd PDF for the text that came back and drop the file. The
-      // base64 must not travel again: PDF + annotation images together blew
-      // Vercel's 4.5MB request limit on the second turn and the request died
-      // with no response. Once we hold the text, the PDF is dead weight.
-      const parsed: { name: string | null; text: string; truncated: boolean }[] = data.parsedFiles ?? [];
-      let banked = turnFiles;
-      if (parsed.length) {
-        let next = 0;
-        banked = turnFiles.map((a) => {
-          if (!a.remoteParse) return a;
-          // Match on filename where OpenRouter echoed one, else take them in order.
-          const hit = parsed.find((f) => f.name && f.name === a.name) ?? parsed[next++];
-          if (!hit) return a;
-          return {
-            ...a,
-            text: hit.text,
-            truncated: hit.truncated,
-            dataUrl: undefined,
-            remoteParse: false,
-            ocrDone: true,
-          };
-        });
-        setAttachments(banked);
+
+      // Errors still come back as ordinary JSON with a status — only a 200
+      // opens the event stream.
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message ?? data.error ?? `Failed (${res.status})`);
+      }
+      if (!res.body) throw new Error("No response from the panel.");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let streamErr: string | null = null;
+
+      // SSE frames are separated by a blank line; a frame can straddle two
+      // chunks, so whatever follows the last separator is held back for the
+      // next read rather than parsed half-formed.
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const frames = buf.split("\n\n");
+        buf = frames.pop() ?? "";
+
+        for (const frame of frames) {
+          const evLine = frame.split("\n").find((l) => l.startsWith("event: "));
+          const dataLine = frame.split("\n").find((l) => l.startsWith("data: "));
+          if (!evLine || !dataLine) continue;
+          const event = evLine.slice(7).trim();
+          let payload: Record<string, unknown>;
+          try { payload = JSON.parse(dataLine.slice(6)); } catch { continue; }
+
+          if (event === "answer") {
+            live = { ...live, results: [...(live.results ?? []), payload as unknown as Result] };
+            publish();
+          } else if (event === "reaction") {
+            live = {
+              ...live,
+              results: (live.results ?? []).map((r) =>
+                r.model === payload.model
+                  ? { ...r, reaction: payload.reaction as string, reactionCost: payload.reactionCost as number | null }
+                  : r
+              ),
+            };
+            publish();
+          } else if (event === "synthesis") {
+            live = { ...live, synthesis: payload.synthesis as string, synthCost: (payload.synthesisCost as number) ?? null };
+            publish();
+          } else if (event === "vision") {
+            live = { ...live, skippedVision: (payload.skippedVision as string[]) ?? [] };
+            publish();
+          } else if (event === "files") {
+            // Swap each OCR'd PDF for the text that came back and drop the file.
+            // The base64 must not travel again: PDF plus annotation images blew
+            // Vercel's 4.5MB request limit on the second turn and the request
+            // died with no response at all. Once we hold the text, it's ballast.
+            const parsed = (payload.parsedFiles as { name: string | null; text: string; truncated: boolean }[]) ?? [];
+            if (parsed.length) {
+              let nextIdx = 0;
+              banked = turnFiles.map((a) => {
+                if (!a.remoteParse) return a;
+                // Match on filename where OpenRouter echoed one, else in order.
+                const hit = parsed.find((f) => f.name && f.name === a.name) ?? parsed[nextIdx++];
+                if (!hit) return a;
+                return { ...a, text: hit.text, truncated: hit.truncated, dataUrl: undefined, remoteParse: false, ocrDone: true };
+              });
+              setAttachments(banked);
+            }
+          } else if (event === "done") {
+            totalCost = (payload.totalCost as number) ?? 0;
+            live = { ...live, cost: totalCost };
+          } else if (event === "error") {
+            streamErr = (payload.message as string) ?? "The run failed.";
+          }
+        }
       }
 
+      if (streamErr) throw new Error(streamErr);
+      if (!live.results?.length) throw new Error("The panel returned nothing. Try again.");
+
+      if (totalCost) setSessionCost((s) => s + totalCost);
+
+      // Keep the whole turn, so re-opening this conversation is free.
       const next: Thread = base
-        ? { ...base, at: turn.at, models: selected, web, turns: [...base.turns, turn], attachments: banked }
-        : { id: turn.at, at: turn.at, models: selected, web, turns: [turn], attachments: banked };
+        ? { ...base, at, models: selected, web, turns: [...base.turns, live], attachments: banked }
+        : { id: at, at, models: selected, web, turns: [live], attachments: banked };
       setThread(next);
       persistThreads([next, ...threads.filter((t) => t.id !== next.id)]);
+      syncThread(next);
     } catch (e) {
       setQuestion(q); // don't lose what they typed
       if ((e as Error).name === "AbortError") {
@@ -672,7 +778,11 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
         setNotice("Cancelled — models already asked may still be billed.");
         setTimeout(() => setNotice(null), 5000);
       } else setErr((e as Error).message);
-    } finally { abortRef.current = null; setBusy(false); }
+    } finally {
+      abortRef.current = null;
+      setBusy(false);
+      setLiveTurn(null);
+    }
   }
 
   return (
@@ -685,187 +795,8 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
         </div>
       )}
 
-      {/* Model picker */}
-      <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>PANEL · pick up to 4</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-        {ALL.map((m) => {
-          const on = selected.includes(m.id);
-          const premium = isPremiumRate(rates[m.id]);
-          return (
-            <button key={m.id} onClick={() => toggle(m.id)}
-              title={m.id === AUTO_MODEL ? "OpenRouter picks the best model for each question" : `${m.id}${rateLabel(rates[m.id]) ? ` · ${rateLabel(rates[m.id])} out` : ""}`}
-              style={{ padding: "7px 13px", borderRadius: 999, fontSize: 14, fontWeight: 600, cursor: "pointer",
-                border: `1px solid ${on ? "transparent" : "var(--ios-separator)"}`,
-                background: on ? m.color : "transparent", color: on ? "#fff" : "var(--ios-label)" }}>
-              {m.id === AUTO_MODEL ? "✨ " : LIVE_IDS.has(m.id) ? "🌐 " : ""}{m.label}
-              {premium && <span style={{ opacity: 0.75, fontWeight: 600 }}> · {rateLabel(rates[m.id])}</span>}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Anything picked out of the full catalog gets its own chip row */}
-      {picked.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-          {picked.map((m) => {
-            const on = selected.includes(m.id);
-            return (
-              <button key={m.id} onClick={() => toggle(m.id)} title={m.id}
-                style={{ padding: "7px 13px", borderRadius: 999, fontSize: 14, fontWeight: 600, cursor: "pointer",
-                  border: `1px solid ${on ? "transparent" : "var(--ios-separator)"}`,
-                  background: on ? m.color : "transparent", color: on ? "#fff" : "var(--ios-label)" }}>
-                {m.label}
-                <span style={{ opacity: on ? 0.8 : 0.55 }}> · {rateLabel(m) || "free"}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginBottom: 12, lineHeight: 1.45 }}>
-        Default panel: {COMPARE_MODELS.map((m) => m.label).join(" · ")} — preselected each visit.
-      </div>
-
-      {/* Any model on OpenRouter, by search */}
-      <div style={{ marginBottom: 14 }}>
-        <input
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            if (!e.target.value.trim()) { setFound(null); setSearchErr(null); }
-          }}
-          placeholder="Search all OpenRouter models — name or id…"
-          aria-label="Search all OpenRouter models"
-          style={{ width: "100%", background: "var(--ios-fill)", border: "none", borderRadius: 12, padding: "10px 14px", fontSize: 15, color: "var(--ios-label)" }}
-        />
-        {searching && <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>Searching…</div>}
-        {searchErr && <div className="ios-caption" style={{ color: "var(--ios-red, #FF3B30)", marginTop: 6 }}>{searchErr}</div>}
-        {found && found.length === 0 && !searching && (
-          <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>No models match “{query.trim()}”.</div>
-        )}
-        {found && found.length > 0 && (
-          <div className="ios-list" style={{ margin: "8px 0 0", maxHeight: 260, overflowY: "auto" }}>
-            {found.map((m, i) => {
-              const already = selected.includes(m.id);
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => {
-                    setPicked((p) => (p.some((x) => x.id === m.id) ? p : [...p, m]));
-                    if (!already) toggle(m.id);
-                    setQuery("");
-                  }}
-                  disabled={already || selected.length >= 4}
-                  style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", background: "none", cursor: already || selected.length >= 4 ? "default" : "pointer",
-                    border: "none", borderBottom: i < found.length - 1 ? "1px solid var(--ios-separator)" : "none", textAlign: "left", opacity: already || selected.length >= 4 ? 0.45 : 1 }}
-                >
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: m.color, flexShrink: 0 }} />
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: "block", color: "var(--ios-label)", fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.label}</span>
-                    <span className="ios-caption" style={{ color: "var(--ios-label-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>{m.id}</span>
-                  </span>
-                  <span className="ios-caption" style={{ color: isPremiumRate(m) ? "var(--ios-orange, #D9772B)" : "var(--ios-label-3)", flexShrink: 0 }}>
-                    {rateLabel(m) || "free"}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {selected.length >= 4 && found && found.length > 0 && (
-          <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>Panel is full — drop a model to add another.</div>
-        )}
-      </div>
-
-      {/* Newest models, straight from OpenRouter's catalog */}
-      {newest.length > 0 && (
-        <div style={{ marginBottom: 14 }}>
-          <button onClick={() => setShowNewest((v) => !v)} className="ios-caption"
-            style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "2px 0" }}>
-            {showNewest ? "▾" : "▸"} Newest models on OpenRouter ({newest.length})
-          </button>
-          {showNewest && (
-            <>
-              <div className="ios-caption" style={{ color: "var(--ios-label-3)", margin: "4px 0 8px", lineHeight: 1.45 }}>
-                Just-released models, listed live — anything at {`$${PREMIUM_PER_M}`}/M output or more asks you to accept the rate before it runs.
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {newest.map((m) => {
-                  const on = selected.includes(m.id);
-                  const premium = isPremiumRate(m);
-                  return (
-                    <button key={m.id} onClick={() => toggle(m.id)} title={m.id}
-                      style={{ padding: "7px 13px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, cursor: "pointer",
-                        border: `1px solid ${on ? "transparent" : premium ? "var(--ios-orange, #D9772B)" : "var(--ios-separator)"}`,
-                        background: on ? m.color : "transparent", color: on ? "#fff" : "var(--ios-label)" }}>
-                      {m.label}
-                      <span style={{ opacity: on ? 0.8 : 0.55, fontWeight: 600 }}> · {rateLabel(m) || "—"}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-
-      {!busy && threads.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <div className="ios-group-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0 7px" }}>
-            <span>RECENT · conversations saved</span>
-            <button onClick={() => { persistThreads([]); newThread(); }} className="ios-caption" style={{ color: "var(--ios-tint)", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>Clear all</button>
-          </div>
-          <div className="ios-list" style={{ margin: 0 }}>
-            {threads.map((t, i) => {
-              const answers = t.turns.reduce((n, x) => n + (x.results?.filter((r) => r.answer && !r.error).length ?? 0), 0);
-              const cost = t.turns.reduce((n, x) => n + (x.cost ?? 0), 0);
-              const qs = t.turns.length;
-              return (
-                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: i < threads.length - 1 ? "1px solid var(--ios-separator)" : "none", background: thread?.id === t.id ? "var(--ios-fill)" : "transparent" }}>
-                  <button onClick={() => open(t)} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
-                    <div style={{ color: "var(--ios-label)", fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.turns[0].q}</div>
-                    <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 2 }}>
-                      {answers
-                        ? `${qs} question${qs === 1 ? "" : "s"} · ${answers} saved answer${answers === 1 ? "" : "s"} · ${ago(t.at)}${cost > 0 ? ` · ${fmtCost(cost)}` : ""}`
-                        : "tap to ask again"}
-                    </div>
-                  </button>
-                  {answers > 0 && (
-                    <button onClick={() => submit(t.turns[t.turns.length - 1].q, true)} aria-label="Ask again in a new thread" title="Ask again in a new thread (runs the models, costs money)"
-                      style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "5px 9px", flexShrink: 0 }}>
-                      Re-ask
-                    </button>
-                  )}
-                  <button onClick={() => removeThread(t.id)} aria-label="Remove conversation" style={{ background: "none", border: "none", color: "var(--ios-label-3)", fontSize: 19, lineHeight: 1, cursor: "pointer", padding: "0 4px", flexShrink: 0 }}>×</button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {!thread && !busy && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
-          {SUGGESTIONS.map((s) => (
-            <button key={s} onClick={() => submit(s)}
-              style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid var(--ios-separator)", background: "transparent", color: "var(--ios-tint)", fontSize: 13, fontWeight: 500, cursor: "pointer", textAlign: "left" }}>
-              {s}
-            </button>
-          ))}
-        </div>
-      )}
 
       {err && <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", marginTop: 12 }}>{err}</div>}
-      {busy && (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginTop: 16 }}>
-          <div className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>Running against {selected.length} model{selected.length === 1 ? "" : "s"}…</div>
-          <button onClick={() => abortRef.current?.abort()} className="ios-caption"
-            style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 10, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "7px 16px" }}>
-            Cancel
-          </button>
-        </div>
-      )}
 
       {restored && thread && !busy && (
         <div className="ios-list" style={{ margin: "16px 0 0", padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -876,40 +807,16 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
         </div>
       )}
 
-      {/* Image generation */}
-      <div className="ios-group-header" style={{ padding: "18px 0 7px" }}>GENERATE AN IMAGE</div>
-      <div className="ios-list" style={{ margin: 0, padding: 14 }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            value={imgPrompt}
-            onChange={(e) => setImgPrompt(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") makeImage(); }}
-            placeholder="Describe an image — e.g. a clean infographic of…"
-            style={{ flex: 1, background: "var(--ios-fill)", border: "none", borderRadius: 12, padding: "12px 14px", fontSize: 15, color: "var(--ios-label)" }}
-          />
-          <button onClick={makeImage} disabled={imgBusy || !imgPrompt.trim()}
-            style={{ padding: "0 18px", borderRadius: 12, background: "var(--ios-tint)", color: "var(--ios-on-tint)", border: "none", fontWeight: 700, fontSize: 15, cursor: "pointer", opacity: imgBusy || !imgPrompt.trim() ? 0.5 : 1 }}>
-            {imgBusy ? "…" : "Create"}
-          </button>
-        </div>
-        {imgErr && <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", marginTop: 10 }}>{imgErr}</div>}
-        {imgUrl && (
-          <div style={{ marginTop: 12 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={imgUrl} alt={imgPrompt} style={{ width: "100%", borderRadius: 12, display: "block" }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
-              <a href={imgUrl} download={`${slug(imgPrompt)}.png`} style={{ color: "var(--ios-tint)", fontWeight: 600, fontSize: 14, textDecoration: "none" }}>
-                Download image ↓
-              </a>
-              {imgCost != null && <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>cost {fmtCost(imgCost)}</span>}
-            </div>
-          </div>
-        )}
-      </div>
 
-      {/* The conversation, oldest first — it reads downward like a chat. */}
-      {thread?.turns.map((turn, idx) => {
+      {/* The conversation, oldest first — it reads downward like a chat. The
+          turn still streaming in is appended so it renders through exactly the
+          same path as a finished one, gaining placeholders for the models it is
+          still waiting on. */}
+      {[...(thread?.turns ?? []), ...(liveTurn ? [liveTurn] : [])].map((turn, idx, allTurns) => {
         const position = idx + 1; // 1 = the opening question
+        const isLive = liveTurn != null && idx === allTurns.length - 1 && turn.at === liveTurn.at;
+        const answered = new Set((turn.results ?? []).map((r) => r.model));
+        const pending = isLive ? selected.filter((m) => !answered.has(m)) : [];
         const isCollapsed = collapsed.has(turn.at);
         const hasBody = Boolean(turn.synthesis || (turn.results && turn.results.length));
         return (
@@ -950,14 +857,21 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
               </div>
             )}
 
-            {!isCollapsed && turn.results && turn.results.length > 0 && (
+            {!isCollapsed && ((turn.results && turn.results.length > 0) || pending.length > 0) && (
               <>
-                <div className="ios-group-header" style={{ padding: "12px 0 7px" }}>ANSWERS · swipe →</div>
-                <div style={{ display: "flex", gap: 12, overflowX: "auto", scrollSnapType: "x mandatory", paddingBottom: 6, margin: "0 -16px", paddingLeft: 16, paddingRight: 16, alignItems: "flex-start" }}>
-                  {turn.results.map((r) => {
+                <div className="ios-group-header" style={{ padding: "12px 0 7px" }}>
+                  ANSWERS{pending.length > 0 ? ` · ${answered.size} of ${answered.size + pending.length} in` : ""}
+                </div>
+                {/* A grid, not a carousel. The whole point of the panel is reading
+                    answers against each other; the old 84%-wide snap track showed
+                    exactly one at a time on every screen, so a wide display was no
+                    more useful than a phone. auto-fit gives one column on a phone,
+                    two on a tablet, three or four on a desktop. */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 290px), 1fr))", gap: 12, alignItems: "start" }}>
+                  {(turn.results ?? []).map((r) => {
                     const m = META(r.model);
                     return (
-                      <div key={r.model} className="ios-list" style={{ margin: 0, flex: "0 0 84%", maxWidth: 340, scrollSnapAlign: "start", padding: 16, alignSelf: "flex-start", display: "flex", flexDirection: "column" }}>
+                      <div key={r.model} className="ios-list" style={{ margin: 0, padding: 16, display: "flex", flexDirection: "column", minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
                           <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color, flexShrink: 0 }} />
                           <span className="ios-headline" style={{ fontSize: 15 }}>{m.label}</span>
@@ -986,6 +900,27 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
                       </div>
                     );
                   })}
+
+                  {/* One placeholder per model still working. Named, so it's
+                      obvious which one is slow rather than just "loading". */}
+                  {pending.map((id) => {
+                    const m = META(id);
+                    return (
+                      <div key={`pending-${id}`} className="ios-list"
+                        style={{ margin: 0, padding: 16, display: "flex", flexDirection: "column", minWidth: 0, opacity: 0.7 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                          <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color, flexShrink: 0 }} />
+                          <span className="ios-headline" style={{ fontSize: 15 }}>{m.label}</span>
+                        </div>
+                        <div className="ios-caption ios-pending" style={{ color: "var(--ios-label-3)" }}>Thinking…</div>
+                        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 7 }}>
+                          {[92, 78, 85, 61].map((w, i) => (
+                            <div key={i} className="ios-pending" style={{ height: 9, width: `${w}%`, borderRadius: 4, background: "var(--ios-fill)" }} />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -995,6 +930,19 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
 
       {/* Scroll anchor — the newest answers sit just above this. */}
       <div ref={bottomRef} />
+
+
+      {!thread && !busy && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
+          {SUGGESTIONS.map((s) => (
+            <button key={s} onClick={() => submit(s)}
+              style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid var(--ios-separator)", background: "transparent", color: "var(--ios-tint)", fontSize: 13, fontWeight: 500, cursor: "pointer", textAlign: "left" }}>
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+
 
       {/* ── Composer ────────────────────────────────────────────────────────
           Pinned to the bottom, so it has to stay SHORT. The first version put
@@ -1014,31 +962,25 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
           borderTop: "0.5px solid var(--ios-separator)",
         }}
       >
-        {/* Higher rates still interrupt — never fold a spend behind a menu. */}
-        {confirmRates && gated && !busy && (
+        {/* The one interruption left. A ceiling on real spend replaces the old
+            per-model rate gate: nobody wants to reason about $/M, they want to
+            know this session cannot run away. Never folded behind Options. */}
+        {overBudget && !busy && (
           <div className="ios-list" style={{ margin: "0 0 8px", padding: 12, border: "1.5px solid var(--ios-orange, #D9772B)" }}>
-            <div className="ios-subhead" style={{ color: "var(--ios-label)", fontWeight: 700, marginBottom: 6 }}>Higher rates on this run</div>
-            {needsAccepting.map((id) => {
-              const p = rates[id];
-              return (
-                <div key={id} className="ios-caption" style={{ color: "var(--ios-label-2)", display: "flex", justifyContent: "space-between", gap: 10, padding: "3px 0" }}>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{META(id).label}</span>
-                  <span style={{ flexShrink: 0 }}>{rateLabel(p)} out · {`$${perMillion(p?.prompt).toFixed(2)}`}/M in</span>
-                </div>
-              );
-            })}
-            <div className="ios-caption" style={{ color: "var(--ios-label-3)", margin: "7px 0 9px", lineHeight: 1.45 }}>
-              {estCost > 0 ? <>This run is estimated at <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>. </> : null}
-              Accepting keeps {needsAccepting.length === 1 ? "this model" : "these models"} unlocked until you leave the page.
+            <div className="ios-subhead" style={{ color: "var(--ios-label)", fontWeight: 700, marginBottom: 5 }}>That would pass your session limit</div>
+            <div className="ios-caption" style={{ color: "var(--ios-label-2)", lineHeight: 1.45, marginBottom: 10 }}>
+              You&rsquo;ve spent <strong style={{ color: "var(--ios-label)" }}>{fmtCost(sessionCost)}</strong> of{" "}
+              <strong style={{ color: "var(--ios-label)" }}>{fmtCost(budget)}</strong>, and this run is estimated at about{" "}
+              <strong style={{ color: "var(--ios-label)" }}>{fmtCost(estCost)}</strong>.
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button onClick={() => { setAcceptedRates((a) => [...a, ...needsAccepting]); setConfirmRates(false); run(); }}
-                className="ios-btn ios-btn--primary" style={{ flex: 1, minWidth: 160 }}>
-                Accept rates &amp; ask
+              <button onClick={() => { setBudget((b: number) => b + 5); setOverBudget(false); run(); }}
+                className="ios-btn ios-btn--primary" style={{ flex: 1, minWidth: 150 }}>
+                Add $5 and ask
               </button>
-              <button onClick={() => setConfirmRates(false)} className="ios-caption"
+              <button onClick={() => setOverBudget(false)} className="ios-caption"
                 style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 10, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "8px 14px" }}>
-                Cancel
+                Not now
               </button>
             </div>
           </div>
@@ -1060,6 +1002,10 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
             )}
 
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={() => { setPanelOpen(true); setOptionsOpen(false); }} className="ios-caption"
+                style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "6px 10px" }}>
+                Change panel
+              </button>
               <button onClick={openLibrary} disabled={attachBusy} className="ios-caption"
                 style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "6px 10px" }}>
                 Attach from Morris Hub
@@ -1069,6 +1015,10 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
                   {describeAttachments(attachments)} · sent every turn
                 </span>
               )}
+            </div>
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6, lineHeight: 1.45 }}>
+              Up to {MAX_ATTACHMENTS} files, 10MB each — or 2.5MB for a scan that needs reading by OCR.
+              {attachmentTokens > 0 && <> Attached text adds about {attachmentTokens.toLocaleString()} tokens to every model, every turn.</>}
             </div>
 
             <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, cursor: "pointer" }}>
@@ -1084,20 +1034,31 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
               <span className="ios-subhead">Synthesize into one merged answer</span>
             </label>
 
-            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 10, lineHeight: 1.5 }}>
-              {estCost > 0 && <>Est. this run <strong style={{ color: "var(--ios-label-2)" }}>~{fmtCost(estCost)}</strong>{hasUnpriced ? " + Auto (varies)" : ""}. </>}
-              {estCost === 0 && hasUnpriced && <>Auto Router price varies with the model it picks. </>}
-              {thread && <>Follow-ups replay the thread, so they cost a little more. </>}
-              {web && <>Live web adds ~$0.01–0.02 per model. </>}
-              {attachmentTokens > 0 && (
-                <>Attached files add ~{attachmentTokens.toLocaleString()} tokens to <em>each</em> model, every turn. </>
-              )}
-              {debate && <>The reaction round asks every model a second time. </>}
-              {attachments.some((a) => a.remoteParse) && (
-                <>A scanned PDF is read by OCR at $0.002/page — charged once; after that its text is held here. </>
-              )}
-              {sessionCost > 0 && <>Session <strong style={{ color: "var(--ios-label-2)" }}>{fmtCost(sessionCost)}</strong>. </>}
-              Exact cost shown after each action.
+            {/* One place for money. This used to be six separate warnings —
+                estimate, rate gate, per-answer, session total, OCR per page and
+                a per-turn token note — which made every question read as a
+                purchase. A ceiling set once does the protecting instead. */}
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: "0.5px solid var(--ios-separator)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span className="ios-subhead" style={{ flex: 1, minWidth: 140 }}>
+                  Spent <strong>{fmtCost(sessionCost)}</strong> of{" "}
+                  <strong>{fmtCost(budget)}</strong> this session
+                </span>
+                <label className="ios-caption" style={{ display: "flex", alignItems: "center", gap: 5, color: "var(--ios-label-2)" }}>
+                  Limit $
+                  <input
+                    type="number" min={0} step={1} value={budget}
+                    onChange={(e) => { const n = parseFloat(e.target.value); setBudget(Number.isFinite(n) && n >= 0 ? n : 0); setOverBudget(false); }}
+                    style={{ width: 62, background: "var(--ios-fill)", border: "none", borderRadius: 8, padding: "5px 8px", color: "var(--ios-label)", fontSize: 15 }}
+                  />
+                </label>
+              </div>
+              <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6, lineHeight: 1.45 }}>
+                {estCost > 0
+                  ? <>This run is about <strong style={{ color: "var(--ios-label-2)" }}>{fmtCost(estCost)}</strong>{hasUnpriced ? ", plus Auto (varies)" : ""}. </>
+                  : hasUnpriced ? <>Auto Router&rsquo;s price depends on the model it picks. </> : null}
+                Set the limit to 0 to turn the ceiling off.
+              </div>
             </div>
           </div>
         )}
@@ -1110,7 +1071,15 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
                 <span key={a.id} className="ios-caption"
                   style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--ios-fill)", borderRadius: 8, padding: "4px 6px 4px 8px", maxWidth: "100%" }}>
                   <span aria-hidden>{fileIcon(a.kind)}</span>
-                  <span style={{ color: "var(--ios-label)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>{a.name}</span>
+                  {a.text ? (
+                    <button onClick={() => setPreviewFile(a)}
+                      title={`See what was read out of ${a.name}`}
+                      style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--ios-label)", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120, textDecoration: "underline", textDecorationColor: "var(--ios-separator)", textUnderlineOffset: 2 }}>
+                      {a.name}
+                    </button>
+                  ) : (
+                    <span style={{ color: "var(--ios-label)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>{a.name}</span>
+                  )}
                   {(a.remoteParse || a.ocrDone) && (
                     <span
                       style={{ color: a.ocrDone ? "var(--ios-green)" : "var(--ios-orange, #D9772B)" }}
@@ -1171,10 +1140,10 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
             />
 
             <button onClick={() => submit()} disabled={busy || !question.trim() || selected.length === 0}
-              aria-label={gated ? "Review rates before asking" : "Ask the panel"}
-              title={gated ? `Review rates · ${needsAccepting.length} higher-rate model${needsAccepting.length === 1 ? "" : "s"}` : `Ask ${selected.length} model${selected.length === 1 ? "" : "s"}`}
-              style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 17, background: gated ? "var(--ios-orange, #D9772B)" : "var(--ios-tint)", border: "none", color: "var(--ios-on-tint)", fontSize: 16, fontWeight: 700, cursor: "pointer", opacity: busy || !question.trim() || selected.length === 0 ? 0.4 : 1, lineHeight: 1 }}>
-              {busy ? "…" : gated ? "!" : "↑"}
+              aria-label="Ask the panel"
+              title={`Ask ${selected.length} model${selected.length === 1 ? "" : "s"}`}
+              style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 17, background: "var(--ios-tint)", border: "none", color: "var(--ios-on-tint)", fontSize: 16, fontWeight: 700, cursor: "pointer", opacity: busy || !question.trim() || selected.length === 0 ? 0.4 : 1, lineHeight: 1 }}>
+              {busy ? "…" : "↑"}
             </button>
           </div>
 
@@ -1185,9 +1154,19 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
               style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "2px 0", flexShrink: 0 }}>
               Options {optionsOpen ? "▾" : "▸"}
             </button>
-            <span className="ios-caption" style={{ color: "var(--ios-label-3)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {/* The panel is named here and tappable, so "which models" is one
+                tap away rather than a screen of pickers before you can type. */}
+            <button onClick={() => setPanelOpen(true)} className="ios-caption"
+              style={{ background: "none", border: "none", color: "var(--ios-label-2)", cursor: "pointer", padding: "2px 0", flexShrink: 0, fontWeight: 600 }}>
               {selected.length} model{selected.length === 1 ? "" : "s"}
-              {web ? " · web" : ""}{debate ? " · debate" : ""}{synthesize ? " · synthesis" : ""}
+            </button>
+            <span className="ios-caption" style={{ color: "var(--ios-label-3)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {/* When nothing is switched on, name what's available rather than
+                  leaving the row blank — otherwise the reaction round, the one
+                  thing a single chat app can't do, is invisible. */}
+              {anyOptionOn
+                ? `${web ? " · web" : ""}${debate ? " · debate" : ""}${synthesize ? " · synthesis" : ""}`.replace(/^ · /, "")
+                : "web · debate · synthesis"}
               {thread ? ` · ${thread.turns.length} asked` : ""}
               {estCost > 0 ? ` · ~${fmtCost(estCost)}` : ""}
             </span>
@@ -1200,6 +1179,232 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
           </div>
         </div>
       </div>
+
+
+      {!busy && threads.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <div className="ios-group-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0 7px" }}>
+            <span>RECENT · conversations saved</span>
+            <button onClick={() => { fetch("/api/ask/compare/threads", { method: "DELETE" }).catch(() => {}); persistThreads([]); newThread(); }} className="ios-caption" style={{ color: "var(--ios-tint)", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>Clear all</button>
+          </div>
+          <div className="ios-list" style={{ margin: 0 }}>
+            {threads.map((t, i) => {
+              const answers = t.turns.reduce((n, x) => n + (x.results?.filter((r) => r.answer && !r.error).length ?? 0), 0);
+              const cost = t.turns.reduce((n, x) => n + (x.cost ?? 0), 0);
+              const qs = t.turns.length;
+              return (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: i < threads.length - 1 ? "1px solid var(--ios-separator)" : "none", background: thread?.id === t.id ? "var(--ios-fill)" : "transparent" }}>
+                  <button onClick={() => open(t)} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                    <div style={{ color: "var(--ios-label)", fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.turns[0].q}</div>
+                    <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 2 }}>
+                      {answers
+                        ? `${qs} question${qs === 1 ? "" : "s"} · ${answers} saved answer${answers === 1 ? "" : "s"} · ${ago(t.at)}${cost > 0 ? ` · ${fmtCost(cost)}` : ""}`
+                        : "tap to ask again"}
+                    </div>
+                  </button>
+                  {answers > 0 && (
+                    <button onClick={() => submit(t.turns[t.turns.length - 1].q, true)} aria-label="Ask again in a new thread" title="Ask again in a new thread (runs the models, costs money)"
+                      style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "5px 9px", flexShrink: 0 }}>
+                      Re-ask
+                    </button>
+                  )}
+                  <button onClick={() => removeThread(t.id)} aria-label="Remove conversation" style={{ background: "none", border: "none", color: "var(--ios-label-3)", fontSize: 19, lineHeight: 1, cursor: "pointer", padding: "0 4px", flexShrink: 0 }}>×</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+
+      {/* Change the panel. Everything about *which* models answer now lives
+          behind one control instead of occupying the first screen — the page
+          used to open on six configuration sections before the conversation. */}
+      {panelOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Choose the panel"
+          onClick={() => setPanelOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: "var(--ios-bg)", borderRadius: "16px 16px 0 0", width: "100%", maxWidth: 640, maxHeight: "82vh", overflowY: "auto", padding: "16px 16px calc(20px + env(safe-area-inset-bottom, 0px))" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <span className="ios-headline">Choose the panel</span>
+              <button onClick={() => setPanelOpen(false)} className="ios-caption"
+                style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer" }}>Done</button>
+            </div>
+            {/* Limits stated where they apply, rather than discovered by hitting them. */}
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginBottom: 12, lineHeight: 1.45 }}>
+              Up to four models at once, and twelve runs a minute. More models means a
+              broader spread of views, a longer wait and a bigger bill.
+            </div>
+
+        {/* Model picker */}
+        <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>PANEL · pick up to 4</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+          {ALL.map((m) => {
+            const on = selected.includes(m.id);
+            const premium = isPremiumRate(rates[m.id]);
+            return (
+              <button key={m.id} onClick={() => toggle(m.id)}
+                title={m.id === AUTO_MODEL ? "OpenRouter picks the best model for each question" : `${m.id}${rateLabel(rates[m.id]) ? ` · ${rateLabel(rates[m.id])} out` : ""}`}
+                style={{ padding: "7px 13px", borderRadius: 999, fontSize: 14, fontWeight: 600, cursor: "pointer",
+                  border: `1px solid ${on ? "transparent" : "var(--ios-separator)"}`,
+                  background: on ? m.color : "transparent", color: on ? "#fff" : "var(--ios-label)" }}>
+                {m.id === AUTO_MODEL ? "✨ " : LIVE_IDS.has(m.id) ? "🌐 " : ""}{m.label}
+                {premium && <span style={{ opacity: 0.75, fontWeight: 600 }}> · {rateLabel(rates[m.id])}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Anything picked out of the full catalog gets its own chip row */}
+        {picked.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+            {picked.map((m) => {
+              const on = selected.includes(m.id);
+              return (
+                <button key={m.id} onClick={() => toggle(m.id)} title={m.id}
+                  style={{ padding: "7px 13px", borderRadius: 999, fontSize: 14, fontWeight: 600, cursor: "pointer",
+                    border: `1px solid ${on ? "transparent" : "var(--ios-separator)"}`,
+                    background: on ? m.color : "transparent", color: on ? "#fff" : "var(--ios-label)" }}>
+                  {m.label}
+                  <span style={{ opacity: on ? 0.8 : 0.55 }}> · {rateLabel(m) || "free"}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginBottom: 12, lineHeight: 1.45 }}>
+          Default panel: {COMPARE_MODELS.map((m) => m.label).join(" · ")} — preselected each visit.
+        </div>
+
+        {/* Any model on OpenRouter, by search */}
+        <div style={{ marginBottom: 14 }}>
+          <input
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              if (!e.target.value.trim()) { setFound(null); setSearchErr(null); }
+            }}
+            placeholder="Search all OpenRouter models — name or id…"
+            aria-label="Search all OpenRouter models"
+            style={{ width: "100%", background: "var(--ios-fill)", border: "none", borderRadius: 12, padding: "10px 14px", fontSize: 15, color: "var(--ios-label)" }}
+          />
+          {searching && <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>Searching…</div>}
+          {searchErr && <div className="ios-caption" style={{ color: "var(--ios-red, #FF3B30)", marginTop: 6 }}>{searchErr}</div>}
+          {found && found.length === 0 && !searching && (
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>No models match “{query.trim()}”.</div>
+          )}
+          {found && found.length > 0 && (
+            <div className="ios-list" style={{ margin: "8px 0 0", maxHeight: 260, overflowY: "auto" }}>
+              {found.map((m, i) => {
+                const already = selected.includes(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      setPicked((p) => (p.some((x) => x.id === m.id) ? p : [...p, m]));
+                      if (!already) toggle(m.id);
+                      setQuery("");
+                    }}
+                    disabled={already || selected.length >= 4}
+                    style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", background: "none", cursor: already || selected.length >= 4 ? "default" : "pointer",
+                      border: "none", borderBottom: i < found.length - 1 ? "1px solid var(--ios-separator)" : "none", textAlign: "left", opacity: already || selected.length >= 4 ? 0.45 : 1 }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: 2, background: m.color, flexShrink: 0 }} />
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: "block", color: "var(--ios-label)", fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.label}</span>
+                      <span className="ios-caption" style={{ color: "var(--ios-label-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>{m.id}</span>
+                    </span>
+                    <span className="ios-caption" style={{ color: isPremiumRate(m) ? "var(--ios-orange, #D9772B)" : "var(--ios-label-3)", flexShrink: 0 }}>
+                      {rateLabel(m) || "free"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {selected.length >= 4 && found && found.length > 0 && (
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>Panel is full — drop a model to add another.</div>
+          )}
+        </div>
+
+        {/* Newest models, straight from OpenRouter's catalog */}
+        {newest.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <button onClick={() => setShowNewest((v) => !v)} className="ios-caption"
+              style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "2px 0" }}>
+              {showNewest ? "▾" : "▸"} Newest models on OpenRouter ({newest.length})
+            </button>
+            {showNewest && (
+              <>
+                <div className="ios-caption" style={{ color: "var(--ios-label-3)", margin: "4px 0 8px", lineHeight: 1.45 }}>
+                  Just-released models, listed live — anything at {`$${PREMIUM_PER_M}`}/M output or more asks you to accept the rate before it runs.
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {newest.map((m) => {
+                    const on = selected.includes(m.id);
+                    const premium = isPremiumRate(m);
+                    return (
+                      <button key={m.id} onClick={() => toggle(m.id)} title={m.id}
+                        style={{ padding: "7px 13px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, cursor: "pointer",
+                          border: `1px solid ${on ? "transparent" : premium ? "var(--ios-orange, #D9772B)" : "var(--ios-separator)"}`,
+                          background: on ? m.color : "transparent", color: on ? "#fff" : "var(--ios-label)" }}>
+                        {m.label}
+                        <span style={{ opacity: on ? 0.8 : 0.55, fontWeight: 600 }}> · {rateLabel(m) || "—"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+
+          </div>
+        </div>
+      )}
+
+      {/* What the panel actually read out of a file. For a scanned form, "OCR ✓"
+          asks you to trust numbers you cannot see; this shows them. */}
+      {previewFile && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Text read from ${previewFile.name}`}
+          onClick={() => setPreviewFile(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: "var(--ios-bg-elevated)", borderRadius: "16px 16px 0 0", width: "100%", maxWidth: 640, maxHeight: "78vh", display: "flex", flexDirection: "column", padding: "16px 16px calc(16px + env(safe-area-inset-bottom, 0px))" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
+              <span className="ios-headline" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{previewFile.name}</span>
+              <button onClick={() => setPreviewFile(null)} className="ios-caption"
+                style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>Done</button>
+            </div>
+            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginBottom: 10 }}>
+              {previewFile.ocrDone ? "Read by OCR" : "Read from the file"}
+              {previewFile.text ? ` · ${previewFile.text.length.toLocaleString()} characters` : ""}
+              {previewFile.truncated ? " · clipped to the beginning" : ""}
+              {" — this is exactly what the models were given."}
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", background: "var(--ios-fill-2)", borderRadius: 10, padding: "12px 13px" }}>
+              <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: 13, lineHeight: 1.5, color: "var(--ios-label)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                {previewFile.text}
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* "From Morris Hub" — documents the app already holds. */}
       {libraryOpen && (

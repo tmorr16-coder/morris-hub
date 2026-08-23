@@ -114,111 +114,160 @@ export async function POST(req: NextRequest) {
     return msgs;
   }
 
-  // ── Round 1: every model answers independently ────────────────────────────
-  // Fan out in parallel — one failure never blocks the rest. Perplexity Sonar
-  // searches natively, so the web plugin is only added to the others.
+  // ── Streamed run ──────────────────────────────────────────────────────────
+  // Everything below is emitted as Server-Sent Events rather than assembled and
+  // returned at the end. With four models, a reaction round and a synthesis, one
+  // submission is up to nine model calls; collecting them all before responding
+  // meant a minute of a motionless spinner, which reads as broken rather than as
+  // thorough. Each answer now appears the moment it lands.
+  //
   // mistral-ocr is the only engine that reads a scan, and we only get here when
   // local extraction already failed — so the file genuinely has no text layer.
   const pdfEngine = fileParts.length ? ("mistral-ocr" as const) : undefined;
 
-  const settled = await Promise.allSettled(
-    models.map((m) => askModel(m, conversation(m), 1200, { web: web && !m.startsWith("perplexity/"), pdfEngine })),
-  );
-  const results = models.map((model, i) => {
-    const r = settled[i];
-    return r.status === "fulfilled"
-      ? { model, answer: r.value.content, error: null as string | null, cost: r.value.cost, citations: r.value.citations, served: r.value.served, reaction: null as string | null, reactionCost: null as number | null }
-      : { model, answer: "", error: (r.reason as Error)?.message ?? "Failed", cost: null as number | null, citations: [], served: null as string | null, reaction: null as string | null, reactionCost: null as number | null };
+  interface ResultRow {
+    model: string;
+    answer: string;
+    error: string | null;
+    cost: number | null;
+    citations: { url: string; title: string }[];
+    served: string | null;
+    reaction: string | null;
+    reactionCost: number | null;
+  }
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let open = true;
+      const send = (event: string, data: unknown) => {
+        if (!open) return;
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch {
+          open = false; // client went away mid-run
+        }
+      };
+
+      try {
+        const results: ResultRow[] = [];
+        const rawAnnotations: FileAnnotation[] = [];
+
+        // ── Round 1: every model answers independently ───────────────────────
+        // Parallel, and each one is sent on as soon as it resolves — a slow
+        // model no longer holds up the three that already finished.
+        await Promise.all(
+          models.map(async (model) => {
+            let row: ResultRow;
+            try {
+              const r = await askModel(model, conversation(model), 1200, {
+                web: web && !model.startsWith("perplexity/"),
+                pdfEngine,
+              });
+              rawAnnotations.push(...r.annotations);
+              row = {
+                model, answer: r.content, error: null, cost: r.cost,
+                citations: r.citations, served: r.served, reaction: null, reactionCost: null,
+              };
+            } catch (e) {
+              row = {
+                model, answer: "", error: (e as Error)?.message ?? "Failed", cost: null,
+                citations: [], served: null, reaction: null, reactionCost: null,
+              };
+            }
+            results.push(row);
+            send("answer", row);
+          }),
+        );
+
+        // Which columns couldn't see an attached image, and the OCR'd text so the
+        // client can swap it in for the PDF it is holding.
+        if (skippedVision.length) send("vision", { skippedVision });
+        if (fileParts.length) {
+          const parsedFiles = extractParsedText(rawAnnotations);
+          if (parsedFiles.length) send("files", { parsedFiles });
+        }
+
+        // ── Round 2 (optional): each model reads the others and responds ─────
+        // Round 1 is four monologues; this is where they actually meet. Each
+        // model sees its peers' answers attributed by name and is asked where it
+        // agrees, where it doesn't, and to revise if one of them caught something.
+        // Needs two good answers — there is nothing to react to otherwise.
+        if (debate) {
+          const good = results.filter((r) => r.answer && !r.error);
+          if (good.length >= 2) {
+            await Promise.all(
+              good.map(async (self) => {
+                const peers = good
+                  .filter((p) => p.model !== self.model)
+                  .map((p) => `### ${p.model} answered:\n${clip(p.answer, MAX_REACTION_CHARS)}`)
+                  .join("\n\n");
+                try {
+                  const r = await askModel(
+                    self.model,
+                    [
+                      {
+                        role: "system",
+                        content:
+                          "You are on a panel that just answered a question independently. You will see what the other models said. Respond in under 150 words: name the substantive points where you agree, flag anything you think is wrong or misleading and say why, and revise your own answer if one of them caught something you missed. Be direct and specific — do not summarize the question or pad with pleasantries. If you fully agree, say so in one line rather than inventing a disagreement.",
+                      },
+                      { role: "user", content: `The question was: ${question}\n\nYour answer:\n${clip(self.answer, MAX_REACTION_CHARS)}\n\nThe other panelists:\n\n${peers}` },
+                    ],
+                    500,
+                  );
+                  self.reaction = r.content;
+                  self.reactionCost = r.cost;
+                  send("reaction", { model: self.model, reaction: r.content, reactionCost: r.cost });
+                } catch {
+                  // A failed reaction leaves the answer standing on its own.
+                }
+              }),
+            );
+          }
+        }
+
+        // ── Optional synthesis — one model reads everything and merges it ────
+        let synthesisCost: number | null = null;
+        if (body.synthesize) {
+          const good = results.filter((r) => r.answer && !r.error);
+          if (good.length >= 2) {
+            const combined = good
+              .map((r) => `### Answer from ${r.model}\n${r.answer}${r.reaction ? `\n\n**${r.model} on the others:** ${r.reaction}` : ""}`)
+              .join("\n\n");
+            try {
+              const s = await askModel(
+                SYNTH_MODEL,
+                [
+                  { role: "system", content: `You synthesize multiple AI answers into one best answer. Note where the models agree, flag any disagreements or factual conflicts, and produce a single clear, well-organized response. Be concise; use markdown.${debate ? " Each answer may be followed by that model's response to the others — weight a point that survived scrutiny over one that was challenged and left undefended." : ""}` },
+                  { role: "user", content: `${history.length ? `Earlier in this conversation: ${history.map((t) => t.q).join(" → ")}\n\n` : ""}Question: ${question}\n\nHere are ${good.length} answers from different models:\n\n${combined}\n\nProduce the single best merged answer, noting agreements and any conflicts.` },
+                ],
+                1400,
+              );
+              synthesisCost = s.cost;
+              send("synthesis", { synthesis: s.content, synthesisCost: s.cost });
+            } catch {
+              // No synthesis is a missing extra, not a failed run.
+            }
+          }
+        }
+
+        const totalCost =
+          results.reduce((sum, r) => sum + (r.cost ?? 0) + (r.reactionCost ?? 0), 0) + (synthesisCost ?? 0);
+        send("done", { totalCost });
+      } catch (e) {
+        send("error", { message: (e as Error)?.message ?? "The run failed." });
+      } finally {
+        try { controller.close(); } catch { /* already closed */ }
+      }
+    },
   });
 
-  // Take the OCR text from whichever model got there first — they were all sent
-  // the same file — and hand it back so the client can swap it in for the PDF.
-  //
-  // The PDF must NOT keep travelling: re-sending 6MB of base64 (plus annotation
-  // images, which are base64 too) exceeded Vercel's 4.5MB request body limit on
-  // the second turn, and the request died with no response at all. Once we have
-  // the text, the file is redundant.
-  const rawAnnotations: FileAnnotation[] = settled.flatMap((r) =>
-    r.status === "fulfilled" ? r.value.annotations : []
-  );
-  const parsedFiles = fileParts.length ? extractParsedText(rawAnnotations) : [];
-
-  // ── Round 2 (optional): each model reads the others and responds ──────────
-  // Round 1 is four monologues; this is where they actually meet. Each model
-  // sees its peers' answers attributed by name and is asked to say where it
-  // agrees, where it doesn't, and to correct itself if it got something wrong.
-  // Needs at least two good answers — there is nothing to react to otherwise.
-  if (debate) {
-    const good = results.filter((r) => r.answer && !r.error);
-    if (good.length >= 2) {
-      const reactions = await Promise.allSettled(
-        good.map((self) => {
-          const peers = good
-            .filter((p) => p.model !== self.model)
-            .map((p) => `### ${p.model} answered:\n${clip(p.answer, MAX_REACTION_CHARS)}`)
-            .join("\n\n");
-          return askModel(
-            self.model,
-            [
-              {
-                role: "system",
-                content:
-                  "You are on a panel that just answered a question independently. You will see what the other models said. Respond in under 150 words: name the substantive points where you agree, flag anything you think is wrong or misleading and say why, and revise your own answer if one of them caught something you missed. Be direct and specific — do not summarize the question or pad with pleasantries. If you fully agree, say so in one line rather than inventing a disagreement.",
-              },
-              { role: "user", content: `The question was: ${question}\n\nYour answer:\n${clip(self.answer, MAX_REACTION_CHARS)}\n\nThe other panelists:\n\n${peers}` },
-            ],
-            500,
-          ).then((r) => ({ model: self.model, content: r.content, cost: r.cost }));
-        }),
-      );
-      for (const settledReaction of reactions) {
-        if (settledReaction.status !== "fulfilled") continue;
-        const target = results.find((r) => r.model === settledReaction.value.model);
-        if (target) {
-          target.reaction = settledReaction.value.content;
-          target.reactionCost = settledReaction.value.cost;
-        }
-      }
-    }
-  }
-
-  // ── Optional synthesis — one model reads everything and merges it ─────────
-  let synthesis: string | null = null;
-  let synthesisCost: number | null = null;
-  if (body.synthesize) {
-    const good = results.filter((r) => r.answer && !r.error);
-    if (good.length >= 2) {
-      const combined = good
-        .map((r) => `### Answer from ${r.model}\n${r.answer}${r.reaction ? `\n\n**${r.model} on the others:** ${r.reaction}` : ""}`)
-        .join("\n\n");
-      try {
-        const s = await askModel(
-          SYNTH_MODEL,
-          [
-            { role: "system", content: `You synthesize multiple AI answers into one best answer. Note where the models agree, flag any disagreements or factual conflicts, and produce a single clear, well-organized response. Be concise; use markdown.${debate ? " Each answer may be followed by that model's response to the others — weight a point that survived scrutiny over one that was challenged and left undefended." : ""}` },
-            { role: "user", content: `${history.length ? `Earlier in this conversation: ${history.map((t) => t.q).join(" → ")}\n\n` : ""}Question: ${question}\n\nHere are ${good.length} answers from different models:\n\n${combined}\n\nProduce the single best merged answer, noting agreements and any conflicts.` },
-          ],
-          1400,
-        );
-        synthesis = s.content;
-        synthesisCost = s.cost;
-      } catch { synthesis = null; }
-    }
-  }
-
-  const totalCost =
-    results.reduce((sum, r) => sum + (r.cost ?? 0) + (r.reactionCost ?? 0), 0) + (synthesisCost ?? 0);
-
-  return NextResponse.json({
-    results,
-    synthesis,
-    synthesisCost,
-    totalCost,
-    // Surfaced so the UI can say which columns couldn't see an attached image,
-    // rather than leaving the user to wonder why one answer ignored it.
-    skippedVision,
-    // OCR'd text, so the client can replace the PDF with it. Text only — the
-    // annotation's images are base64 and would blow the request budget again.
-    parsedFiles,
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      // Tells any proxy in front of us not to buffer, which would defeat the point.
+      "X-Accel-Buffering": "no",
+    },
   });
 }
