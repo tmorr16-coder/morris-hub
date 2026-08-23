@@ -26,6 +26,7 @@ export interface RetirementAccount {
   monthly_contribution: number;
   employer_match_pct: number;
   return_override: number | null;
+  cost_basis_pct: number | null; // % of balance that is basis (taxable accounts); null = plan default
   plaid_account_id: string | null;
   sort_order: number;
   created_at: string;
@@ -115,8 +116,12 @@ export interface RetirementScenario {
   ltc_monthly_cost?: number | null;        // LTC monthly cost (today's dollars)
   ltc_start_age?: number | null;           // age LTC begins (null = life_expectancy − ltc_years)
   ltc_years?: number | null;               // duration of LTC in years
+  survivor_enabled?: boolean | null;       // model the first death partway through the plan
+  survivor_age?: number | null;            // age at which it happens (filing → single, smaller SS stops)
+  spending_smile_enabled?: boolean | null; // real spending drifts down mid-retirement, up late
   roth_convert_enabled?: boolean | null;   // convert pre-tax → Roth during a window
   roth_convert_annual?: number | null;     // annual conversion amount (today's dollars)
+  roth_convert_to_bracket?: number | null; // convert up to the top of this marginal rate (e.g. 0.12)
   roth_convert_start_age?: number | null;  // window start (null = retirement age)
   roth_convert_end_age?: number | null;    // window end (null = 72, before RMDs)
   created_at: string;

@@ -6,6 +6,7 @@ import type { RetirementIncome, RetirementProfile } from "../types";
 import type { PensionOption } from "@/app/api/finance/retirement/pension-extract/route";
 import PensionScanner from "./PensionScanner";
 import SSOptimizer from "./SSOptimizer";
+import { ssBenefitFactor } from "../_lib/cashflow";
 
 interface Props {
   incomes: RetirementIncome[];
@@ -47,6 +48,10 @@ function defaultFrequency(type: string): string {
 function amountLabel(type: string): string {
   if (type === "bonus") return "Annual bonus amount ($)";
   if (type === "stock_award") return "Annual vesting value ($)";
+  // Being explicit matters here: the plan applies the claim-age adjustment to
+  // this figure, so it has to be the full-retirement-age benefit — which is
+  // also the number an SSA statement leads with.
+  if (type === "social_security") return "Monthly benefit at full retirement age (67) ($)";
   return "Monthly amount ($)";
 }
 
@@ -681,6 +686,31 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
                   placeholder="67"
                   style={inputStyle}
                 />
+                {/* The consequence of the choice, shown at the moment it's made.
+                    Claiming early or late changes the benefit permanently. */}
+                {(() => {
+                  const claim = parseInt(form.ss_claim_age || "67");
+                  const fra = parseFloat(form.monthly_amount) || 0;
+                  if (!Number.isFinite(claim) || claim < 62 || claim > 70) return null;
+                  const factor = ssBenefitFactor(claim);
+                  const pct = Math.round((factor - 1) * 100);
+                  return (
+                    <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 6, lineHeight: 1.45 }}>
+                      {claim === 67 ? (
+                        <>Full retirement age — you receive the full benefit.</>
+                      ) : (
+                        <>
+                          Claiming at {claim} pays{" "}
+                          <strong style={{ color: pct < 0 ? "var(--ios-red)" : "var(--ios-green)" }}>
+                            {pct > 0 ? "+" : ""}{pct}%
+                          </strong>{" "}
+                          for life
+                          {fra > 0 && <> — about ${Math.round(fra * factor).toLocaleString()}/mo instead of ${Math.round(fra).toLocaleString()}</>}.
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <>

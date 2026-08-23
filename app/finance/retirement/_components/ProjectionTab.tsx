@@ -92,6 +92,22 @@ const SHOCK_OPTIONS = [
 
 const MC_SIMS = 400;
 const MC_STDEV = 0.12;
+/**
+ * Real returns are not normal: the left tail is fatter than a bell curve, and
+ * the deep, sustained drawdowns are what actually break a plan. A plain normal
+ * draw understates exactly the risk this chart exists to show.
+ *
+ * A two-component mixture is the cheapest honest improvement — most years are
+ * ordinary, and roughly one in ten is drawn from a wider, lower distribution.
+ * It is still an approximation: it has no serial correlation, so a genuine
+ * multi-year bear market is under-represented. A historical block bootstrap
+ * would be the real answer and needs a return series we do not hold.
+ */
+const MC_CRASH_PROB = 0.10;
+const MC_CRASH_SHIFT = 2.0;   // in standard deviations, downward
+const MC_CRASH_WIDEN = 1.5;
+/** Inflation is a forecast, not a constant. Drawn per simulation. */
+const MC_INFLATION_STDEV = 0.01;
 const MC_SEED = 0x9e3779b9;
 
 export default function ProjectionTab({ profile, accounts, incomes, scenario, expenses, debts }: Props) {
@@ -184,6 +200,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
 
   // Scenario comparison
   const leanResult = projectForScenario(profile, accounts, incomes, expenses, debts, scenario, "lean");
+  const gainFractionShown = buildCtx(profile, accounts, incomes, expenses, debts, scenario).taxableGainFraction;
   const balancedResult = projectForScenario(profile, accounts, incomes, expenses, debts, scenario, "balanced");
   const abundantResult = projectForScenario(profile, accounts, incomes, expenses, debts, scenario, "abundant");
 
@@ -207,16 +224,53 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
     const rng = mulberry32(MC_SEED);
     const perAge: number[][] = Array.from({ length: ages.length }, () => [] as number[]);
     let successes = 0;
+    const depletionAges: number[] = [];
+
     for (let s = 0; s < MC_SIMS; s++) {
-      const { byAge, final } = runProjection(ctx, (age) => returnForAge(ctx, age) + nextNormal(rng) * MC_STDEV);
+      // Each simulation gets its own inflation path, so a plan carrying a
+      // non-COLA pension is tested against inflation risk rather than assuming
+      // the forecast is exact.
+      const simCtx: typeof ctx = {
+        ...ctx,
+        profile: {
+          ...ctx.profile,
+          inflation_rate: Math.max(0, ctx.profile.inflation_rate + nextNormal(rng) * MC_INFLATION_STDEV),
+        },
+      };
+      const draw = (age: number) => {
+        const base = returnForAge(simCtx, age);
+        const crash = rng() < MC_CRASH_PROB;
+        return crash
+          ? base - MC_CRASH_SHIFT * MC_STDEV + nextNormal(rng) * MC_STDEV * MC_CRASH_WIDEN
+          : base + nextNormal(rng) * MC_STDEV;
+      };
+      const { byAge, final, depletionAge } = runProjection(simCtx, draw);
       ages.forEach((a, i) => perAge[i].push(byAge.get(a) ?? 0));
       if (final > 0) successes++;
+      else if (depletionAge != null) depletionAges.push(depletionAge);
     }
+
     const band = ages.map((a, i) => {
       const sorted = perAge[i].slice().sort((x, y) => x - y);
       return { age: a, p10: percentile(sorted, 0.1), p50: percentile(sorted, 0.5), p90: percentile(sorted, 0.9) };
     });
-    return { band, successRate: successes / MC_SIMS };
+
+    // "Success" as a single percentage hides everything that matters about a
+    // failure. A plan that runs dry at 71 and one that runs dry at 89 counted
+    // the same; so did one ending with a dollar and one ending with millions.
+    const sortedDepletion = depletionAges.slice().sort((a, b) => a - b);
+    const finalsSorted = perAge[perAge.length - 1].slice().sort((a, b) => a - b);
+    return {
+      band,
+      successRate: successes / MC_SIMS,
+      failures: depletionAges.length,
+      // The typical failure, and the early-failure case worth planning against.
+      medianDepletionAge: sortedDepletion.length ? percentile(sortedDepletion, 0.5) : null,
+      earlyDepletionAge: sortedDepletion.length ? percentile(sortedDepletion, 0.1) : null,
+      // What the plan leaves behind in the bad-but-not-broke tenth percentile.
+      p10Final: percentile(finalsSorted, 0.1),
+      medianFinal: percentile(finalsSorted, 0.5),
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile, accounts, incomes, expenses, debts, scenario]);
 
@@ -386,7 +440,10 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
               }
             />
             <div className="ios-caption" style={{ color: "var(--ios-label-2)", textAlign: "center" }}>
-              Monte Carlo success: {Math.round(mc.successRate * 100)}%
+              {Math.round(mc.successRate * 100)}% of runs last to {profile.life_expectancy}
+              {mc.medianDepletionAge != null && (
+                <> · when they don&rsquo;t, money typically runs out at {Math.round(mc.medianDepletionAge)}</>
+              )}
             </div>
           </div>
         </div>
@@ -859,12 +916,67 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
               : <><strong style={{ color: "var(--ios-green)" }}>still survives</strong> your plan.</>}
           </div>
         )}
+        {/* Every figure above is the output of these. A success rate carries the
+            authority of a measurement while being the product of a dozen
+            judgements — so the judgements are stated here rather than buried in
+            the engine, with a link to the tab that changes each one. */}
+        <details style={{ marginTop: 12, borderTop: "0.5px solid var(--ios-separator)", paddingTop: 10 }}>
+          <summary className="ios-caption" style={{ color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer" }}>
+            What this assumes
+          </summary>
+          <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 8, display: "flex", flexDirection: "column", gap: 5, lineHeight: 1.45 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <span>Return, weighted across accounts</span>
+              <span className="ios-num">{(weightedReturn * 100).toFixed(1)}%{profile.retirement_return != null && <> · {(profile.retirement_return * 100).toFixed(1)}% after retiring</>}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <span>Return volatility (one standard deviation)</span>
+              <span className="ios-num">{Math.round(MC_STDEV * 100)}%</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <span>Inflation</span>
+              <span className="ios-num">{(profile.inflation_rate * 100).toFixed(1)}% ± {Math.round(MC_INFLATION_STDEV * 100)}%</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <span>Taxable withdrawals treated as gain</span>
+              <span className="ios-num">{Math.round(gainFractionShown * 100)}%</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <span>Life expectancy</span>
+              <span className="ios-num">{profile.life_expectancy}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <span>Discretionary spending over time</span>
+              <span className="ios-num">{scenario.spending_smile_enabled ? "declines mid-retirement" : "flat in real terms"}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <span>First death modelled</span>
+              <span className="ios-num">{scenario.survivor_enabled ? `at ${scenario.survivor_age ?? "—"}` : "no"}</span>
+            </div>
+            <div style={{ color: "var(--ios-label-3)", marginTop: 4 }}>
+              Returns, inflation and life expectancy are set on the Accounts and Scenarios tabs;
+              cost basis is per account. Social Security thresholds are held at their statutory
+              amounts, which are not indexed to inflation.
+            </div>
+          </div>
+        </details>
+
         {showMC && (
           <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 6, lineHeight: 1.4 }}>
-            {MC_SIMS} simulations · returns drawn from N({Math.round(weightedReturn * 100)}%, {Math.round(MC_STDEV * 100)}%). Success rate{" "}
             <strong style={{ color: mc.successRate >= 0.8 ? "var(--ios-green)" : mc.successRate >= 0.5 ? "var(--ios-orange)" : "var(--ios-red)" }}>
               {Math.round(mc.successRate * 100)}%
-            </strong>{" "}of plans keep a positive balance to age {profile.life_expectancy}.
+            </strong>{" "}of {MC_SIMS} runs keep a positive balance to age {profile.life_expectancy}.{" "}
+            {mc.failures > 0 ? (
+              <>
+                Of the {mc.failures} that don&rsquo;t, the money is gone by age{" "}
+                <strong>{Math.round(mc.medianDepletionAge ?? 0)}</strong> in the typical case and by{" "}
+                <strong>{Math.round(mc.earlyDepletionAge ?? 0)}</strong> in the worst tenth — the gap between
+                those two is how much warning you would get.
+              </>
+            ) : (
+              <>No run depletes the portfolio.</>
+            )}{" "}
+            A bad-but-not-broke run (10th percentile) ends with {fmtLarge(mc.p10Final)}; the median ends with {fmtLarge(mc.medianFinal)}.
           </div>
         )}
       </div>

@@ -86,7 +86,7 @@ function Pill({ children, color }: { children: React.ReactNode; color: string })
 
 const EMPTY_FORM = {
   name: "", type: "401k", owner: "self", balance: "", unvested_value: "",
-  monthly_contribution: "", employer_match_pct: "", return_override: "",
+  monthly_contribution: "", employer_match_pct: "", return_override: "", cost_basis_pct: "",
   plaid_account_id: "",
 };
 
@@ -127,6 +127,7 @@ export default function AccountsTab({
       monthly_contribution: String(acct.monthly_contribution ?? ""),
       employer_match_pct: String(acct.employer_match_pct ?? ""),
       return_override: acct.return_override != null ? String(acct.return_override * 100) : "",
+      cost_basis_pct: acct.cost_basis_pct != null ? String(acct.cost_basis_pct) : "",
       plaid_account_id: acct.plaid_account_id ?? "",
     });
     setSource("custom");
@@ -169,6 +170,7 @@ export default function AccountsTab({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const returnOverride = form.return_override !== "" ? parseFloat(form.return_override) / 100 : null;
+    const costBasisPct = form.cost_basis_pct !== "" ? parseFloat(form.cost_basis_pct) : null;
 
     let updated: RetirementAccount[];
 
@@ -182,6 +184,7 @@ export default function AccountsTab({
           monthly_contribution: parseFloat(form.monthly_contribution) || 0,
           employer_match_pct: parseFloat(form.employer_match_pct) || 0,
           return_override: returnOverride,
+          cost_basis_pct: costBasisPct,
           plaid_account_id: form.plaid_account_id || null,
         } : a
       );
@@ -194,6 +197,7 @@ export default function AccountsTab({
         monthly_contribution: parseFloat(form.monthly_contribution) || 0,
         employer_match_pct: parseFloat(form.employer_match_pct) || 0,
         return_override: returnOverride,
+        cost_basis_pct: costBasisPct,
         plaid_account_id: form.plaid_account_id || null,
         sort_order: accounts.length,
         created_at: new Date().toISOString(),
@@ -520,6 +524,20 @@ export default function AccountsTab({
             <div>
               <label style={labelStyle}>Return override (% / yr, optional)</label>
               <input type="number" min="0" max="30" step="0.1" value={form.return_override} onChange={(e) => setForm((f) => ({ ...f, return_override: e.target.value }))} placeholder={`global (${((profile.base_return ?? 0.07) * 100).toFixed(1)}%)`} style={inputStyle} />
+            </div>
+            {/* Only taxable accounts have a basis — pre-tax, Roth and HSA
+                withdrawals are not taxed as gains. This drives the early
+                retirement tax bill and the room for Roth conversions. */}
+            <div>
+              <label style={labelStyle}>
+                Cost basis (%)
+                <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--ios-label-3)", marginLeft: 4 }}>
+                  — taxable accounts only; what you paid, as a share of today&rsquo;s value
+                </span>
+              </label>
+              <input type="number" min="0" max="100" step="1" value={form.cost_basis_pct}
+                onChange={(e) => setForm((f) => ({ ...f, cost_basis_pct: e.target.value }))}
+                placeholder="50 (assumed)" style={inputStyle} />
             </div>
           </div>
 

@@ -133,14 +133,40 @@ export function streamGrowth(inc: RetirementIncome, years: number): number {
   return inc.annual_growth_pct ? Math.pow(1 + inc.annual_growth_pct / 100, Math.max(0, years)) : 1;
 }
 
+/** Full retirement age for anyone born 1960 or later. */
+export const SS_FRA_AGE = 67;
+
+/**
+ * Monthly benefit as a fraction of the full-retirement-age benefit, by claim age.
+ *
+ * Early: 5/9 of 1% per month for the first 36 months, then 5/12 of 1% per month.
+ * Late: 8% per year of delayed retirement credits, which stop accruing at 70.
+ * Claiming at 62 pays 70% of the FRA benefit; claiming at 70 pays 124%.
+ *
+ * This lives here, not in the optimiser component, because the projection engine
+ * is what needs it — the two must never be able to disagree again.
+ */
+export function ssBenefitFactor(claimAge: number, fraAge: number = SS_FRA_AGE): number {
+  if (claimAge >= fraAge) return 1 + Math.min(claimAge - fraAge, 70 - fraAge) * 0.08;
+  const monthsEarly = (fraAge - claimAge) * 12;
+  const first36 = Math.min(monthsEarly, 36) * (5 / 9 / 100);
+  const beyond36 = Math.max(monthsEarly - 36, 0) * (5 / 12 / 100);
+  return Math.max(0, 1 - first36 - beyond36);
+}
+
 /** Annual amount of a single income stream at a given age (0 outside window).
  *  Mirrors the projection's chart series exactly. */
 export function incomeAnnualAt(inc: RetirementIncome, age: number, profile: RetirementProfile): number {
   const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
 
   if (inc.type === "social_security") {
-    if (age < (inc.ss_claim_age ?? 67)) return 0;
-    return inc.monthly_amount * 12 * inflFactor;
+    const claim = inc.ss_claim_age ?? SS_FRA_AGE;
+    if (age < claim) return 0;
+    // The benefit entered is the one at full retirement age — that is the figure
+    // an SSA statement leads with. Claiming earlier or later changes it
+    // permanently, so the factor is applied here rather than left to the
+    // optimiser screen (which computed it correctly and was never wired in).
+    return inc.monthly_amount * ssBenefitFactor(claim) * 12 * inflFactor;
   }
   if (inc.type === "pension") {
     const start = inc.start_age ?? profile.retirement_age;
@@ -237,6 +263,22 @@ export const FED_BRACKETS: Record<"mfj" | "single", [number, number][]> = {
   single: [[0, 0.10], [11925, 0.12], [48475, 0.22], [103350, 0.24], [197300, 0.32], [250525, 0.35], [626350, 0.37]],
 };
 export const STD_DEDUCTION: Record<"mfj" | "single", number> = { mfj: 30000, single: 15000 };
+
+/**
+ * Gross income at which the given marginal rate stops applying — i.e. the most
+ * you can take as ordinary income and still be taxed no higher than `rate`.
+ *
+ * Used to fill a Roth conversion to the top of a bracket instead of converting
+ * a fixed dollar amount. A fixed amount either wastes cheap bracket space in
+ * lean years or spills into a higher rate in fat ones; the whole point of
+ * converting in the low-income window is to use exactly the room available.
+ */
+export function bracketCeiling(rate: number, filing: "mfj" | "single", inflFactor: number): number | null {
+  const brackets = FED_BRACKETS[filing];
+  const idx = brackets.findIndex((b) => Math.abs(b[1] - rate) < 1e-9);
+  if (idx < 0 || idx + 1 >= brackets.length) return null; // top bracket has no ceiling
+  return brackets[idx + 1][0] * inflFactor + STD_DEDUCTION[filing] * inflFactor;
+}
 
 /** Federal income tax on gross income for a filing status. `deduction` overrides
  *  the standard deduction (for itemizers); otherwise the standard is used. */
@@ -455,12 +497,21 @@ export function ltcgRate(ordinary: number, filing: "mfj" | "single", inflFactor:
   return 0;
 }
 
-/** Portion of Social Security benefits that is taxable (≤85%), via the IRS
- *  provisional-income formula. Thresholds inflate with the plan. */
-function ssTaxablePortion(ss: number, otherIncome: number, filing: "mfj" | "single", inflFactor: number): number {
+/**
+ * Portion of Social Security benefits that is taxable (≤85%), via the IRS
+ * provisional-income formula.
+ *
+ * The thresholds are deliberately NOT inflated. Congress fixed them in nominal
+ * dollars in 1983 and 1993 and has never indexed them — which is why a rising
+ * share of retirees pays tax on a rising share of their benefit. Inflating them
+ * (as this did) shelters income the law would tax, and the error compounds every
+ * year of a thirty-year plan.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function ssTaxablePortion(ss: number, otherIncome: number, filing: "mfj" | "single", _inflFactor: number): number {
   if (ss <= 0) return 0;
   const [t1, t2] = filing === "mfj" ? [32000, 44000] : [25000, 34000];
-  const b1 = t1 * inflFactor, b2 = t2 * inflFactor;
+  const b1 = t1, b2 = t2;
   const provisional = otherIncome + 0.5 * ss;
   if (provisional <= b1) return 0;
   if (provisional <= b2) return Math.min(0.5 * (provisional - b1), 0.5 * ss);
@@ -468,9 +519,14 @@ function ssTaxablePortion(ss: number, otherIncome: number, filing: "mfj" | "sing
   return Math.min(0.85 * (provisional - b2) + lowerTier, 0.85 * ss);
 }
 
-/** Additional Medicare tax (0.9%) on wages above the MAGI threshold. */
-export function additionalMedicareTax(wages: number, filing: "mfj" | "single", inflFactor: number): number {
-  const thr = (filing === "mfj" ? 250000 : 200000) * inflFactor;
+/**
+ * Additional Medicare tax (0.9%) on wages above the MAGI threshold.
+ * Like the Social Security thresholds, the $200k/$250k figures are fixed in
+ * nominal dollars and are not indexed — so they are not inflated here.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function additionalMedicareTax(wages: number, filing: "mfj" | "single", _inflFactor: number): number {
+  const thr = filing === "mfj" ? 250000 : 200000;
   return Math.max(0, wages - thr) * 0.009;
 }
 

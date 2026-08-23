@@ -8,6 +8,7 @@ import { LargeTitle, Group, Cell, IconBadge, Sparkline, Icons } from "@/componen
 import SyncNowButton from "./_components/SyncNowButton";
 import ImportedAccounts from "./_components/ImportedAccounts";
 import SimpleFinConnect from "./_components/SimpleFinConnect";
+import { summariseCashflow, monthsOfRunway } from "@/lib/finance/spending";
 
 /* This dashboard reads many finance-schema tables through the service-role
    client, which is untyped — `as any` casts are used throughout the data layer. */
@@ -138,11 +139,29 @@ export default async function DashboardPage() {
     ? await service
         .schema("finance")
         .from("transactions")
-        .select("id, account_id, date, amount, merchant_name, name, pending, personal_finance_category")
+        .select("id, account_id, date, amount, merchant_name, name, pending, personal_finance_category, category")
         .in("account_id", userAccountIds)
+        // Three whole months plus the current one — enough to average monthly
+        // spending without asking the user to wait for a year of history. The
+        // old 100-row cap was fine for "recent activity" and far too small to
+        // summarise cash flow for an active household.
+        .gte("date", new Date(new Date().getFullYear(), new Date().getMonth() - 3, 1).toISOString().slice(0, 10))
         .order("date", { ascending: false })
-        .limit(100)
+        .limit(2000)
     : { data: [] };
+
+  // Debt rates, so liabilities can be shown with their cost. The retirement
+  // module already stores these; the dashboard drew every balance the same red
+  // whether it cost 4% or 24%.
+  let debtRowsRaw: { name: string; rate_pct: number | null }[] = [];
+  try {
+    const { data } = await service
+      .schema("finance")
+      .from("retirement_debts")
+      .select("name, rate_pct, retirement_profiles!inner(user_id)")
+      .eq("retirement_profiles.user_id", user.id);
+    debtRowsRaw = (data ?? []) as { name: string; rate_pct: number | null }[];
+  } catch { /* retirement not set up — liabilities simply show no rate */ }
 
   const items: ItemRow[] = (itemRows as ItemRow[]) ?? [];
   const allAccounts: AccountRow[] = (accountRowsRaw as AccountRow[]) ?? [];
@@ -300,6 +319,38 @@ export default async function DashboardPage() {
   const netPosition = ownLinkedTotal + manualTotal + sharedPortfolioTotal;
   // Stock-plan "potential value": unvested grants held on your own accounts.
   const totalUnvested = ownManualAccounts.reduce((s, a) => s + (a.unvested_value ?? 0), 0);
+
+  // ── Cash flow, runway and concentration ───────────────────────────────────
+  // The dashboard reported what the household has and never what it earns,
+  // spends or keeps — while already fetching the category on every transaction
+  // and discarding it.
+  const cashflow = summariseCashflow(transactions, 3);
+  const cashTotal = accountsByBucket.cash.reduce((sum, a) => sum + (a.current_balance ?? 0), 0);
+  const runwayMonths = monthsOfRunway(cashTotal, cashflow.monthlySpending);
+
+  // Employer stock is the concentration that matters here: the plan already
+  // tracks vested and unvested grants, so salary and portfolio ride on one
+  // company. Vested value sits in the imported stock-plan accounts.
+  const stockPlanAccounts = ownManualAccounts.filter(
+    (a) => (a.unvested_value ?? 0) > 0 || /stock|espp|rsu|equity/i.test(`${a.name} ${a.account_type ?? ""}`)
+  );
+  const employerVested = stockPlanAccounts.reduce((sum, a) => sum + (a.balance ?? 0), 0);
+  const investableTotal =
+    accountsByBucket.investment.reduce((sum, a) => sum + (a.current_balance ?? 0), 0)
+    + ownManualAccounts.reduce((sum, a) => sum + (a.balance ?? 0), 0);
+  const concentrationPct = investableTotal > 0 ? employerVested / investableTotal : 0;
+
+  // Debt rates by lowercased name, for matching against liability accounts.
+  const rateByName = new Map<string, number>();
+  for (const d of debtRowsRaw) {
+    if (d.rate_pct != null && d.name) rateByName.set(d.name.trim().toLowerCase(), d.rate_pct);
+  }
+  const rateFor = (name: string): number | null => {
+    const key = name.trim().toLowerCase();
+    if (rateByName.has(key)) return rateByName.get(key)!;
+    for (const [k, v] of rateByName) if (k.includes(key) || key.includes(k)) return v;
+    return null;
+  };
   const potentialNetPosition = netPosition + totalUnvested;
 
   // High-level math for the net-position box: gross assets (+) vs liabilities (−)
@@ -460,6 +511,54 @@ export default async function DashboardPage() {
       </div>
       )}
 
+      {/* ── Cash flow ───────────────────────────────────────────────────────
+          Net position answers "what do I have". This answers "what do I keep",
+          which is the number that actually moves the retirement projection. */}
+      {cashflow.spending > 0 && (
+        <div className="ios-list" style={{ margin: "12px 16px 0", padding: 16 }}>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+            Cash flow · last {cashflow.months} months
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {cashflow.income > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>Money in</span>
+                <span className="ios-num" style={{ color: "var(--ios-green)", fontWeight: 600 }}>+{fmtMoney(cashflow.income)}</span>
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>Money out</span>
+              <span className="ios-num" style={{ color: "var(--ios-red)", fontWeight: 600 }}>−{fmtMoney(cashflow.spending)}</span>
+            </div>
+            <div style={{ borderTop: "1px dashed var(--ios-separator)", margin: "5px 0 3px" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span className="ios-subhead" style={{ color: "var(--ios-label)", fontWeight: 600 }}>
+                {cashflow.savingsRate != null ? "Kept" : "Spending per month"}
+              </span>
+              <span className="ios-num" style={{ fontWeight: 700, color: cashflow.net >= 0 ? "var(--ios-green)" : "var(--ios-red)" }}>
+                {cashflow.savingsRate != null
+                  ? `${Math.round(cashflow.savingsRate * 100)}%`
+                  : fmtMoney(cashflow.monthlySpending)}
+              </span>
+            </div>
+          </div>
+          <div className="ios-footnote" style={{ color: "var(--ios-label-3)", marginTop: 8, lineHeight: 1.45 }}>
+            {cashflow.savingsRate != null ? (
+              <>
+                {fmtMoney(cashflow.monthlySpending)} a month out.{" "}
+                {cashflow.savingsRate >= 0.2
+                  ? "At this rate the plan's contributions hold up."
+                  : cashflow.savingsRate >= 0
+                  ? "Saving less than a fifth of income — worth a look against the retirement plan."
+                  : "Spending more than comes in over this window."}
+              </>
+            ) : (
+              <>Income isn&rsquo;t categorised in this window, so the savings rate can&rsquo;t be worked out — only spending is shown.</>
+            )}
+          </div>
+        </div>
+      )}
+
       {accounts.length + manualAccounts.length === 0 && (
         <Group header="Get started" footer="Securely link a bank or brokerage with SimpleFIN to pull in balances and transactions automatically.">
           <div className="ios-cell" style={{ padding: "14px 16px" }}>
@@ -498,20 +597,52 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {/* ── Plan ────────────────────────────────────────────────────────────
+          These answer "will I be all right", which is the question people open
+          a money app carrying. They used to sit at the very bottom in a list
+          called More, ranked level with "Add or import accounts". */}
+      {accounts.length + manualAccounts.length > 0 && (
+        <Group header="Plan">
+          <Cell lead={<IconBadge color="var(--ios-green)"><Icons.ChartIcon /></IconBadge>} title="Retirement" subtitle="Model income, drawdown & scenarios" href="/finance/retirement" />
+          <Cell lead={<IconBadge color="#8E5A3A"><Icons.SparkleIcon /></IconBadge>} title="Tax" subtitle="Your tax picture & AI tax advisor" href="/finance/tax" />
+          <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.SparkleIcon /></IconBadge>} title="Spending insights" subtitle="Where the money went, and what repeats" href="/finance/dashboard/insights" />
+        </Group>
+      )}
+
       {BUCKETS.map((b) => {
         const list = accountsByBucket[b.key];
         if (!list.length) return null;
         const isLiab = b.key === "credit" || b.key === "loan";
         const subtotal = list.reduce((s, a) => s + (a.current_balance ?? 0), 0);
         return (
-          <Group key={b.key} header={`${b.label} · ${isLiab ? "−" : ""}${fmtMoney(Math.abs(subtotal))}`}>
+          <Group
+            key={b.key}
+            header={`${b.label} · ${isLiab ? "−" : ""}${fmtMoney(Math.abs(subtotal))}`}
+            footer={
+              // A cash balance means nothing without the spending it has to
+              // cover; an investment total means nothing without knowing how
+              // much of it rides on one employer.
+              b.key === "cash" && runwayMonths != null
+                ? `${runwayMonths.toFixed(1)} months of spending at ${fmtMoney(cashflow.monthlySpending)}/mo`
+                : b.key === "investment" && concentrationPct >= 0.1
+                ? `${Math.round(concentrationPct * 100)}% of investable assets is employer stock — the same company that pays the salary`
+                : undefined
+            }
+          >
             {list.map((a) => (
               <Cell
                 key={a.id}
                 chevron={false}
                 lead={<IconBadge color={b.color}><Icons.WalletIcon /></IconBadge>}
                 title={a.name}
-                subtitle={[a.subtype || a.type, a.mask ? `····${a.mask}` : null, itemById.get(a.item_id)?.last_synced_at ? `updated ${relativeTime(itemById.get(a.item_id)!.last_synced_at)}` : null].filter(Boolean).join(" · ") || undefined}
+                subtitle={[
+                  a.subtype || a.type,
+                  // $30k at 4% and $30k at 24% are different problems; the
+                  // retirement module already knows which this is.
+                  isLiab && rateFor(a.name) != null ? `${rateFor(a.name)!.toFixed(2)}% APR` : null,
+                  a.mask ? `····${a.mask}` : null,
+                  itemById.get(a.item_id)?.last_synced_at ? `updated ${relativeTime(itemById.get(a.item_id)!.last_synced_at)}` : null,
+                ].filter(Boolean).join(" · ") || undefined}
                 trailing={<span className="ios-num" style={isLiab ? { color: "var(--ios-red)" } : undefined}>{isLiab ? `−${fmtMoney(Math.abs(a.current_balance ?? 0))}` : fmtMoney(a.current_balance ?? 0)}</span>}
               />
             ))}
@@ -547,20 +678,6 @@ export default async function DashboardPage() {
         </Group>
       )}
 
-      {items.length > 0 && (
-        <Group header="Institutions">
-          {items.map((it) => (
-            <Cell
-              key={it.id}
-              chevron={false}
-              lead={<IconBadge color="var(--ios-tint)"><Icons.WalletIcon /></IconBadge>}
-              title={it.institution_name}
-              subtitle={it.status === "active" || it.status === "good" ? "Synced" : it.status}
-              trailing={<span style={{ color: "var(--ios-label-2)" }}>{relativeTime(it.last_synced_at)}</span>}
-            />
-          ))}
-        </Group>
-      )}
 
       {transactions.length > 0 && (
         <Group header="Recent activity">
@@ -577,13 +694,26 @@ export default async function DashboardPage() {
         </Group>
       )}
 
-      <Group header="More">
-        <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.SparkleIcon /></IconBadge>} title="Insights" subtitle="AI analysis of your spending" href="/finance/dashboard/insights" />
+      {/* Plumbing, at the foot where plumbing belongs. */}
+      <Group header="Manage">
         <Cell lead={<IconBadge color="#C97A3A"><Icons.TrendUpIcon /></IconBadge>} title="Investments" href="/investments" />
-        <Cell lead={<IconBadge color="var(--ios-green)"><Icons.ChartIcon /></IconBadge>} title="Retirement" subtitle="Model income, drawdown & scenarios" href="/finance/retirement" />
-        <Cell lead={<IconBadge color="#8E5A3A"><Icons.SparkleIcon /></IconBadge>} title="Tax" subtitle="Your tax picture & AI tax advisor" href="/finance/tax" />
         <Cell lead={<IconBadge color="#8E8E93"><Icons.PlusIcon /></IconBadge>} title="Add or import accounts" href="/finance/dashboard/import" />
       </Group>
+
+      {items.length > 0 && (
+        <Group header="Institutions">
+          {items.map((it) => (
+            <Cell
+              key={it.id}
+              chevron={false}
+              lead={<IconBadge color="var(--ios-tint)"><Icons.WalletIcon /></IconBadge>}
+              title={it.institution_name}
+              subtitle={it.status === "active" || it.status === "good" ? "Synced" : it.status}
+              trailing={<span style={{ color: "var(--ios-label-2)" }}>{relativeTime(it.last_synced_at)}</span>}
+            />
+          ))}
+        </Group>
+      )}
 
       <div style={{ height: 12 }} />
     </div>

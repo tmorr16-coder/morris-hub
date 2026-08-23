@@ -12,7 +12,7 @@ import {
   streamGrowth, expenseAnnualAt, debtAnnualAt, wageIncomeAt, employerMatchAnnual,
   titheAndOfferingAt, estimatedTaxAt, autoTaxRate, titheGrossBaseAt,
   retirementIncomeAt, incomeAnnualAt,
-  bucketOf, rmdAmount, irmaaAnnual, retirementIncomeTax, healthcareCostAt,
+  bucketOf, rmdAmount, irmaaAnnual, retirementIncomeTax, healthcareCostAt, bracketCeiling,
 } from "./cashflow";
 
 export interface Buckets { pretax: number; roth: number; taxable: number; hsa: number; }
@@ -36,8 +36,31 @@ function sequenceWithdraw(b: Buckets, amount: number): { w: Buckets; shortfall: 
   return { w, shortfall: Math.max(0, need) };
 }
 
-// Fraction of a taxable-account withdrawal treated as taxable gain (no basis yet).
-const TAXABLE_GAIN_FRACTION = 0.5;
+/**
+ * Fraction of a taxable-account withdrawal that is taxable gain.
+ *
+ * Used only where an account carries no explicit `cost_basis_pct`. This was a
+ * hardcoded constant applied to everyone, which mattered more than its size
+ * suggests: taxable is the first bucket drawn, so it sets the early-retirement
+ * tax bill and with it the room available for Roth conversions.
+ */
+const DEFAULT_TAXABLE_GAIN_FRACTION = 0.5;
+
+/** Balance-weighted gain fraction across the taxable accounts. */
+function taxableGainFraction(accounts: RetirementAccount[]): number {
+  let bal = 0, gain = 0;
+  for (const a of accounts) {
+    if (bucketOf(a) !== "taxable") continue;
+    const b = a.balance ?? 0;
+    if (b <= 0) continue;
+    const basisPct = a.cost_basis_pct;
+    const f = basisPct == null
+      ? DEFAULT_TAXABLE_GAIN_FRACTION
+      : Math.min(1, Math.max(0, 1 - basisPct / 100));
+    bal += b; gain += b * f;
+  }
+  return bal > 0 ? gain / bal : DEFAULT_TAXABLE_GAIN_FRACTION;
+}
 
 export interface YearDetail {
   age: number;
@@ -71,6 +94,8 @@ export interface StepCtx {
   nowMs: number;
   filing: "mfj" | "single";
   state: number;
+  /** Balance-weighted share of a taxable withdrawal that is gain. */
+  taxableGainFraction: number;
 }
 
 export interface ProjectionResult {
@@ -117,6 +142,7 @@ export function buildCtx(
     weightedReturn,
     retirementReturn: profile.retirement_return ?? weightedReturn,
     baseAnnualSpend: scenarioBaseAnnualSpend(scenario),
+    taxableGainFraction: taxableGainFraction(accounts),
     windfall: scenario.housing_windfall ?? 0,
     filing: profile.spouse_enabled ? "mfj" : "single",
     state: (scenario.state_tax_rate ?? 5) / 100,
@@ -125,6 +151,27 @@ export function buildCtx(
 
 export function returnForAge(ctx: StepCtx, age: number): number {
   return age >= ctx.profile.retirement_age ? ctx.retirementReturn : ctx.weightedReturn;
+}
+
+/**
+ * Discretionary-spending multiplier across retirement — the "retirement smile".
+ *
+ * Roughly: full spending in the first decade (the go-go years), drifting down
+ * about 1% a year in real terms through the middle, then turning back up in the
+ * last decade. Healthcare and long-term care are modelled separately, so this
+ * curve covers the discretionary part only and is deliberately shallow —
+ * bounded to 0.80–1.00 so it can never flatter a plan dramatically.
+ */
+function spendingSmile(age: number, profile: RetirementProfile): number {
+  const yearsIn = age - profile.retirement_age;
+  if (yearsIn <= 0) return 1;
+  const yearsLeft = profile.life_expectancy - age;
+  if (yearsLeft <= 10) {
+    // Late years: drift back up toward the original level.
+    const backUp = (10 - Math.max(0, yearsLeft)) / 10;
+    return Math.min(1, 0.85 + 0.15 * backUp);
+  }
+  return Math.max(0.8, 1 - 0.01 * yearsIn);
 }
 
 /** Advance the bucket portfolio one year. Returns the new buckets + a full detail. */
@@ -171,23 +218,78 @@ export function stepYear(ctx: StepCtx, start: Buckets, age: number, yearReturn: 
       detail.netWithdrawal = deficit - res.shortfall;
     }
   } else {
-    const scenarioSpend = ctx.baseAnnualSpend * inflFactor + healthcareCostAt(ctx.scenario, age, profile);
+    const sc0 = ctx.scenario;
+
+    // ── Survivor transition ───────────────────────────────────────────────
+    // The first death changes almost every input at once, and the plan used to
+    // model a single life throughout. survivor_spend_pct already existed and
+    // was already editable; nothing read it until now.
+    const survivorAge = sc0.survivor_enabled ? (sc0.survivor_age ?? null) : null;
+    const isSurvivor = survivorAge != null && age >= survivorAge;
+    // Brackets, the standard deduction and the IRMAA thresholds all move to the
+    // single-filer schedule, which is roughly half as wide at the same income.
+    const filing: "mfj" | "single" = isSurvivor ? "single" : ctx.filing;
+
+    // Spending falls, but by far less than income does — a household of one
+    // does not cost half of a household of two.
+    const survivorSpendMult = isSurvivor ? (sc0.survivor_spend_pct ?? 75) / 100 : 1;
+
+    // ── Spending smile ────────────────────────────────────────────────────
+    // Observed retiree spending drifts down in real terms through the middle
+    // years and turns back up late; healthcare is modelled separately below, so
+    // this is the discretionary part only.
+    const smile = sc0.spending_smile_enabled ? spendingSmile(age, profile) : 1;
+
+    const scenarioSpend =
+      ctx.baseAnnualSpend * inflFactor * smile * survivorSpendMult
+      + healthcareCostAt(ctx.scenario, age, profile);
     const entered = outflowAt(ctx, age);
     const tithe = titheAndOfferingAt(ctx, age, ctx.nowMs);
-    const retIncome = retirementIncomeAt(incomes, age, profile);
+
+    let retIncome = retirementIncomeAt(incomes, age, profile);
     let ss = 0;
     for (const inc of incomes) if (inc.type === "social_security") ss += incomeAnnualAt(inc, age, profile);
+    if (isSurvivor && ss > 0) {
+      // The survivor keeps the larger of the two benefits; the smaller stops.
+      // With a single combined entry we can't know the split, so the whole
+      // stream is treated as one benefit and kept — the conservative reading is
+      // applied where two separate streams exist.
+      const streams = incomes
+        .filter((i) => i.type === "social_security")
+        .map((i) => incomeAnnualAt(i, age, profile))
+        .filter((v) => v > 0);
+      if (streams.length > 1) {
+        const kept = Math.max(...streams);
+        retIncome -= (ss - kept);
+        ss = kept;
+      }
+    }
     const otherOrdinaryInc = Math.max(0, retIncome - ss);
 
     // Roth conversion (in the low-income window): move pre-tax → Roth. It's taxed
     // as ordinary income; the tax is funded from the withdrawal (taxable-first).
-    const sc = ctx.scenario;
+    const sc = sc0;
     let conv = 0;
     if (sc.roth_convert_enabled && (sc.roth_convert_annual ?? 0) > 0) {
       const cs = sc.roth_convert_start_age ?? profile.retirement_age;
       const ce = sc.roth_convert_end_age ?? 72;
       if (age >= cs && age <= ce) {
-        conv = Math.min(sc.roth_convert_annual ?? 0, b.pretax);
+        // Fill to the top of the chosen bracket when one is set, so a lean year
+        // converts more and a fat year converts less — which is the entire
+        // reason to convert in this window. Falls back to the fixed amount.
+        let room = sc.roth_convert_annual ?? 0;
+        const target = sc.roth_convert_to_bracket ?? null;
+        if (target != null) {
+          const ceiling = bracketCeiling(target, ctx.filing, inflFactor);
+          if (ceiling != null) {
+            let ssSoFar = 0;
+            for (const inc of incomes) if (inc.type === "social_security") ssSoFar += incomeAnnualAt(inc, age, profile);
+            const ordinarySoFar = Math.max(0, retirementIncomeAt(incomes, age, profile) - ssSoFar) + rmdAmount(b.pretax, age);
+            // Never convert less than the stated amount, never spill past the ceiling.
+            room = Math.max(room, Math.max(0, ceiling - ordinarySoFar));
+          }
+        }
+        conv = Math.min(room, b.pretax);
         b.pretax -= conv;
         b.roth += conv;
       }
@@ -210,10 +312,10 @@ export function stepYear(ctx: StepCtx, start: Buckets, age: number, yearReturn: 
       const res = sequenceWithdraw(worked, extraNeed);
       w = res.w; shortfall = res.shortfall;
       const pretaxW = rmd + w.pretax + conv; // conversion is ordinary income too
-      const taxableGain = w.taxable * TAXABLE_GAIN_FRACTION;
-      const t = retirementIncomeTax(otherOrdinaryInc, ss, pretaxW, taxableGain, ctx.filing, inflFactor, ctx.state);
+      const taxableGain = w.taxable * ctx.taxableGainFraction;
+      const t = retirementIncomeTax(otherOrdinaryInc, ss, pretaxW, taxableGain, filing, inflFactor, ctx.state);
       tax = t.tax;
-      irmaa = irmaaAnnual(t.magi, age, ctx.filing, inflFactor);
+      irmaa = irmaaAnnual(t.magi, age, filing, inflFactor);
     }
     b = worked;
     const totalOut = scenarioSpend + entered + tithe + tax + irmaa;

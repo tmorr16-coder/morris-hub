@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import type { RetirementProfile, RetirementIncome } from "../types";
+// The claim-age factor now lives in the cashflow library, where the projection
+// engine can reach it too. This screen used to own a correct copy that the
+// projection never called, so the optimiser and the plan disagreed silently.
+import { ssBenefitFactor as benefitFactor } from "../_lib/cashflow";
 
 interface Props {
   profile: RetirementProfile;
@@ -17,20 +21,6 @@ interface SSOption {
   breakEvenVsFRA: number | null;
 }
 
-// Returns monthly benefit as a fraction of FRA benefit based on claim age.
-// FRA = 67 for those born 1960+.
-function benefitFactor(claimAge: number, fraAge = 67): number {
-  if (claimAge >= fraAge) {
-    const delayYears = Math.min(claimAge - fraAge, 3);
-    return 1 + delayYears * 0.08;
-  }
-  const monthsEarly = (fraAge - claimAge) * 12;
-  // First 36 months early: 5/9 of 1% per month = 0.005556/mo
-  // Beyond 36 months early: 5/12 of 1% per month = 0.004167/mo
-  const first36 = Math.min(monthsEarly, 36) * (5 / 9 / 100);
-  const beyond36 = Math.max(monthsEarly - 36, 0) * (5 / 12 / 100);
-  return 1 - first36 - beyond36;
-}
 
 // Break-even age (in whole years) vs a lower claim age.
 // Returns null if delay never pays off.

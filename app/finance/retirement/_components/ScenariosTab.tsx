@@ -389,6 +389,21 @@ export default function ScenariosTab({ profile, setProfile, scenario, setScenari
                     onChange={(e) => updateScenario("roth_convert_annual", e.target.value === "" ? null : (parseFloat(e.target.value) || 0))}
                     placeholder="100000" style={inputStyle} />
                 </div>
+                {/* Filling a bracket beats a fixed amount: a lean year converts
+                    more, a fat year less, and neither spills into a higher rate. */}
+                <div>
+                  <label style={labelStyle}>Or fill to the top of</label>
+                  <select
+                    value={scenario.roth_convert_to_bracket ?? ""}
+                    onChange={(e) => updateScenario("roth_convert_to_bracket", e.target.value === "" ? null : parseFloat(e.target.value))}
+                    style={inputStyle}
+                  >
+                    <option value="">— use the fixed amount</option>
+                    <option value="0.12">the 12% bracket</option>
+                    <option value="0.22">the 22% bracket</option>
+                    <option value="0.24">the 24% bracket</option>
+                  </select>
+                </div>
                 <div>
                   <label style={labelStyle}>From age</label>
                   <input type="number" min="50" max="75" value={scenario.roth_convert_start_age ?? ""}
@@ -444,6 +459,65 @@ export default function ScenariosTab({ profile, setProfile, scenario, setScenari
               />
             </div>
           )}
+        </div>
+
+        {/* ── Survivor ────────────────────────────────────────────────────
+            The first death changes filing status, ends the smaller Social
+            Security benefit and halves the IRMAA thresholds, while spending
+            falls by far less than income does. Until now the plan modelled one
+            life throughout and the survivor-spend figure above was collected
+            and never used. */}
+        {profile.spouse_enabled && (
+          <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--ios-separator)" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={!!scenario.survivor_enabled}
+                onChange={(e) => updateScenario("survivor_enabled", e.target.checked)}
+                style={{ width: 18, height: 18 }}
+              />
+              <span className="ios-subhead">Model the first death partway through the plan</span>
+            </label>
+            {scenario.survivor_enabled && (
+              <div style={{ marginTop: 10 }}>
+                <label style={labelStyle}>Age at which it happens</label>
+                <input
+                  type="number"
+                  min={profile.retirement_age}
+                  max={profile.life_expectancy}
+                  step="1"
+                  value={scenario.survivor_age ?? ""}
+                  onChange={(e) => updateScenario("survivor_age", e.target.value === "" ? null : parseInt(e.target.value))}
+                  placeholder={String(Math.round((profile.retirement_age + profile.life_expectancy) / 2))}
+                  style={inputStyle}
+                />
+                <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6, lineHeight: 1.45 }}>
+                  From this age the plan files as single, keeps only the larger Social Security
+                  benefit, and spends {scenario.survivor_spend_pct}% of the joint amount. This is
+                  usually the harshest realistic scenario a couple can run.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Spending smile ──────────────────────────────────────────────── */}
+        <div style={{ marginTop: 16 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={!!scenario.spending_smile_enabled}
+              onChange={(e) => updateScenario("spending_smile_enabled", e.target.checked)}
+              style={{ width: 18, height: 18 }}
+            />
+            <span className="ios-subhead">Let discretionary spending drift down mid-retirement</span>
+          </label>
+          <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6, lineHeight: 1.45 }}>
+            Observed retiree spending falls roughly 1% a year in real terms through the middle years
+            and turns back up late. Healthcare and long-term care are modelled separately, so this
+            affects discretionary spending only and is capped at a 20% reduction. Off by default,
+            because flat spending is the more cautious assumption.
+          </div>
         </div>
 
         {/* Scenario spend overrides */}
