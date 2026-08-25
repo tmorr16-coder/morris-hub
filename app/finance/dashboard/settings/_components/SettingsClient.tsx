@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { setAccountHidden } from "../actions";
+import { setAccountHidden, deleteLinkedAccount, disconnectInstitution } from "../actions";
 import { shareAccount, revokeShare } from "../share-actions";
 import type { PlatformMember, AccountShare } from "../share-actions";
 
@@ -77,6 +77,49 @@ export default function SettingsClient({
       const result = await setAccountHidden(id, !currentlyHidden);
       if (result.error) {
         setAccounts((prev) => prev.map((a) => (a.id === id ? { ...a, is_hidden: currentlyHidden } : a)));
+        setError(result.error);
+      }
+    });
+  }
+
+  /**
+   * Delete a linked account.
+   *
+   * Optimistic like the visibility toggle, but the confirm is not optional and
+   * names the consequences: unlike hiding, this takes the transactions with it,
+   * and it revokes any shares — a family member would otherwise be left with a
+   * broken reference.
+   */
+  function remove(id: string, name: string, shareCount: number) {
+    const consequences = [
+      "its transactions",
+      shareCount > 0 ? `${shareCount} share${shareCount === 1 ? "" : "s"} with family` : null,
+    ].filter(Boolean).join(" and ");
+    if (!confirm(`Delete "${name}"?\n\nThis also removes ${consequences}. It won't come back on the next sync. Hiding it instead keeps the history.`)) return;
+
+    setError(null);
+    const previous = accounts;
+    setAccounts((prev) => prev.filter((a) => a.id !== id));
+    startTransition(async () => {
+      const result = await deleteLinkedAccount(id);
+      if (result.error) {
+        setAccounts(previous);
+        setError(result.error);
+      }
+    });
+  }
+
+  /** Disconnect an institution: its credential, accounts and transactions. */
+  function disconnect(itemId: string, name: string, acctCount: number) {
+    if (!confirm(`Disconnect ${name}?\n\nThis removes ${acctCount} account${acctCount === 1 ? "" : "s"}, their transactions, and the stored credential. You'd need to reconnect to get them back.`)) return;
+
+    setError(null);
+    const previous = accounts;
+    setAccounts((prev) => prev.filter((a) => a.item_id !== itemId));
+    startTransition(async () => {
+      const result = await disconnectInstitution(itemId);
+      if (result.error) {
+        setAccounts(previous);
         setError(result.error);
       }
     });
@@ -269,9 +312,22 @@ export default function SettingsClient({
       <section style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {Array.from(byInstitution.entries()).map(([itemId, accts]) => (
           <div key={itemId}>
-            <h2 className="ios-footnote" style={{ textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600, color: "var(--ios-label-2)", margin: "0 0 8px 4px" }}>
-              {itemNameById[itemId] ?? "Unknown institution"}
-            </h2>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, margin: "0 4px 8px" }}>
+              <h2 className="ios-footnote" style={{ textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600, color: "var(--ios-label-2)", margin: 0 }}>
+                {itemNameById[itemId] ?? "Unknown institution"}
+              </h2>
+              {/* Severing the connection was previously impossible from the UI,
+                  which also meant the stored credential could never be removed. */}
+              <button
+                type="button"
+                onClick={() => disconnect(itemId, itemNameById[itemId] ?? "this institution", accts.length)}
+                disabled={isPending}
+                className="ios-caption"
+                style={{ background: "none", border: "none", color: "var(--ios-red)", fontWeight: 600, cursor: isPending ? "default" : "pointer", padding: 0, flexShrink: 0 }}
+              >
+                Disconnect
+              </button>
+            </div>
             <div style={{ background: "var(--ios-fill-2)", borderRadius: 12, overflow: "hidden" }}>
               {accts.map((a, idx) => {
                 const acctShares = sharesByAccount.get(a.id) ?? [];
@@ -318,6 +374,20 @@ export default function SettingsClient({
                             ) : "+ Share"}
                           </button>
                         )}
+
+                        {/* Delete. Distinct from hiding: hiding keeps the row,
+                            its balance history and its transactions. */}
+                        <button
+                          type="button"
+                          onClick={() => remove(a.id, a.name, acctShares.length)}
+                          disabled={isPending}
+                          title="Delete this account and its transactions"
+                          aria-label={`Delete ${a.name}`}
+                          className="ios-caption"
+                          style={{ background: "none", border: "none", color: "var(--ios-red)", fontWeight: 600, cursor: isPending ? "default" : "pointer", padding: "0 2px", flexShrink: 0 }}
+                        >
+                          Delete
+                        </button>
 
                         {/* Visibility toggle */}
                         <button

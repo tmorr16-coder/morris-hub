@@ -68,7 +68,8 @@ export async function shareAccount(
     .from("accounts")
     .select("id, plaid_items!inner(user_id)")
     .eq("id", accountId)
-    .maybeSingle();
+    .maybeSingle()
+      .is("deleted_at", null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (!acct || (acct as any).plaid_items?.user_id !== user.id) {

@@ -46,6 +46,7 @@ export default async function SettingsPage() {
       service.schema("finance").from("accounts")
         .select("id, item_id, name, official_name, type, subtype, mask, current_balance, is_hidden")
         .in("item_id", itemIds)
+        .is("deleted_at", null)
         .order("type", { ascending: true })
         .order("name", { ascending: true }),
       service.schema("finance").from("account_shares")

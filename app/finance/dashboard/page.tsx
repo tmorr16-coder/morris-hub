@@ -129,6 +129,7 @@ export default async function DashboardPage() {
         .from("accounts")
         .select("id, item_id, name, official_name, type, subtype, mask, current_balance, iso_currency_code, is_hidden")
         .in("item_id", userItemIds)
+        .is("deleted_at", null)
         .order("type", { ascending: true })
         .order("name", { ascending: true })
     : { data: [] };
@@ -241,7 +242,8 @@ export default async function DashboardPage() {
     const [{ data: sharedAcctRows }, usersResult] = await Promise.all([
       svc.schema("finance").from("accounts")
         .select("id, item_id, name, type, subtype, mask, current_balance")
-        .in("id", sharedAccountIds),
+        .in("id", sharedAccountIds)
+        .is("deleted_at", null),
       svc.auth.admin.listUsers({ perPage: 200 }),
     ]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

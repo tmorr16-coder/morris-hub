@@ -57,7 +57,7 @@ export async function GET() {
     if (items && items.length) {
       out["finance.linked_banks"] = items;
       const itemIds = items.map((i: any) => i.id);
-      const { data: accts } = await svc.schema("finance").from("accounts").select("*").in("item_id", itemIds);
+      const { data: accts } = await svc.schema("finance").from("accounts").select("*").in("item_id", itemIds).is("deleted_at", null);
       if (accts && accts.length) {
         out["finance.accounts"] = accts;
         const acctIds = accts.map((a: any) => a.id);

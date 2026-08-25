@@ -35,18 +35,26 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
     const startDate = Math.floor(Date.now() / 1000) - 90 * 24 * 60 * 60;
     const { accounts } = await fetchSimpleFinAccounts(accessUrl, startDate);
 
-    // Map SimpleFIN account id -> internal account id; insert any newly-appeared accounts.
+    // Map SimpleFIN account id -> internal account id; insert any newly-appeared
+    // accounts. Tombstones (deleted_at set) are read too, and deliberately kept
+    // out of the map: a deleted account must not be re-created here, or the
+    // delete would quietly undo itself on the next sync.
     const { data: existing } = await supabase
       .schema('finance')
       .from('accounts')
-      .select('id, plaid_account_id')
+      .select('id, plaid_account_id, deleted_at')
       .eq('item_id', item.id);
 
+    const existingRows = (existing ?? []) as { id: string; plaid_account_id: string; deleted_at: string | null }[];
+    const deletedExternalIds = new Set(
+      existingRows.filter((a) => a.deleted_at).map((a) => a.plaid_account_id)
+    );
     const accountMap = new Map<string, string>(
-      ((existing ?? []) as { id: string; plaid_account_id: string }[]).map((a) => [a.plaid_account_id, a.id])
+      existingRows.filter((a) => !a.deleted_at).map((a) => [a.plaid_account_id, a.id])
     );
 
     for (const a of accounts) {
+      if (deletedExternalIds.has(a.id)) continue; // stays deleted
       if (accountMap.has(a.id)) continue;
       const { data: inserted } = await supabase
         .schema('finance')
@@ -56,6 +64,10 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
         .single();
       if (inserted?.id) accountMap.set(a.id, inserted.id);
     }
+
+    // The two loops below both resolve through accountMap and skip on a miss,
+    // so tombstones fall out there too — no balance refresh, no transactions
+    // written against a deleted account.
 
     // Upsert transactions (embedded in each account). Amounts are sign-flipped to
     // this codebase's convention inside mapSimpleFinTransaction.

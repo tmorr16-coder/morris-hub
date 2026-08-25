@@ -226,7 +226,8 @@ export default async function InsightsPage({
       .schema("finance")
       .from("accounts")
       .select("id, name, mask, is_hidden")
-      .in("item_id", itemIds);
+      .in("item_id", itemIds)
+        .is("deleted_at", null);
     const allAccts = ((acctRows as InsightsAccount[]) ?? []);
     const visibleAccts = allAccts.filter((a) => !a.is_hidden);
     for (const a of visibleAccts) accountById.set(a.id, { name: a.name, mask: a.mask });

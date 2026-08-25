@@ -108,7 +108,8 @@ async function fetchPlaidAccounts(service: Svc, userId: string): Promise<PlaidAc
     .select("id, name, type, mask, current_balance")
     .in("item_id", itemIds)
     .in("type", ["investment", "depository"])
-    .order("name");
+    .order("name")
+      .is("deleted_at", null);
 
   return (accounts ?? []).map((a: any) => ({
     id: a.id,
@@ -328,7 +329,8 @@ export async function refreshAccountBalances(): Promise<
   const { data: plaidAccounts } = await schema
     .from("accounts")
     .select("id, current_balance")
-    .in("id", plaidIds);
+    .in("id", plaidIds)
+      .is("deleted_at", null);
   const balanceMap = new Map(
     ((plaidAccounts ?? []) as { id: string; current_balance: number | null }[])
       .map((a) => [a.id, a.current_balance])

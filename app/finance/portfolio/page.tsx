@@ -85,6 +85,7 @@ export default async function PortfolioPage() {
           .in("item_id", userItemIds)
           .eq("type", "investment")
           .eq("is_hidden", false)
+          .is("deleted_at", null)
       : Promise.resolve({ data: [] }),
     // Manual accounts shared WITH this user by others (excluding retirement types)
     service

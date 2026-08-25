@@ -210,7 +210,8 @@ export async function POST(req: NextRequest) {
     .schema("finance")
     .from("accounts")
     .select("id, item_id, name, type, subtype, mask, current_balance, iso_currency_code")
-    .in("item_id", itemIds);
+    .in("item_id", itemIds)
+      .is("deleted_at", null);
 
   const accountIds = (accountRows ?? []).map((a: { id: string }) => a.id);
   const { data: txRows } = accountIds.length > 0
