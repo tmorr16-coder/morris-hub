@@ -67,7 +67,13 @@ export async function POST(req: NextRequest) {
     // Never log the access URL or setup token.
     const msg = (error as { message?: string })?.message ?? 'unknown';
     console.error('[simplefin/claim]', msg);
-    return NextResponse.json({ error: 'failed to connect SimpleFIN' }, { status: 500 });
+
+    // Say what actually went wrong. These messages come from our own throw
+    // sites in lib/finance/simplefin.ts and lib/finance/encryption.ts and carry
+    // no credential — returning a single generic string for all of them meant a
+    // reused token, a malformed one and an unset encryption key were
+    // indistinguishable from the outside, and none of them were actionable.
+    return NextResponse.json({ error: 'failed to connect SimpleFIN', reason: explainClaimFailure(msg) }, { status: 500 });
   }
 }
 
@@ -157,4 +163,34 @@ async function pullAccounts(service: any, itemId: string, userId: string, access
       metadata: { institution: accounts[0]?.org?.name ?? 'SimpleFIN', accounts: accountRows.length },
     });
   }
+}
+
+
+/**
+ * Turn an internal failure into something the person connecting can act on.
+ *
+ * The most common one by far is a reused setup token: they are single-use, so a
+ * second attempt with the same token always 403s — and the old generic message
+ * sent people looking for a fault in the app instead of fetching a new token.
+ */
+function explainClaimFailure(msg: string): string {
+  if (/status 40[13]/.test(msg)) {
+    return 'That setup token has already been used or has expired. SimpleFIN tokens are single-use — generate a fresh one and paste it in.';
+  }
+  if (/status 4\d\d/.test(msg)) {
+    return 'SimpleFIN rejected that setup token. Check it was copied in full, then try a new one.';
+  }
+  if (/status 5\d\d/.test(msg)) {
+    return 'SimpleFIN is having trouble at their end. The token is still good — try again in a few minutes.';
+  }
+  if (/timed out|aborted|timeout/i.test(msg)) {
+    return 'SimpleFIN did not respond in time. The token is still good — try again.';
+  }
+  if (/base64|https claim URL|Setup token is required/i.test(msg)) {
+    return 'That does not look like a SimpleFIN setup token. Copy the whole token from SimpleFIN and paste it again.';
+  }
+  if (/TOKEN_ENCRYPTION_KEY/.test(msg)) {
+    return 'The server is missing its encryption key, so the connection cannot be stored securely. This is a configuration problem, not something you can fix here.';
+  }
+  return 'Something went wrong saving the connection. The setup token may still be unused — try again, and generate a new one if it fails twice.';
 }

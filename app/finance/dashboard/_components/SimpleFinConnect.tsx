@@ -33,7 +33,9 @@ export default function SimpleFinConnect({ label }: { label?: string }) {
         });
         const data = await res.json();
         if (!res.ok || !data.success) {
-          setErr(data.error ?? "Failed to connect");
+          // Prefer the specific reason — a reused token, a bad paste, SimpleFIN
+          // being down — over the generic headline, which told nobody anything.
+          setErr(data.reason ?? data.error ?? "Failed to connect");
           return;
         }
         setToken("");

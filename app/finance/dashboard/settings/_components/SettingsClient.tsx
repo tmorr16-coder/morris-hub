@@ -39,14 +39,69 @@ const Check = ({ color = "currentColor" }: { color?: string }) => (
   </svg>
 );
 
+/** Connection health for one linked institution. */
+export interface ItemHealth {
+  status: string | null;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  lastErrorAt: string | null;
+}
+
+/** "2 hours ago" — coarse is fine here, this is a reassurance, not a log. */
+function ago(iso: string | null): string | null {
+  if (!iso) return null;
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  const mins = Math.floor(ms / 60000);
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${mins} minutes ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+/**
+ * One line saying whether this connection is actually working.
+ *
+ * Sync used to record failures only to the server console, so a link that had
+ * been broken for weeks still read "active" and the balances just quietly
+ * stopped moving. Green when it last succeeded, amber when it has never synced,
+ * red with the reason when the last attempt failed.
+ */
+function ConnectionStatus({ health }: { health?: ItemHealth }) {
+  if (!health) return null;
+  const synced = ago(health.lastSyncedAt);
+  const failed = health.status === "error" && health.lastError;
+
+  const tone = failed ? "var(--ios-red)" : synced ? "var(--ios-green)" : "var(--ios-orange, #D9772B)";
+  return (
+    <div className="ios-caption" style={{ color: "var(--ios-label-2)", margin: "0 4px 8px", lineHeight: 1.45 }}>
+      <span style={{ color: tone, fontWeight: 600 }}>
+        {failed ? "Not syncing" : synced ? "Connected" : "Never synced"}
+      </span>
+      {synced && <> · last updated {synced}</>}
+      {failed && (
+        <div style={{ color: "var(--ios-red)", marginTop: 2 }}>
+          {health.lastError}
+          {ago(health.lastErrorAt) ? ` (${ago(health.lastErrorAt)})` : ""}
+          {synced ? <span style={{ color: "var(--ios-label-3)" }}> — showing the balances from {synced}.</span> : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SettingsClient({
   initialAccounts,
   itemNameById,
+  itemHealth = {},
   members = [],
   initialShares = [],
 }: {
   initialAccounts: AccountRow[];
   itemNameById: Record<string, string>;
+  itemHealth?: Record<string, ItemHealth>;
   members?: PlatformMember[];
   initialShares?: AccountShare[];
 }) {
@@ -328,6 +383,7 @@ export default function SettingsClient({
                 Disconnect
               </button>
             </div>
+            <ConnectionStatus health={itemHealth[itemId]} />
             <div style={{ background: "var(--ios-fill-2)", borderRadius: 12, overflow: "hidden" }}>
               {accts.map((a, idx) => {
                 const acctShares = sharesByAccount.get(a.id) ?? [];

@@ -40,6 +40,8 @@ interface ItemRow {
   institution_name: string;
   status: string;
   last_synced_at: string | null;
+  last_error: string | null;
+  last_error_at: string | null;
 }
 
 interface TxRow {
@@ -101,7 +103,7 @@ export default async function DashboardPage() {
     service
       .schema("finance")
       .from("plaid_items")
-      .select("id, institution_name, status, last_synced_at")
+      .select("id, institution_name, status, last_synced_at, last_error, last_error_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: true }),
     service
@@ -723,8 +725,16 @@ export default async function DashboardPage() {
               chevron={false}
               lead={<IconBadge color="var(--ios-tint)"><Icons.WalletIcon /></IconBadge>}
               title={it.institution_name}
-              subtitle={it.status === "active" || it.status === "good" ? "Synced" : it.status}
-              trailing={<span style={{ color: "var(--ios-label-2)" }}>{relativeTime(it.last_synced_at)}</span>}
+              // A raw status token told nobody anything. Say whether it works,
+              // and when it broke it now says why.
+              subtitle={it.status === "error" && it.last_error
+                ? it.last_error
+                : it.status === "active" || it.status === "good" ? "Connected" : (it.status ?? "Unknown")}
+              trailing={
+                <span style={{ color: it.status === "error" ? "var(--ios-red)" : "var(--ios-label-2)" }}>
+                  {it.status === "error" ? "Not syncing" : relativeTime(it.last_synced_at)}
+                </span>
+              }
             />
           ))}
         </Group>

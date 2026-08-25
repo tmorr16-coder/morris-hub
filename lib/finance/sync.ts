@@ -127,7 +127,12 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
     await supabase
       .schema('finance')
       .from('plaid_items')
-      .update({ last_synced_at: new Date().toISOString(), status: 'active' })
+      .update({
+        last_synced_at: new Date().toISOString(),
+        status: 'active',
+        last_error: null,
+        last_error_at: null,
+      })
       .eq('id', item.id);
 
     await supabase.schema('finance').from('audit_log').insert({
@@ -142,6 +147,23 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'unknown';
     console.error(`[sync] item ${itemId} failed:`, msg);
+
+    // Write the failure down. Previously this was console-only, so the row kept
+    // reporting 'active' and a connection could be broken for weeks with nothing
+    // in the interface saying so. The message comes from our own throw sites and
+    // never carries the access URL; truncated anyway as a belt-and-braces.
+    try {
+      await supabase
+        .schema('finance')
+        .from('plaid_items')
+        .update({
+          status: 'error',
+          last_error: msg.slice(0, 300),
+          last_error_at: new Date().toISOString(),
+        })
+        .eq('id', itemId);
+    } catch { /* the sync failure is the thing worth reporting, not this */ }
+
     return { item_id: itemId, added: 0, modified: 0, removed: 0, error: msg };
   }
 }
@@ -152,12 +174,15 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
 export async function syncAllItems(): Promise<SyncResult[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase = createServiceClient() as any;
-  // scoping-ok: cron job — intentionally syncs every user's active items
+  // Errored items are included deliberately: most failures are transient, and
+  // selecting only 'active' would mean one bad day retired a connection for
+  // good with no way back except reconnecting.
+  // scoping-ok: cron job — intentionally syncs every user's items
   const { data: items } = await supabase
     .schema('finance')
     .from('plaid_items')
     .select('id')
-    .eq('status', 'active');
+    .in('status', ['active', 'error']);
 
   const results: SyncResult[] = [];
   for (const item of (items ?? []) as { id: string }[]) {

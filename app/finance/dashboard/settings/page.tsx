@@ -15,7 +15,7 @@ export default async function SettingsPage() {
 
   const [prefsResult, itemRowsResult] = await Promise.all([
     service.schema("hub").from("preferences").select("finance_pin").eq("user_id", user.id).maybeSingle(),
-    service.schema("finance").from("plaid_items").select("id, institution_name").eq("user_id", user.id).order("institution_name", { ascending: true }),
+    service.schema("finance").from("plaid_items").select("id, institution_name, status, last_synced_at, last_error, last_error_at").eq("user_id", user.id).order("institution_name", { ascending: true }),
   ]);
 
   // Use auth.admin.listUsers() — bypasses PostgREST/RLS entirely, uses
@@ -69,6 +69,13 @@ export default async function SettingsPage() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const itemMap = new Map<string, string>(((itemRowsResult.data as any[]) ?? []).map((r) => [r.id, r.institution_name]));
+  // Connection health, so a broken link says so instead of silently going stale.
+  const itemHealth = Object.fromEntries(((itemRowsResult.data as any[]) ?? []).map((r) => [r.id, {
+    status: (r.status ?? null) as string | null,
+    lastSyncedAt: (r.last_synced_at ?? null) as string | null,
+    lastError: (r.last_error ?? null) as string | null,
+    lastErrorAt: (r.last_error_at ?? null) as string | null,
+  }]));
 
   return (
     <div className="ios-scroll">
@@ -90,6 +97,7 @@ export default async function SettingsPage() {
           <SettingsClient
             initialAccounts={accounts}
             itemNameById={Object.fromEntries(itemMap)}
+            itemHealth={itemHealth}
             members={members}
             initialShares={existingShares}
           />
