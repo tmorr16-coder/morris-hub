@@ -39,6 +39,13 @@ export default function SimpleFinConnect({ label }: { label?: string }) {
           return;
         }
         setToken("");
+        // Connected, but the first fetch was refused — say so instead of
+        // dropping the user on a dashboard with an empty institution.
+        if (data.warning) {
+          setErr(`Connected, but couldn't fetch accounts yet. ${data.warning}`);
+          router.refresh();
+          return;
+        }
         if (data.redirectTo) router.push(data.redirectTo);
         router.refresh();
       } catch {

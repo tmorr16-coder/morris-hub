@@ -54,15 +54,35 @@ export async function POST(req: NextRequest) {
 
     if (itemErr) throw itemErr;
 
-    // 3. Best-effort initial pull. If it fails, the connection is saved and
-    //    "Sync now" will retry — the token is not wasted.
+    // 3. Best-effort initial pull. The connection is saved either way — the
+    //    setup token is single-use and must not be wasted on a pull failure.
+    //    But a failure here is NOT reported as a clean success: swallowing it
+    //    produced the worst outcome of all, an institution connected with zero
+    //    accounts and nothing anywhere saying why.
+    let pullError: string | null = null;
     try {
       await pullAccounts(service, itemRow.id, user.id, accessUrl);
     } catch (pullErr) {
-      console.error('[simplefin/claim] initial pull failed (connection saved, will sync):', (pullErr as { message?: string })?.message);
+      pullError = (pullErr as { message?: string })?.message ?? 'unknown';
+      console.error('[simplefin/claim] initial pull failed (connection saved):', pullError);
+
+      // Record it on the item so the dashboard and settings show the state
+      // immediately, rather than looking healthy until the next nightly sync.
+      try {
+        await service
+          .schema('finance')
+          .from('plaid_items')
+          .update({ status: 'error', last_error: pullError.slice(0, 300), last_error_at: new Date().toISOString() })
+          .eq('id', itemRow.id);
+      } catch { /* the pull failure is the thing worth reporting */ }
     }
 
-    return NextResponse.json({ success: true, item_id: itemRow.id, redirectTo: '/finance/dashboard' });
+    return NextResponse.json({
+      success: true,
+      item_id: itemRow.id,
+      redirectTo: '/finance/dashboard',
+      ...(pullError ? { warning: explainClaimFailure(pullError) } : {}),
+    });
   } catch (error: unknown) {
     // Never log the access URL or setup token.
     const msg = (error as { message?: string })?.message ?? 'unknown';

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { setAccountHidden, deleteLinkedAccount, disconnectInstitution } from "../actions";
+import { explainSyncFailure } from "@/lib/finance/explain";
 import { shareAccount, revokeShare } from "../share-actions";
 import type { PlatformMember, AccountShare } from "../share-actions";
 
@@ -81,13 +82,29 @@ function ConnectionStatus({ health }: { health?: ItemHealth }) {
         {failed ? "Not syncing" : synced ? "Connected" : "Never synced"}
       </span>
       {synced && <> · last updated {synced}</>}
-      {failed && (
-        <div style={{ color: "var(--ios-red)", marginTop: 2 }}>
-          {health.lastError}
-          {ago(health.lastErrorAt) ? ` (${ago(health.lastErrorAt)})` : ""}
-          {synced ? <span style={{ color: "var(--ios-label-3)" }}> — showing the balances from {synced}.</span> : null}
-        </div>
-      )}
+      {failed && (() => {
+        const why = explainSyncFailure(health.lastError);
+        return (
+          <div style={{ marginTop: 3 }}>
+            <div style={{ color: "var(--ios-red)", fontWeight: 600 }}>
+              {why.headline}
+              {ago(health.lastErrorAt) ? <span style={{ fontWeight: 400 }}> · {ago(health.lastErrorAt)}</span> : null}
+            </div>
+            <div style={{ color: "var(--ios-label-2)", marginTop: 2 }}>{why.detail}</div>
+            {synced && (
+              <div style={{ color: "var(--ios-label-3)", marginTop: 2 }}>
+                The balances shown are the ones from {synced}.
+              </div>
+            )}
+            {/* The raw message stays reachable — it is what you need if the
+                explanation above turns out not to fit. */}
+            <details style={{ marginTop: 4 }}>
+              <summary style={{ color: "var(--ios-label-3)", cursor: "pointer" }}>Technical detail</summary>
+              <code style={{ color: "var(--ios-label-2)", wordBreak: "break-word" }}>{health.lastError}</code>
+            </details>
+          </div>
+        );
+      })()}
     </div>
   );
 }
