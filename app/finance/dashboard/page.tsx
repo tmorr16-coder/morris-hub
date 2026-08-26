@@ -125,7 +125,7 @@ export default async function DashboardPage() {
   // every account from every user — a data-isolation bug when multiple
   // platform members log in.
   const userItemIds = ((itemRows ?? []) as { id: string }[]).map((r) => r.id);
-  const { data: accountRowsRaw } = userItemIds.length > 0
+  const { data: accountRowsRaw, error: accountsError } = userItemIds.length > 0
     ? await service
         .schema("finance")
         .from("accounts")
@@ -134,7 +134,7 @@ export default async function DashboardPage() {
         .is("deleted_at", null)
         .order("type", { ascending: true })
         .order("name", { ascending: true })
-    : { data: [] };
+    : { data: [], error: null };
 
   // Round 3: transactions filtered to this user's account IDs.
   const userAccountIds = ((accountRowsRaw ?? []) as { id: string }[]).map((r) => r.id);
@@ -576,7 +576,24 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {accounts.length + manualAccounts.length === 0 && (
+      {/* A failed query is not an empty account list. Without this the dashboard
+          would greet an established household with the connect-a-bank card. */}
+      {accountsError && (
+        <div className="ios-list" style={{ margin: "12px 16px 0", padding: 16, border: "1.5px solid var(--ios-red)" }}>
+          <div className="ios-subhead" style={{ color: "var(--ios-red)", fontWeight: 700, marginBottom: 4 }}>
+            Couldn&rsquo;t load your accounts
+          </div>
+          <div className="ios-caption" style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}>
+            {accountsError.message}
+            <div style={{ marginTop: 6 }}>
+              Nothing has been lost — this screen just couldn&rsquo;t read them. If it mentions a
+              missing column, a database migration still needs to be applied.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!accountsError && accounts.length + manualAccounts.length === 0 && (
         <Group header="Get started" footer="Securely link a bank or brokerage with SimpleFIN to pull in balances and transactions automatically.">
           <div className="ios-cell" style={{ padding: "14px 16px" }}>
             <SimpleFinConnect label="Connect a bank" />

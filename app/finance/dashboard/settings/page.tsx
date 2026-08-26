@@ -26,6 +26,7 @@ export default async function SettingsPage() {
   const currentPin: string | null = (prefsResult.data as any)?.finance_pin ?? null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const itemIds = ((itemRowsResult.data as any[]) ?? []).map((r) => r.id);
+  const itemsError: string | null = (itemRowsResult as any).error?.message ?? null;
 
   // Build member list from auth users — excludes current user, sorted by email
   const members: PlatformMember[] = (allUsers ?? [])
@@ -40,6 +41,7 @@ export default async function SettingsPage() {
 
   let accounts: AccountRow[] = [];
   let existingShares: AccountShare[] = [];
+  let loadError: string | null = null;
 
   if (itemIds.length > 0) {
     const [acctResult, sharesResult] = await Promise.all([
@@ -54,6 +56,11 @@ export default async function SettingsPage() {
         .eq("owner_user_id", user.id),
     ]);
 
+    // A failed query must not look like an empty account list. It did: `.data`
+    // comes back null on error, `?? []` turned that into "no accounts", and the
+    // page rendered as though the connection had nothing in it. A missing
+    // column or a permissions change could silently empty this screen.
+    if (acctResult.error) loadError = acctResult.error.message ?? "Could not load accounts.";
     accounts = (acctResult.data ?? []) as AccountRow[];
 
     // Attach grantee info to each share — reuse the members list (already
@@ -87,6 +94,22 @@ export default async function SettingsPage() {
           <PinSettings currentPin={currentPin} />
         </div>
       </Group>
+
+      {/* A load failure says so. Rendering an empty list instead made a broken
+          query look like an account-less connection. */}
+      {(loadError || itemsError) && (
+        <Group header="Couldn't load your accounts">
+          <div style={{ padding: 16 }}>
+            <div className="ios-subhead" style={{ color: "var(--ios-red)", lineHeight: 1.5 }}>
+              {loadError ?? itemsError}
+            </div>
+            <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 8, lineHeight: 1.5 }}>
+              The list below is empty because the query failed, not because there is nothing connected.
+              If this mentions a missing column, a database migration still needs to be applied.
+            </div>
+          </div>
+        </Group>
+      )}
 
       {/* Account visibility */}
       <Group
