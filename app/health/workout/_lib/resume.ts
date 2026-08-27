@@ -17,6 +17,11 @@ export interface WorkoutSnapshot {
   startedAtMs: number;   // real start timestamp — elapsed survives an app close
   currentExIdx: number;
   activeSetIdx: number;
+  /** Wall-clock end of an in-progress rest, so it keeps running if you leave. */
+  restEndsAtMs?: number | null;
+  restTotal?: number;
+  /** "circuit" rotates through the exercises each round instead of finishing one at a time. */
+  mode?: "straight" | "circuit";
   savedAtMs: number;
 }
 

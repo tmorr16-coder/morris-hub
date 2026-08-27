@@ -137,9 +137,57 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   const [inputWeight,  setInputWeight]  = useState("");
   const [inputRpe,     setInputRpe]     = useState(7);
 
-  const [restRemaining, setRestRemaining] = useState(0);
+  // Rest is stored as a wall-clock DEADLINE, not a countdown.
+  //
+  // It used to be `setRestRemaining(r => r - 1)` on a one-second timeout, which
+  // only counts while the tab is foregrounded. Lock the phone or switch apps
+  // mid-set — exactly what people do while resting — and the browser throttles
+  // or suspends the timer, so a two-minute rest could still claim 45s left on
+  // return. A deadline is immune: however long you were away, the remaining
+  // time is just (deadline − now).
+  /**
+   * Straight sets vs circuit.
+   *
+   * Straight: finish every set of one exercise, then move on. Circuit: one set
+   * of each exercise in turn, then round again — short rests between stations,
+   * a longer one between rounds. Same logged sets either way, so the set grid,
+   * volume and history are unaffected; only the order you visit them changes.
+   */
+  const [mode, setMode] = useState<"straight" | "circuit">("straight");
+  const [stationRestSec, setStationRestSec] = useState(20);
+  const [roundRestSec, setRoundRestSec] = useState(90);
+  const [restEndsAtMs, setRestEndsAtMs] = useState<number | null>(null);
   const [restTotal,     setRestTotal]     = useState(0);
-  const restRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Bumped once a second purely to re-render the countdown; the value is
+  // always derived from the clock, never accumulated.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const restRemaining = restEndsAtMs ? Math.max(0, Math.ceil((restEndsAtMs - nowMs) / 1000)) : 0;
+
+  /**
+   * Pause holds the rest as well as the display.
+   *
+   * The deadline is wall-clock, so without this a pause would quietly eat the
+   * remaining rest — you'd unpause to find it already over.
+   */
+  const pausedRestLeftRef = useRef<number | null>(null);
+  const togglePause = () => {
+    setPaused((wasPaused) => {
+      if (!wasPaused) {
+        pausedRestLeftRef.current = restEndsAtMs ? Math.max(0, restEndsAtMs - Date.now()) : null;
+      } else if (pausedRestLeftRef.current != null) {
+        setRestEndsAtMs(Date.now() + pausedRestLeftRef.current);
+        pausedRestLeftRef.current = null;
+      }
+      return !wasPaused;
+    });
+  };
+
+  /** Start (or restart) a rest period of `seconds`. */
+  const startRest = (seconds: number) => {
+    if (seconds <= 0) { setRestEndsAtMs(null); setRestTotal(0); return; }
+    setRestEndsAtMs(Date.now() + seconds * 1000);
+    setRestTotal(seconds);
+  };
 
   // Real wall-clock start. Resettable so a resumed session keeps counting from
   // the ORIGINAL start (survives an app close) rather than resetting to 0.
@@ -198,6 +246,12 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
     setCooldown(!!snap.cooldown);
     setCurrentExIdx(snap.currentExIdx ?? 0);
     setActiveSetIdx(snap.activeSetIdx ?? 0);
+    setMode(snap.mode ?? "straight");
+    // A rest that was running when you left keeps running — the deadline is
+    // absolute, so reopening the app mid-rest shows the true time left (or
+    // nothing, if it already elapsed while you were away).
+    setRestEndsAtMs(snap.restEndsAtMs ?? null);
+    setRestTotal(snap.restTotal ?? 0);
     setStartedAtMs(snap.startedAtMs);   // elapsed base — real original start
     setCreating(false);
   };
@@ -251,25 +305,69 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
         startedAtMs,
         currentExIdx,
         activeSetIdx,
+        restEndsAtMs,
+        restTotal,
+        mode,
         savedAtMs: Date.now(),
       };
       localStorage.setItem(RESUME_KEY, JSON.stringify(snap));
     } catch {
       // storage full / unavailable — resume just won't be possible
     }
-  }, [session, exercises, setLogs, cardioBlocks, warmup, cooldown, startedAtMs, currentExIdx, activeSetIdx, showSummary]);
+  }, [session, exercises, setLogs, cardioBlocks, warmup, cooldown, startedAtMs, currentExIdx, activeSetIdx, restEndsAtMs, restTotal, mode, showSummary]);
 
+  // A single ticker drives both clocks, and both are computed from Date.now()
+  // rather than accumulated — so a throttled or suspended interval costs
+  // nothing but a stale pixel, never lost time.
   useEffect(() => {
     if (paused) return;
-    const id = setInterval(() => setSessionElapsed(Math.floor((Date.now() - startedAtMs) / 1000)), 1000);
-    return () => clearInterval(id);
+    const tick = () => {
+      const now = Date.now();
+      setNowMs(now);
+      setSessionElapsed(Math.floor((now - startedAtMs) / 1000));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+
+    // Coming back from a locked screen or another app: resync immediately
+    // instead of showing a stale value until the next tick fires.
+    const resync = () => { if (document.visibilityState === "visible") tick(); };
+    document.addEventListener("visibilitychange", resync);
+    window.addEventListener("focus", resync);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", resync);
+      window.removeEventListener("focus", resync);
+    };
   }, [startedAtMs, paused]);
 
+  // Tell you the rest is over even if you are looking at something else. Both
+  // are best-effort: iOS ignores vibrate, and audio needs a prior interaction —
+  // logging a set counts, so by the time a rest starts we have had one.
+  const restDoneRef = useRef(false);
   useEffect(() => {
-    if (restRemaining <= 0) return;
-    restRef.current = setTimeout(() => setRestRemaining((r) => r - 1), 1000);
-    return () => { if (restRef.current) clearTimeout(restRef.current); };
-  }, [restRemaining]);
+    if (restRemaining > 0) { restDoneRef.current = false; return; }
+    if (!restEndsAtMs || restDoneRef.current) return;
+    restDoneRef.current = true;
+    // Returning long after the rest elapsed should not set off an alert — the
+    // cue is "your rest just ended", not "a rest ended at some point".
+    if (Date.now() - restEndsAtMs > 5000) return;
+    try { navigator.vibrate?.([120, 80, 120]); } catch { /* unsupported */ }
+    try {
+      const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+      setTimeout(() => ctx.close().catch(() => {}), 600);
+    } catch { /* autoplay blocked — the visual countdown still lands */ }
+  }, [restRemaining, restEndsAtMs]);
 
   const currentEx = exercises[currentExIdx];
   const suggested = suggestNext(currentEx.lastSession, currentEx.target);
@@ -295,6 +393,9 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   const totalSets     = exercises.reduce((s, ex) => s + ex.target.sets, 0);
   const completedSets = setLogs.flat().filter(Boolean).length;
   const progressPct   = (completedSets / totalSets) * 100;
+  // In a circuit the set index is the round number, so the longest exercise
+  // sets how many rounds there are.
+  const maxRounds     = exercises.reduce((n, ex) => Math.max(n, ex.target.sets), 0);
   const totalVolume   = setLogs.flat().filter(Boolean).reduce((s, log) => s + log!.reps * log!.weight, 0);
   const allSetsDone   = completedSets === totalSets;
 
@@ -310,14 +411,37 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
     newLogs[currentExIdx][activeSetIdx] = { reps, weight, rpe: inputRpe };
     setSetLogs(newLogs);
 
-    setRestRemaining(currentEx.restSec);
-    setRestTotal(currentEx.restSec);
+    if (mode === "circuit") {
+      // Move to the next station that still owes a set this round. Exercises
+      // with fewer sets than the longest simply drop out of later rounds
+      // instead of stalling the rotation.
+      const nextStation = exercises.findIndex(
+        (ex, i) => i > currentExIdx && activeSetIdx < ex.target.sets
+      );
+      if (nextStation !== -1) {
+        setCurrentExIdx(nextStation);
+        startRest(stationRestSec);
+      } else {
+        // Round complete — back to the top for the next one.
+        const round = activeSetIdx + 1;
+        const firstStation = exercises.findIndex((ex) => round < ex.target.sets);
+        if (firstStation !== -1) {
+          setCurrentExIdx(firstStation);
+          setActiveSetIdx(round);
+          startRest(roundRestSec);
+        } else {
+          startRest(0); // every station is done
+        }
+      }
+    } else {
+      startRest(currentEx.restSec);
 
-    if (activeSetIdx < currentEx.target.sets - 1) {
-      setActiveSetIdx(activeSetIdx + 1);
-    } else if (currentExIdx < exercises.length - 1) {
-      setCurrentExIdx(currentExIdx + 1);
-      setActiveSetIdx(0);
+      if (activeSetIdx < currentEx.target.sets - 1) {
+        setActiveSetIdx(activeSetIdx + 1);
+      } else if (currentExIdx < exercises.length - 1) {
+        setCurrentExIdx(currentExIdx + 1);
+        setActiveSetIdx(0);
+      }
     }
 
     if (session?.exerciseIds[currentExIdx]) {
@@ -561,7 +685,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="ios-subhead" style={{ fontWeight: 600, color: "var(--ios-label)", lineHeight: 1.1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5 }}>
               {paused && <span style={{ display: "flex", color: "var(--ios-label-2)" }}><PauseGlyph /></span>}
-              {paused ? "Paused" : "Active session"}
+              {paused ? "Paused" : mode === "circuit" ? `Circuit · round ${activeSetIdx + 1} of ${maxRounds}` : "Active session"}
             </div>
             {totalVolume > 0 && (
               <div className="ios-footnote ios-num" style={{ color: "var(--ios-green)", marginTop: 2 }}>
@@ -623,7 +747,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
             {/* Pause / Resume — only once workout is active */}
             {completedSets > 0 && (
               <button
-                onClick={() => { setPaused((v) => !v); setShowMenu(false); }}
+                onClick={() => { togglePause(); setShowMenu(false); }}
                 style={menuItem("var(--ios-label)")}
               >
                 <span style={{ display: "flex" }}>{paused ? <PlayGlyph /> : <PauseGlyph />}</span>
@@ -754,6 +878,58 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
             }}
           />
         </div>
+      </div>
+
+      {/* ── Straight sets vs circuit ──────────────────────────────────────── */}
+      <div style={{ padding: "12px 16px 0" }}>
+        <div style={{ display: "flex", gap: 6, background: "var(--ios-fill)", borderRadius: 10, padding: 3 }}>
+          {(["straight", "circuit"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              aria-pressed={mode === m}
+              style={{
+                flex: 1, padding: "8px 0", borderRadius: 8, border: "none",
+                background: mode === m ? "var(--ios-cell)" : "transparent",
+                color: mode === m ? "var(--ios-label)" : "var(--ios-label-2)",
+                fontFamily: "inherit", fontSize: 14, fontWeight: mode === m ? 600 : 500,
+                cursor: "pointer", boxShadow: mode === m ? "var(--ios-shadow-card)" : "none",
+              }}
+            >
+              {m === "straight" ? "Straight sets" : "Circuit"}
+            </button>
+          ))}
+        </div>
+        <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6, lineHeight: 1.45 }}>
+          {mode === "circuit"
+            ? `One set of each exercise, then round again — ${maxRounds} round${maxRounds === 1 ? "" : "s"}. Short rest between stations, longer between rounds.`
+            : "All sets of one exercise before moving to the next."}
+        </div>
+
+        {mode === "circuit" && (
+          <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+            <label style={{ flex: 1 }}>
+              <span className="ios-caption" style={{ color: "var(--ios-label-2)", display: "block", marginBottom: 4 }}>
+                Between stations
+              </span>
+              <input
+                type="number" min={0} max={180} step={5} value={stationRestSec}
+                onChange={(e) => setStationRestSec(Math.max(0, parseInt(e.target.value) || 0))}
+                style={{ width: "100%", background: "var(--ios-fill)", border: "none", borderRadius: 8, padding: "8px 10px", fontSize: 15, color: "var(--ios-label)", fontFamily: "inherit" }}
+              />
+            </label>
+            <label style={{ flex: 1 }}>
+              <span className="ios-caption" style={{ color: "var(--ios-label-2)", display: "block", marginBottom: 4 }}>
+                Between rounds
+              </span>
+              <input
+                type="number" min={0} max={600} step={15} value={roundRestSec}
+                onChange={(e) => setRoundRestSec(Math.max(0, parseInt(e.target.value) || 0))}
+                style={{ width: "100%", background: "var(--ios-fill)", border: "none", borderRadius: 8, padding: "8px 10px", fontSize: 15, color: "var(--ios-label)", fontFamily: "inherit" }}
+              />
+            </label>
+          </div>
+        )}
       </div>
 
       {/* ── Exercise tabs ─────────────────────────────────────────────────── */}
@@ -1354,7 +1530,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button
-              onClick={() => setRestRemaining((r) => Math.max(0, r - 15))}
+              onClick={() => setRestEndsAtMs((end) => (end ? Math.max(Date.now(), end - 15_000) : end))}
               style={restBtn("var(--ios-label-2)")}
             >
               −15s
@@ -1362,14 +1538,14 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
             {[15, 30].map((s) => (
               <button
                 key={s}
-                onClick={() => setRestRemaining((r) => r + s)}
+                onClick={() => { setRestEndsAtMs((end) => (end ?? Date.now()) + s * 1000); setRestTotal((t) => t + s); }}
                 style={restBtn("var(--ios-label)")}
               >
                 +{s}s
               </button>
             ))}
             <button
-              onClick={() => setRestRemaining(0)}
+              onClick={() => { setRestEndsAtMs(null); setRestTotal(0); }}
               style={{
                 flex: 2, padding: "11px 0", borderRadius: 10,
                 border: "none",
