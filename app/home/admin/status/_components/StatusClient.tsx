@@ -13,6 +13,8 @@ export interface BrokenConnection {
   headline: string;
   detail: string;
   canReconnect: boolean;
+  /** failed = a recorded error · stale = stopped updating · never = not yet pulled */
+  kind: "failed" | "stale" | "never";
 }
 
 export interface EventGroup {
@@ -111,20 +113,20 @@ export default function StatusClient({
       {connections.length > 0 && (
         <>
           <div className="ios-group-header" style={{ padding: "6px 0 7px" }}>
-            NOT SYNCING · {connections.length} of {totalConnections}
+            NEEDS A LOOK · {connections.length} of {totalConnections}
           </div>
           {connections.map((c) => (
-            <div key={c.id} style={{ ...card, border: `1.5px solid ${c.status === "error" ? "var(--ios-red)" : "var(--ios-orange, #D9772B)"}` }}>
+            <div key={c.id} style={{ ...card, border: `1.5px solid ${c.kind === "failed" ? "var(--ios-red)" : c.kind === "stale" ? "var(--ios-orange, #D9772B)" : "var(--ios-separator)"}` }}>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
                 <span className="ios-headline" style={{ fontSize: 15 }}>{c.institution}</span>
                 <span className="ios-caption" style={{ color: "var(--ios-label-3)", flexShrink: 0 }}>
-                  last ok {ago(c.lastSyncedAt)}
+                  {c.kind === "never" ? "not pulled yet" : `last ok ${ago(c.lastSyncedAt)}`}
                 </span>
               </div>
               {c.userId && names[c.userId] && (
                 <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 1 }}>{names[c.userId]}</div>
               )}
-              <div className="ios-subhead" style={{ color: c.status === "error" ? "var(--ios-red)" : "var(--ios-orange, #D9772B)", fontWeight: 600, marginTop: 6 }}>
+              <div className="ios-subhead" style={{ color: c.kind === "failed" ? "var(--ios-red)" : c.kind === "stale" ? "var(--ios-orange, #D9772B)" : "var(--ios-label-2)", fontWeight: 600, marginTop: 6 }}>
                 {c.headline}
               </div>
               <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 3, lineHeight: 1.5 }}>

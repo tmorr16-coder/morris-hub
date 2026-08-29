@@ -8,6 +8,7 @@ import {
   mapSimpleFinTransaction,
 } from '@/lib/finance/simplefin';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { clearFailures } from '@/lib/system-events';
 
 export const runtime = 'nodejs';
 
@@ -62,6 +63,23 @@ export async function POST(req: NextRequest) {
     let pullError: string | null = null;
     try {
       await pullAccounts(service, itemRow.id, user.id, accessUrl);
+
+      // A successful initial pull IS a sync, and nothing was recording it as
+      // one — only syncItem set last_synced_at. So a bank connected at noon
+      // read as "never synced" until the 09:00 cron the next morning, which
+      // the status page and the dashboard both correctly reported as a problem
+      // with a connection that was in fact working perfectly.
+      await service
+        .schema('finance')
+        .from('plaid_items')
+        .update({
+          last_synced_at: new Date().toISOString(),
+          status: 'active',
+          last_error: null,
+          last_error_at: null,
+        })
+        .eq('id', itemRow.id);
+      await clearFailures('simplefin', itemRow.id);
     } catch (pullErr) {
       pullError = (pullErr as { message?: string })?.message ?? 'unknown';
       console.error('[simplefin/claim] initial pull failed (connection saved):', pullError);

@@ -75,13 +75,23 @@ export default async function StatusPage() {
         lastSyncedAt: (it.last_synced_at ?? null) as string | null,
         lastErrorAt: (it.last_error_at ?? null) as string | null,
         rawError: (it.last_error ?? null) as string | null,
-        headline: it.status === "error" ? why.headline : "Hasn't synced recently",
+        // Three different situations were being shown as one. A connection
+        // that has never pulled is usually a new one waiting for its first
+        // sync, not a broken one — reporting it in the same red as a refused
+        // credential is how a healthy connection gets mistaken for a fault.
+        kind: (it.status === "error" ? "failed" : it.last_synced_at ? "stale" : "never") as BrokenConnection["kind"],
+        headline:
+          it.status === "error"
+            ? why.headline
+            : it.last_synced_at
+            ? "Hasn't synced recently"
+            : "Waiting for its first sync",
         detail:
           it.status === "error"
             ? why.detail
             : it.last_synced_at
             ? "No failure was recorded, so this may simply be an account the provider updates rarely — or a sync that is not running."
-            : "This connection has never completed a sync since it was created.",
+            : "Connected, with no failure recorded. Tap Sync now on the Money dashboard to pull straight away, or leave it for the nightly run.",
         canReconnect: it.status === "error" ? why.canReconnect : false,
       };
     });
