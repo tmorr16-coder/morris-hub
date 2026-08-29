@@ -55,6 +55,8 @@ export interface SimpleFinAccount {
 export interface SimpleFinAccountsResponse {
   errors: string[];
   accounts: SimpleFinAccount[];
+  /** Same as `errors`, normalised to strings — the accounts behind these are missing. */
+  providerErrors: string[];
 }
 
 /**
@@ -132,8 +134,13 @@ export async function fetchSimpleFinAccounts(
   }
 
   const json = (await res.json()) as Partial<SimpleFinAccountsResponse>;
+  // `errors` is not an HTTP failure — the request succeeded. It is SimpleFIN
+  // saying "these connections need attention", and the accounts behind them are
+  // missing from `accounts`. Named explicitly because both callers previously
+  // destructured past it.
   return {
     errors: json.errors ?? [],
+    providerErrors: (json.errors ?? []).map((e) => String(e)),
     accounts: json.accounts ?? [],
   };
 }

@@ -34,7 +34,23 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
   try {
     const accessUrl = decrypt(item.access_token_encrypted);
     const startDate = Math.floor(Date.now() / 1000) - 90 * 24 * 60 * 60;
-    const { accounts } = await fetchSimpleFinAccounts(accessUrl, startDate);
+    const { accounts, providerErrors } = await fetchSimpleFinAccounts(accessUrl, startDate);
+
+    // SimpleFIN reports per-connection trouble in an `errors` array and simply
+    // OMITS the accounts it could not reach. Both callers destructured only
+    // `accounts`, so a bank that needed re-authorising looked like a completely
+    // successful sync that happened to return fewer accounts — which is exactly
+    // how accounts go missing with nothing anywhere saying why.
+    if (providerErrors.length > 0) {
+      await recordFailure({
+        source: 'simplefin',
+        subject: itemId,
+        userId: item.user_id ?? null,
+        severity: 'warning',
+        message: `SimpleFIN reported ${providerErrors.length} connection problem${providerErrors.length === 1 ? '' : 's'}: ${providerErrors.join(' · ')}`,
+        detail: { providerErrors, accountsReturned: accounts.length },
+      });
+    }
 
     // Map SimpleFIN account id -> internal account id; insert any newly-appeared
     // accounts. Tombstones (deleted_at set) are read too, and deliberately kept

@@ -42,6 +42,7 @@ export default async function SettingsPage() {
   let accounts: AccountRow[] = [];
   let existingShares: AccountShare[] = [];
   let loadError: string | null = null;
+  const deletedByItem: Record<string, number> = {};
 
   if (itemIds.length > 0) {
     const [acctResult, sharesResult] = await Promise.all([
@@ -62,6 +63,21 @@ export default async function SettingsPage() {
     // column or a permissions change could silently empty this screen.
     if (acctResult.error) loadError = acctResult.error.message ?? "Could not load accounts.";
     accounts = (acctResult.data ?? []) as AccountRow[];
+
+    // Deleted accounts are invisible everywhere by design, which makes "am I
+    // missing an account?" unanswerable — you cannot tell a deleted one from
+    // one the provider never sent. Count them so the arithmetic is checkable.
+    try {
+      const { data: delRows } = await service
+        .schema("finance")
+        .from("accounts")
+        .select("id, item_id")
+        .in("item_id", itemIds)
+        .not("deleted_at", "is", null);
+      for (const r of ((delRows ?? []) as { item_id: string }[])) {
+        deletedByItem[r.item_id] = (deletedByItem[r.item_id] ?? 0) + 1;
+      }
+    } catch { /* pre-migration — the counts simply stay at zero */ }
 
     // Attach grantee info to each share — reuse the members list (already
     // fetched via auth.admin.listUsers, which bypasses the profiles RLS block).
@@ -121,6 +137,7 @@ export default async function SettingsPage() {
             initialAccounts={accounts}
             itemNameById={Object.fromEntries(itemMap)}
             itemHealth={itemHealth}
+            deletedByItem={deletedByItem}
             members={members}
             initialShares={existingShares}
           />

@@ -552,6 +552,28 @@ export default async function DashboardPage() {
       </div>
       )}
 
+      {/* ── Quick actions ───────────────────────────────────────────────────
+          The common jobs — manage accounts, connect a bank, deal with whatever
+          is broken — all lived behind the last two tabs of an eight-tab subnav
+          that scrolls off a phone screen, or on an admin page in another
+          module. One tap each, at the top, where the balances are. */}
+      {(accounts.length + manualAccounts.length) > 0 && (
+        <div style={{ display: "flex", gap: 8, margin: "12px 16px 0" }}>
+          <a href="/finance/dashboard/settings" className="ios-caption"
+            style={{ flex: 1, textAlign: "center", padding: "10px 6px", borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-tint)", fontWeight: 600, textDecoration: "none" }}>
+            Accounts
+          </a>
+          <a href="/finance/dashboard/import" className="ios-caption"
+            style={{ flex: 1, textAlign: "center", padding: "10px 6px", borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-tint)", fontWeight: 600, textDecoration: "none" }}>
+            Add / connect
+          </a>
+          <a href="/finance/dashboard/insights" className="ios-caption"
+            style={{ flex: 1, textAlign: "center", padding: "10px 6px", borderRadius: 10, background: "var(--ios-cell)", color: "var(--ios-tint)", fontWeight: 600, textDecoration: "none" }}>
+            Spending
+          </a>
+        </div>
+      )}
+
       {/* ── Cash flow ───────────────────────────────────────────────────────
           Net position answers "what do I have". This answers "what do I keep",
           which is the number that actually moves the retirement projection. */}
@@ -669,6 +691,14 @@ export default async function DashboardPage() {
             </div>
             {items.length > 0 && <SyncNowButton />}
           </div>
+          {/* Reporting a broken connection without a route to fixing it just
+              moves the problem. This is where the fix lives. */}
+          {staleLinked.length > 0 && (
+            <a href="/finance/dashboard/settings" className="ios-caption"
+              style={{ display: "inline-block", marginTop: 9, color: "var(--ios-tint)", fontWeight: 700, textDecoration: "none" }}>
+              Review connections &amp; reconnect →
+            </a>
+          )}
           {duplicates.length > 0 && (
             <div style={{ marginTop: 11, paddingTop: 10, borderTop: "1px solid var(--ios-separator)" }}>
               <div className="ios-footnote" style={{ color: "var(--ios-orange)", fontWeight: 700, marginBottom: 4 }}>⚠ Possible duplicate{duplicates.length > 1 ? "s" : ""}</div>

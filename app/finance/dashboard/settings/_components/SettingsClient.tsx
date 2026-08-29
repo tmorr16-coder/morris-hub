@@ -113,12 +113,14 @@ export default function SettingsClient({
   initialAccounts,
   itemNameById,
   itemHealth = {},
+  deletedByItem = {},
   members = [],
   initialShares = [],
 }: {
   initialAccounts: AccountRow[];
   itemNameById: Record<string, string>;
   itemHealth?: Record<string, ItemHealth>;
+  deletedByItem?: Record<string, number>;
   members?: PlatformMember[];
   initialShares?: AccountShare[];
 }) {
@@ -422,6 +424,23 @@ export default function SettingsClient({
               </button>
             </div>
             <ConnectionStatus health={itemHealth[itemId]} />
+            {/* Makes the arithmetic checkable: if SimpleFIN should be sending
+                more accounts than this, the gap is at their end, not a hidden
+                or deleted row here. */}
+            {(() => {
+              const shown = accts.filter((a) => !a.is_hidden).length;
+              const hidden = accts.length - shown;
+              const deleted = deletedByItem[itemId] ?? 0;
+              if (hidden === 0 && deleted === 0) return null;
+              return (
+                <div className="ios-caption" style={{ color: "var(--ios-label-3)", margin: "0 4px 8px", lineHeight: 1.45 }}>
+                  {shown} shown
+                  {hidden > 0 ? ` · ${hidden} hidden` : ""}
+                  {deleted > 0 ? ` · ${deleted} deleted` : ""}
+                  {deleted > 0 && " — deleted accounts stay gone through future syncs."}
+                </div>
+              );
+            })()}
             <div style={{ background: "var(--ios-fill-2)", borderRadius: 12, overflow: "hidden" }}>
               {accts.map((a, idx) => {
                 const acctShares = sharesByAccount.get(a.id) ?? [];

@@ -8,7 +8,7 @@ import {
   mapSimpleFinTransaction,
 } from '@/lib/finance/simplefin';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { clearFailures } from '@/lib/system-events';
+import { clearFailures, recordFailure } from '@/lib/system-events';
 
 export const runtime = 'nodejs';
 
@@ -118,7 +118,21 @@ export async function POST(req: NextRequest) {
 /** Fetch accounts + transactions and write them for a just-claimed connection. */
 async function pullAccounts(service: any, itemId: string, userId: string, accessUrl: string) {
   {
-    const { accounts } = await fetchSimpleFinAccounts(accessUrl);
+    const { accounts, providerErrors } = await fetchSimpleFinAccounts(accessUrl);
+
+    // Same at connect time: a bank that needs attention at SimpleFIN is simply
+    // absent from `accounts`, so without this the very first pull would quietly
+    // bring in a subset and look like a complete success.
+    if (providerErrors.length > 0) {
+      await recordFailure({
+        source: 'simplefin',
+        subject: itemId,
+        userId,
+        severity: 'warning',
+        message: `SimpleFIN reported ${providerErrors.length} connection problem${providerErrors.length === 1 ? '' : 's'}: ${providerErrors.join(' · ')}`,
+        detail: { providerErrors, accountsReturned: accounts.length },
+      });
+    }
 
     if (accounts[0]?.org?.name) {
       await service.schema('finance').from('plaid_items')
