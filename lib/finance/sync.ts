@@ -70,16 +70,53 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
       existingRows.filter((a) => !a.deleted_at).map((a) => [a.plaid_account_id, a.id])
     );
 
+    const insertFailures: string[] = [];
     for (const a of accounts) {
       if (deletedExternalIds.has(a.id)) continue; // stays deleted
       if (accountMap.has(a.id)) continue;
-      const { data: inserted } = await supabase
+      const { data: inserted, error: insertErr } = await supabase
         .schema('finance')
         .from('accounts')
         .insert({ item_id: item.id, ...mapSimpleFinAccount(a) })
         .select('id')
         .single();
+      // This error used to be discarded: `const { data: inserted } = ...` and
+      // then `if (inserted?.id)`. An account that failed to insert was skipped
+      // silently on every sync, for ever, with nothing written anywhere — a
+      // second way for an account to simply never appear.
+      if (insertErr) {
+        insertFailures.push(`${a.org?.name ?? 'unknown'} · ${a.name}: ${insertErr.message}`);
+        continue;
+      }
       if (inserted?.id) accountMap.set(a.id, inserted.id);
+    }
+
+    if (insertFailures.length > 0) {
+      await recordFailure({
+        source: 'simplefin',
+        subject: itemId,
+        userId: item.user_id ?? null,
+        severity: 'warning',
+        message: `${insertFailures.length} account${insertFailures.length === 1 ? '' : 's'} could not be saved: ${insertFailures.join(' · ')}`,
+        detail: { insertFailures },
+      });
+    }
+
+    // Name the connection after every institution behind it, not after
+    // whichever account happened to be first in the array. A SimpleFIN access
+    // URL commonly spans several banks — that is what the Bridge is for — and
+    // naming the item `accounts[0].org.name` filed every other institution's
+    // accounts under the wrong heading.
+    const orgNames = [...new Set(accounts.map((a) => a.org?.name).filter(Boolean) as string[])];
+    if (orgNames.length > 0) {
+      const label = orgNames.length === 1 ? orgNames[0] : `${orgNames.length} institutions`;
+      if (label !== item.institution_name) {
+        await supabase
+          .schema('finance')
+          .from('plaid_items')
+          .update({ institution_name: label })
+          .eq('id', itemId);
+      }
     }
 
     // The two loops below both resolve through accountMap and skip on a miss,

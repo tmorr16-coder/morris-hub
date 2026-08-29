@@ -409,7 +409,16 @@ export default function SettingsClient({
           <div key={itemId}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, margin: "0 4px 8px" }}>
               <h2 className="ios-footnote" style={{ textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600, color: "var(--ios-label-2)", margin: 0 }}>
-                {itemNameById[itemId] ?? "Unknown institution"}
+                {/* One connection can cover several banks, so the heading names
+                    what is actually inside it rather than the connection's
+                    label — which was previously just whichever account came
+                    back first. Disconnect still acts on the whole connection,
+                    which is why they stay grouped together. */}
+                {(() => {
+                  const orgs = [...new Set(accts.map((a) => a.official_name).filter(Boolean) as string[])];
+                  if (orgs.length === 0) return itemNameById[itemId] ?? "Unknown institution";
+                  return orgs.join(" · ");
+                })()}
               </h2>
               {/* Severing the connection was previously impossible from the UI,
                   which also meant the stored credential could never be removed. */}
@@ -456,8 +465,12 @@ export default function SettingsClient({
                       padding: "12px 14px", gap: 10, opacity: a.is_hidden ? 0.5 : 1,
                     }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
                           <span className="ios-callout" style={{ fontWeight: 500, color: "var(--ios-label)" }}>{a.name}</span>
+                          {/* Only when it disambiguates — noise otherwise. */}
+                          {a.official_name && new Set(accts.map((x) => x.official_name).filter(Boolean)).size > 1 && (
+                            <span className="ios-caption" style={{ color: "var(--ios-tint)" }}>{a.official_name}</span>
+                          )}
                           {a.mask && <span className="ios-num ios-caption" style={{ color: "var(--ios-label-3)" }}>····{a.mask}</span>}
                         </div>
                         <div className="ios-caption" style={{ color: "var(--ios-label-2)", textTransform: "capitalize", marginTop: 2 }}>

@@ -134,9 +134,14 @@ async function pullAccounts(service: any, itemId: string, userId: string, access
       });
     }
 
-    if (accounts[0]?.org?.name) {
+    // A SimpleFIN access URL commonly covers several banks — that is what the
+    // Bridge is for. Naming the connection after accounts[0] filed every other
+    // institution's accounts under the first one's name.
+    const orgNames = [...new Set(accounts.map((a) => a.org?.name).filter(Boolean) as string[])];
+    if (orgNames.length > 0) {
       await service.schema('finance').from('plaid_items')
-        .update({ institution_name: accounts[0].org.name }).eq('id', itemId);
+        .update({ institution_name: orgNames.length === 1 ? orgNames[0] : `${orgNames.length} institutions` })
+        .eq('id', itemId);
     }
 
     // 4. Insert accounts.
@@ -147,7 +152,19 @@ async function pullAccounts(service: any, itemId: string, userId: string, access
 
     if (accountRows.length > 0) {
       // scoping-ok: accountRows each carry item_id for this user's just-created item
-      await service.schema('finance').from('accounts').insert(accountRows);
+      const { error: insertErr } = await service.schema('finance').from('accounts').insert(accountRows);
+      // A multi-row insert is all-or-nothing, so one bad row loses every
+      // account on the connection. Silently, until now.
+      if (insertErr) {
+        await recordFailure({
+          source: 'simplefin',
+          subject: itemId,
+          userId,
+          message: `Could not save ${accountRows.length} account${accountRows.length === 1 ? '' : 's'} on connect: ${insertErr.message}`,
+          detail: { accountsReturned: accounts.length },
+        });
+        throw new Error(`Accounts could not be saved: ${insertErr.message}`);
+      }
     }
 
     // 5. Build plaid_account_id → internal account.id map.
