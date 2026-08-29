@@ -426,7 +426,22 @@ export default async function DashboardPage() {
 
   // ── Account status: freshness + duplicate detection ───────────────────────
   const itemById = new Map(items.map((it) => [it.id, it]));
-  const staleLinked = items.filter((it) => freshnessTone(it.last_synced_at) === "stale");
+
+  // An institution is not updating if the last sync FAILED, regardless of when
+  // it last succeeded. Judging on age alone missed exactly the case that
+  // matters — a connection that broke months ago but whose stale timestamp was
+  // still inside the window, so its balances read as current.
+  const isBroken = (it: ItemRow) => it.status === "error";
+  const isStale = (it: ItemRow) => isBroken(it) || freshnessTone(it.last_synced_at) === "stale";
+  const staleLinked = items.filter(isStale);
+  const brokenLinked = items.filter(isBroken);
+
+  // Which accounts are affected, and how much of the net position rests on
+  // numbers that are no longer being refreshed. The headline figure was
+  // presented with no hint that part of it had stopped moving.
+  const staleItemIds = new Set(staleLinked.map((it) => it.id));
+  const staleAccounts = accounts.filter((a) => staleItemIds.has(a.item_id));
+  const staleValue = staleAccounts.reduce((sum, a) => sum + Math.abs(a.current_balance ?? 0), 0);
 
   // Candidate accounts for duplicate detection (linked + imported/manual not
   // already linked to a Plaid account).
@@ -495,6 +510,15 @@ export default async function DashboardPage() {
         <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginTop: 6 }}>
           {accounts.length + manualAccounts.length} accounts{lastSyncAcrossItems ? ` · synced ${relativeTime(lastSyncAcrossItems)}` : ""}
         </div>
+        {/* The headline figure is the number people trust. If part of it has
+            stopped updating, saying so here is the difference between a
+            slightly-old total and a quietly wrong one. */}
+        {staleValue > 0 && (
+          <div className="ios-footnote" style={{ color: brokenLinked.length ? "var(--ios-red)" : "var(--ios-orange)", marginTop: 4, lineHeight: 1.45 }}>
+            {fmtMoney(staleValue)} of this hasn&rsquo;t been refreshed
+            {brokenLinked.length ? " — a connection is failing" : ""}.
+          </div>
+        )}
 
         {/* High-level math — assets (+) minus liabilities (−), and every source that
             feeds the total so imported and shared accounts are clearly counted. */}
@@ -605,14 +629,29 @@ export default async function DashboardPage() {
         <div className="ios-list" style={{ margin: "0 16px 8px", padding: 14 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-              <span style={{ width: 9, height: 9, borderRadius: "50%", flexShrink: 0, background: staleLinked.length ? "var(--ios-orange)" : "var(--ios-green)" }} />
+              <span style={{ width: 9, height: 9, borderRadius: "50%", flexShrink: 0, background: brokenLinked.length ? "var(--ios-red)" : staleLinked.length ? "var(--ios-orange)" : "var(--ios-green)" }} />
               <div>
                 <div className="ios-subhead" style={{ fontWeight: 600 }}>
-                  {staleLinked.length ? `${staleLinked.length} account${staleLinked.length > 1 ? "s" : ""} may be out of date` : "Balances up to date"}
+                  {/* Counting institutions but saying "accounts" understated it:
+                      one dead connection can hold several accounts. Name both. */}
+                  {brokenLinked.length
+                    ? `${brokenLinked.length} connection${brokenLinked.length > 1 ? "s are" : " is"} not syncing`
+                    : staleLinked.length
+                    ? `${staleLinked.length} connection${staleLinked.length > 1 ? "s" : ""} may be out of date`
+                    : "Balances up to date"}
                 </div>
                 <div className="ios-caption" style={{ color: "var(--ios-label-2)" }}>
-                  {lastSyncAcrossItems ? `Linked accounts synced ${relativeTime(lastSyncAcrossItems)}` : "Manual & imported balances only"}
+                  {staleAccounts.length > 0
+                    ? `${staleAccounts.length} account${staleAccounts.length > 1 ? "s" : ""} · ${fmtMoney(staleValue)} of the total isn't being refreshed`
+                    : lastSyncAcrossItems ? `Linked accounts synced ${relativeTime(lastSyncAcrossItems)}` : "Manual & imported balances only"}
                 </div>
+                {/* Name them, so nobody has to open each account to find out
+                    which ones stopped. */}
+                {staleLinked.length > 0 && (
+                  <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 3, lineHeight: 1.45 }}>
+                    {staleLinked.map((it) => `${it.institution_name}${it.last_synced_at ? ` (${relativeTime(it.last_synced_at)})` : " (never synced)"}`).join(" · ")}
+                  </div>
+                )}
               </div>
             </div>
             {items.length > 0 && <SyncNowButton />}
@@ -675,7 +714,14 @@ export default async function DashboardPage() {
                   // retirement module already knows which this is.
                   isLiab && rateFor(a.name) != null ? `${rateFor(a.name)!.toFixed(2)}% APR` : null,
                   a.mask ? `····${a.mask}` : null,
-                  itemById.get(a.item_id)?.last_synced_at ? `updated ${relativeTime(itemById.get(a.item_id)!.last_synced_at)}` : null,
+                  // "updated 3 days ago" buried among the other fragments read
+                  // as detail rather than a warning. A stale account now says
+                  // it plainly, because you cannot tell by looking at a balance.
+                  staleItemIds.has(a.item_id)
+                    ? (itemById.get(a.item_id)?.status === "error"
+                        ? "⚠ not syncing"
+                        : `⚠ stale · ${itemById.get(a.item_id)?.last_synced_at ? relativeTime(itemById.get(a.item_id)!.last_synced_at) : "never synced"}`)
+                    : itemById.get(a.item_id)?.last_synced_at ? `updated ${relativeTime(itemById.get(a.item_id)!.last_synced_at)}` : null,
                 ].filter(Boolean).join(" · ") || undefined}
                 trailing={<span className="ios-num" style={isLiab ? { color: "var(--ios-red)" } : undefined}>{isLiab ? `−${fmtMoney(Math.abs(a.current_balance ?? 0))}` : fmtMoney(a.current_balance ?? 0)}</span>}
               />

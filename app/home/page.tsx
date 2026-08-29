@@ -74,6 +74,47 @@ export default async function HomePage() {
   const today = new Date();
   const todayStr = today.toLocaleDateString("sv", { timeZone: userTz }); // YYYY-MM-DD
 
+  // ── Started now, awaited where they're used ────────────────────────────────
+  // These three need nothing but the user and the date, but they sat further
+  // down the file and so ran only after the two dependent query batches above
+  // and below had finished — four sequential round trips where one would do.
+  // Kicking them off here overlaps them with everything else; the `await` at
+  // each use site is unchanged.
+  const weekEndStr = new Date(today.getTime() + 6 * 86_400_000).toLocaleDateString("sv", { timeZone: userTz });
+  const familyCalendarP = getFamilyCalendarEvents(user.id, todayStr, weekEndStr, userTz);
+
+  const homeTodayKey = new Intl.DateTimeFormat("en-CA", { timeZone: userTz }).format(new Date());
+  const stepsNetP = Promise.all([
+    service.from("apple_health_metrics")
+      .select("value, source, timestamp")
+      .eq("user_id", user.id)
+      .in("metric_name", ["step_count", "steps", "Step Count", "Steps"])
+      .gte("timestamp", new Date(new Date().getTime() - 7 * 86_400_000).toISOString()),
+    service.schema("finance").from("net_position_snapshots")
+      .select("net_position, captured_at").eq("user_id", user.id)
+      .order("captured_at", { ascending: false }).limit(30),
+  ]);
+
+  const prefsPinP = Promise.all([
+    getPreferences(user.id).catch(() => null),
+    // When a finance PIN is set, the money glance must not reveal anything (even
+    // the trend %) in the clear — mirror the PIN that guards the finance section.
+    (async () => {
+      try {
+        const { data: financePinRow } = await service
+          .schema("hub")
+          .from("preferences")
+          .select("finance_pin")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return !!((financePinRow as any)?.finance_pin);
+      } catch {
+        return false; // finance_pin column not present / query failed — leave unlocked
+      }
+    })(),
+  ]);
+
   const [todoResult, reminders, workoutsResult, assignedReminders, circleResult] = await Promise.all([
     service
       .schema("hub")
@@ -441,8 +482,7 @@ export default async function HomePage() {
   // ── My Priorities — four categories, one item each ──────────────────────────
 
   // ── Family Status — one compact row per family member ───────────────────────
-  const weekEndStr = new Date(today.getTime() + 6 * 86_400_000).toLocaleDateString("sv", { timeZone: userTz });
-  const { events: familyStatusEvents } = await getFamilyCalendarEvents(user.id, todayStr, weekEndStr, userTz);
+  const { events: familyStatusEvents } = await familyCalendarP;
   const eventsByPerson = new Map<string, typeof familyStatusEvents>();
   for (const e of familyStatusEvents) {
     if (!eventsByPerson.has(e.person)) eventsByPerson.set(e.person, []);
@@ -520,23 +560,12 @@ export default async function HomePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const iosUpcoming = (reminders as any[]).filter((r) => !r.completed_at);
   // Health + Money glance — light lookups (steps today, latest net-worth snapshot)
-  const homeTz = getUserTimezone(user.user_metadata);
-  const homeTodayKey = new Intl.DateTimeFormat("en-CA", { timeZone: homeTz }).format(new Date());
-  const [stepsRes, netRes] = await Promise.all([
-    service.from("apple_health_metrics")
-      .select("value, source, timestamp")
-      .eq("user_id", user.id)
-      .in("metric_name", ["step_count", "steps", "Step Count", "Steps"])
-      .gte("timestamp", new Date(new Date().getTime() - 7 * 86_400_000).toISOString()),
-    service.schema("finance").from("net_position_snapshots")
-      .select("net_position, captured_at").eq("user_id", user.id)
-      .order("captured_at", { ascending: false }).limit(30),
-  ]);
+  const [stepsRes, netRes] = await stepsNetP;
   // Most recent day with step data — Apple (Watch) preferred per day, Oura the
   // fallback; today if present, else the latest available day (labeled).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stepRows = (stepsRes.data ?? []) as any[];
-  const homeTzFmt = new Intl.DateTimeFormat("en-CA", { timeZone: homeTz });
+  const homeTzFmt = new Intl.DateTimeFormat("en-CA", { timeZone: userTz });
   const stepByDay = new Map<string, { apple: number; oura: number; hasApple: boolean; hasOura: boolean }>();
   for (const r of stepRows) {
     // Oura stores a daily summary at UTC-midnight (use its date); Apple stores
@@ -564,27 +593,7 @@ export default async function HomePage() {
   const netPct: number | null = netWorth != null && netPrev != null && netPrev !== 0
     ? ((netWorth - netPrev) / Math.abs(netPrev)) * 100 : null;
 
-  // Preferences and the finance PIN are independent reads — awaiting them one
-  // after the other just added a round-trip to the critical path.
-  const [homePrefs, financeLocked] = await Promise.all([
-    getPreferences(user.id).catch(() => null),
-    // When a finance PIN is set, the money glance must not reveal anything (even
-    // the trend %) in the clear — mirror the PIN that guards the finance section.
-    (async () => {
-      try {
-        const { data: financePinRow } = await service
-          .schema("hub")
-          .from("preferences")
-          .select("finance_pin")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return !!((financePinRow as any)?.finance_pin);
-      } catch {
-        return false; // finance_pin column not present / query failed — leave unlocked
-      }
-    })(),
-  ]);
+  const [homePrefs, financeLocked] = await prefsPinP;
 
   // Weather leads the glance (replacing the calendar tile). The forecast is NOT
   // awaited here — it streams in via <Suspense> so two calls to api.weather.gov

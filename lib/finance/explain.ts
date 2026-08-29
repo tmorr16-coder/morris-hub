@@ -20,6 +20,14 @@ export function explainSyncFailure(raw: string | null): { headline: string; deta
       canReconnect: true,
     };
   }
+  if (/Invalid URL/i.test(msg)) {
+    return {
+      headline: "The saved connection is unreadable",
+      detail:
+        "The stored access URL is not a valid address, so this connection can never sync — it has been failing since it was saved. Disconnect it and connect again.",
+      canReconnect: true,
+    };
+  }
   if (/status 4\d\d/.test(msg)) {
     return {
       headline: "SimpleFIN rejected the request",
