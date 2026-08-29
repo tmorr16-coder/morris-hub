@@ -617,10 +617,23 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {!accountsError && accounts.length + manualAccounts.length === 0 && (
-        <Group header="Get started" footer="Securely link a bank or brokerage with SimpleFIN to pull in balances and transactions automatically.">
+      {/* The connect form used to appear only when there were no accounts at
+          all — linked *or* imported. Disconnecting every bank while keeping a
+          single imported account therefore left no way to reconnect from this
+          screen, which is exactly the state disconnecting puts you in. What
+          matters is whether any *bank connection* exists, not whether any
+          number is on the page. */}
+      {!accountsError && items.length === 0 && (
+        <Group
+          header={accounts.length + manualAccounts.length === 0 ? "Get started" : "Connect a bank"}
+          footer={
+            manualAccounts.length > 0
+              ? "Your imported accounts stay as they are. Linking a bank adds live balances and transactions alongside them."
+              : "Securely link a bank or brokerage with SimpleFIN to pull in balances and transactions automatically."
+          }
+        >
           <div className="ios-cell" style={{ padding: "14px 16px" }}>
-            <SimpleFinConnect label="Connect a bank" />
+            <SimpleFinConnect label={manualAccounts.length > 0 ? "Reconnect a bank" : "Connect a bank"} />
           </div>
         </Group>
       )}
@@ -776,6 +789,14 @@ export default async function DashboardPage() {
 
       {/* Plumbing, at the foot where plumbing belongs. */}
       <Group header="Manage">
+        {items.length > 0 && (
+          <Cell
+            lead={<IconBadge color="var(--ios-green)"><Icons.WalletIcon /></IconBadge>}
+            title="Connect another bank"
+            subtitle="Add a second SimpleFIN connection"
+            href="/finance/dashboard/import"
+          />
+        )}
         <Cell lead={<IconBadge color="#C97A3A"><Icons.TrendUpIcon /></IconBadge>} title="Investments" href="/investments" />
         <Cell lead={<IconBadge color="#8E8E93"><Icons.PlusIcon /></IconBadge>} title="Add or import accounts" href="/finance/dashboard/import" />
       </Group>

@@ -54,6 +54,33 @@ export default function SimpleFinConnect({ label }: { label?: string }) {
     });
   }
 
+  async function pasteToken() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text.trim()) setToken(text.trim());
+    } catch {
+      // Clipboard permission denied or unsupported — the textarea still works.
+      setErr("Couldn't read the clipboard. Paste into the box instead.");
+    }
+  }
+
+  /**
+   * Does this even look like a setup token?
+   *
+   * A token is base64 that decodes to an https claim URL. Checking the shape
+   * here catches a half-selected paste before it is spent — tokens are
+   * single-use, so a bad attempt costs a trip back to SimpleFIN for a new one.
+   */
+  const tokenLooksValid = (() => {
+    const t = token.trim();
+    if (t.length < 20 || /\s/.test(t)) return false;
+    try {
+      return /^https:\/\//i.test(atob(t).trim());
+    } catch {
+      return false;
+    }
+  })();
+
   const canConnect = token.trim() && !isPending;
 
   return (
@@ -79,6 +106,34 @@ export default function SimpleFinConnect({ label }: { label?: string }) {
               resize: "none", fontFamily: "inherit",
             }}
           />
+          {/* A setup token is a long base64 string, and selecting a textarea
+              precisely on a phone is the fiddliest part of the whole flow.
+              One tap instead. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+            <button
+              type="button"
+              onClick={pasteToken}
+              className="ios-caption"
+              style={{ background: "var(--ios-fill)", border: "none", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "6px 12px" }}
+            >
+              Paste
+            </button>
+            {token.trim() && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setToken("")}
+                  className="ios-caption"
+                  style={{ background: "none", border: "none", color: "var(--ios-label-3)", cursor: "pointer", padding: "6px 2px" }}
+                >
+                  Clear
+                </button>
+                <span className="ios-caption" style={{ color: tokenLooksValid ? "var(--ios-green)" : "var(--ios-orange, #D9772B)", marginLeft: "auto" }}>
+                  {tokenLooksValid ? "✓ Looks like a token" : "Doesn't look like a token yet"}
+                </span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -91,13 +146,8 @@ export default function SimpleFinConnect({ label }: { label?: string }) {
         {isPending ? "Connecting…" : label ?? "Connect with SimpleFIN"}
       </button>
       {err && <p className="ios-footnote" style={{ color: "var(--ios-red)", padding: "2px 16px 0" }}>{err}</p>}
-      <ol className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "2px 16px 0 34px", margin: 0, lineHeight: 1.7 }}>
-        <li>Sign in at <b style={{ fontWeight: 600 }}>bridge.simplefin.org</b> and create a <b style={{ fontWeight: 600 }}>New App</b> to get a <b style={{ fontWeight: 600 }}>Setup Token</b>.</li>
-        <li>Paste the setup token above.</li>
-        <li>Tap Connect — your accounts and transactions will sync automatically.</li>
-      </ol>
-
-      {/* Adding more banks happens in the SimpleFIN Bridge; new accounts flow in on the next sync. */}
+      {/* Step one is a trip to another site, so it gets a button rather than a
+          domain name to memorise and retype. */}
       <a
         href="https://bridge.simplefin.org"
         target="_blank"
@@ -105,8 +155,17 @@ export default function SimpleFinConnect({ label }: { label?: string }) {
         className="ios-btn"
         style={{ margin: "8px 16px 0", width: "calc(100% - 32px)", background: "var(--ios-fill)", color: "var(--ios-tint)", textAlign: "center", textDecoration: "none", fontWeight: 600 }}
       >
-        Add / manage banks at SimpleFIN ↗
+        1 · Get a setup token at SimpleFIN ↗
       </a>
+      <ol className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "8px 16px 0 34px", margin: 0, lineHeight: 1.7 }}>
+        <li>Sign in and create a <b style={{ fontWeight: 600 }}>New App</b> — that gives you a <b style={{ fontWeight: 600 }}>Setup Token</b>. Copy it.</li>
+        <li>Come back here and tap <b style={{ fontWeight: 600 }}>Paste</b>.</li>
+        <li>Tap Connect. Balances and transactions sync from then on.</li>
+      </ol>
+      <p className="ios-footnote" style={{ color: "var(--ios-label-3)", padding: "6px 16px 0", lineHeight: 1.5 }}>
+        A setup token can only be used once. If a connection fails, go back for a fresh one rather
+        than retrying the same token.
+      </p>
       <p className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "6px 16px 0", lineHeight: 1.5 }}>
         Already connected? Add or remove banks in the SimpleFIN Bridge — new accounts appear here automatically the next time you tap <b style={{ fontWeight: 600 }}>Sync</b> (no new token needed).
       </p>

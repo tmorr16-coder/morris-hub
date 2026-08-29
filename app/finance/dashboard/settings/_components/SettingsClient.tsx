@@ -381,6 +381,27 @@ export default function SettingsClient({
         </div>
       )}
 
+      {/* Disconnecting the last bank empties this screen. Without a way back
+          you have to know that reconnecting lives on the Money dashboard. */}
+      {accounts.length === 0 && (
+        <div className="ios-list" style={{ margin: "0 0 16px", padding: 16 }}>
+          <div className="ios-subhead" style={{ fontWeight: 600, marginBottom: 4 }}>
+            No bank connected
+          </div>
+          <div className="ios-caption" style={{ color: "var(--ios-label-2)", lineHeight: 1.5, marginBottom: 10 }}>
+            Imported and manual accounts are unaffected. Connecting a bank adds live balances and
+            transactions alongside them.
+          </div>
+          <a
+            href="/finance/dashboard"
+            className="ios-btn ios-btn--primary"
+            style={{ display: "block", textAlign: "center", textDecoration: "none" }}
+          >
+            Connect a bank
+          </a>
+        </div>
+      )}
+
       <section style={{ display: "flex", flexDirection: "column", gap: 20 }}>
         {Array.from(byInstitution.entries()).map(([itemId, accts]) => (
           <div key={itemId}>
