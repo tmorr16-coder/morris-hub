@@ -1,6 +1,7 @@
 import { fetchSimpleFinAccounts, mapSimpleFinAccount, mapSimpleFinTransaction } from '@/lib/finance/simplefin';
 import { decrypt } from '@/lib/finance/encryption';
 import { createServiceClient } from '@/lib/supabase/server';
+import { recordFailure, clearFailures } from '@/lib/system-events';
 
 type SyncResult = {
   item_id: string;
@@ -135,6 +136,8 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
       })
       .eq('id', item.id);
 
+    await clearFailures('simplefin', itemId);
+
     await supabase.schema('finance').from('audit_log').insert({
       user_id: item.user_id,
       action: 'simplefin_sync',
@@ -163,6 +166,14 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
         })
         .eq('id', itemId);
     } catch { /* the sync failure is the thing worth reporting, not this */ }
+
+    await recordFailure({
+      source: 'simplefin',
+      subject: itemId,
+      userId: item.user_id ?? null,
+      message: msg,
+      detail: { institution: item.institution_name ?? null },
+    });
 
     return { item_id: itemId, added: 0, modified: 0, removed: 0, error: msg };
   }

@@ -185,6 +185,12 @@ export default async function AdminPage() {
 
       <Group header="Platform">
         <Cell
+          lead={<IconBadge color="var(--ios-alert, #E5484D)"><Icons.BellIcon /></IconBadge>}
+          title="Platform status"
+          subtitle="What's failing right now, across every integration"
+          href="/home/admin/status"
+        />
+        <Cell
           lead={<IconBadge color="var(--ios-tint)"><Icons.ChartIcon /></IconBadge>}
           title="Usage & costs"
           subtitle="Daily activity trends & cost breakdown"

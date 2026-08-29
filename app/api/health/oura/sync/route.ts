@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEV_USER_ID } from "@/lib/health/auth";
+import { recordFailure, clearFailures } from "@/lib/system-events";
 
 const BASE = "https://api.ouraring.com/v2/usercollection";
 
@@ -177,8 +178,14 @@ export async function GET(request: NextRequest) {
     try {
       const inserted = await syncOneUser(db, user_id, access_token);
       totalInserted += inserted;
+      // Closing the run is what makes an open event mean "still broken".
+      await clearFailures("oura", user_id);
     } catch (err) {
-      console.error(`[oura/sync] Failed for user ${user_id}:`, err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[oura/sync] Failed for user ${user_id}:`, msg);
+      // Previously this failure existed only in Vercel's console, so an expired
+      // token could go unnoticed for weeks while the metrics quietly stopped.
+      await recordFailure({ source: "oura", subject: user_id, userId: user_id, message: msg });
     }
   }
 

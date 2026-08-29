@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordFailure, clearFailures } from "@/lib/system-events";
 
 const MEASTYPES: Record<number, { metric_name: string; unit: string; toStored: (v: number) => number }> = {
   1:  { metric_name: "weight",                    unit: "lbs", toStored: (v) => v * 2.20462 },
@@ -173,8 +174,20 @@ export async function GET(request: NextRequest) {
   let totalInserted = 0;
   for (const row of tokenRows as TokenRow[]) {
     const { inserted, error } = await syncOneUser(db, row);
-    if (error) console.error(`[withings/sync] User ${row.user_id}:`, error);
-    else totalInserted += inserted;
+    if (error) {
+      console.error(`[withings/sync] User ${row.user_id}:`, error);
+      // A refresh token that has gone stale is otherwise invisible until
+      // someone notices their weight has stopped updating.
+      await recordFailure({
+        source: "withings",
+        subject: row.user_id,
+        userId: row.user_id,
+        message: typeof error === "string" ? error : String(error),
+      });
+    } else {
+      totalInserted += inserted;
+      await clearFailures("withings", row.user_id);
+    }
   }
 
   const result = { measurements_inserted: totalInserted, users_synced: (tokenRows as TokenRow[]).length };
