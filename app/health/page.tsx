@@ -10,6 +10,7 @@ import { type TrendMetric, type TrendPoint } from "./_components/MetricTrendsCar
 import Link from "next/link";
 import { LargeTitle, Group, Cell, IconBadge, Icons, RadialGauge, Sparkline } from "@/components/ios";
 import { getUserTimezone, startOfTodayInTz, formatTodayHeader, greetingForTz } from "@/lib/timezone";
+import { evaluateResult } from "@/lib/health/biomarkers";
 
 // latest value + windowed delta for a trend metric
 function trendSummary(m: TrendMetric): { value: string; delta: string; color: string } | null {
@@ -97,6 +98,8 @@ export default async function DashboardPage() {
     { data: restingHrRows },
     { data: sleepScoreRows },
     { data: weightRows },
+    { data: recentLabRows },
+    { data: latestBodyCompRow },
   ] = await Promise.all([
     // Per-source last sync times
     db.from("apple_health_metrics")
@@ -186,6 +189,20 @@ export default async function DashboardPage() {
       .gte("timestamp", thirtyDaysAgo.toISOString())
       .order("timestamp", { ascending: true })
       .limit(200),
+    // Most recent lab results. Fetching a window and picking the newest
+    // collection date in memory keeps this to one round trip — the date
+    // isn't known until the rows come back.
+    db.from("health_lab_results")
+      .select("collected_on, value, ref_low, ref_high, ref_text, flag, biomarker_key")
+      .eq("user_id", userId)
+      .order("collected_on", { ascending: false })
+      .limit(150),
+    db.from("health_body_composition")
+      .select("measured_on, weight_lbs, body_fat_pct, skeletal_muscle_lbs")
+      .eq("user_id", userId)
+      .order("measured_on", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   // ── Oura scores ───────────────────────────────────────────────────────────
@@ -373,6 +390,39 @@ export default async function DashboardPage() {
     },
   ];
 
+  // ── Latest lab panel ──────────────────────────────────────────────────
+  type LabRow = {
+    collected_on: string;
+    value: number | null;
+    ref_low: number | null;
+    ref_high: number | null;
+    ref_text: string | null;
+    flag: string | null;
+    biomarker_key: string | null;
+  };
+  const labRows = (recentLabRows as LabRow[] | null) ?? [];
+  const latestLabDate = labRows[0]?.collected_on ?? null;
+  const latestLabPanel = latestLabDate ? labRows.filter((r) => r.collected_on === latestLabDate) : [];
+  const labsOutOfRange = latestLabPanel.filter((r) => {
+    const s = evaluateResult({
+      value: r.value,
+      refLow: r.ref_low,
+      refHigh: r.ref_high,
+      refText: r.ref_text,
+      biomarkerKey: r.biomarker_key,
+      labFlag: r.flag,
+    });
+    return s === "high" || s === "low";
+  }).length;
+
+  type BodyCompRow = { measured_on: string; weight_lbs: number | null; body_fat_pct: number | null; skeletal_muscle_lbs: number | null } | null;
+  const latestBodyComp = latestBodyCompRow as BodyCompRow;
+
+  const fmtRecordDate = (iso: string): string => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  };
+
   const today = formatTodayHeader(tz);
   const firstName = (userName ?? "").split(" ")[0];
 
@@ -454,6 +504,42 @@ export default async function DashboardPage() {
         })}
       </Group>
       )}
+
+      <Group header="Medical records" footer={latestLabPanel.length === 0 && !latestBodyComp ? "Upload a lab report or body-composition scan to track your results over time." : undefined}>
+        {latestLabPanel.length > 0 ? (
+          <Cell
+            href="/health/records"
+            lead={<IconBadge color="var(--ios-tint)"><Icons.ChecklistIcon /></IconBadge>}
+            title="Latest labs"
+            subtitle={`${fmtRecordDate(latestLabDate!)} · ${latestLabPanel.length} results`}
+            trailing={
+              <span className="ios-num" style={{ color: labsOutOfRange > 0 ? "var(--ios-red)" : "var(--ios-green)", fontWeight: 600 }}>
+                {labsOutOfRange > 0 ? `${labsOutOfRange} out of range` : "All in range"}
+              </span>
+            }
+          />
+        ) : (
+          <Cell
+            href="/health/records/import"
+            lead={<IconBadge color="var(--ios-tint)"><Icons.ChecklistIcon /></IconBadge>}
+            title="Add a health record"
+            subtitle="Lab results, body scans, vitals"
+          />
+        )}
+        {latestBodyComp && (
+          <Cell
+            href="/health/records"
+            lead={<IconBadge color="#5E5CE6"><Icons.ChartIcon /></IconBadge>}
+            title="Body composition"
+            subtitle={`${fmtRecordDate(latestBodyComp.measured_on)}${latestBodyComp.skeletal_muscle_lbs != null ? ` · ${latestBodyComp.skeletal_muscle_lbs} lbs muscle` : ""}`}
+            trailing={
+              <span className="ios-num" style={{ fontWeight: 600 }}>
+                {latestBodyComp.body_fat_pct != null ? `${latestBodyComp.body_fat_pct}% fat` : latestBodyComp.weight_lbs != null ? `${latestBodyComp.weight_lbs} lbs` : "—"}
+              </span>
+            }
+          />
+        )}
+      </Group>
 
       {recentWorkouts.length > 0 && (
         <Group header="Recent workouts">

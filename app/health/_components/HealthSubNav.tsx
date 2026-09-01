@@ -8,6 +8,7 @@ const TABS = [
   // which is the reason to open a health app in the first place.
   { href: "/health/advisor", label: "Advisor" },
   { href: "/health/train", label: "Workouts" },
+  { href: "/health/records", label: "Records" },
   { href: "/health/nutrition", label: "Nutrition" },
   { href: "/health/labs", label: "Labs" },
   { href: "/health/medications", label: "Medications" },
