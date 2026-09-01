@@ -5,6 +5,7 @@ import SubNav from "@/components/SubNav";
 const TABS = [
   { href: "/health", label: "Dashboard" },
   { href: "/health/train", label: "Workouts" },
+  { href: "/health/records", label: "Records" },
   { href: "/health/nutrition", label: "Nutrition" },
   { href: "/health/medications", label: "Medications" },
   { href: "/health/wellness", label: "Wellness" },
