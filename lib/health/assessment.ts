@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server";
+import { evaluateResult } from "@/lib/health/biomarkers";
 
 /**
  * Turns raw health rows into an assessment a coach could reason from.
@@ -86,6 +87,8 @@ export interface LabSnapshot {
   panelName: string;
   results: LabResult[];
   outOfRange: LabResult[];
+  /** In the lab's range but outside the optimal one — often the earlier signal. */
+  borderline: LabResult[];
 }
 
 export interface Signal {
@@ -213,69 +216,79 @@ export async function buildAssessment(userId: string, windowDays = 30): Promise<
 }
 
 /**
- * The latest lab panel, with each analyte's change since it was last measured.
+ * The latest labs, with each marker's change since it was last measured.
  *
- * Two panels, not one: a lab value in isolation says much less than the same
- * value against the previous draw, and "is this moving?" is the question people
- * actually have about bloodwork.
+ * Reads the health-records tables rather than a second set of its own: the
+ * records module already models documents, a biomarker catalog and per-marker
+ * reference ranges, and duplicating that would have produced two answers to
+ * "what is my ApoB?".
+ *
+ * Status comes from evaluateResult, which trusts the lab's printed flag first,
+ * then the range on that report, then the catalog — and distinguishes
+ * "borderline" (inside the reference range, outside the optimal one) from
+ * "normal". For markers like ApoB and hs-CRP that distinction is most of the
+ * signal, and a plain in-range check would throw it away.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function loadLabs(db: any, userId: string): Promise<LabSnapshot | null> {
   try {
-    const { data: panels } = await db
-      .from("lab_panels")
-      .select("id, collected_on, panel_name")
+    const { data: rows } = await db
+      .from("health_lab_results")
+      .select("name, biomarker_key, panel, collected_on, value, value_text, unit, ref_low, ref_high, ref_text, flag")
       .eq("user_id", userId)
       .order("collected_on", { ascending: false })
-      .limit(2);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const panelRows = (panels ?? []) as any[];
-    if (!panelRows.length) return null;
-
-    const { data: rows } = await db
-      .from("lab_results")
-      .select("panel_id, analyte, value_num, value_text, unit, ref_low, ref_high, ref_text, flag")
-      .eq("user_id", userId)
-      .in("panel_id", panelRows.map((p) => p.id));
+      .limit(600);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const all = (rows ?? []) as any[];
-    const priorId = panelRows[1]?.id ?? null;
-    const priorByAnalyte = new Map<string, number>();
-    if (priorId) {
-      for (const r of all) {
-        if (r.panel_id === priorId && typeof r.value_num === "number") {
-          priorByAnalyte.set(String(r.analyte).toLowerCase(), r.value_num);
-        }
-      }
+    if (!all.length) return null;
+
+    const latestDate = String(all[0].collected_on);
+    const latest = all.filter((r) => String(r.collected_on) === latestDate);
+
+    // The previous time each marker was measured — which is not necessarily the
+    // previous panel, since panels do not all test the same things.
+    const priorByKey = new Map<string, number>();
+    for (const r of all) {
+      if (String(r.collected_on) === latestDate) continue;
+      const key = String(r.biomarker_key ?? r.name).toLowerCase();
+      if (priorByKey.has(key)) continue; // rows are newest-first
+      if (typeof r.value === "number") priorByKey.set(key, r.value);
     }
 
-    const results: LabResult[] = all
-      .filter((r) => r.panel_id === panelRows[0].id)
-      .map((r) => {
-        const value = typeof r.value_num === "number" ? r.value_num : null;
-        const prior = priorByAnalyte.get(String(r.analyte).toLowerCase());
-        return {
-          analyte: String(r.analyte),
-          value,
-          valueText: r.value_text ?? null,
-          unit: r.unit ?? null,
-          refLow: typeof r.ref_low === "number" ? r.ref_low : null,
-          refHigh: typeof r.ref_high === "number" ? r.ref_high : null,
-          refText: r.ref_text ?? null,
-          flag: String(r.flag ?? "unknown"),
-          change: value != null && prior != null ? +(value - prior).toFixed(2) : null,
-        };
+    const results: LabResult[] = latest.map((r) => {
+      const value = typeof r.value === "number" ? r.value : null;
+      const status = evaluateResult({
+        value,
+        refLow: r.ref_low,
+        refHigh: r.ref_high,
+        refText: r.ref_text,
+        biomarkerKey: r.biomarker_key,
+        labFlag: r.flag,
       });
+      const prior = priorByKey.get(String(r.biomarker_key ?? r.name).toLowerCase());
+      return {
+        analyte: String(r.name),
+        value,
+        valueText: (r.value_text ?? null) as string | null,
+        unit: (r.unit ?? null) as string | null,
+        refLow: typeof r.ref_low === "number" ? r.ref_low : null,
+        refHigh: typeof r.ref_high === "number" ? r.ref_high : null,
+        refText: (r.ref_text ?? null) as string | null,
+        flag: status,
+        change: value != null && prior != null ? +(value - prior).toFixed(2) : null,
+      };
+    });
 
     return {
-      collectedOn: String(panelRows[0].collected_on),
-      panelName: String(panelRows[0].panel_name),
+      collectedOn: latestDate,
+      panelName: String(latest[0].panel ?? "Lab results"),
       results,
-      outOfRange: results.filter((r) => r.flag === "low" || r.flag === "high" || r.flag === "abnormal"),
+      outOfRange: results.filter((r) => r.flag === "high" || r.flag === "low"),
+      borderline: results.filter((r) => r.flag === "borderline"),
     };
   } catch {
-    // Pre-migration, or no labs — the rest of the assessment stands on its own.
+    // Records not set up — the rest of the assessment stands on its own.
     return null;
   }
 }
@@ -383,7 +396,20 @@ function deriveSignals(a: HealthAssessment): Signal[] {
           .join(", ")}. Worth your doctor's read, not mine.`,
       });
     } else {
-      out.push({ kind: "good", area: "labs", text: `Everything on the ${when} panel came back inside its reference range.` });
+      out.push({ kind: "good", area: "labs", text: `Nothing on the ${when} panel was flagged by the lab.` });
+    }
+
+    // Inside the lab's range but outside the optimal one. For markers like ApoB
+    // and hs-CRP this is most of the signal, and "not flagged" hides it.
+    if (a.labs.borderline.length > 0) {
+      out.push({
+        kind: "watch",
+        area: "labs",
+        text: `${a.labs.borderline.length} result${a.labs.borderline.length === 1 ? " is" : "s are"} inside the lab's range but outside the optimal one: ${a.labs.borderline
+          .slice(0, 5)
+          .map((r) => `${r.analyte} ${r.value ?? r.valueText ?? "?"}${r.unit ? ` ${r.unit}` : ""}`)
+          .join(", ")}.`,
+      });
     }
 
     // Movement inside the range is often the earlier signal, and nothing flags it.

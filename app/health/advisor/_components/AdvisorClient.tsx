@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import type { HealthAssessment, Signal } from "@/lib/health/assessment";
 
 /**
@@ -144,17 +145,20 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
           <div className="ios-subhead" style={{ fontWeight: 600 }}>{labs.panelName}</div>
           <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 2, marginBottom: 8 }}>
             Collected {labs.collectedOn} · {labs.results.length} results
-            {labs.outOfRange.length > 0 ? ` · ${labs.outOfRange.length} outside range` : " · all in range"}
+            {labs.outOfRange.length > 0 ? ` · ${labs.outOfRange.length} flagged` : ""}
+            {labs.borderline.length > 0 ? ` · ${labs.borderline.length} borderline` : ""}
+            {labs.outOfRange.length === 0 && labs.borderline.length === 0 ? " · nothing flagged" : ""}
           </div>
           {/* Out-of-range first — the rest is a reference list, not a finding. */}
           {[...labs.outOfRange, ...labs.results.filter((r) => !labs.outOfRange.includes(r))]
             .slice(0, 12)
             .map((r, i) => {
-              const flagged = r.flag === "low" || r.flag === "high" || r.flag === "abnormal";
+              const flagged = r.flag === "low" || r.flag === "high";
+              const soft = r.flag === "borderline";
               return (
                 <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "5px 0", borderTop: i === 0 ? "none" : "0.5px solid var(--ios-separator)" }}>
                   <span className="ios-caption" style={{ color: "var(--ios-label)", minWidth: 0 }}>{r.analyte}</span>
-                  <span className="ios-caption ios-num" style={{ flexShrink: 0, color: flagged ? "var(--ios-orange, #D9772B)" : "var(--ios-label-2)" }}>
+                  <span className="ios-caption ios-num" style={{ flexShrink: 0, color: flagged ? "var(--ios-red)" : soft ? "var(--ios-orange, #D9772B)" : "var(--ios-label-2)" }}>
                     {r.value ?? r.valueText ?? "—"}{r.unit ? ` ${r.unit}` : ""}
                     {r.change != null && (
                       <span style={{ color: "var(--ios-label-3)" }}> ({r.change > 0 ? "+" : ""}{r.change})</span>
@@ -163,19 +167,19 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
                 </div>
               );
             })}
-          <a href="/health/labs" className="ios-caption" style={{ display: "inline-block", marginTop: 10, color: "var(--ios-tint)", fontWeight: 700, textDecoration: "none" }}>
-            All panels &amp; add a report →
-          </a>
+          <Link href="/health/records" className="ios-caption" style={{ display: "inline-block", marginTop: 10, color: "var(--ios-tint)", fontWeight: 700, textDecoration: "none" }}>
+            All records &amp; add a report →
+          </Link>
         </div>
       ) : (
         <div className="ios-list" style={{ margin: 0, padding: 14 }}>
           <div className="ios-caption" style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}>
-            No lab work added yet. Upload a report and the advisor can reason from your bloodwork
-            alongside the wearable data — and show what moved since the previous draw.
+            No lab results yet. Add a report under Records and the advisor will reason from your
+            bloodwork alongside the wearable data, and show what moved since it was last measured.
           </div>
-          <a href="/health/labs" className="ios-caption" style={{ display: "inline-block", marginTop: 8, color: "var(--ios-tint)", fontWeight: 700, textDecoration: "none" }}>
-            Add a lab report →
-          </a>
+          <Link href="/health/records" className="ios-caption" style={{ display: "inline-block", marginTop: 8, color: "var(--ios-tint)", fontWeight: 700, textDecoration: "none" }}>
+            Add a health record →
+          </Link>
         </div>
       )}
 
