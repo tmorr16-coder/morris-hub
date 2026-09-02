@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { IOSScreen, LargeTitle, TabBar } from "@/components/ios";
+import { IOSScreen, LargeTitle } from "@/components/ios";
 import { buildAssessment } from "@/lib/health/assessment";
 import AdvisorClient from "./_components/AdvisorClient";
 
@@ -32,7 +32,6 @@ export default async function HealthAdvisorPage() {
         <AdvisorClient assessment={assessment} />
       </div>
       <div style={{ height: 12 }} />
-      <TabBar current="health" currentUserId={user.id} sourceApp="health" />
     </IOSScreen>
   );
 }

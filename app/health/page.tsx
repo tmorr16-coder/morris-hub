@@ -505,6 +505,17 @@ export default async function DashboardPage() {
       </Group>
       )}
 
+      {/* The advisor reads everything above and below this card — labs, body
+          composition, vitals, wearables, meals — so it sits between them. */}
+      <Group header="Advisor">
+        <Cell
+          href="/health/advisor"
+          lead={<IconBadge color="#5E5CE6"><Icons.SparkleIcon /></IconBadge>}
+          title="Health advisory"
+          subtitle="Your last 30 days across every record, and what to do about them"
+        />
+      </Group>
+
       <Group header="Medical records" footer={latestLabPanel.length === 0 && !latestBodyComp ? "Upload a lab report or body-composition scan to track your results over time." : undefined}>
         {latestLabPanel.length > 0 ? (
           <Cell
@@ -563,6 +574,7 @@ export default async function DashboardPage() {
 
       <div style={{ display: "flex", gap: 10, padding: "14px 16px 0" }}>
         {[
+          { href: "/health/advisor", label: "Advisor", icon: <Icons.SparkleIcon /> },
           { href: "/health/train", label: "Log workout", icon: <Icons.DumbbellIcon /> },
           { href: "/health/nutrition", label: "Log meal", icon: <Icons.ForkKnifeIcon /> },
           { href: "/health/medications", label: "Meds", icon: <Icons.PillIcon /> },
