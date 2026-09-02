@@ -69,13 +69,34 @@ function inline(s: string) {
   return esc(s).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
 }
 
-interface Turn { role: "user" | "assistant"; content: string }
+/**
+ * The models offered for a second opinion, deliberately from other vendors.
+ * A model reviewing its own answer tends to agree with it; the value of the
+ * check comes from it having been trained by someone else.
+ */
+const CHECKERS = [
+  { id: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro" },
+  { id: "openai/gpt-5.1", label: "GPT-5.1" },
+  { id: "x-ai/grok-4.6", label: "Grok 4.6" },
+];
+
+interface Review { text: string; model: string }
+interface Turn {
+  role: "user" | "assistant";
+  content: string;
+  /** The question this answered — the checker needs it for context. */
+  question?: string;
+  review?: Review;
+  checking?: boolean;
+  reviewErr?: string;
+}
 
 export default function AdvisorClient({ assessment }: { assessment: HealthAssessment }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [checker, setChecker] = useState(CHECKERS[0].id);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   async function ask(text?: string) {
@@ -94,7 +115,7 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? data.error ?? "The advisor couldn't answer.");
-      setTurns([...next, { role: "assistant", content: data.reply }]);
+      setTurns([...next, { role: "assistant", content: data.reply, question: q }]);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 50);
     } catch (e) {
       setErr((e as Error).message);
@@ -102,6 +123,33 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
       setInput(q);
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Send one answer to a different model to be checked against the same data. */
+  async function check(index: number) {
+    const target = turns[index];
+    if (!target || target.checking) return;
+    const patch = (fields: Partial<Turn>) =>
+      setTurns((prev) => prev.map((t, i) => (i === index ? { ...t, ...fields } : t)));
+
+    patch({ checking: true, reviewErr: undefined });
+    try {
+      const res = await fetch("/api/health/advisor/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: target.question ?? "",
+          answer: target.content,
+          model: checker,
+          windowDays: assessment.windowDays,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "The check couldn't run.");
+      patch({ checking: false, review: { text: data.review, model: data.model } });
+    } catch (e) {
+      patch({ checking: false, reviewErr: (e as Error).message });
     }
   }
 
@@ -233,7 +281,65 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
               {t.role === "user" ? (
                 <div className="ios-subhead" style={{ color: "var(--ios-label)", whiteSpace: "pre-wrap" }}>{t.content}</div>
               ) : (
-                <div className="ios-subhead" style={{ color: "var(--ios-label)" }} dangerouslySetInnerHTML={{ __html: md(t.content) }} />
+                <>
+                  <div className="ios-subhead" style={{ color: "var(--ios-label)" }} dangerouslySetInnerHTML={{ __html: md(t.content) }} />
+
+                  {/* A second opinion, from a model that didn't write the answer. */}
+                  {!t.review && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                      <button
+                        type="button"
+                        onClick={() => check(i)}
+                        disabled={t.checking}
+                        className="ios-caption"
+                        style={{
+                          background: "none", border: "0.5px solid var(--ios-separator)",
+                          borderRadius: 999, padding: "5px 11px",
+                          color: t.checking ? "var(--ios-label-3)" : "var(--ios-tint)",
+                          fontWeight: 600, cursor: t.checking ? "default" : "pointer",
+                        }}
+                      >
+                        {t.checking ? "Checking…" : "Double-check this"}
+                      </button>
+                      <select
+                        value={checker}
+                        onChange={(e) => setChecker(e.target.value)}
+                        className="ios-caption"
+                        aria-label="Model to check with"
+                        style={{
+                          background: "none", border: "none",
+                          color: "var(--ios-label-2)", padding: "4px 0",
+                        }}
+                      >
+                        {CHECKERS.map((c) => (
+                          <option key={c.id} value={c.id}>with {c.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {t.reviewErr && (
+                    <div className="ios-footnote" style={{ color: "var(--ios-red)", marginTop: 8 }}>{t.reviewErr}</div>
+                  )}
+
+                  {t.review && (
+                    <div
+                      style={{
+                        marginTop: 12, paddingTop: 11,
+                        borderTop: "0.5px solid var(--ios-separator)",
+                      }}
+                    >
+                      <div className="ios-caption" style={{ color: "var(--ios-label-3)", fontWeight: 700, marginBottom: 6 }}>
+                        CHECKED BY {(CHECKERS.find((c) => c.id === t.review!.model)?.label ?? t.review!.model).toUpperCase()}
+                      </div>
+                      <div
+                        className="ios-footnote"
+                        style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}
+                        dangerouslySetInnerHTML={{ __html: md(t.review.text) }}
+                      />
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ))}

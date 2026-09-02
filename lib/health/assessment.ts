@@ -67,6 +67,8 @@ export interface HealthAssessment {
   labs: LabSnapshot | null;
   /** Latest body-composition scan, with the change since the one before. */
   body: BodyComposition | null;
+  /** Latest recorded vitals — office or home readings. */
+  vitals: VitalsSnapshot | null;
   /** Plain-language observations, strongest signal first. */
   signals: Signal[];
 }
@@ -119,6 +121,16 @@ export interface BodyComposition {
   change: { weightLbs: number | null; bodyFatPct: number | null; skeletalMuscleLbs: number | null } | null;
 }
 
+export interface VitalsSnapshot {
+  measuredOn: string;
+  context: string | null;
+  systolic: number | null;
+  diastolic: number | null;
+  pulseBpm: number | null;
+  waistIn: number | null;
+  weightLbs: number | null;
+}
+
 export interface Signal {
   kind: "good" | "watch" | "gap";
   area: "weight" | "sleep" | "activity" | "recovery" | "training" | "nutrition" | "medication" | "labs";
@@ -169,7 +181,7 @@ export async function buildAssessment(userId: string, windowDays = 30): Promise<
   const startKey = dayKey(new Date(now.getTime() - 2 * windowDays * 86_400_000).toISOString());
   const sinceIso = new Date(now.getTime() - 2 * windowDays * 86_400_000).toISOString();
 
-  const [metricsRes, strengthRes, deviceRes, mealsRes, dosesRes, labs, body] = await Promise.all([
+  const [metricsRes, strengthRes, deviceRes, mealsRes, dosesRes, labs, body, vitals] = await Promise.all([
     db.from("apple_health_metrics")
       .select("metric_name, value, timestamp")
       .eq("user_id", userId)
@@ -181,6 +193,7 @@ export async function buildAssessment(userId: string, windowDays = 30): Promise<
     db.from("doses").select("id").eq("user_id", userId).gte("date", startKey),
     loadLabs(db, userId),
     loadBody(db, userId),
+    loadVitals(db, userId),
   ]);
 
   // Bucket every metric by name → day → values.
@@ -238,6 +251,7 @@ export async function buildAssessment(userId: string, windowDays = 30): Promise<
     dosesLogged: (dosesRes?.data ?? []).length,
     labs,
     body,
+    vitals,
     signals: [],
   };
 
@@ -387,6 +401,33 @@ async function loadBody(db: any, userId: string): Promise<BodyComposition | null
             skeletalMuscleLbs: delta(now.skeletal_muscle_lbs, prev.skeletal_muscle_lbs),
           }
         : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** The most recent vitals reading. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadVitals(db: any, userId: string): Promise<VitalsSnapshot | null> {
+  try {
+    const { data } = await db
+      .from("health_vitals")
+      .select("measured_on, context, systolic, diastolic, pulse_bpm, waist_in, weight_lbs")
+      .eq("user_id", userId)
+      .order("measured_on", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data) return null;
+    const num = (v: unknown) => (typeof v === "number" ? v : v == null ? null : parseFloat(String(v)));
+    return {
+      measuredOn: String(data.measured_on),
+      context: (data.context ?? null) as string | null,
+      systolic: num(data.systolic),
+      diastolic: num(data.diastolic),
+      pulseBpm: num(data.pulse_bpm),
+      waistIn: num(data.waist_in),
+      weightLbs: num(data.weight_lbs),
     };
   } catch {
     return null;
@@ -582,6 +623,9 @@ export function assessmentToPrompt(a: HealthAssessment): string {
     `Training: ${a.strengthPerWeek} strength sessions/week, ${a.deviceWorkoutsPerWeek} device-recorded workouts/week`,
     `Nutrition: ${a.nutritionLoggedDays} of ${a.windowDays} days logged${a.avgCaloriesOnLoggedDays ? `, averaging ${a.avgCaloriesOnLoggedDays} kcal on those days` : ""}`,
     `Medication doses recorded: ${a.dosesLogged}`,
+    a.vitals
+      ? `Vitals (${a.vitals.measuredOn}${a.vitals.context ? `, ${a.vitals.context}` : ""}): BP ${a.vitals.systolic ?? "—"}/${a.vitals.diastolic ?? "—"}, pulse ${a.vitals.pulseBpm ?? "—"}${a.vitals.waistIn ? `, waist ${a.vitals.waistIn} in` : ""}`
+      : "No vitals recorded.",
     a.body
       ? [
           "",
