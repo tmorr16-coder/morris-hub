@@ -32,8 +32,10 @@ const AREA_LABEL: Record<Signal["area"], string> = {
 
 const STARTERS = [
   "What should I change first?",
+  "How have my labs moved since the last draw?",
   "Build me a week of training from this",
   "How should I eat to match my training?",
+  "What's my body composition telling me?",
   "Why might my sleep be off?",
 ];
 
@@ -136,6 +138,37 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
         ))}
       </div>
 
+      {/* ── Body composition ─────────────────────────────────────────────── */}
+      {assessment.body && (
+        <>
+          <div className="ios-group-header" style={{ padding: "16px 0 7px" }}>BODY COMPOSITION</div>
+          <div className="ios-list" style={{ margin: 0, padding: "12px 14px" }}>
+            <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginBottom: 8 }}>
+              {assessment.body.measuredOn}{assessment.body.device ? ` · ${assessment.body.device}` : ""}
+            </div>
+            {([
+              ["Weight", assessment.body.weightLbs, "lb", assessment.body.change?.weightLbs ?? null],
+              ["Body fat", assessment.body.bodyFatPct, "%", assessment.body.change?.bodyFatPct ?? null],
+              ["Skeletal muscle", assessment.body.skeletalMuscleLbs, "lb", assessment.body.change?.skeletalMuscleLbs ?? null],
+              ["Visceral fat", assessment.body.visceralFatArea, "cm²", null],
+              ["BMR", assessment.body.bmrKcal, "kcal", null],
+            ] as [string, number | null, string, number | null][])
+              .filter(([, v]) => v != null)
+              .map(([label, v, unit, chg], i) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "5px 0", borderTop: i === 0 ? "none" : "0.5px solid var(--ios-separator)" }}>
+                  <span className="ios-caption" style={{ color: "var(--ios-label)" }}>{label}</span>
+                  <span className="ios-caption ios-num" style={{ color: "var(--ios-label-2)" }}>
+                    {v} {unit}
+                    {chg != null && chg !== 0 && (
+                      <span style={{ color: "var(--ios-label-3)" }}> ({chg > 0 ? "+" : ""}{chg})</span>
+                    )}
+                  </span>
+                </div>
+              ))}
+          </div>
+        </>
+      )}
+
       {/* ── Labs ─────────────────────────────────────────────────────────── */}
       <div className="ios-group-header" style={{ padding: "16px 0 7px" }}>
         LABS
@@ -148,6 +181,7 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
             {labs.outOfRange.length > 0 ? ` · ${labs.outOfRange.length} flagged` : ""}
             {labs.borderline.length > 0 ? ` · ${labs.borderline.length} borderline` : ""}
             {labs.outOfRange.length === 0 && labs.borderline.length === 0 ? " · nothing flagged" : ""}
+            {labs.drawCount > 1 ? ` · ${labs.drawCount} draws on file` : ""}
           </div>
           {/* Out-of-range first — the rest is a reference list, not a finding. */}
           {[...labs.outOfRange, ...labs.results.filter((r) => !labs.outOfRange.includes(r))]

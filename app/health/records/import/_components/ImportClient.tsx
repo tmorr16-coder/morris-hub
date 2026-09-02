@@ -137,14 +137,56 @@ export default function ImportClient() {
     setDraft((d) => (d ? { ...d, [key]: value } : d));
   }
 
+/**
+ * Get a picked file into a shape that will actually arrive.
+ *
+ * Two things stop a phone photo of a printed report from ever reaching the
+ * extractor, and neither announces itself:
+ *
+ *  - Vercel drops any request body over 4.5MB *before* the handler runs, so an
+ *    8MB photo produces no response and no error. The route's own 20MB limit
+ *    was a promise the platform does not keep.
+ *  - iPhones shoot HEIC by default, which the API does not accept, so the
+ *    upload was rejected as an unsupported type for a perfectly good photo.
+ *
+ * Drawing it through a canvas fixes both: the output is always JPEG, and the
+ * long edge is capped at 1568px — which is the size the vision model works at
+ * anyway, so nothing legible is lost. PDFs pass through untouched.
+ */
+async function prepareForUpload(file: File): Promise<File> {
+  if (file.type === "application/pdf") return file;
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const MAX_EDGE = 1568;
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+    // 0.9 rather than the usual 0.8: this is a page of small printed numbers,
+    // and compression artefacts on a decimal point are not worth the bytes.
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+    if (!blob) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch {
+    // Canvas could not decode it — send the original and let the route explain.
+    return file;
+  }
+}
+
   async function handleFile(picked: File) {
     setError(null);
-    setFile(picked);
     setPhase("extracting");
 
     try {
+      const prepared = await prepareForUpload(picked);
+      setFile(prepared);
       const body = new FormData();
-      body.append("file", picked);
+      body.append("file", prepared);
       const res = await fetch("/api/health/records/extract", { method: "POST", body });
       const data = await res.json();
 
@@ -175,7 +217,16 @@ export default function ImportClient() {
       });
       setPhase("review");
     } catch {
-      setError("Upload failed. Check your connection and try again.");
+      // "Check your connection" was the wrong first guess. The common cause is
+      // a file too large for the platform to accept — the request is dropped
+      // before any handler runs, so the fetch itself fails and there is no
+      // response to read an error out of. Say the likelier thing first.
+      const mb = (file?.size ?? 0) / 1024 / 1024;
+      setError(
+        mb > 4
+          ? `That file is ${mb.toFixed(1)}MB, which is too large to send. A photo taken here is resized automatically — try picking it again, or use a JPEG rather than a PNG.`
+          : "The upload didn't go through. Try again, and check your connection if it keeps failing."
+      );
       setPhase("pick");
     }
   }
@@ -282,7 +333,7 @@ export default function ImportClient() {
           <input
             ref={fileInput}
             type="file"
-            accept="application/pdf,image/jpeg,image/png,image/webp"
+            accept="application/pdf,image/*"
             style={{ display: "none" }}
             onChange={(e) => {
               const f = e.target.files?.[0];

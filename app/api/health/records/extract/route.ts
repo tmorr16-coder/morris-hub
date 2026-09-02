@@ -159,7 +159,12 @@ const ALLOWED_TYPES = [
   "image/webp",
 ];
 
-const MAX_BYTES = 20 * 1024 * 1024;
+// The composer converts photos to JPEG and caps the long edge at 1568px before
+// sending, so anything arriving here is already small. This is the backstop for
+// a client that skipped that — and it is 4MB, not 20MB, because Vercel drops a
+// request body over 4.5MB before this handler runs. Promising 20MB meant a
+// large photo failed with no response and no error at all.
+const MAX_BYTES = 4 * 1024 * 1024;
 
 export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -182,12 +187,12 @@ export async function POST(req: NextRequest) {
 
     if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json(
-        { error: "Unsupported file type. Upload a PDF or a JPEG/PNG/WebP image." },
+        { error: `That file is a ${file.type || "unknown type"}. Upload a PDF, or take a photo — iPhone HEIC photos are converted automatically when picked here.` },
         { status: 400 }
       );
     }
     if (file.size > MAX_BYTES) {
-      return NextResponse.json({ error: "File too large (max 20 MB)." }, { status: 400 });
+      return NextResponse.json({ error: "That image is too large to send. Retake it, or pick it through the app so it can be resized first." }, { status: 400 });
     }
 
     isPdf = file.type === "application/pdf";

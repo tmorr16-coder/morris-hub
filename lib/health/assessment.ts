@@ -63,8 +63,10 @@ export interface HealthAssessment {
   avgCaloriesOnLoggedDays: number | null;
   /** Medication doses recorded in the window. */
   dosesLogged: number;
-  /** Most recent lab panel, with each analyte's change since the draw before. */
+  /** Most recent lab panel, plus per-marker history across every draw. */
   labs: LabSnapshot | null;
+  /** Latest body-composition scan, with the change since the one before. */
+  body: BodyComposition | null;
   /** Plain-language observations, strongest signal first. */
   signals: Signal[];
 }
@@ -89,6 +91,32 @@ export interface LabSnapshot {
   outOfRange: LabResult[];
   /** In the lab's range but outside the optimal one — often the earlier signal. */
   borderline: LabResult[];
+  /** Every draw of every marker, newest first — so a question can span years. */
+  history: MarkerHistory[];
+  /** How many distinct draws the history covers. */
+  drawCount: number;
+}
+
+export interface MarkerHistory {
+  analyte: string;
+  unit: string | null;
+  /** Newest first. */
+  points: { on: string; value: number }[];
+}
+
+export interface BodyComposition {
+  measuredOn: string;
+  device: string | null;
+  weightLbs: number | null;
+  bodyFatPct: number | null;
+  skeletalMuscleLbs: number | null;
+  leanBodyMassLbs: number | null;
+  visceralFatArea: number | null;
+  bmrKcal: number | null;
+  phaseAngle: number | null;
+  ecwTbw: number | null;
+  /** Change since the previous scan, for the figures worth tracking. */
+  change: { weightLbs: number | null; bodyFatPct: number | null; skeletalMuscleLbs: number | null } | null;
 }
 
 export interface Signal {
@@ -141,7 +169,7 @@ export async function buildAssessment(userId: string, windowDays = 30): Promise<
   const startKey = dayKey(new Date(now.getTime() - 2 * windowDays * 86_400_000).toISOString());
   const sinceIso = new Date(now.getTime() - 2 * windowDays * 86_400_000).toISOString();
 
-  const [metricsRes, strengthRes, deviceRes, mealsRes, dosesRes, labs] = await Promise.all([
+  const [metricsRes, strengthRes, deviceRes, mealsRes, dosesRes, labs, body] = await Promise.all([
     db.from("apple_health_metrics")
       .select("metric_name, value, timestamp")
       .eq("user_id", userId)
@@ -152,6 +180,7 @@ export async function buildAssessment(userId: string, windowDays = 30): Promise<
     db.from("meals").select("date, calories_est").eq("user_id", userId).gte("date", midKey),
     db.from("doses").select("id").eq("user_id", userId).gte("date", startKey),
     loadLabs(db, userId),
+    loadBody(db, userId),
   ]);
 
   // Bucket every metric by name → day → values.
@@ -208,6 +237,7 @@ export async function buildAssessment(userId: string, windowDays = 30): Promise<
     avgCaloriesOnLoggedDays: loggedDays.length ? Math.round(loggedDays.reduce((a, b) => a + b, 0) / loggedDays.length) : null,
     dosesLogged: (dosesRes?.data ?? []).length,
     labs,
+    body,
     signals: [],
   };
 
@@ -280,15 +310,85 @@ async function loadLabs(db: any, userId: string): Promise<LabSnapshot | null> {
       };
     });
 
+    // Every numeric draw of every marker. "How has my ApoB moved over three
+    // years?" is the question people actually have about bloodwork, and the
+    // latest panel alone cannot answer it.
+    const histByMarker = new Map<string, MarkerHistory>();
+    for (const r of all) {
+      if (typeof r.value !== "number") continue;
+      const key = String(r.biomarker_key ?? r.name).toLowerCase();
+      if (!histByMarker.has(key)) {
+        histByMarker.set(key, { analyte: String(r.name), unit: (r.unit ?? null) as string | null, points: [] });
+      }
+      histByMarker.get(key)!.points.push({ on: String(r.collected_on), value: r.value });
+    }
+    const history = [...histByMarker.values()]
+      .map((h) => ({ ...h, points: h.points.slice(0, 12) }))
+      .filter((h) => h.points.length > 1);
+
     return {
       collectedOn: latestDate,
       panelName: String(latest[0].panel ?? "Lab results"),
       results,
       outOfRange: results.filter((r) => r.flag === "high" || r.flag === "low"),
       borderline: results.filter((r) => r.flag === "borderline"),
+      history,
+      drawCount: new Set(all.map((r) => String(r.collected_on))).size,
     };
   } catch {
     // Records not set up — the rest of the assessment stands on its own.
+    return null;
+  }
+}
+
+/**
+ * The two most recent body-composition scans.
+ *
+ * Two, because the InBody numbers that matter are directional: whether lean
+ * mass held while fat came off is the whole question, and a single scan cannot
+ * answer it. Weight alone can't either — it is the one number that moves for
+ * reasons nobody cares about.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadBody(db: any, userId: string): Promise<BodyComposition | null> {
+  try {
+    const { data } = await db
+      .from("health_body_composition")
+      .select("measured_on, device, weight_lbs, body_fat_pct, skeletal_muscle_lbs, lean_body_mass_lbs, visceral_fat_area, bmr_kcal, phase_angle, ecw_tbw")
+      .eq("user_id", userId)
+      .order("measured_on", { ascending: false })
+      .limit(2);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = (data ?? []) as any[];
+    if (!rows.length) return null;
+    const [now, prev] = rows;
+    const num = (v: unknown) => (typeof v === "number" ? v : v == null ? null : parseFloat(String(v)));
+    const delta = (a: unknown, b: unknown) => {
+      const x = num(a), y = num(b);
+      return x != null && y != null ? +(x - y).toFixed(1) : null;
+    };
+
+    return {
+      measuredOn: String(now.measured_on),
+      device: (now.device ?? null) as string | null,
+      weightLbs: num(now.weight_lbs),
+      bodyFatPct: num(now.body_fat_pct),
+      skeletalMuscleLbs: num(now.skeletal_muscle_lbs),
+      leanBodyMassLbs: num(now.lean_body_mass_lbs),
+      visceralFatArea: num(now.visceral_fat_area),
+      bmrKcal: num(now.bmr_kcal),
+      phaseAngle: num(now.phase_angle),
+      ecwTbw: num(now.ecw_tbw),
+      change: prev
+        ? {
+            weightLbs: delta(now.weight_lbs, prev.weight_lbs),
+            bodyFatPct: delta(now.body_fat_pct, prev.body_fat_pct),
+            skeletalMuscleLbs: delta(now.skeletal_muscle_lbs, prev.skeletal_muscle_lbs),
+          }
+        : null,
+    };
+  } catch {
     return null;
   }
 }
@@ -384,6 +484,32 @@ function deriveSignals(a: HealthAssessment): Signal[] {
     out.push({ kind: "gap", area: "sleep", text: "Not enough sleep data in this window to say anything useful." });
   }
 
+  if (a.body) {
+    const b = a.body;
+    const bits: string[] = [];
+    if (b.bodyFatPct != null) bits.push(`${b.bodyFatPct}% body fat`);
+    if (b.skeletalMuscleLbs != null) bits.push(`${b.skeletalMuscleLbs} lb skeletal muscle`);
+    if (b.change) {
+      // Lean held while fat fell is the outcome worth naming; the scale on its
+      // own moves for reasons nobody cares about.
+      const fat = b.change.bodyFatPct;
+      const smm = b.change.skeletalMuscleLbs;
+      if (fat != null && smm != null) {
+        const good = fat <= 0 && smm >= -0.5;
+        out.push({
+          kind: good ? "good" : "watch",
+          area: "weight",
+          text: `Since the previous scan: body fat ${fat >= 0 ? "+" : ""}${fat}%, skeletal muscle ${smm >= 0 ? "+" : ""}${smm} lb${
+            good ? " — lean mass held while fat came off." : ", which is the direction worth watching."
+          }`,
+        });
+      }
+    }
+    if (bits.length) {
+      out.push({ kind: "good", area: "weight", text: `Last scan ${b.measuredOn}${b.device ? ` (${b.device})` : ""}: ${bits.join(", ")}.` });
+    }
+  }
+
   if (a.labs) {
     const when = a.labs.collectedOn;
     if (a.labs.outOfRange.length > 0) {
@@ -456,6 +582,17 @@ export function assessmentToPrompt(a: HealthAssessment): string {
     `Training: ${a.strengthPerWeek} strength sessions/week, ${a.deviceWorkoutsPerWeek} device-recorded workouts/week`,
     `Nutrition: ${a.nutritionLoggedDays} of ${a.windowDays} days logged${a.avgCaloriesOnLoggedDays ? `, averaging ${a.avgCaloriesOnLoggedDays} kcal on those days` : ""}`,
     `Medication doses recorded: ${a.dosesLogged}`,
+    a.body
+      ? [
+          "",
+          `Body composition (${a.body.measuredOn}${a.body.device ? `, ${a.body.device}` : ""}):`,
+          `- Weight ${a.body.weightLbs ?? "—"} lb, body fat ${a.body.bodyFatPct ?? "—"}%, skeletal muscle ${a.body.skeletalMuscleLbs ?? "—"} lb, lean mass ${a.body.leanBodyMassLbs ?? "—"} lb`,
+          `- Visceral fat area ${a.body.visceralFatArea ?? "—"} cm², BMR ${a.body.bmrKcal ?? "—"} kcal, phase angle ${a.body.phaseAngle ?? "—"}, ECW/TBW ${a.body.ecwTbw ?? "—"}`,
+          a.body.change
+            ? `- Since the previous scan: weight ${a.body.change.weightLbs ?? "—"} lb, body fat ${a.body.change.bodyFatPct ?? "—"}%, skeletal muscle ${a.body.change.skeletalMuscleLbs ?? "—"} lb`
+            : "- No earlier scan to compare with.",
+        ].join("\n")
+      : "No body-composition scan on file.",
     a.labs
       ? [
           "",
@@ -467,6 +604,15 @@ export function assessmentToPrompt(a: HealthAssessment): string {
             const flag = r.flag !== "normal" && r.flag !== "unknown" ? ` **${r.flag.toUpperCase()}**` : "";
             return `- ${r.analyte}: ${v}${range}${flag}${delta}`;
           }),
+          ...(a.labs.history.length
+            ? [
+                "",
+                `Earlier draws (${a.labs.drawCount} in total, newest first) — use these for any question about a trend:`,
+                ...a.labs.history
+                  .slice(0, 40)
+                  .map((h) => `- ${h.analyte}${h.unit ? ` (${h.unit})` : ""}: ${h.points.map((pt) => `${pt.on} ${pt.value}`).join(", ")}`),
+              ]
+            : []),
         ].join("\n")
       : "No lab results have been added.",
     "",
