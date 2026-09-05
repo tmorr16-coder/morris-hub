@@ -140,6 +140,17 @@
 .strong { font-weight: 700; }
 .rowMark td { background: var(--accent-soft); font-weight: 600; }
 .tableWrap { overflow-x: auto; }
+/* The projection table is the widest thing in the document: nine columns.
+   Fixed layout with widths that sum to 100% means it always fits whatever it
+   is given, on screen or on paper, instead of growing to its content and
+   spilling off the page. */
+.milestones { table-layout: fixed; width: 100%; font-size: 12px; }
+.milestones th, .milestones td { padding: 5px 4px; overflow-wrap: anywhere; }
+.milestones th { white-space: normal; line-height: 1.2; }
+/* A section that is longer than a page must be allowed to break, or the
+   browser pushes it whole onto the next page and crops what still does not
+   fit. Used on the long ones: projection, accounts, income. */
+.sectionFlow { break-inside: auto; }
 
 .chart { width: 100%; height: auto; display: block; margin: 8px 0 2px; }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); }
@@ -171,8 +182,18 @@
   .title { font-size: 26pt; }
   .h2 { font-size: 14pt; }
   .statValue { font-size: 17pt; }
-  .table { font-size: 10.5pt; }
-  .tableWrap { overflow: visible; }
+  .table { font-size: 9.5pt; width: 100%; table-layout: fixed; }
+  .table th, .table td { padding: 3px 4px; white-space: normal; overflow-wrap: anywhere; }
+  .table th { line-height: 1.15; }
+  .num { white-space: normal !important; }
+  .milestones { font-size: 8.5pt; }
+  .milestones th, .milestones td { padding: 3px 3px; }
+  .tableWrap { overflow: visible; max-width: 100%; }
+  .two { grid-template-columns: 1fr 1fr; }
+  .stats { grid-template-columns: repeat(4, 1fr); }
+  .stat { padding: 6px 8px; }
+  .chart { max-height: 70mm; }
+  .table tr, .stat, .callout { break-inside: avoid; }
   /* The app's chrome has no business on paper. */
   :global(.ios-tabbar), :global(nav), :global(header) { display: none !important; }
   :global(body) { background: #fff !important; }

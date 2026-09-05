@@ -178,7 +178,7 @@ export default async function PlanDocumentPage() {
         </section>
 
         {/* ── Accounts ─────────────────────────────────────────────────── */}
-        <section className={styles.section}>
+        <section className={`${styles.section} ${styles.sectionFlow}`}>
           <h2 className={styles.h2}>Accounts</h2>
           <p className={styles.lede}>Saving {fmtUSD(r.contributions.monthly)} a month ({fmtUSD(r.contributions.annual)} a year) before employer match.</p>
           <div className={styles.tableWrap}>
@@ -205,7 +205,7 @@ export default async function PlanDocumentPage() {
         </section>
 
         {/* ── Income ───────────────────────────────────────────────────── */}
-        <section className={styles.section}>
+        <section className={`${styles.section} ${styles.sectionFlow}`}>
           <h2 className={styles.h2}>Income</h2>
           <p className={styles.lede}>
             In the first full year of retirement, Social Security, pensions and other retirement income cover {fmtUSD(r.retirementIncomeAtStart)} a year.
@@ -282,7 +282,7 @@ export default async function PlanDocumentPage() {
         </section>
 
         {/* ── Outflows today ───────────────────────────────────────────── */}
-        <section className={styles.section}>
+        <section className={`${styles.section} ${styles.sectionFlow}`}>
           <h2 className={styles.h2}>Expenses and debts</h2>
           <p className={styles.lede}>
             Today: {fmtUSD(r.expenses.essentialMonthly)} a month essential, {fmtUSD(r.expenses.discretionaryMonthly)} discretionary, {fmtUSD(r.debtPayments.monthly)} in debt and lease payments.
@@ -343,7 +343,7 @@ export default async function PlanDocumentPage() {
         </section>
 
         {/* ── Projection ───────────────────────────────────────────────── */}
-        <section className={`${styles.section} ${styles.sectionBreak}`}>
+        <section className={`${styles.section} ${styles.sectionBreak} ${styles.sectionFlow}`}>
           <h2 className={styles.h2}>Projection</h2>
           <p className={styles.lede}>Portfolio balance by age, in future dollars. The shaded band is the range between the 10th and 90th percentile of simulated markets; the solid line is the expected path.</p>
           <PathChart r={r} />
@@ -354,9 +354,13 @@ export default async function PlanDocumentPage() {
           </div>
 
           <div className={styles.tableWrap}>
-            <table className={styles.table} style={{ marginTop: 14 }}>
+            <table className={`${styles.table} ${styles.milestones}`} style={{ marginTop: 14 }}>
+              <colgroup>
+                <col style={{ width: "13%" }} /><col style={{ width: "8%" }} /><col style={{ width: "13%" }} /><col style={{ width: "12%" }} />
+                <col style={{ width: "11%" }} /><col style={{ width: "10%" }} /><col style={{ width: "12%" }} /><col style={{ width: "11%" }} /><col style={{ width: "10%" }} />
+              </colgroup>
               <thead>
-                <tr><th>Age</th><th>Year</th><th className={styles.num}>Portfolio</th><th className={styles.num}>Work income</th><th className={styles.num}>Soc. Sec.</th><th className={styles.num}>Pension</th><th className={styles.num}>Spending & tax</th><th className={styles.num}>Tax</th><th className={styles.num}>RMD</th></tr>
+                <tr><th>Age</th><th>Year</th><th className={styles.num}>Portfolio</th><th className={styles.num}>Work income</th><th className={styles.num}>Social Security</th><th className={styles.num}>Pension</th><th className={styles.num}>Spending &amp; tax</th><th className={styles.num}>Tax</th><th className={styles.num}>RMD</th></tr>
               </thead>
               <tbody>
                 {r.milestones.map((m) => (
