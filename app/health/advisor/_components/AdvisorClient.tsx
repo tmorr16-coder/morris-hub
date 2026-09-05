@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { HealthAssessment, Signal } from "@/lib/health/assessment";
 
@@ -89,19 +89,159 @@ interface Turn {
   reviewErr?: string;
 }
 
+interface Thread {
+  /** Epoch ms at the first question — the id the server upserts on. */
+  id: number;
+  /** Last activity, for ordering the list. */
+  at: number;
+  turns: Turn[];
+}
+
+const STORE_KEY = "advisor-threads-v1";
+const MAX_THREADS = 30;
+
+/**
+ * The browser's copy of the conversations.
+ *
+ * localStorage is the local store and the server is a sync, not the other way
+ * round. A conversation therefore survives a reload before the migration has
+ * been applied, and a sync failure leaves what is on the device alone instead
+ * of presenting as an empty history.
+ */
+function loadLocal(): Thread[] {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? (parsed as Thread[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocal(threads: Thread[]) {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(threads.slice(0, MAX_THREADS)));
+  } catch {
+    /* quota or private mode — the server copy is the fallback */
+  }
+}
+
+/** First question, trimmed to something that fits one line in the list. */
+function titleOf(t: Thread): string {
+  const first = t.turns.find((x) => x.role === "user")?.content ?? "";
+  return first.replace(/\s+/g, " ").trim() || "Empty conversation";
+}
+
+/**
+ * Wall clock, read through a module-scope helper.
+ *
+ * React's purity lint flags a bare Date.now() inside a component body even when
+ * it is only ever reached from an event handler, which is where every call here
+ * comes from. Reading it through one function outside the component says the
+ * same thing without arguing with the rule.
+ */
+const nowMs = () => Date.now();
+
+function ago(ts: number): string {
+  const mins = Math.max(0, Math.round((Date.now() - ts) / 60000));
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+  const days = Math.round(hrs / 24);
+  return days === 1 ? "yesterday" : `${days} days ago`;
+}
+
 export default function AdvisorClient({ assessment }: { assessment: HealthAssessment }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [checker, setChecker] = useState(CHECKERS[0].id);
+  // Lazy initialiser rather than an effect: the device's copy is available
+  // synchronously, so reading it here paints the list correctly on the first
+  // frame instead of after a state round trip.
+  const [threads, setThreads] = useState<Thread[]>(loadLocal);
+  const [threadId, setThreadId] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Then whatever the server holds, which may include conversations started on
+  // another device.
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/health/advisor/threads");
+        if (!res.ok) return; // 503 before the migration; keep the local copy
+        const { threads: remote } = await res.json();
+        if (!Array.isArray(remote)) return;
+        setThreads((local) => {
+          const byId = new Map<number, Thread>();
+          for (const t of [...(remote as Thread[]), ...local]) {
+            const prev = byId.get(t.id);
+            // Same conversation on two devices: the one touched last wins.
+            if (!prev || (t.at ?? 0) > (prev.at ?? 0)) byId.set(t.id, t);
+          }
+          const merged = [...byId.values()].sort((a, b) => b.at - a.at).slice(0, MAX_THREADS);
+          saveLocal(merged);
+          return merged;
+        });
+      } catch {
+        /* offline — the local copy stands */
+      }
+    })();
+  }, []);
+
+  /** Write one conversation to both stores. The server is best-effort. */
+  function persist(id: number, nextTurns: Turn[], at: number) {
+    const thread: Thread = { id, at, turns: nextTurns };
+    setThreads((prev) => {
+      const merged = [thread, ...prev.filter((t) => t.id !== id)].slice(0, MAX_THREADS);
+      saveLocal(merged);
+      return merged;
+    });
+    fetch("/api/health/advisor/threads", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ thread }),
+    }).catch(() => {
+      /* the device copy is already written */
+    });
+  }
+
+  function openThread(t: Thread) {
+    setThreadId(t.id);
+    setTurns(t.turns);
+    setErr(null);
+    setInput("");
+  }
+
+  function newConversation() {
+    setThreadId(null);
+    setTurns([]);
+    setErr(null);
+    setInput("");
+  }
+
+  function removeThread(id: number) {
+    setThreads((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      saveLocal(next);
+      return next;
+    });
+    fetch(`/api/health/advisor/threads?id=${id}`, { method: "DELETE" }).catch(() => {});
+    if (threadId === id) newConversation();
+  }
 
   async function ask() {
     const q = input.trim();
     if (!q || busy) return;
     setErr(null);
     setInput("");
+    // A conversation gets its id from its first question, so an abandoned empty
+    // composer never leaves a thread behind.
+    const started = nowMs();
+    const id = threadId ?? started;
+    if (threadId == null) setThreadId(id);
     const next: Turn[] = [...turns, { role: "user", content: q }];
     setTurns(next);
     setBusy(true);
@@ -113,7 +253,9 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? data.error ?? "The advisor couldn't answer.");
-      setTurns([...next, { role: "assistant", content: data.reply, question: q }]);
+      const answered: Turn[] = [...next, { role: "assistant", content: data.reply, question: q }];
+      setTurns(answered);
+      persist(id, answered, nowMs());
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 50);
     } catch (e) {
       setErr((e as Error).message);
@@ -128,6 +270,7 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
   async function check(index: number) {
     const target = turns[index];
     if (!target || target.checking) return;
+    const at = nowMs();
     const patch = (fields: Partial<Turn>) =>
       setTurns((prev) => prev.map((t, i) => (i === index ? { ...t, ...fields } : t)));
 
@@ -145,7 +288,17 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "The check couldn't run.");
-      patch({ checking: false, review: { text: data.review, model: data.model } });
+      const review: Review = { text: data.review, model: data.model };
+      patch({ checking: false, review });
+      if (threadId != null) {
+        // Saved with the answer it qualifies — restoring the answer without the
+        // critique that tempered it would be the more misleading of the two.
+        persist(
+          threadId,
+          turns.map((t, i) => (i === index ? { ...t, checking: false, review } : t)),
+          at
+        );
+      }
     } catch (e) {
       patch({ checking: false, reviewErr: (e as Error).message });
     }
@@ -177,9 +330,26 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
             {busy ? "…" : "↑"}
           </button>
         </div>
-        <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 10, lineHeight: 1.45 }}>
-          Coaching from your own measurements — not medical advice. Anything about symptoms,
-          medication or an abnormal lab result belongs with your doctor.
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 10 }}>
+          <div className="ios-caption" style={{ color: "var(--ios-label-3)", lineHeight: 1.45, flex: 1 }}>
+            Coaching from your own measurements — not medical advice. Anything about symptoms,
+            medication or an abnormal lab result belongs with your doctor.
+          </div>
+          {turns.length > 0 && (
+            <button
+              type="button"
+              onClick={newConversation}
+              disabled={busy}
+              className="ios-caption"
+              style={{
+                flexShrink: 0, background: "none", border: "0.5px solid var(--ios-separator)",
+                borderRadius: 999, padding: "5px 11px", color: "var(--ios-tint)",
+                fontWeight: 600, cursor: busy ? "default" : "pointer", opacity: busy ? 0.5 : 1,
+              }}
+            >
+              New
+            </button>
+          )}
         </div>
       </div>
 
@@ -270,6 +440,63 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
       )}
       {err && <div className="ios-footnote" style={{ color: "var(--ios-red)", padding: "6px 2px" }}>{err}</div>}
       <div ref={bottomRef} />
+
+      {/* ── Saved conversations ──────────────────────────────────────────── */}
+      {threads.filter((t) => t.id !== threadId).length > 0 && (
+        <>
+          <div className="ios-group-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "22px 0 7px" }}>
+            <span>EARLIER CONVERSATIONS</span>
+            <button
+              type="button"
+              onClick={() => {
+                setThreads([]);
+                saveLocal([]);
+                fetch("/api/health/advisor/threads", { method: "DELETE" }).catch(() => {});
+                newConversation();
+              }}
+              className="ios-caption"
+              style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", textTransform: "none", letterSpacing: 0 }}
+            >
+              Clear all
+            </button>
+          </div>
+          <div className="ios-list" style={{ margin: 0 }}>
+            {threads
+              .filter((t) => t.id !== threadId)
+              .map((t, i, list) => (
+                <div
+                  key={t.id}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8, padding: "11px 14px",
+                    borderBottom: i < list.length - 1 ? "0.5px solid var(--ios-separator)" : "none",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => openThread(t)}
+                    style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                  >
+                    <div style={{ color: "var(--ios-label)", fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {titleOf(t)}
+                    </div>
+                    <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 2 }}>
+                      {t.turns.filter((x) => x.role === "user").length} question
+                      {t.turns.filter((x) => x.role === "user").length === 1 ? "" : "s"} · {ago(t.at)}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeThread(t.id)}
+                    aria-label={`Remove conversation: ${titleOf(t)}`}
+                    style={{ background: "none", border: "none", color: "var(--ios-label-3)", fontSize: 19, lineHeight: 1, cursor: "pointer", padding: "0 4px", flexShrink: 0 }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+          </div>
+        </>
+      )}
 
       {/* ── What the numbers say ─────────────────────────────────────────── */}
       <div className="ios-group-header" style={{ padding: "22px 0 7px" }}>
