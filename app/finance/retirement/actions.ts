@@ -290,13 +290,21 @@ async function verifyOwnership(profileId: string, userId: string): Promise<boole
 }
 
 /**
- * Manual "refresh" for retirement accounts: pulls fresh balances from Plaid
- * (same sync used on the finance dashboard), then updates any retirement
- * account whose balance was originally sourced from a linked Plaid account.
+ * Manual "refresh" for retirement accounts: pulls fresh balances from the
+ * linked connections (same sync used on the finance dashboard), then updates
+ * any retirement account whose balance is sourced from a linked account.
  * Accounts entered manually (no plaid_account_id) are left untouched.
+ *
+ * A link can go dangling: reconnecting a bank gives every account a new row
+ * id, and the retirement side kept pointing at the old ones. Refresh then
+ * found nothing to copy and reported "up to date" while every linked balance
+ * sat frozen at the day of the reconnect. Dangling links are now re-attached
+ * to the live account with the same name (and mask, when both carry one), and
+ * anything that cannot be matched is named in the result instead of ignored.
  */
 export async function refreshAccountBalances(): Promise<
-  { ok: true; updated: number; accounts: RetirementAccount[] } | { error: string }
+  | { ok: true; updated: number; relinked: string[]; unresolved: string[]; accounts: RetirementAccount[] }
+  | { error: string }
 > {
   const { user } = await requireFinanceAccess();
   const service = createServiceClient();
@@ -312,7 +320,7 @@ export async function refreshAccountBalances(): Promise<
     .select("id")
     .eq("user_id", user.id)
     .maybeSingle();
-  if (!profile) return { ok: true, updated: 0, accounts: [] };
+  if (!profile) return { ok: true, updated: 0, relinked: [], unresolved: [], accounts: [] };
 
   const { data: accounts } = await schema
     .from("retirement_accounts")
@@ -322,23 +330,47 @@ export async function refreshAccountBalances(): Promise<
   const linked = ((accounts ?? []) as RetirementAccount[]).filter((a) => a.plaid_account_id);
 
   if (linked.length === 0) {
-    return { ok: true, updated: 0, accounts: (accounts ?? []) as RetirementAccount[] };
+    return { ok: true, updated: 0, relinked: [], unresolved: [], accounts: (accounts ?? []) as RetirementAccount[] };
   }
 
-  const plaidIds = linked.map((a) => a.plaid_account_id as string);
-  const { data: plaidAccounts } = await schema
-    .from("accounts")
-    .select("id, current_balance")
-    .in("id", plaidIds)
-      .is("deleted_at", null);
-  const balanceMap = new Map(
-    ((plaidAccounts ?? []) as { id: string; current_balance: number | null }[])
-      .map((a) => [a.id, a.current_balance])
-  );
+  // Every live account on this user's connections — needed both to read fresh
+  // balances and to find a home for a link whose target has gone.
+  const { data: items } = await schema.from("plaid_items").select("id").eq("user_id", user.id);
+  const itemIds = ((items ?? []) as { id: string }[]).map((r) => r.id);
+  const { data: liveRows } = itemIds.length > 0
+    ? await schema
+        .from("accounts")
+        .select("id, name, mask, current_balance")
+        .in("item_id", itemIds)
+        .is("deleted_at", null)
+    : { data: [] };
+  const live = (liveRows ?? []) as { id: string; name: string; mask: string | null; current_balance: number | null }[];
+  const liveById = new Map(live.map((a) => [a.id, a]));
 
   let updated = 0;
+  const relinked: string[] = [];
+  const unresolved: string[] = [];
   for (const a of linked) {
-    const freshBalance = balanceMap.get(a.plaid_account_id as string);
+    let target = liveById.get(a.plaid_account_id as string) ?? null;
+
+    if (!target) {
+      const match = findLiveMatch(a.name, live);
+      if (match) {
+        const { error } = await schema
+          .from("retirement_accounts")
+          .update({ plaid_account_id: match.id })
+          .eq("id", a.id);
+        if (!error) {
+          target = match;
+          relinked.push(a.name);
+        }
+      } else {
+        unresolved.push(a.name);
+        continue;
+      }
+    }
+
+    const freshBalance = target?.current_balance;
     if (freshBalance != null && freshBalance !== a.balance) {
       const { error } = await schema.from("retirement_accounts").update({ balance: freshBalance }).eq("id", a.id);
       if (!error) updated++;
@@ -351,7 +383,44 @@ export async function refreshAccountBalances(): Promise<
     .eq("profile_id", profile.id)
     .order("sort_order");
 
-  return { ok: true, updated, accounts: (finalAccounts ?? []) as RetirementAccount[] };
+  return { ok: true, updated, relinked, unresolved, accounts: (finalAccounts ?? []) as RetirementAccount[] };
+}
+
+/**
+ * Find the live account a retirement row was linked to before its id changed.
+ *
+ * Retirement names carry decorations the live name does not — an owner
+ * ("- Alicia"), a mask written twice ("-6196 (6196)") — so both sides are
+ * reduced to their bare words before comparing. The mask is only a tie-break:
+ * "Stock Plan (LLY) -6196" and "Individual Brokerage (6196)" share a mask and
+ * are not the same account, and a wrong link is worse than a missing one.
+ */
+function findLiveMatch(
+  name: string,
+  live: { id: string; name: string; mask: string | null; current_balance: number | null }[]
+) {
+  const base = bareName(name);
+  if (!base) return null;
+  const candidates = live.filter((l) => bareName(l.name) === base);
+  if (candidates.length === 1) return candidates[0];
+  if (candidates.length > 1) {
+    const mask = (name.match(/\b(\d{4})\b/) ?? [])[1];
+    const byMask = mask
+      ? candidates.filter((l) => l.mask === mask || l.name.includes(mask))
+      : [];
+    if (byMask.length === 1) return byMask[0];
+  }
+  return null;
+}
+
+function bareName(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\(.*?\)/g, " ")        // "(6196)", "( LLY)"
+    .replace(/-\s*\d{4}\b/g, " ")    // "-6196"
+    .replace(/\s*-\s*[a-z]+\s*$/, " ") // trailing "- Alicia"
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 export async function deleteAccount(id: string): Promise<{ ok: true } | { error: string }> {

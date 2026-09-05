@@ -12,6 +12,9 @@ interface Props {
   incomes: RetirementIncome[];
   setIncomes: (i: RetirementIncome[]) => void;
   profile: RetirementProfile;
+  /** Unvested value across the stock-plan accounts — the number an estimated
+   *  annual stock award is usually derived from. */
+  unvestedTotal?: number;
 }
 
 const INCOME_TYPES = ["salary", "bonus", "stock_award", "social_security", "pension", "part_time", "other"] as const;
@@ -45,9 +48,9 @@ function defaultFrequency(type: string): string {
   return "monthly";
 }
 
-function amountLabel(type: string): string {
+function amountLabel(type: string, estimated = false): string {
   if (type === "bonus") return "Annual bonus amount ($)";
-  if (type === "stock_award") return "Annual vesting value ($)";
+  if (type === "stock_award") return estimated ? "Estimated annual vesting value ($)" : "Annual vesting value of this grant ($)";
   // Being explicit matters here: the plan applies the claim-age adjustment to
   // this figure, so it has to be the full-retirement-age benefit — which is
   // also the number an SSA statement leads with.
@@ -80,7 +83,7 @@ const EMPTY_FORM = {
   start_age: "",
   end_age: "",
   ss_claim_age: "",
-  recurring: false,   // stock_award: same grant issued every year until retirement
+  recurring: true,    // stock_award: an estimated annual amount (vs. a single grant vesting over N years)
   match_eligible: true, // counts toward the 401(k) employer match base
 };
 
@@ -144,7 +147,7 @@ const RETIREMENT_TEMPLATES: RetirementTemplate[] = [
   },
 ];
 
-export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
+export default function IncomeTab({ incomes, setIncomes, profile, unvestedTotal }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [showSSOptimizer, setShowSSOptimizer] = useState(false);
   const [showPensionScanner, setShowPensionScanner] = useState(false);
@@ -187,11 +190,10 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
 
   function openEdit(inc: RetirementIncome) {
     setEditId(inc.id);
-    // Detect recurring: stock_award with no vest_years and end_age = retirement_age
-    const isRecurring =
-      inc.type === "stock_award" &&
-      inc.vest_years == null &&
-      inc.end_age === profile.retirement_age;
+    // An estimated annual amount is any stock award without a vesting period.
+    // (It used to also require end_age === retirement_age, which stopped an
+    // estimate from having an end of its own — grants do run out.)
+    const isRecurring = inc.type === "stock_award" && inc.vest_years == null;
     setForm({
       name: inc.name,
       type: inc.type,
@@ -200,7 +202,7 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
       annual_growth_pct: inc.annual_growth_pct != null ? String(inc.annual_growth_pct) : "",
       vest_years: inc.vest_years != null ? String(inc.vest_years) : "",
       start_age: inc.start_age != null ? String(inc.start_age) : "",
-      end_age: inc.end_age != null && !isRecurring ? String(inc.end_age) : "",
+      end_age: inc.end_age != null ? String(inc.end_age) : "",
       ss_claim_age: inc.ss_claim_age != null ? String(inc.ss_claim_age) : "",
       recurring: isRecurring,
       match_eligible: inc.match_eligible ?? (inc.type === "salary"),
@@ -215,11 +217,12 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
     const growthPct = form.annual_growth_pct !== "" ? parseFloat(form.annual_growth_pct) : null;
     const startAge = form.start_age !== "" ? parseInt(form.start_age) : null;
 
-    // Recurring annual stock award: same grant every year until retirement
+    // Estimated annual stock award: the same amount vests every year until the
+    // chosen age (retirement if none given).
     const isRecurring = form.type === "stock_award" && form.recurring;
     const vestYears = isRecurring ? null : (form.vest_years !== "" ? parseInt(form.vest_years) : null);
     const endAge = isRecurring
-      ? profile.retirement_age            // runs until retirement age
+      ? (form.end_age !== "" ? parseInt(form.end_age) : profile.retirement_age)
       : form.type === "stock_award" && vestYears != null && startAge != null
         ? startAge + vestYears             // single grant: start + vest period
         : form.end_age !== "" ? parseInt(form.end_age) : null;
@@ -279,10 +282,11 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
     if (inc.type === "social_security" && inc.ss_claim_age != null) {
       return `Claiming at age ${inc.ss_claim_age}`;
     }
-    // Recurring annual grant: vest_years is null, end_age = retirement_age
-    if (inc.type === "stock_award" && inc.vest_years == null && inc.end_age === profile.retirement_age) {
+    // Estimated annual amount: vest_years is null.
+    if (inc.type === "stock_award" && inc.vest_years == null) {
       const grantAge = inc.start_age ?? profile.current_age;
-      return `Recurring annual grant · age ${grantAge} to retirement`;
+      const until = inc.end_age ?? profile.retirement_age;
+      return `Estimated annual vesting · age ${grantAge} to ${until}${until === profile.retirement_age ? " (retirement)" : ""}`;
     }
     if (inc.type === "stock_award" && inc.vest_years != null) {
       const grantAge = inc.start_age ?? profile.current_age;
@@ -509,7 +513,7 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
               />
             </div>
             <div>
-              <label style={labelStyle}>{amountLabel(form.type)}</label>
+              <label style={labelStyle}>{amountLabel(form.type, form.type === "stock_award" && form.recurring)}</label>
               <input
                 required
                 type="number"
@@ -596,46 +600,47 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
             {/* Stock award: recurring toggle + optional vesting period */}
             {form.type === "stock_award" && (
               <>
-                {/* Recurring annual grant toggle */}
+                {/* How the award is described: an estimate of what vests each
+                    year (the usual case — nobody knows next year's grant), or a
+                    single grant with a known vesting period. */}
                 <div style={{ gridColumn: "1 / -1" }}>
-                  <button
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, recurring: !f.recurring, vest_years: "" }))}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: "12px 14px",
-                      borderRadius: 10,
-                      background: form.recurring ? "var(--ios-fill)" : "var(--ios-fill-2)",
-                      cursor: "pointer",
-                      width: "100%",
-                      textAlign: "left",
-                    }}
-                  >
-                    <span style={{ color: form.recurring ? "var(--ios-finance)" : "var(--ios-label-2)", display: "inline-flex" }}>
-                      {form.recurring ? (
-                        <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                          <path d="M4 12a8 8 0 0 1 13.7-5.7L20 8" /><path d="M20 4v4h-4" />
-                          <path d="M20 12a8 8 0 0 1-13.7 5.7L4 16" /><path d="M4 20v-4h4" />
-                        </svg>
-                      ) : (
-                        <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                          <rect x="3.5" y="8" width="17" height="12" rx="2" /><path d="M12 8v12M3.5 12h17M12 8s-1.5-4-4-4a2 2 0 0 0 0 4M12 8s1.5-4 4-4a2 2 0 0 1 0 4" />
-                        </svg>
-                      )}
-                    </span>
-                    <div>
-                      <div className="ios-subhead" style={{ fontWeight: 600, color: form.recurring ? "var(--ios-finance)" : "var(--ios-label)" }}>
-                        {form.recurring ? "Recurring annual grant until retirement" : "One-time grant (vests over N years)"}
+                  <label style={labelStyle}>Describe it as</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <Chip small selected={form.recurring} onClick={() => setForm((f) => ({ ...f, recurring: true, vest_years: "" }))}>
+                      Estimated annual amount
+                    </Chip>
+                    <Chip small selected={!form.recurring} onClick={() => setForm((f) => ({ ...f, recurring: false }))}>
+                      Single grant, vests over N years
+                    </Chip>
+                  </div>
+                  <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 6, lineHeight: 1.45 }}>
+                    {form.recurring
+                      ? "Roughly what vests each year. Added to the portfolio after tax, every year until the end age (retirement if blank)."
+                      : "One RSU grant with a known vesting schedule — the annual value vests each year for N years."}
+                  </div>
+                  {form.recurring && (unvestedTotal ?? 0) > 0 && (
+                    <div style={{ marginTop: 10, padding: "10px 12px", background: "var(--ios-fill-2)", borderRadius: 8 }}>
+                      <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginBottom: 6, lineHeight: 1.45 }}>
+                        Your stock plan shows <strong className="ios-num">{fmtMoney(unvestedTotal ?? 0)}</strong> unvested. Spread it over:
                       </div>
-                      <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>
-                        {form.recurring
-                          ? `Same grant issued every year from age ${form.start_age || "start"} to retirement — adds ${form.monthly_amount ? fmtMoney(parseFloat(form.monthly_amount)) : "$…"}/yr to portfolio`
-                          : "E.g. a single RSU grant that vests over 4 years — tap to make it annual"}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {[3, 4, 5].map((yrs) => (
+                          <Chip
+                            key={yrs}
+                            small
+                            onClick={() => setForm((f) => ({
+                              ...f,
+                              monthly_amount: String(Math.round((unvestedTotal ?? 0) / yrs)),
+                              start_age: f.start_age || String(profile.current_age),
+                              end_age: String((parseInt(f.start_age) || profile.current_age) + yrs - 1),
+                            }))}
+                          >
+                            {yrs} yrs → {fmtMoney(Math.round((unvestedTotal ?? 0) / yrs))}/yr
+                          </Chip>
+                        ))}
                       </div>
                     </div>
-                  </button>
+                  )}
                 </div>
 
                 {/* One-time grant: vesting period */}
@@ -657,12 +662,18 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
 
                 {/* Summary */}
                 <div style={{ gridColumn: "1 / -1" }}>
-                  {form.recurring && form.monthly_amount && form.start_age && (
-                    <div className="ios-caption ios-num" style={{ color: "var(--ios-finance)", padding: "8px 12px", background: "var(--ios-fill-2)", borderRadius: 8 }}>
-                      {fmtMoney(parseFloat(form.monthly_amount))}/yr added to portfolio every year from age {form.start_age} to retirement (age {profile.retirement_age})
-                      {" · "}{profile.retirement_age - parseInt(form.start_age)} grants total
-                    </div>
-                  )}
+                  {form.recurring && form.monthly_amount && (() => {
+                    const from = parseInt(form.start_age) || profile.current_age;
+                    const until = parseInt(form.end_age) || profile.retirement_age;
+                    const years = Math.max(0, until - from + 1);
+                    return (
+                      <div className="ios-caption ios-num" style={{ color: "var(--ios-finance)", padding: "8px 12px", background: "var(--ios-fill-2)", borderRadius: 8 }}>
+                        {fmtMoney(parseFloat(form.monthly_amount))}/yr added to portfolio every year from age {from} to {until}
+                        {until === profile.retirement_age ? " (retirement)" : ""}
+                        {" · "}{years} year{years === 1 ? "" : "s"} · {fmtMoney(parseFloat(form.monthly_amount) * years)} total
+                      </div>
+                    );
+                  })()}
                   {!form.recurring && form.vest_years && form.monthly_amount && (
                     <div className="ios-caption ios-num" style={{ color: "var(--ios-finance)", padding: "8px 12px", background: "var(--ios-fill-2)", borderRadius: 8 }}>
                       Total grant value: {fmtMoney(parseFloat(form.monthly_amount) * parseInt(form.vest_years))} ·
@@ -738,7 +749,7 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
                     End age
                     {form.type !== "salary" && (
                       <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "var(--ios-label-3)", marginLeft: 4 }}>
-                        — leave blank for lifetime
+                        {form.type === "stock_award" && form.recurring ? "— leave blank to run to retirement" : "— leave blank for lifetime"}
                       </span>
                     )}
                   </label>
@@ -748,7 +759,7 @@ export default function IncomeTab({ incomes, setIncomes, profile }: Props) {
                     max="120"
                     value={form.end_age}
                     onChange={(e) => setForm((f) => ({ ...f, end_age: e.target.value }))}
-                    placeholder={form.type === "salary" ? "retirement age" : "e.g. 75"}
+                    placeholder={form.type === "salary" || (form.type === "stock_award" && form.recurring) ? `${profile.retirement_age}` : "e.g. 75"}
                     style={inputStyle}
                   />
                 </div>

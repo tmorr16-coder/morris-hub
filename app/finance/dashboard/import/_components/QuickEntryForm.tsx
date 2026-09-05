@@ -10,6 +10,7 @@ export default function QuickEntryForm() {
   const [institution, setInstitution] = useState("");
   const [accountType, setAccountType] = useState("401k");
   const [balance, setBalance] = useState("");
+  const [unvested, setUnvested] = useState("");
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().slice(0, 10));
   const [historyText, setHistoryText] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -60,6 +61,12 @@ export default function QuickEntryForm() {
       }
     }
 
+    const unv = unvested.trim() ? parseFloat(unvested.replace(/[,$]/g, "")) : 0;
+    if (unvested.trim() && !Number.isFinite(unv)) {
+      setError("Enter a valid unvested amount, or leave it blank");
+      return;
+    }
+
     setError(null);
     startTransition(async () => {
       const res = await saveManualBalance({
@@ -69,6 +76,7 @@ export default function QuickEntryForm() {
         balance: bal,
         asOfDate,
         history: history.length > 0 ? history : null,
+        unvestedValue: Number.isFinite(unv) && unv > 0 ? unv : null,
       });
       if (res.error) { setError(res.error); }
       else { setSuccess(true); router.refresh(); }
@@ -123,6 +131,24 @@ export default function QuickEntryForm() {
           inputMode="decimal"
           className="ios-num"
           style={{ ...inputStyle, fontSize: 22, fontWeight: 600 }}
+        />
+      </div>
+
+      {/* Stock plans report two numbers — what has vested and what has not — and
+          only the vested half fits in "current balance". Without this the
+          potential value of a grant simply had nowhere to go on entry. */}
+      <div>
+        <label style={labelStyle}>Unvested / potential value (optional)</label>
+        <div className="ios-footnote" style={{ color: "var(--ios-label-2)", marginBottom: 8 }}>
+          For stock plans: unvested RSUs and pending grants, shown as potential value on top of the balance above.
+        </div>
+        <input
+          value={unvested}
+          onChange={(e) => setUnvested(e.target.value)}
+          placeholder="e.g. 381,727.80"
+          inputMode="decimal"
+          className="ios-num"
+          style={inputStyle}
         />
       </div>
 

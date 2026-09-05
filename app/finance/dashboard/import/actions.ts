@@ -180,6 +180,12 @@ export async function saveManualBalance(data: {
   balance: number;
   asOfDate: string;
   history: { date: string; balance: number; rate: number | null }[] | null;
+  // Unvested stock-plan value ("potential benefit" on an E*TRADE stock plan).
+  // The column and the whole dashboard treatment of it already existed; only
+  // the AI statement import could ever set it, so anyone typing a stock plan in
+  // by hand lost the unvested half of it until they went and edited the account
+  // afterwards.
+  unvestedValue?: number | null;
 }): Promise<{ error?: string; id?: string }> {
   const { user } = await requireFinanceAccess();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -203,6 +209,7 @@ export async function saveManualBalance(data: {
       institution: data.institution,
       account_type: data.accountType,
       balance: data.balance,
+      unvested_value: data.unvestedValue && data.unvestedValue > 0 ? data.unvestedValue : null,
       as_of_date: data.asOfDate,
       currency: "USD",
       holdings,

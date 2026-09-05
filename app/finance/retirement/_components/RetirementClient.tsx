@@ -118,10 +118,20 @@ export default function RetirementClient({
       setRefreshMsg(result.error);
     } else {
       setAccounts(result.accounts);
-      setRefreshState("done");
-      setRefreshMsg(result.updated > 0 ? `${result.updated} updated` : "up to date");
+      setRefreshState(result.unresolved.length > 0 ? "error" : "done");
+      // "up to date" was also what a broken link produced — nothing copied,
+      // nothing said. Say what happened to each linked account instead.
+      const parts: string[] = [];
+      if (result.updated > 0) parts.push(`${result.updated} updated`);
+      if (result.relinked.length > 0) parts.push(`${result.relinked.length} re-linked after reconnect`);
+      if (result.unresolved.length > 0) {
+        parts.push(`no live account for: ${result.unresolved.join(", ")} — edit it and pick the connected account again`);
+      }
+      setRefreshMsg(parts.length > 0 ? parts.join(" · ") : "up to date");
     }
-    setTimeout(() => { setRefreshState("idle"); setRefreshMsg(null); }, 3000);
+    // Leave a problem on screen; only the happy path clears itself.
+    const hold = "unresolved" in result && result.unresolved.length > 0 ? 12000 : 3000;
+    setTimeout(() => { setRefreshState("idle"); setRefreshMsg(null); }, hold);
   }
 
   const hasLinkedAccounts = accounts.some((a) => a.plaid_account_id);
@@ -187,14 +197,18 @@ export default function RetirementClient({
 
   return (
     <div>
-      {/* Save bar */}
+      {/* Save bar. Wraps: three pills plus a status message do not fit one
+          phone-width row, and without wrapping the leftmost one was pushed
+          off the edge — invisible, with nothing to hint it was there. */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "flex-end",
+          flexWrap: "wrap",
           gap: 10,
           minHeight: 34,
+          rowGap: 8,
         }}
       >
         {saveError && (
@@ -207,6 +221,32 @@ export default function RetirementClient({
           <span className="ios-footnote" style={{ color: refreshState === "error" ? "var(--ios-red)" : "var(--ios-green)" }}>
             {refreshMsg}
           </span>
+        )}
+        {/* The plan as a document — for the conversation with a spouse or an
+            advisor that does not happen inside the app. */}
+        {initialProfile && (
+          <a
+            href="/finance/retirement/plan"
+            title="Open the plan as a printable document"
+            style={{
+              padding: "7px 14px",
+              borderRadius: 999,
+              background: "var(--ios-fill)",
+              color: "var(--ios-tint)",
+              fontSize: 14,
+              fontWeight: 500,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+              <path d="M14 3v5h5M9 13h6M9 17h6" />
+            </svg>
+            Plan document
+          </a>
         )}
         {hasLinkedAccounts && (
           <button
@@ -285,7 +325,7 @@ export default function RetirementClient({
         />
       )}
       {activeTab === "Income" && (
-        <IncomeTab incomes={incomes} setIncomes={handleIncomesChange} profile={profile} />
+        <IncomeTab incomes={incomes} setIncomes={handleIncomesChange} profile={profile} unvestedTotal={accounts.reduce((s, a) => s + (a.unvested_value ?? 0), 0)} />
       )}
       {activeTab === "Outflows" && (
         <DebtsTab debts={debts} setDebts={setDebts} expenses={expenses} setExpenses={setExpenses}

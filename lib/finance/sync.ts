@@ -178,6 +178,25 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
         );
     }
 
+    // Carry the fresh balances through to the retirement plan. Retirement
+    // accounts linked to a live account only ever updated when someone opened
+    // the retirement page and pressed Refresh — the nightly sync refreshed the
+    // dashboard and left the plan reading last month's numbers. The link is by
+    // internal account id, so this touches only rows pointing at accounts on
+    // the item being synced.
+    for (const a of accounts) {
+      const internalId = accountMap.get(a.id);
+      if (!internalId) continue;
+      const { current_balance } = mapSimpleFinAccount(a);
+      if (current_balance == null || Number.isNaN(current_balance)) continue;
+      // scoping-ok: keyed on this item's own account ids
+      await supabase
+        .schema('finance')
+        .from('retirement_accounts')
+        .update({ balance: current_balance })
+        .eq('plaid_account_id', internalId);
+    }
+
     await supabase
       .schema('finance')
       .from('plaid_items')

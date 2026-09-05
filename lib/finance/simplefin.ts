@@ -153,7 +153,14 @@ export function inferType(a: SimpleFinAccount): string {
   const hay = `${a.name ?? ""} ${a.org?.name ?? ""}`.toLowerCase();
   if (/mortgage|\bloan\b|auto|heloc|line of credit/.test(hay)) return "loan";
   if (/credit|card/.test(hay)) return "credit";
-  if (/brokerage|invest|401|\bira\b|roth|stock plan|\bhsa\b|retirement/.test(hay)) return "investment";
+  // Employer stock-plan accounts are investments, not cash. The brokerage names
+  // them after the grant ("Restricted Stock - LLY", "Performance Grants - LLY"),
+  // and none of those matched "stock plan" — so tens of thousands of dollars of
+  // vested equity were filed as a depository balance. That is not a cosmetic
+  // mislabel: Portfolio → Investment Accounts selects type = 'investment', so
+  // the account was missing from the portfolio entirely, while the dashboard
+  // counted it as cash and overstated months of runway.
+  if (/brokerage|invest|401|\bira\b|roth|stock plan|\bhsa\b|retirement|restricted stock|performance grant|stock award|equity award|\bespp\b|\brsus?\b|deferred comp/.test(hay)) return "investment";
   const bal = parseFloat(a.balance);
   // A negative balance with no matching name is almost always a liability.
   if (!Number.isNaN(bal) && bal < 0) return "loan";
