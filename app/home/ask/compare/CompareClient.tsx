@@ -7,6 +7,7 @@ import {
 } from "@/lib/openrouter";
 import type { Pricing } from "./page";
 import { describeAttachments, estimateTokens, estimateOcrCost, type PanelAttachment } from "@/lib/panel-context";
+import "./panel.css";
 
 interface Citation { url: string; title: string }
 
@@ -98,7 +99,7 @@ const ALL: CompareModel[] = [AUTO_MODEL_META, ...COMPARE_MODELS, ...LIVE_MODELS,
 const LIVE_IDS = new Set(LIVE_MODELS.map((m) => m.id));
 
 const metaOf = (id: string, extra: CompareModel[] = []): CompareModel =>
-  ALL.find((m) => m.id === id) ?? extra.find((m) => m.id === id) ?? { id, label: id, vendor: "Model", color: "var(--ios-label-2)" };
+  ALL.find((m) => m.id === id) ?? extra.find((m) => m.id === id) ?? { id, label: id, vendor: "Model", color: "var(--pc-text-2)" };
 
 /** "$3.00/M out" — the rate a chip is charging, for anything priced. */
 function rateLabel(p?: { completion: number }): string {
@@ -111,9 +112,9 @@ function rateLabel(p?: { completion: number }): string {
 function esc(s: string) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 function inline(s: string) {
   return esc(s)
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color:var(--ios-tint)">$1</a>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/`([^`]+)`/g, '<code style="background:rgba(120,120,128,0.16);padding:1px 5px;border-radius:5px;font-size:.9em">$1</code>');
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 function md(text: string) {
   const out: string[] = []; let list: "ul" | "ol" | null = null;
@@ -122,11 +123,11 @@ function md(text: string) {
     const line = raw.trimEnd();
     if (!line.trim()) { close(); continue; }
     const h = line.match(/^(#{1,4})\s+(.*)$/);
-    if (h) { close(); out.push(`<div style="font-weight:700;font-size:15px;margin:8px 0 4px">${inline(h[2])}</div>`); continue; }
+    if (h) { close(); out.push(`<h${Math.min(h[1].length + 2, 4)}>${inline(h[2])}</h${Math.min(h[1].length + 2, 4)}>`); continue; }
     const ul = line.match(/^\s*[-*•]\s+(.*)$/); const ol = line.match(/^\s*\d+[.)]\s+(.*)$/);
-    if (ul) { if (list !== "ul") { close(); out.push('<ul style="margin:4px 0 8px;padding-left:20px">'); list = "ul"; } out.push(`<li style="margin:3px 0">${inline(ul[1])}</li>`); continue; }
-    if (ol) { if (list !== "ol") { close(); out.push('<ol style="margin:4px 0 8px;padding-left:20px">'); list = "ol"; } out.push(`<li style="margin:3px 0">${inline(ol[1])}</li>`); continue; }
-    close(); out.push(`<p style="margin:0 0 8px;line-height:1.55">${inline(line)}</p>`);
+    if (ul) { if (list !== "ul") { close(); out.push("<ul>"); list = "ul"; } out.push(`<li>${inline(ul[1])}</li>`); continue; }
+    if (ol) { if (list !== "ol") { close(); out.push("<ol>"); list = "ol"; } out.push(`<li>${inline(ol[1])}</li>`); continue; }
+    close(); out.push(`<p>${inline(line)}</p>`);
   }
   close(); return out.join("");
 }
@@ -142,12 +143,80 @@ function isHeavy(a: PanelAttachment): boolean {
   return a.kind === "image" || Boolean(a.remoteParse);
 }
 
+/**
+ * Line icons.
+ *
+ * The screen used to speak in emoji — a paperclip, a globe, a speech bubble, a
+ * four-pointed star, an up arrow rendered as the character "↑". Emoji are drawn
+ * by the OS, so they arrived at the wrong weight and colour on every platform
+ * and made a working surface look like a chat sticker tray. These are stroked
+ * paths that inherit currentColor and sit on the text baseline.
+ */
+function Icon({ d, size = 16, fill = false }: { d: string; size?: number; fill?: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden
+      fill={fill ? "currentColor" : "none"} stroke={fill ? "none" : "currentColor"}
+      strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" style={{ display: "block", flexShrink: 0 }}>
+      <path d={d} />
+    </svg>
+  );
+}
+const P = {
+  clip: "M21.44 11.05 12.25 20.24a5.5 5.5 0 0 1-7.78-7.78l8.49-8.49a3.67 3.67 0 0 1 5.19 5.19l-8.49 8.48a1.83 1.83 0 0 1-2.6-2.59l7.78-7.78",
+  arrowUp: "M12 19V5M5 12l7-7 7 7",
+  globe: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18Z",
+  chat: "M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 21l1.9-4.6A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4Z",
+  sparkle: "M12 2.6c0 4.1 2.7 6.8 6.8 6.8-4.1 0-6.8 2.7-6.8 6.8 0-4.1-2.7-6.8-6.8-6.8 4.1 0 6.8-2.7 6.8-6.8Z",
+  sliders: "M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M7 16v4",
+  square: "M4 5h7v14H4zM13 5h7v14h-7z",
+  stop: "M6 6h12v12H6z",
+  close: "M6 6l12 12M18 6 6 18",
+  plus: "M12 5v14M5 12h14",
+  image: "M3 5h18v14H3zM3 15l5-5 4 4 3-3 6 6",
+  doc: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5",
+  book: "M4 4h9a3 3 0 0 1 3 3v13a2.5 2.5 0 0 0-2.5-2.5H4zM20 4h-1a3 3 0 0 0-3 3v13a2.5 2.5 0 0 1 2.5-2.5H20z",
+};
+
+/**
+ * A capped scroll box that admits what it is hiding.
+ *
+ * Long answers scroll inside their card so one essay does not stretch the row
+ * past a two-line answer beside it. A plain `overflow: auto` cuts the last
+ * visible line in half and looks like a rendering fault, so the bottom is
+ * faded — but only while there is genuinely more below. A fade applied
+ * unconditionally would grey out the final line of a short answer that fits,
+ * which is the same lie in the other direction, so this measures instead of
+ * assuming and drops the fade once you have scrolled to the end.
+ */
+function Scroller({ maxHeight, children }: { maxHeight: number | string; children: React.ReactNode }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    const el = boxRef.current;
+    const inner = innerRef.current;
+    if (!el || !inner) return;
+    const update = () => setMore(el.scrollHeight - el.clientHeight - el.scrollTop > 8);
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    // Watch the content, not the box: the box's height is pinned by maxHeight,
+    // so it does not resize when an answer streams in underneath it.
+    const ro = new ResizeObserver(update);
+    ro.observe(inner);
+    ro.observe(el);
+    return () => { el.removeEventListener("scroll", update); ro.disconnect(); };
+  }, []);
+  return (
+    <div ref={boxRef} className={`pc-scroll${more ? "" : " pc-scroll--end"}`} style={{ maxHeight }}>
+      <div ref={innerRef}>{children}</div>
+    </div>
+  );
+}
+
 /** Icon for an attachment chip, by kind. */
-function fileIcon(kind: PanelAttachment["kind"]): string {
-  if (kind === "image") return "🖼";
-  if (kind === "pdf") return "📕";
-  if (kind === "docx") return "📘";
-  return "📄";
+function FileIcon({ kind }: { kind: PanelAttachment["kind"] }) {
+  const d = kind === "image" ? P.image : kind === "pdf" || kind === "docx" ? P.book : P.doc;
+  return <Icon d={d} size={14} />;
 }
 
 /**
@@ -780,24 +849,23 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   }
 
   return (
-    <div>
+    <div className="pc">
       {!connected && (
-        <div className="ios-list" style={{ margin: "0 0 10px", padding: 14 }}>
-          <div className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}>
+        <div className="pc-sheet">
+          <div className="pc-note">
             Add an <strong>OPENROUTER_API_KEY</strong> to enable the panel. Get one at openrouter.ai.
           </div>
         </div>
       )}
 
-
-      {err && <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", marginTop: 12 }}>{err}</div>}
+      {err && <div className="pc-sheet pc-alert"><div className="pc-note" style={{ color: "var(--pc-text)" }}>{err}</div></div>}
 
       {restored && thread && !busy && (
-        <div className="ios-list" style={{ margin: "16px 0 0", padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span className="ios-caption" style={{ color: "var(--ios-label-2)", flex: 1, minWidth: 140 }}>
+        <div className="pc-sheet" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "11px 16px" }}>
+          <span className="pc-note" style={{ flex: 1, minWidth: 140 }}>
             Saved conversation from {ago(thread.at)} · no new cost
           </span>
-          <button onClick={newThread} className="ios-caption" style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "5px 2px" }}>New thread</button>
+          <button onClick={newThread} className="pc-btn">New chat</button>
         </div>
       )}
 
@@ -807,89 +875,102 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
           same path as a finished one, gaining placeholders for the models it is
           still waiting on. */}
       {[...(thread?.turns ?? []), ...(liveTurn ? [liveTurn] : [])].map((turn, idx, allTurns) => {
-        const position = idx + 1; // 1 = the opening question
         const isLive = liveTurn != null && idx === allTurns.length - 1 && turn.at === liveTurn.at;
         const answered = new Set((turn.results ?? []).map((r) => r.model));
         const pending = isLive ? selected.filter((m) => !answered.has(m)) : [];
         const isCollapsed = collapsed.has(turn.at);
         const hasBody = Boolean(turn.synthesis || (turn.results && turn.results.length));
         return (
-          <div key={turn.at}>
-            <div className="ios-group-header" style={{ padding: "18px 0 7px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-              <span>{position === 1 ? "QUESTION" : `FOLLOW-UP ${position - 1}`} · {ago(turn.at)}</span>
+          <div key={turn.at} className="pc-turn">
+            {/* The question, set the way Claude sets a user message: a warm
+                block against the right edge, so the eye can find where each
+                exchange starts without a rule labelled "FOLLOW-UP 2" across
+                the page. */}
+            <div className="pc-user-row">
+              <div className="pc-user">
+                <span style={{ whiteSpace: "pre-wrap" }}>{turn.q}</span>
+                {turn.files && turn.files.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                    {turn.files.map((name) => (
+                      <span key={name} className="pc-chip" style={{ background: "var(--pc-sand-2)" }}>
+                        <Icon d={P.clip} size={13} />
+                        <span className="pc-chip-name">{name}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "14px 0 2px" }}>
+              <span className="pc-meta">{ago(turn.at)}</span>
+              <span style={{ flex: 1 }} />
               {hasBody && (
-                <button onClick={() => toggleCollapse(turn.at)} className="ios-caption"
-                  style={{ color: "var(--ios-tint)", background: "none", border: "none", cursor: "pointer", fontWeight: 700, textTransform: "none", letterSpacing: 0 }}>
+                <button onClick={() => toggleCollapse(turn.at)} className="pc-link">
                   {isCollapsed ? "Show answers" : "Hide"}
                 </button>
               )}
             </div>
-            <div className="ios-list" style={{ margin: 0, padding: "10px 14px" }}>
-              <div className="ios-subhead" style={{ color: "var(--ios-label)", whiteSpace: "pre-wrap" }}>{turn.q}</div>
-              {turn.files && turn.files.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 8 }}>
-                  {turn.files.map((name) => (
-                    <span key={name} className="ios-caption"
-                      style={{ background: "var(--ios-fill)", borderRadius: 6, padding: "3px 7px", color: "var(--ios-label-2)", maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      📎 {name}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {turn.skippedVision && turn.skippedVision.length > 0 && (
-                <div className="ios-caption" style={{ color: "var(--ios-orange, #D9772B)", marginTop: 7, lineHeight: 1.45 }}>
-                  {turn.skippedVision.map((m) => META(m).label).join(", ")} can&rsquo;t see images — {turn.skippedVision.length === 1 ? "it answered" : "they answered"} from the text alone.
-                </div>
-              )}
-            </div>
+
+            {turn.skippedVision && turn.skippedVision.length > 0 && (
+              <div className="pc-note" style={{ color: "var(--pc-accent)", margin: "2px 0 6px" }}>
+                {turn.skippedVision.map((m) => META(m).label).join(", ")} can&rsquo;t see images — {turn.skippedVision.length === 1 ? "it answered" : "they answered"} from the text alone.
+              </div>
+            )}
 
             {!isCollapsed && turn.synthesis && (
-              <div className="ios-list" style={{ margin: "10px 0 8px", padding: 16, border: "1.5px solid var(--ios-tint)" }}>
-                <div className="ios-caption" style={{ color: "var(--ios-tint)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 8 }}>✦ Synthesized answer</div>
-                <div className="ios-subhead" style={{ color: "var(--ios-label)", maxHeight: "min(60vh, 560px)", overflowY: "auto", overscrollBehavior: "contain" }} dangerouslySetInnerHTML={{ __html: md(turn.synthesis) }} />
+              <div className="pc-synth">
+                <div className="pc-synth-h"><Icon d={P.sparkle} size={14} fill /> Merged answer</div>
+                <Scroller maxHeight="min(64vh, 620px)">
+                  <div className="pc-prose" dangerouslySetInnerHTML={{ __html: md(turn.synthesis) }} />
+                </Scroller>
                 <ExportBar content={turn.synthesis} title={turn.q} cost={turn.synthCost} exporting={exporting} onExport={exportAs} />
               </div>
             )}
 
             {!isCollapsed && ((turn.results && turn.results.length > 0) || pending.length > 0) && (
               <>
-                <div className="ios-group-header" style={{ padding: "12px 0 7px" }}>
-                  ANSWERS{pending.length > 0 ? ` · ${answered.size} of ${answered.size + pending.length} in` : ""}
+                <div className="pc-meta" style={{ padding: "4px 0 10px" }}>
+                  {pending.length > 0
+                    ? `${answered.size} of ${answered.size + pending.length} in`
+                    : `${answered.size} answer${answered.size === 1 ? "" : "s"}`}
                 </div>
                 {/* A grid, not a carousel. The whole point of the panel is reading
                     answers against each other; the old 84%-wide snap track showed
                     exactly one at a time on every screen, so a wide display was no
                     more useful than a phone. auto-fit gives one column on a phone,
                     two on a tablet, three or four on a desktop. */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 290px), 1fr))", gap: 12, alignItems: "start" }}>
+                <div className="pc-cards">
                   {(turn.results ?? []).map((r) => {
                     const m = META(r.model);
                     return (
-                      <div key={r.model} className="ios-list" style={{ margin: 0, padding: 16, display: "flex", flexDirection: "column", minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-                          <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color, flexShrink: 0 }} />
-                          <span className="ios-headline" style={{ fontSize: 15 }}>{m.label}</span>
+                      <div key={r.model} className="pc-card">
+                        <div className="pc-card-h">
+                          <span className="pc-dot" style={{ background: m.color }} />
+                          <span className="pc-card-name">{m.label}</span>
                           {r.served && r.served !== r.model && (
-                            <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>via {metaOf(r.served, newest).label}</span>
+                            <span className="pc-via">via {metaOf(r.served, newest).label}</span>
                           )}
                         </div>
                         {r.error
-                          ? <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", lineHeight: 1.5 }}>Couldn&apos;t answer: {r.error}</div>
+                          ? <div className="pc-note" style={{ color: "var(--pc-accent)" }}>Couldn&apos;t answer: {r.error}</div>
                           : <>
                               {/* Long answers scroll inside the card so a wall of text
-                                  doesn't stretch the row past the short ones. */}
-                              <div style={{ maxHeight: "min(58vh, 520px)", overflowY: "auto", overscrollBehavior: "contain", marginRight: -6, paddingRight: 6 }}>
-                                <div className="ios-subhead" style={{ color: "var(--ios-label)", fontSize: 14.5 }} dangerouslySetInnerHTML={{ __html: md(r.answer) }} />
+                                  doesn't stretch the row past the short ones. The clip
+                                  is now faded rather than cut, so it reads as "more
+                                  below" instead of a sentence ending mid-word. */}
+                              <Scroller maxHeight="min(62vh, 560px)">
+                                <div className="pc-prose" dangerouslySetInnerHTML={{ __html: md(r.answer) }} />
                                 {r.citations && r.citations.length > 0 && <Sources items={r.citations} />}
                                 {r.reaction && (
-                                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: `2px solid ${m.color}` }}>
-                                    <div className="ios-caption" style={{ color: m.color, textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 6 }}>
-                                      ⇄ On the other answers
+                                  <div className="pc-reaction">
+                                    <div className="pc-reaction-h" style={{ color: m.color }}>
+                                      <Icon d={P.chat} size={13} /> On the other answers
                                     </div>
-                                    <div className="ios-subhead" style={{ color: "var(--ios-label-2)", fontSize: 14 }} dangerouslySetInnerHTML={{ __html: md(r.reaction) }} />
+                                    <div className="pc-prose" style={{ color: "var(--pc-text-2)", fontSize: 15 }} dangerouslySetInnerHTML={{ __html: md(r.reaction) }} />
                                   </div>
                                 )}
-                              </div>
+                              </Scroller>
                               <ExportBar content={r.reaction ? `${r.answer}\n\n## On the other answers\n${r.reaction}` : r.answer} title={`${m.label} — ${turn.q}`} cost={(r.cost ?? 0) + (r.reactionCost ?? 0) || r.cost} exporting={exporting} onExport={exportAs} /></>}
                       </div>
                     );
@@ -900,16 +981,15 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
                   {pending.map((id) => {
                     const m = META(id);
                     return (
-                      <div key={`pending-${id}`} className="ios-list"
-                        style={{ margin: 0, padding: 16, display: "flex", flexDirection: "column", minWidth: 0, opacity: 0.7 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                          <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color, flexShrink: 0 }} />
-                          <span className="ios-headline" style={{ fontSize: 15 }}>{m.label}</span>
+                      <div key={`pending-${id}`} className="pc-card pc-card--pending">
+                        <div className="pc-card-h">
+                          <span className="pc-dot" style={{ background: m.color }} />
+                          <span className="pc-card-name">{m.label}</span>
                         </div>
-                        <div className="ios-caption ios-pending" style={{ color: "var(--ios-label-3)" }}>Thinking…</div>
-                        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 7 }}>
+                        <div className="pc-meta pc-pulse">Thinking…</div>
+                        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
                           {[92, 78, 85, 61].map((w, i) => (
-                            <div key={i} className="ios-pending" style={{ height: 9, width: `${w}%`, borderRadius: 4, background: "var(--ios-fill)" }} />
+                            <div key={i} className="pc-skel pc-pulse" style={{ width: `${w}%`, animationDelay: `${i * 0.12}s` }} />
                           ))}
                         </div>
                       </div>
@@ -935,111 +1015,92 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
           the answers it was supposed to sit beneath. Everything that isn't
           "type and send" now lives behind Options. `bottom` clears the fixed
           tab bar (50px + the home-indicator inset). */}
-      <div
-        style={{
-          position: "sticky",
-          bottom: "calc(50px + env(safe-area-inset-bottom, 0px))",
-          zIndex: 50,
-          marginTop: 16,
-          paddingTop: 8,
-          background: "var(--ios-bg)",
-          borderTop: "0.5px solid var(--ios-separator)",
-        }}
-      >
+      <div className="pc-composer-wrap">
         {/* The one interruption left. A ceiling on real spend replaces the old
             per-model rate gate: nobody wants to reason about $/M, they want to
             know this session cannot run away. Never folded behind Options. */}
         {overBudget && !busy && (
-          <div className="ios-list" style={{ margin: "0 0 8px", padding: 12, border: "1.5px solid var(--ios-orange, #D9772B)" }}>
-            <div className="ios-subhead" style={{ color: "var(--ios-label)", fontWeight: 700, marginBottom: 5 }}>That would pass your session limit</div>
-            <div className="ios-caption" style={{ color: "var(--ios-label-2)", lineHeight: 1.45, marginBottom: 10 }}>
-              You&rsquo;ve spent <strong style={{ color: "var(--ios-label)" }}>{fmtCost(sessionCost)}</strong> of{" "}
-              <strong style={{ color: "var(--ios-label)" }}>{fmtCost(budget)}</strong>, and this run is estimated at about{" "}
-              <strong style={{ color: "var(--ios-label)" }}>{fmtCost(estCost)}</strong>.
+          <div className="pc-sheet pc-alert">
+            <div className="pc-alert-title">That would pass your session limit</div>
+            <div className="pc-note" style={{ marginBottom: 12 }}>
+              You&rsquo;ve spent <strong style={{ color: "var(--pc-text)" }}>{fmtCost(sessionCost)}</strong> of{" "}
+              <strong style={{ color: "var(--pc-text)" }}>{fmtCost(budget)}</strong>, and this run is estimated at about{" "}
+              <strong style={{ color: "var(--pc-text)" }}>{fmtCost(estCost)}</strong>.
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button onClick={() => { setBudget((b: number) => b + 5); setOverBudget(false); run(); }}
-                className="ios-btn ios-btn--primary" style={{ flex: 1, minWidth: 150 }}>
+              <button onClick={() => { setBudget((b: number) => b + 5); setOverBudget(false); run(); }} className="pc-btn pc-btn--accent">
                 Add $5 and ask
               </button>
-              <button onClick={() => setOverBudget(false)} className="ios-caption"
-                style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 10, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "8px 14px" }}>
-                Not now
-              </button>
+              <button onClick={() => setOverBudget(false)} className="pc-btn">Not now</button>
             </div>
           </div>
         )}
 
         {/* Options — everything that used to be stacked in the bar. */}
         {optionsOpen && (
-          <div className="ios-list" style={{ margin: "0 0 8px", padding: "12px 14px", maxHeight: "45vh", overflowY: "auto" }}>
+          <div className="pc-sheet" style={{ maxHeight: "45vh", overflowY: "auto" }}>
             {thread && (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-                <span className="ios-caption" style={{ color: "var(--ios-label-2)", flex: 1, minWidth: 150, lineHeight: 1.4 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+                <span className="pc-note" style={{ flex: 1, minWidth: 150 }}>
                   In conversation · the panel remembers {thread.turns.length} earlier question{thread.turns.length === 1 ? "" : "s"}
                 </span>
-                <button onClick={() => { newThread(); setOptionsOpen(false); }} className="ios-caption"
-                  style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "5px 10px", flexShrink: 0 }}>
-                  New thread
-                </button>
+                <button onClick={() => { newThread(); setOptionsOpen(false); }} className="pc-btn">New chat</button>
               </div>
             )}
 
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <button onClick={() => { setPanelOpen(true); setOptionsOpen(false); }} className="ios-caption"
-                style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "6px 10px" }}>
-                Change panel
+              <button onClick={() => { setPanelOpen(true); setOptionsOpen(false); }} className="pc-btn">
+                <Icon d={P.square} size={14} /> Change panel
               </button>
-              <button onClick={openLibrary} disabled={attachBusy} className="ios-caption"
-                style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "6px 10px" }}>
-                Attach from Morris Hub
+              <button onClick={openLibrary} disabled={attachBusy} className="pc-btn">
+                <Icon d={P.doc} size={14} /> Attach from Morris Hub
               </button>
               {attachments.length > 0 && (
-                <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>
-                  {describeAttachments(attachments)} · sent every turn
-                </span>
+                <span className="pc-meta">{describeAttachments(attachments)} · sent every turn</span>
               )}
             </div>
-            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6, lineHeight: 1.45 }}>
+            <div className="pc-note" style={{ marginTop: 9, color: "var(--pc-text-3)" }}>
               Up to {MAX_ATTACHMENTS} files, 10MB each — or 2.5MB for a scan that needs reading by OCR.
               {attachmentTokens > 0 && <> Attached text adds about {attachmentTokens.toLocaleString()} tokens to every model, every turn.</>}
             </div>
 
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, cursor: "pointer" }}>
-              <input type="checkbox" checked={web} onChange={(e) => setWeb(e.target.checked)} style={{ width: 18, height: 18 }} />
-              <span className="ios-subhead">🌐 Live web — ground answers in current search results</span>
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, cursor: "pointer" }}>
-              <input type="checkbox" checked={debate} onChange={(e) => setDebate(e.target.checked)} style={{ width: 18, height: 18 }} />
-              <span className="ios-subhead">💬 Let the models respond to each other <span style={{ color: "var(--ios-label-3)" }}>— a second round, so roughly double the cost</span></span>
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, cursor: "pointer" }}>
-              <input type="checkbox" checked={synthesize} onChange={(e) => setSynthesize(e.target.checked)} style={{ width: 18, height: 18 }} />
-              <span className="ios-subhead">Synthesize into one merged answer</span>
-            </label>
+            <div style={{ marginTop: 12, borderTop: "1px solid var(--pc-line)", paddingTop: 4 }}>
+              <label className="pc-check">
+                <input type="checkbox" checked={web} onChange={(e) => setWeb(e.target.checked)} />
+                <span>Live web <em>— ground answers in current search results</em></span>
+              </label>
+              <label className="pc-check">
+                <input type="checkbox" checked={debate} onChange={(e) => setDebate(e.target.checked)} />
+                <span>Let the models respond to each other <em>— a second round, so roughly double the cost</em></span>
+              </label>
+              <label className="pc-check">
+                <input type="checkbox" checked={synthesize} onChange={(e) => setSynthesize(e.target.checked)} />
+                <span>Merge into one answer</span>
+              </label>
+            </div>
 
             {/* One place for money. This used to be six separate warnings —
                 estimate, rate gate, per-answer, session total, OCR per page and
                 a per-turn token note — which made every question read as a
                 purchase. A ceiling set once does the protecting instead. */}
-            <div style={{ marginTop: 14, paddingTop: 12, borderTop: "0.5px solid var(--ios-separator)" }}>
+            <div style={{ marginTop: 14, paddingTop: 13, borderTop: "1px solid var(--pc-line)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span className="ios-subhead" style={{ flex: 1, minWidth: 140 }}>
+                <span style={{ flex: 1, minWidth: 140, fontSize: 14.5 }}>
                   Spent <strong>{fmtCost(sessionCost)}</strong> of{" "}
                   <strong>{fmtCost(budget)}</strong> this session
                 </span>
-                <label className="ios-caption" style={{ display: "flex", alignItems: "center", gap: 5, color: "var(--ios-label-2)" }}>
+                <label className="pc-meta" style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   Limit $
                   <input
-                    type="number" min={0} step={1} value={budget}
+                    type="number" min={0} step={1} value={budget} className="pc-field"
                     onChange={(e) => { const n = parseFloat(e.target.value); setBudget(Number.isFinite(n) && n >= 0 ? n : 0); setOverBudget(false); }}
-                    style={{ width: 62, background: "var(--ios-fill)", border: "none", borderRadius: 8, padding: "5px 8px", color: "var(--ios-label)", fontSize: 15 }}
+                    style={{ width: 66 }}
                   />
                 </label>
               </div>
-              <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6, lineHeight: 1.45 }}>
+              <div className="pc-note" style={{ color: "var(--pc-text-3)", marginTop: 8 }}>
                 {estCost > 0
-                  ? <>This run is about <strong style={{ color: "var(--ios-label-2)" }}>{fmtCost(estCost)}</strong>{hasUnpriced ? ", plus Auto (varies)" : ""}. </>
+                  ? <>This run is about <strong style={{ color: "var(--pc-text-2)" }}>{fmtCost(estCost)}</strong>{hasUnpriced ? ", plus Auto (varies)" : ""}. </>
                   : hasUnpriced ? <>Auto Router&rsquo;s price depends on the model it picks. </> : null}
                 Set the limit to 0 to turn the ceiling off.
               </div>
@@ -1047,26 +1108,39 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
           </div>
         )}
 
-        <div className="ios-list" style={{ margin: 0, padding: "8px 10px" }}>
-          {/* Attached files — chips stay put across follow-ups. */}
+        {/* ── The composer ────────────────────────────────────────────────
+            One box. The attachments, the text and every control that acts on
+            them live inside the same rounded, bordered, slightly raised
+            container, the way Claude's does — instead of a thin grey pill with
+            a row of loose blue links floating underneath it. The border is the
+            only strong line on the screen, which is what makes the composer
+            read as the thing you act with. */}
+        <div
+          className={`pc-composer${dragging ? " pc-composer--drag" : ""}`}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files); }}
+        >
+          {/* Attached files — chips stay put across follow-ups, and now sit
+              inside the box with the text they belong to. */}
           {attachments.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 7 }}>
+            <div className="pc-chips">
               {attachments.map((a) => (
-                <span key={a.id} className="ios-caption"
-                  style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--ios-fill)", borderRadius: 8, padding: "4px 6px 4px 8px", maxWidth: "100%" }}>
-                  <span aria-hidden>{fileIcon(a.kind)}</span>
+                <span key={a.id} className="pc-chip">
+                  <FileIcon kind={a.kind} />
                   {a.text ? (
                     <button onClick={() => setPreviewFile(a)}
                       title={`See what was read out of ${a.name}`}
-                      style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--ios-label)", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120, textDecoration: "underline", textDecorationColor: "var(--ios-separator)", textUnderlineOffset: 2 }}>
+                      className="pc-chip-name"
+                      style={{ color: "var(--pc-text)", textDecoration: "underline", textDecorationColor: "var(--pc-line-2)", textUnderlineOffset: 2 }}>
                       {a.name}
                     </button>
                   ) : (
-                    <span style={{ color: "var(--ios-label)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>{a.name}</span>
+                    <span className="pc-chip-name" style={{ color: "var(--pc-text)" }}>{a.name}</span>
                   )}
                   {(a.remoteParse || a.ocrDone) && (
                     <span
-                      style={{ color: a.ocrDone ? "var(--ios-green)" : "var(--ios-orange, #D9772B)" }}
+                      style={{ color: a.ocrDone ? "var(--pc-text-3)" : "var(--pc-accent)", fontSize: 11.5, fontWeight: 600 }}
                       title={a.ocrDone
                         ? "Read by OCR — the text is held here now, so follow-ups cost nothing extra"
                         : `No text layer — a scan, or a form whose values were never drawn onto the page. It'll be read by OCR${a.pages ? ` (${a.pages} page${a.pages === 1 ? "" : "s"})` : ""}.`}
@@ -1074,125 +1148,133 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
                       {a.ocrDone ? "OCR ✓" : "OCR"}
                     </span>
                   )}
-                  {a.truncated && <span style={{ color: "var(--ios-orange, #D9772B)" }} title="Only the beginning of this file was read">clipped</span>}
-                  <button onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.name}`}
-                    style={{ background: "none", border: "none", color: "var(--ios-label-3)", cursor: "pointer", fontSize: 15, lineHeight: 1, padding: "0 2px" }}>×</button>
+                  {a.truncated && <span style={{ color: "var(--pc-accent)", fontSize: 11.5 }} title="Only the beginning of this file was read">clipped</span>}
+                  <button onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.name}`} className="pc-chip-x">
+                    <Icon d={P.close} size={11} />
+                  </button>
                 </span>
               ))}
             </div>
           )}
-          {attachErr && <div className="ios-footnote" style={{ color: "var(--ios-red, #FF3B30)", marginBottom: 6, lineHeight: 1.45 }}>{attachErr}</div>}
+          {attachErr && <div className="pc-note" style={{ color: "var(--pc-accent)", marginBottom: 8 }}>{attachErr}</div>}
 
-          {/* The bar itself: attach · type · send. One row, always. */}
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files); }}
-            style={{ display: "flex", alignItems: "flex-end", gap: 7, borderRadius: 12, outline: dragging ? "2px dashed var(--ios-tint)" : "none", outlineOffset: 3 }}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept=".pdf,.docx,.doc,.txt,.md,.csv,.tsv,.json,.yaml,.yml,.xml,.html,.log,.ts,.tsx,.js,.jsx,.py,.rb,.go,.java,.sql,.sh,.css,image/*"
-              onChange={(e) => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; }}
-              style={{ display: "none" }}
-            />
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.docx,.doc,.txt,.md,.csv,.tsv,.json,.yaml,.yml,.xml,.html,.log,.ts,.tsx,.js,.jsx,.py,.rb,.go,.java,.sql,.sh,.css,image/*"
+            onChange={(e) => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; }}
+            style={{ display: "none" }}
+          />
+
+          <textarea
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter sends, Shift+Enter makes a newline — the chat convention.
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            placeholder={dragging
+              ? "Drop to attach…"
+              : thread
+              ? "Reply to the panel…"
+              : "How can the panel help you today?"}
+            rows={1}
+            className="pc-ta"
+            style={{ height: "auto" }}
+            onInput={(e) => {
+              // Grow with the text, up to the max-height the stylesheet sets.
+              const el = e.currentTarget;
+              el.style.height = "auto";
+              el.style.height = `${el.scrollHeight}px`;
+            }}
+          />
+
+          {/* Controls, inside the box: what acts on the message sits with it. */}
+          <div className="pc-composer-bar">
             <button onClick={() => fileInputRef.current?.click()} disabled={attachBusy}
-              aria-label="Attach a file" title="Attach a file"
-              style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 17, background: "var(--ios-fill)", border: "none", color: "var(--ios-tint)", fontSize: 15, cursor: attachBusy ? "wait" : "pointer", lineHeight: 1 }}>
-              {attachBusy ? "…" : "📎"}
+              className="pc-icon-btn" aria-label="Attach a file" title="Attach a file">
+              {attachBusy ? <span className="pc-pulse" style={{ fontSize: 13 }}>···</span> : <Icon d={P.clip} size={17} />}
             </button>
 
-            <textarea
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={(e) => {
-                // Enter sends, Shift+Enter makes a newline — the chat convention.
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  submit();
-                }
-              }}
-              placeholder={dragging
-                ? "Drop to attach…"
-                : thread
-                ? "Ask a follow-up…"
-                : "Ask the panel anything…"}
-              rows={1}
-              style={{ flex: 1, minWidth: 0, background: "var(--ios-fill)", border: "none", borderRadius: 17, padding: "8px 13px", fontSize: 16, lineHeight: 1.35, color: "var(--ios-label)", resize: "none", fontFamily: "inherit", maxHeight: 110, overflowY: "auto" }}
-            />
+            <button onClick={() => setOptionsOpen((v) => !v)} aria-expanded={optionsOpen}
+              className={`pc-tag${anyOptionOn ? " pc-tag--on" : ""}`} title="Web, debate, merge and the spend limit">
+              <Icon d={P.sliders} size={14} />
+              {/* On a phone the label goes and the icon carries it — truncating
+                  "Web · Merge" to "Web · M…" says less than the icon does. */}
+              <span className="pc-hide-sm" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {anyOptionOn
+                  ? [web && "Web", debate && "Debate", synthesize && "Merge"].filter(Boolean).join(" · ")
+                  : "Options"}
+              </span>
+            </button>
 
-            <button onClick={() => submit()} disabled={busy || !question.trim() || selected.length === 0}
-              aria-label="Ask the panel"
-              title={`Ask ${selected.length} model${selected.length === 1 ? "" : "s"}`}
-              style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 17, background: "var(--ios-tint)", border: "none", color: "var(--ios-on-tint)", fontSize: 16, fontWeight: 700, cursor: "pointer", opacity: busy || !question.trim() || selected.length === 0 ? 0.4 : 1, lineHeight: 1 }}>
-              {busy ? "…" : "↑"}
+            {/* Which models answer — named where you are about to ask them. */}
+            <button onClick={() => setPanelOpen(true)} className="pc-tag" title="Choose which models answer">
+              <span className="pc-tag-dots">
+                {selected.slice(0, 4).map((id) => (
+                  <i key={id} style={{ background: META(id).color }} />
+                ))}
+              </span>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {selected.length}<span className="pc-hide-sm"> model{selected.length === 1 ? "" : "s"}</span>
+              </span>
             </button>
-          </div>
 
-          {/* One quiet line: what's on, what it'll cost, and the way to change it. */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-            <button onClick={() => setOptionsOpen((v) => !v)} className="ios-caption"
-              aria-expanded={optionsOpen}
-              style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "2px 0", flexShrink: 0 }}>
-              Options {optionsOpen ? "▾" : "▸"}
-            </button>
-            {/* The panel is named here and tappable, so "which models" is one
-                tap away rather than a screen of pickers before you can type. */}
-            <button onClick={() => setPanelOpen(true)} className="ios-caption"
-              style={{ background: "none", border: "none", color: "var(--ios-label-2)", cursor: "pointer", padding: "2px 0", flexShrink: 0, fontWeight: 600 }}>
-              {selected.length} model{selected.length === 1 ? "" : "s"}
-            </button>
-            <span className="ios-caption" style={{ color: "var(--ios-label-3)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {/* When nothing is switched on, name what's available rather than
-                  leaving the row blank — otherwise the reaction round, the one
-                  thing a single chat app can't do, is invisible. */}
-              {anyOptionOn
-                ? `${web ? " · web" : ""}${debate ? " · debate" : ""}${synthesize ? " · synthesis" : ""}`.replace(/^ · /, "")
-                : "web · debate · synthesis"}
-              {thread ? ` · ${thread.turns.length} asked` : ""}
-              {estCost > 0 ? ` · ~${fmtCost(estCost)}` : ""}
-            </span>
-            {busy && (
-              <button onClick={() => abortRef.current?.abort()} className="ios-caption"
-                style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
-                Stop
+            <span className="pc-spacer" />
+
+            {estCost > 0 && !busy && (
+              <span className="pc-meta" style={{ whiteSpace: "nowrap" }}>~{fmtCost(estCost)}</span>
+            )}
+
+            {busy ? (
+              <button onClick={() => abortRef.current?.abort()} className="pc-send" aria-label="Stop" title="Stop">
+                <Icon d={P.stop} size={13} fill />
+              </button>
+            ) : (
+              <button onClick={() => submit()} disabled={!question.trim() || selected.length === 0}
+                className="pc-send" aria-label="Ask the panel"
+                title={`Ask ${selected.length} model${selected.length === 1 ? "" : "s"}`}>
+                <Icon d={P.arrowUp} size={17} />
               </button>
             )}
           </div>
         </div>
       </div>
 
-
       {!busy && threads.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <div className="ios-group-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0 7px" }}>
-            <span>RECENT · conversations saved</span>
-            <button onClick={() => { fetch("/api/ask/compare/threads", { method: "DELETE" }).catch(() => {}); persistThreads([]); newThread(); }} className="ios-caption" style={{ color: "var(--ios-tint)", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>Clear all</button>
+        <div style={{ marginTop: 22 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 2px 9px" }}>
+            <span className="pc-meta">Recents</span>
+            <button onClick={() => { fetch("/api/ask/compare/threads", { method: "DELETE" }).catch(() => {}); persistThreads([]); newThread(); }} className="pc-link">Clear all</button>
           </div>
-          <div className="ios-list" style={{ margin: 0 }}>
-            {threads.map((t, i) => {
+          <div className="pc-recents">
+            {threads.map((t) => {
               const answers = t.turns.reduce((n, x) => n + (x.results?.filter((r) => r.answer && !r.error).length ?? 0), 0);
               const cost = t.turns.reduce((n, x) => n + (x.cost ?? 0), 0);
               const qs = t.turns.length;
               return (
-                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: i < threads.length - 1 ? "1px solid var(--ios-separator)" : "none", background: thread?.id === t.id ? "var(--ios-fill)" : "transparent" }}>
+                <div key={t.id} className={`pc-recent${thread?.id === t.id ? " pc-recent--on" : ""}`}>
                   <button onClick={() => open(t)} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
-                    <div style={{ color: "var(--ios-label)", fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.turns[0].q}</div>
-                    <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 2 }}>
+                    <div className="pc-recent-q">{t.turns[0].q}</div>
+                    <div className="pc-recent-sub">
                       {answers
                         ? `${qs} question${qs === 1 ? "" : "s"} · ${answers} saved answer${answers === 1 ? "" : "s"} · ${ago(t.at)}${cost > 0 ? ` · ${fmtCost(cost)}` : ""}`
                         : "tap to ask again"}
                     </div>
                   </button>
                   {answers > 0 && (
-                    <button onClick={() => submit(t.turns[t.turns.length - 1].q, true)} aria-label="Ask again in a new thread" title="Ask again in a new thread (runs the models, costs money)"
-                      style={{ background: "none", border: "1px solid var(--ios-separator)", borderRadius: 8, color: "var(--ios-tint)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "5px 9px", flexShrink: 0 }}>
+                    <button onClick={() => submit(t.turns[t.turns.length - 1].q, true)} className="pc-btn"
+                      aria-label="Ask again in a new chat" title="Ask again in a new chat (runs the models, costs money)">
                       Re-ask
                     </button>
                   )}
-                  <button onClick={() => removeThread(t.id)} aria-label="Remove conversation" style={{ background: "none", border: "none", color: "var(--ios-label-3)", fontSize: 19, lineHeight: 1, cursor: "pointer", padding: "0 4px", flexShrink: 0 }}>×</button>
+                  <button onClick={() => removeThread(t.id)} aria-label="Remove conversation" className="pc-icon-btn" style={{ width: 26, height: 26 }}>
+                    <Icon d={P.close} size={13} />
+                  </button>
                 </div>
               );
             })}
@@ -1210,25 +1292,26 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
           aria-modal="true"
           aria-label="Choose the panel"
           onClick={() => setPanelOpen(false)}
-          style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          className="pc pc-scrim"
+          style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--ios-bg)", borderRadius: "16px 16px 0 0", width: "100%", maxWidth: 640, maxHeight: "82vh", overflowY: "auto", padding: "16px 16px calc(20px + env(safe-area-inset-bottom, 0px))" }}
+            className="pc-modal"
+            style={{ width: "100%", maxWidth: 640, maxHeight: "82vh", overflowY: "auto", padding: "18px 18px calc(22px + env(safe-area-inset-bottom, 0px))" }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <span className="ios-headline">Choose the panel</span>
-              <button onClick={() => setPanelOpen(false)} className="ios-caption"
-                style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer" }}>Done</button>
+              <span className="pc-sheet-title">Choose the panel</span>
+              <button onClick={() => setPanelOpen(false)} className="pc-btn">Done</button>
             </div>
             {/* Limits stated where they apply, rather than discovered by hitting them. */}
-            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginBottom: 12, lineHeight: 1.45 }}>
+            <div className="pc-meta" style={{ color: "var(--pc-text-3)", marginBottom: 12, lineHeight: 1.45 }}>
               Up to four models at once, and twelve runs a minute. More models means a
               broader spread of views, a longer wait and a bigger bill.
             </div>
 
         {/* Model picker */}
-        <div className="ios-group-header" style={{ padding: "4px 0 7px" }}>PANEL · pick up to 4</div>
+        <div className="pc-meta" style={{ padding: "2px 0 9px" }}>Pick up to 4</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
           {ALL.map((m) => {
             const on = selected.includes(m.id);
@@ -1237,8 +1320,8 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
               <button key={m.id} onClick={() => toggle(m.id)}
                 title={m.id === AUTO_MODEL ? "OpenRouter picks the best model for each question" : `${m.id}${rateLabel(rates[m.id]) ? ` · ${rateLabel(rates[m.id])} out` : ""}`}
                 style={{ padding: "7px 13px", borderRadius: 999, fontSize: 14, fontWeight: 600, cursor: "pointer",
-                  border: `1px solid ${on ? "transparent" : "var(--ios-separator)"}`,
-                  background: on ? m.color : "transparent", color: on ? "#fff" : "var(--ios-label)" }}>
+                  border: `1px solid ${on ? "transparent" : "var(--pc-line)"}`,
+                  background: on ? m.color : "transparent", color: on ? "#fff" : "var(--pc-text)" }}>
                 {m.id === AUTO_MODEL ? "✨ " : LIVE_IDS.has(m.id) ? "🌐 " : ""}{m.label}
                 {premium && <span style={{ opacity: 0.75, fontWeight: 600 }}> · {rateLabel(rates[m.id])}</span>}
               </button>
@@ -1254,8 +1337,8 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
               return (
                 <button key={m.id} onClick={() => toggle(m.id)} title={m.id}
                   style={{ padding: "7px 13px", borderRadius: 999, fontSize: 14, fontWeight: 600, cursor: "pointer",
-                    border: `1px solid ${on ? "transparent" : "var(--ios-separator)"}`,
-                    background: on ? m.color : "transparent", color: on ? "#fff" : "var(--ios-label)" }}>
+                    border: `1px solid ${on ? "transparent" : "var(--pc-line)"}`,
+                    background: on ? m.color : "transparent", color: on ? "#fff" : "var(--pc-text)" }}>
                   {m.label}
                   <span style={{ opacity: on ? 0.8 : 0.55 }}> · {rateLabel(m) || "free"}</span>
                 </button>
@@ -1264,7 +1347,7 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
           </div>
         )}
 
-        <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginBottom: 12, lineHeight: 1.45 }}>
+        <div className="pc-meta" style={{ color: "var(--pc-text-3)", marginBottom: 12, lineHeight: 1.45 }}>
           Default panel: {COMPARE_MODELS.map((m) => m.label).join(" · ")} — preselected each visit.
         </div>
 
@@ -1278,15 +1361,15 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
             }}
             placeholder="Search all OpenRouter models — name or id…"
             aria-label="Search all OpenRouter models"
-            style={{ width: "100%", background: "var(--ios-fill)", border: "none", borderRadius: 12, padding: "10px 14px", fontSize: 15, color: "var(--ios-label)" }}
+            style={{ width: "100%", background: "var(--pc-sand)", border: "none", borderRadius: 12, padding: "10px 14px", fontSize: 15, color: "var(--pc-text)" }}
           />
-          {searching && <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>Searching…</div>}
-          {searchErr && <div className="ios-caption" style={{ color: "var(--ios-red, #FF3B30)", marginTop: 6 }}>{searchErr}</div>}
+          {searching && <div className="pc-meta" style={{ color: "var(--pc-text-3)", marginTop: 6 }}>Searching…</div>}
+          {searchErr && <div className="pc-meta" style={{ color: "var(--pc-accent)", marginTop: 6 }}>{searchErr}</div>}
           {found && found.length === 0 && !searching && (
-            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>No models match “{query.trim()}”.</div>
+            <div className="pc-meta" style={{ color: "var(--pc-text-3)", marginTop: 6 }}>No models match “{query.trim()}”.</div>
           )}
           {found && found.length > 0 && (
-            <div className="ios-list" style={{ margin: "8px 0 0", maxHeight: 260, overflowY: "auto" }}>
+            <div className="pc-recents" style={{ margin: "8px 0 0", maxHeight: 260, overflowY: "auto" }}>
               {found.map((m, i) => {
                 const already = selected.includes(m.id);
                 return (
@@ -1299,14 +1382,14 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
                     }}
                     disabled={already || selected.length >= 4}
                     style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", background: "none", cursor: already || selected.length >= 4 ? "default" : "pointer",
-                      border: "none", borderBottom: i < found.length - 1 ? "1px solid var(--ios-separator)" : "none", textAlign: "left", opacity: already || selected.length >= 4 ? 0.45 : 1 }}
+                      border: "none", borderBottom: i < found.length - 1 ? "1px solid var(--pc-line)" : "none", textAlign: "left", opacity: already || selected.length >= 4 ? 0.45 : 1 }}
                   >
                     <span style={{ width: 8, height: 8, borderRadius: 2, background: m.color, flexShrink: 0 }} />
                     <span style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ display: "block", color: "var(--ios-label)", fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.label}</span>
-                      <span className="ios-caption" style={{ color: "var(--ios-label-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>{m.id}</span>
+                      <span style={{ display: "block", color: "var(--pc-text)", fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.label}</span>
+                      <span className="pc-meta" style={{ color: "var(--pc-text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>{m.id}</span>
                     </span>
-                    <span className="ios-caption" style={{ color: isPremiumRate(m) ? "var(--ios-orange, #D9772B)" : "var(--ios-label-3)", flexShrink: 0 }}>
+                    <span className="pc-meta" style={{ color: isPremiumRate(m) ? "var(--pc-accent)" : "var(--pc-text-3)", flexShrink: 0 }}>
                       {rateLabel(m) || "free"}
                     </span>
                   </button>
@@ -1315,20 +1398,20 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
             </div>
           )}
           {selected.length >= 4 && found && found.length > 0 && (
-            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 6 }}>Panel is full — drop a model to add another.</div>
+            <div className="pc-meta" style={{ color: "var(--pc-text-3)", marginTop: 6 }}>Panel is full — drop a model to add another.</div>
           )}
         </div>
 
         {/* Newest models, straight from OpenRouter's catalog */}
         {newest.length > 0 && (
           <div style={{ marginBottom: 14 }}>
-            <button onClick={() => setShowNewest((v) => !v)} className="ios-caption"
-              style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", padding: "2px 0" }}>
+            <button onClick={() => setShowNewest((v) => !v)} className="pc-meta"
+              style={{ background: "none", border: "none", color: "var(--pc-accent)", fontWeight: 700, cursor: "pointer", padding: "2px 0" }}>
               {showNewest ? "▾" : "▸"} Newest models on OpenRouter ({newest.length})
             </button>
             {showNewest && (
               <>
-                <div className="ios-caption" style={{ color: "var(--ios-label-3)", margin: "4px 0 8px", lineHeight: 1.45 }}>
+                <div className="pc-meta" style={{ color: "var(--pc-text-3)", margin: "4px 0 8px", lineHeight: 1.45 }}>
                   Just-released models, listed live — anything at {`$${PREMIUM_PER_M}`}/M output or more asks you to accept the rate before it runs.
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -1338,8 +1421,8 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
                     return (
                       <button key={m.id} onClick={() => toggle(m.id)} title={m.id}
                         style={{ padding: "7px 13px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, cursor: "pointer",
-                          border: `1px solid ${on ? "transparent" : premium ? "var(--ios-orange, #D9772B)" : "var(--ios-separator)"}`,
-                          background: on ? m.color : "transparent", color: on ? "#fff" : "var(--ios-label)" }}>
+                          border: `1px solid ${on ? "transparent" : premium ? "var(--pc-accent)" : "var(--pc-line)"}`,
+                          background: on ? m.color : "transparent", color: on ? "#fff" : "var(--pc-text)" }}>
                         {m.label}
                         <span style={{ opacity: on ? 0.8 : 0.55, fontWeight: 600 }}> · {rateLabel(m) || "—"}</span>
                       </button>
@@ -1364,25 +1447,26 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
           aria-modal="true"
           aria-label={`Text read from ${previewFile.name}`}
           onClick={() => setPreviewFile(null)}
-          style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          className="pc pc-scrim"
+          style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--ios-bg-elevated)", borderRadius: "16px 16px 0 0", width: "100%", maxWidth: 640, maxHeight: "78vh", display: "flex", flexDirection: "column", padding: "16px 16px calc(16px + env(safe-area-inset-bottom, 0px))" }}
+            className="pc-modal"
+            style={{ width: "100%", maxWidth: 640, maxHeight: "78vh", display: "flex", flexDirection: "column", padding: "18px 18px calc(18px + env(safe-area-inset-bottom, 0px))" }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
-              <span className="ios-headline" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{previewFile.name}</span>
-              <button onClick={() => setPreviewFile(null)} className="ios-caption"
-                style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>Done</button>
+              <span className="pc-sheet-title" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{previewFile.name}</span>
+              <button onClick={() => setPreviewFile(null)} className="pc-btn" style={{ flexShrink: 0 }}>Done</button>
             </div>
-            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginBottom: 10 }}>
+            <div className="pc-meta" style={{ color: "var(--pc-text-3)", marginBottom: 10 }}>
               {previewFile.ocrDone ? "Read by OCR" : "Read from the file"}
               {previewFile.text ? ` · ${previewFile.text.length.toLocaleString()} characters` : ""}
               {previewFile.truncated ? " · clipped to the beginning" : ""}
               {" — this is exactly what the models were given."}
             </div>
-            <div style={{ flex: 1, overflowY: "auto", background: "var(--ios-fill-2)", borderRadius: 10, padding: "12px 13px" }}>
-              <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: 13, lineHeight: 1.5, color: "var(--ios-label)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+            <div style={{ flex: 1, overflowY: "auto", background: "var(--pc-sand)", borderRadius: 10, padding: "12px 13px" }}>
+              <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: 13, lineHeight: 1.5, color: "var(--pc-text)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
                 {previewFile.text}
               </pre>
             </div>
@@ -1397,30 +1481,31 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
           aria-modal="true"
           aria-label="Attach a file from Morris Hub"
           onClick={() => setLibraryOpen(false)}
-          style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          className="pc pc-scrim"
+          style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--ios-bg-elevated)", borderRadius: "16px 16px 0 0", width: "100%", maxWidth: 520, maxHeight: "70vh", overflowY: "auto", padding: "16px 16px calc(20px + env(safe-area-inset-bottom, 0px))" }}
+            className="pc-modal"
+            style={{ width: "100%", maxWidth: 520, maxHeight: "70vh", overflowY: "auto", padding: "18px 18px calc(22px + env(safe-area-inset-bottom, 0px))" }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <span className="ios-headline">From Morris Hub</span>
-              <button onClick={() => setLibraryOpen(false)} className="ios-caption"
-                style={{ background: "none", border: "none", color: "var(--ios-tint)", fontWeight: 700, cursor: "pointer" }}>Done</button>
+              <span className="pc-sheet-title">From Morris Hub</span>
+              <button onClick={() => setLibraryOpen(false)} className="pc-btn">Done</button>
             </div>
 
-            {libraryBusy && <div className="ios-subhead" style={{ color: "var(--ios-label-2)", padding: "12px 0" }}>Loading your files…</div>}
+            {libraryBusy && <div className="pc-body" style={{ color: "var(--pc-text-2)", padding: "12px 0" }}>Loading your files…</div>}
 
             {!libraryBusy && library?.length === 0 && (
-              <div className="ios-footnote" style={{ color: "var(--ios-label-2)", lineHeight: 1.5, padding: "8px 0 4px" }}>
+              <div className="pc-note" style={{ color: "var(--pc-text-2)", lineHeight: 1.5, padding: "8px 0 4px" }}>
                 No documents yet. The panel can read files you&rsquo;ve uploaded to a course under{" "}
-                <strong style={{ color: "var(--ios-label)" }}>Me → Courses</strong> — that&rsquo;s the only place the app keeps
+                <strong style={{ color: "var(--pc-text)" }}>Me → Courses</strong> — that&rsquo;s the only place the app keeps
                 your documents today. Anything else, attach from your device.
               </div>
             )}
 
             {!libraryBusy && library && library.length > 0 && (
-              <div className="ios-list" style={{ margin: 0 }}>
+              <div className="pc-recents" style={{ margin: 0 }}>
                 {library.map((f) => {
                   const already = attachments.some((a) => a.id === f.id);
                   return (
@@ -1428,18 +1513,18 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
                       key={f.id}
                       onClick={() => !already && attachFromLibrary(f.id)}
                       disabled={already || attachBusy}
-                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", borderBottom: "0.5px solid var(--ios-separator)", padding: "11px 2px", textAlign: "left", cursor: already ? "default" : "pointer", opacity: already ? 0.5 : 1 }}
+                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", background: "none", border: "none", borderBottom: "0.5px solid var(--pc-line)", padding: "11px 2px", textAlign: "left", cursor: already ? "default" : "pointer", opacity: already ? 0.5 : 1 }}
                     >
                       <span aria-hidden>📄</span>
                       <span style={{ flex: 1, minWidth: 0 }}>
-                        <span className="ios-subhead" style={{ color: "var(--ios-label)", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <span className="pc-body" style={{ color: "var(--pc-text)", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {f.title}
                         </span>
-                        <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>
+                        <span className="pc-meta" style={{ color: "var(--pc-text-3)" }}>
                           {f.group}{f.sizeKb ? ` · ${f.sizeKb}KB` : ""}
                         </span>
                       </span>
-                      <span className="ios-caption" style={{ color: already ? "var(--ios-label-3)" : "var(--ios-tint)", fontWeight: 700, flexShrink: 0 }}>
+                      <span className="pc-meta" style={{ color: already ? "var(--pc-text-3)" : "var(--pc-accent)", fontWeight: 700, flexShrink: 0 }}>
                         {already ? "Attached" : "Attach"}
                       </span>
                     </button>
@@ -1451,7 +1536,7 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
         </div>
       )}
 
-      {notice && <div className="ios-footnote" style={{ color: "var(--ios-green)", marginTop: 10, textAlign: "center" }}>{notice}</div>}
+      {notice && <div className="pc-note" style={{ color: "var(--pc-text-3)", marginTop: 10, textAlign: "center" }}>{notice}</div>}
 
     </div>
   );
@@ -1461,13 +1546,14 @@ function Sources({ items }: { items: Citation[] }) {
   let host = (u: string) => u;
   host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
   return (
-    <div style={{ marginTop: 10 }}>
-      <div className="ios-caption" style={{ color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 5 }}>Sources</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+    <div style={{ marginTop: 15, paddingTop: 12, borderTop: "1px solid var(--pc-line)" }}>
+      <div className="pc-meta" style={{ marginBottom: 6 }}>Sources</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {items.slice(0, 8).map((c, i) => (
-          <a key={i} href={c.url} target="_blank" rel="noopener noreferrer" className="ios-caption"
-            style={{ color: "var(--ios-tint)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {i + 1}. {c.title || host(c.url)} <span style={{ color: "var(--ios-label-3)" }}>· {host(c.url)}</span>
+          <a key={i} href={c.url} target="_blank" rel="noopener noreferrer"
+            style={{ color: "var(--pc-text-2)", fontSize: 13, textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span style={{ color: "var(--pc-text-3)" }}>{i + 1}.</span> {c.title || host(c.url)}{" "}
+            <span style={{ color: "var(--pc-text-3)" }}>· {host(c.url)}</span>
           </a>
         ))}
       </div>
@@ -1484,21 +1570,19 @@ function ExportBar({ content, title, cost, exporting, onExport }: {
     try { await navigator.clipboard.writeText(content); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* clipboard blocked */ }
   }
   const btn = (fmt: "md" | "docx" | "pptx", label: string) => (
-    <button onClick={() => onExport(content, fmt, title)} disabled={exporting != null}
-      style={{ padding: "6px 11px", borderRadius: 8, border: "1px solid var(--ios-separator)", background: "transparent", color: "var(--ios-tint)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", opacity: exporting != null ? 0.5 : 1 }}>
+    <button onClick={() => onExport(content, fmt, title)} disabled={exporting != null} className="pc-btn pc-btn--quiet">
       {exporting === fmt ? "…" : label}
     </button>
   );
   return (
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--ios-separator)" }}>
-      <button onClick={copy}
-        style={{ padding: "6px 11px", borderRadius: 8, border: "1px solid var(--ios-separator)", background: copied ? "var(--ios-tint)" : "transparent", color: copied ? "var(--ios-on-tint)" : "var(--ios-tint)", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
-        {copied ? "Copied ✓" : "Copy"}
+    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center", marginTop: 14, paddingTop: 11, borderTop: "1px solid var(--pc-line)" }}>
+      <button onClick={copy} className={`pc-btn pc-btn--quiet${copied ? " pc-btn--accent" : ""}`}>
+        {copied ? "Copied" : "Copy"}
       </button>
       {btn("docx", "Word")}
       {btn("pptx", "PowerPoint")}
       {btn("md", "Markdown")}
-      {cost != null && <span className="ios-caption" style={{ color: "var(--ios-label-3)", marginLeft: "auto" }}>{fmtCost(cost)}</span>}
+      {cost != null && <span className="pc-meta" style={{ marginLeft: "auto" }}>{fmtCost(cost)}</span>}
     </div>
   );
 }

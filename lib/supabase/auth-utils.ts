@@ -1,160 +1,82 @@
 /**
- * Centralized auth utilities with request-scoped caching.
+ * Centralized auth utilities, scoped to a single request.
  *
- * All functions in this module cache their results within a single async context
- * (e.g., a server action or API route). This eliminates redundant getUser() calls
- * while maintaining security (no cross-request leakage).
+ * These wrap the two ways of establishing who is making a request:
+ *
+ * - `getCurrentClaims()` verifies the JWT's signature locally. No network.
+ * - `getCurrentUser()` asks Supabase to verify it. One network round trip.
+ *
+ * Anything that needs only an id or a role goes through the first. Only a
+ * caller that needs the full, freshly-read user record pays for the second.
+ * Both are wrapped in React's `cache()`, so repeated calls within one request
+ * share one result and nothing leaks between requests.
  *
  * Usage:
- * - requireUser(): Throws if not authenticated, returns user object
- * - requireAdmin(): Throws if not authenticated or not admin, returns {id, db}
- * - getCurrentUserId(): Returns userId or null, never throws
- * - getUserOptional(): Returns user object or null, never throws
- *
- * Impact: Reduces getUser() API calls by 70-90% within each request.
+ * - requireUser(): throws if not authenticated, returns the full user object
+ * - requireAdmin(): throws unless authenticated and an admin, returns {id, db}
+ * - getCurrentUserId(): returns userId or null, never throws
+ * - getUserOptional(): returns user object or null, never throws
  */
 
-import { createClient, createServiceClient } from "./server";
-import { withAuthRetry } from "./auth-retry";
+import { cache } from "react";
+import { createServiceClient, getCurrentClaims, getCurrentUser } from "./server";
 import type { User } from "@supabase/supabase-js";
 
-// Cache variables - function-scoped, resets per async context
-let cachedUser: User | null | undefined;
-let cacheInitialized = false;
-
 /**
- * Internal: Initialize cache for this async context
- * Must be called once per request/server action
+ * Why this module no longer keeps its own cache.
  *
- * Wrapped with retry logic to handle transient rate limit errors
+ * It used to hold the signed-in user in two module-level variables:
+ *
+ *     let cachedUser: User | null | undefined;
+ *     let cacheInitialized = false;
+ *
+ * described in a comment as "function-scoped, resets per async context". They
+ * were neither. A module is evaluated once per server process and its bindings
+ * outlive every request that process handles, so on a warm instance the first
+ * authenticated request populated `cachedUser` and every later request — a
+ * different person's, or nobody's — was handed that same identity by
+ * `getCurrentUserId()`, `requireUser()` and `requireAdmin()`. The only reset
+ * was an exported `resetAuthCache()` that nothing ever called.
+ *
+ * React's `cache()` is the thing that comment described: it keys on the current
+ * request, so a second call inside one request is free and a call from the next
+ * request starts clean. `resetAuthCache()` is gone with the cache it cleared.
  */
-async function initializeCache(): Promise<void> {
-  if (cacheInitialized) return;
-
-  try {
-    const user = await withAuthRetry(async () => {
-      const supabase = await createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      return user;
-    });
-    cachedUser = user;
-  } catch (error) {
-    // If retry fails, cache as null (not authenticated)
-    // This allows graceful degradation
-    cachedUser = null;
-  }
-  cacheInitialized = true;
-}
 
 /**
- * Reset cache (called on auth state changes or between unrelated operations)
- */
-export function resetAuthCache(): void {
-  cachedUser = undefined;
-  cacheInitialized = false;
-}
-
-/**
- * Require authentication. Throws if user is not authenticated.
+ * Current user's id, or null. Verified locally — no round trip.
  *
- * Usage in server actions:
- * ```typescript
- * const user = await requireUser();
- * ```
- *
- * Second call in same action uses cached result (0 API calls).
- */
-export async function requireUser(): Promise<User> {
-  await initializeCache();
-
-  if (!cachedUser) {
-    throw new Error("Authentication required");
-  }
-
-  return cachedUser;
-}
-
-/**
- * Get current user ID. Returns null if not authenticated.
- * Does not throw - safe for optional auth scenarios.
- *
- * Usage in server actions:
- * ```typescript
- * const userId = await getCurrentUserId();
- * if (!userId) return { error: "Not authenticated" };
- * ```
- *
- * Replaces the pattern:
- * ```typescript
- * const { data: { user } } = await createClient().auth.getUser();
- * const userId = user?.id ?? null;
- * ```
+ * This is the hot one: it stands in front of most API routes and server
+ * actions in the app, which need an id to scope a query and nothing more.
  */
 export async function getCurrentUserId(): Promise<string | null> {
-  await initializeCache();
-  return cachedUser?.id ?? null;
+  const claims = await getCurrentClaims();
+  return claims?.id ?? null;
 }
 
 /**
- * Get current user object. Returns null if not authenticated.
- * Does not throw - safe for optional auth scenarios.
+ * Full user record, or null. Costs one round trip to Supabase.
+ *
+ * Prefer `getCurrentUserId()` unless you genuinely need fields the JWT does not
+ * carry, or metadata that may have changed since the token was issued.
  */
 export async function getUserOptional(): Promise<User | null> {
-  await initializeCache();
-  return cachedUser ?? null;
-}
-
-/**
- * Require authentication AND admin role.
- *
- * Returns both the user ID and a Supabase service client for
- * administrative operations.
- *
- * Throws if:
- * - User is not authenticated
- * - User is not an admin (role !== "admin" in profiles table)
- *
- * Usage in admin server actions:
- * ```typescript
- * const { id: userId, db } = await requireAdmin();
- * await db.from("some_table").update(...).eq("user_id", userId);
- * ```
- *
- * Replaces the pattern in /app/home/admin/actions.ts:
- * ```typescript
- * const { data: { user } } = await createClient().auth.getUser();
- * if (!user) redirect("/");
- * const db = createServiceClient();
- * const { data } = await db.from("profiles").select("role").eq("id", user.id);
- * if (data?.role !== "admin") redirect("/home");
- * ```
- */
-export async function requireAdmin(): Promise<{ id: string; db: ReturnType<typeof createServiceClient> }> {
-  const user = await requireUser();
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = createServiceClient() as any;
-  const { data } = await db
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if ((data as { role: string } | null)?.role !== "admin") {
-    throw new Error("Admin access required");
+  try {
+    return await getCurrentUser();
+  } catch {
+    return null;
   }
-
-  return { id: user.id, db };
 }
 
-/**
- * Check if current user is admin. Returns false if not authenticated.
- * Safe version - does not throw.
- */
-export async function isCurrentUserAdmin(): Promise<boolean> {
-  const userId = await getCurrentUserId();
-  if (!userId) return false;
+/** Full user record. Throws if not signed in. */
+export async function requireUser(): Promise<User> {
+  const user = await getUserOptional();
+  if (!user) throw new Error("Authentication required");
+  return user;
+}
 
+/** One `profiles.role` read per request, shared by the two checks below. */
+const currentUserRole = cache(async (userId: string): Promise<string | null> => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
   const { data } = await db
@@ -162,6 +84,31 @@ export async function isCurrentUserAdmin(): Promise<boolean> {
     .select("role")
     .eq("id", userId)
     .maybeSingle();
+  return (data as { role: string } | null)?.role ?? null;
+});
 
-  return (data as { role: string } | null)?.role === "admin";
+/**
+ * Require authentication AND the admin role.
+ *
+ * Returns the user id alongside a service client for administrative work.
+ * Throws if the caller is not signed in, or is not an admin.
+ */
+export async function requireAdmin(): Promise<{ id: string; db: ReturnType<typeof createServiceClient> }> {
+  const id = await getCurrentUserId();
+  if (!id) throw new Error("Authentication required");
+  if ((await currentUserRole(id)) !== "admin") {
+    throw new Error("Admin access required");
+  }
+  return { id, db: createServiceClient() };
+}
+
+/** Whether the caller is an admin. False when signed out. Never throws. */
+export async function isCurrentUserAdmin(): Promise<boolean> {
+  const id = await getCurrentUserId();
+  if (!id) return false;
+  try {
+    return (await currentUserRole(id)) === "admin";
+  } catch {
+    return false;
+  }
 }

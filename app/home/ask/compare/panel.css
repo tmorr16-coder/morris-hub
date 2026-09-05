@@ -1,0 +1,358 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   "Ask the panel" — Claude-desktop surface
+   ---------------------------------------------------------------------------
+   Everything here is scoped under .pc, so it restyles this one screen and
+   touches nothing else in the app. The rest of morrisai.family is iOS-native
+   (grouped inset lists, SF type, systemGroupedBackground); this screen is a
+   long-form reading and writing surface, and that is a different job. It reads
+   the way Claude's desktop app reads: warm paper rather than iOS gray, one
+   centred column, quiet chrome, and a composer that is the most solid object on
+   the page.
+
+   Light-first, matching app/ios.css — dark is opt-in via data-theme="dark",
+   because the app is light by default until every widget is dark-aware.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.pc {
+  /* Surfaces — warm neutrals, not the blue-gray of iOS. */
+  --pc-bg:        #faf9f7;
+  --pc-surface:   #ffffff;
+  --pc-sand:      #f0eee6;  /* the user's own words */
+  --pc-sand-2:    #e8e5db;
+  --pc-line:      #e6e2da;
+  --pc-line-2:    #d8d3c8;
+
+  /* Content */
+  --pc-text:      #1f1e1c;
+  --pc-text-2:    #6b6862;
+  --pc-text-3:    #97938a;
+
+  /* Accent — Claude's clay. Deliberately not --ios-tint: this screen keeps its
+     own accent so the brand-scheme picker (FAMU orange, Braves red) does not
+     repaint a surface whose whole point is looking like Claude. */
+  --pc-accent:    #c96442;
+  --pc-accent-2:  #b5512f;
+  --pc-on-accent: #ffffff;
+
+  --pc-radius:    12px;
+  --pc-radius-lg: 20px;
+  --pc-shadow:    0 1px 2px rgba(31,30,28,0.04), 0 4px 16px rgba(31,30,28,0.045);
+
+  background: var(--pc-bg);
+  color: var(--pc-text);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+[data-theme="dark"] .pc,
+.pc[data-theme="dark"] {
+  --pc-bg:        #262624;
+  --pc-surface:   #30302e;
+  --pc-sand:      #3b3a37;
+  --pc-sand-2:    #454340;
+  --pc-line:      rgba(255,255,255,0.10);
+  --pc-line-2:    rgba(255,255,255,0.17);
+  --pc-text:      #f5f4ef;
+  --pc-text-2:    #b6b2a9;
+  --pc-text-3:    #8b877f;
+  --pc-accent:    #d97757;
+  --pc-accent-2:  #e08d70;
+  --pc-on-accent: #1f1e1c;
+  --pc-shadow:    0 1px 2px rgba(0,0,0,0.28), 0 4px 16px rgba(0,0,0,0.22);
+}
+
+/* ── The column ──────────────────────────────────────────────────────────────
+   Claude keeps the conversation in a measured column and lets it breathe. A
+   thread of prose read edge-to-edge on a wide display is unreadable; 820px is
+   about 90 characters at this size. */
+.pc-col { max-width: 820px; margin: 0 auto; width: 100%; }
+.pc-col--wide { max-width: 1180px; }
+
+/* ── Turns ─────────────────────────────────────────────────────────────────
+   No "QUESTION" / "FOLLOW-UP 2" rules across the page. In a conversation you
+   can see which turn you are on; the label was chrome restating the obvious. */
+.pc-turn { padding: 26px 0 4px; }
+.pc-turn + .pc-turn { border-top: 1px solid var(--pc-line); }
+
+.pc-meta {
+  font-size: 12.5px;
+  color: var(--pc-text-3);
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 400;
+}
+
+/* The user's message: a warm block, right-aligned, the way Claude sets it. */
+.pc-user-row { display: flex; justify-content: flex-end; }
+.pc-user {
+  background: var(--pc-sand);
+  border-radius: var(--pc-radius-lg);
+  padding: 12px 17px;
+  max-width: min(100%, 640px);
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--pc-text);
+  overflow-wrap: anywhere;
+}
+
+/* ── Prose ─────────────────────────────────────────────────────────────────
+   The answers are the product. 16px at 1.68 is Claude's reading rhythm; the
+   old 14.5px at 1.55 was a caption pretending to be an essay. */
+.pc-prose { font-size: 16px; line-height: 1.68; color: var(--pc-text); overflow-wrap: anywhere; }
+.pc-prose > :first-child { margin-top: 0; }
+.pc-prose > :last-child { margin-bottom: 0; }
+.pc-prose p { margin: 0 0 0.85em; }
+.pc-prose h3, .pc-prose h4 {
+  font-size: 15.5px; font-weight: 650; margin: 1.35em 0 0.5em;
+  letter-spacing: -0.005em; color: var(--pc-text);
+}
+.pc-prose ul, .pc-prose ol { margin: 0 0 0.85em; padding-left: 1.35em; }
+.pc-prose li { margin: 0.3em 0; }
+.pc-prose li::marker { color: var(--pc-text-3); }
+.pc-prose a { color: var(--pc-accent); text-decoration: none; border-bottom: 1px solid rgba(201,100,66,0.35); }
+.pc-prose a:hover { border-bottom-color: var(--pc-accent); }
+.pc-prose strong { font-weight: 650; }
+.pc-prose code {
+  font-family: var(--font-jetbrains-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.875em; background: var(--pc-sand); padding: 0.12em 0.4em;
+  border-radius: 5px; border: 1px solid var(--pc-line);
+}
+
+/* Answers can be long. They still scroll inside their card so one essay does
+   not stretch the row past a two-line answer beside it — but the clip is now
+   admitted with a fade instead of a hard cut. */
+.pc-scroll {
+  overflow-y: auto; overscroll-behavior: contain;
+  margin-right: -8px; padding-right: 8px;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
+}
+.pc-scroll--end { mask-image: none; -webkit-mask-image: none; }
+.pc-scroll::-webkit-scrollbar { width: 8px; }
+.pc-scroll::-webkit-scrollbar-thumb { background: var(--pc-line-2); border-radius: 4px; }
+.pc-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+.pc-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 14px; align-items: start;
+}
+.pc-card {
+  background: var(--pc-surface);
+  border: 1px solid var(--pc-line);
+  border-radius: var(--pc-radius);
+  padding: 18px 20px;
+  display: flex; flex-direction: column; min-width: 0;
+}
+.pc-card--pending { opacity: 0.75; }
+.pc-card-h { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; flex-wrap: wrap; }
+.pc-card-name { font-size: 14.5px; font-weight: 600; letter-spacing: -0.005em; }
+.pc-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.pc-via { font-size: 12.5px; color: var(--pc-text-3); }
+
+/* The merged answer is the one thing on the page that is Claude's own voice, so
+   it carries the accent — as a spine down the left edge, not a box outline. */
+.pc-synth {
+  background: var(--pc-surface);
+  border: 1px solid var(--pc-line);
+  border-left: 3px solid var(--pc-accent);
+  border-radius: var(--pc-radius);
+  padding: 18px 22px;
+  margin: 14px 0 4px;
+}
+.pc-synth-h {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 11px;
+  font-size: 12.5px; font-weight: 650; letter-spacing: 0.02em; color: var(--pc-accent);
+}
+
+.pc-reaction { margin-top: 15px; padding-top: 13px; border-top: 1px solid var(--pc-line); }
+.pc-reaction-h {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 7px;
+  font-size: 12px; font-weight: 650; letter-spacing: 0.02em;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.pc-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: inherit; font-size: 13px; font-weight: 550;
+  color: var(--pc-text-2); background: transparent;
+  border: 1px solid var(--pc-line-2); border-radius: 8px;
+  padding: 6px 11px; cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.pc-btn:hover:not(:disabled) { background: var(--pc-sand); color: var(--pc-text); }
+.pc-btn:disabled { opacity: 0.45; cursor: default; }
+.pc-btn--quiet { border-color: transparent; padding: 6px 8px; }
+.pc-btn--quiet:hover:not(:disabled) { background: var(--pc-sand); }
+.pc-btn--accent { background: var(--pc-accent); border-color: var(--pc-accent); color: var(--pc-on-accent); }
+.pc-btn--accent:hover:not(:disabled) { background: var(--pc-accent-2); border-color: var(--pc-accent-2); color: var(--pc-on-accent); }
+
+.pc-link {
+  font: inherit; font-size: 13px; font-weight: 550; color: var(--pc-accent);
+  background: none; border: none; padding: 2px 0; cursor: pointer;
+}
+.pc-link:hover { color: var(--pc-accent-2); }
+
+/* ── Composer ────────────────────────────────────────────────────────────────
+   The signature object. One solid, rounded, bordered box that holds the text
+   and every control that acts on it — attach and options on the left, send on
+   the right — rather than a thin pill with a row of links loose underneath. */
+.pc-composer-wrap {
+  position: sticky;
+  bottom: calc(50px + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  padding: 10px 0 12px;
+  margin-top: 20px;
+  background: linear-gradient(to bottom, transparent, var(--pc-bg) 22px);
+}
+.pc-composer {
+  background: var(--pc-surface);
+  border: 1px solid var(--pc-line-2);
+  border-radius: var(--pc-radius-lg);
+  box-shadow: var(--pc-shadow);
+  padding: 12px 12px 10px 16px;
+  transition: border-color 130ms ease, box-shadow 130ms ease;
+}
+.pc-composer:focus-within { border-color: var(--pc-accent); box-shadow: var(--pc-shadow), 0 0 0 3px rgba(201,100,66,0.13); }
+.pc-composer--drag { border-color: var(--pc-accent); border-style: dashed; }
+
+.pc-ta {
+  display: block; width: 100%; border: none; outline: none; resize: none;
+  background: transparent; color: var(--pc-text);
+  font: inherit; font-size: 16px; line-height: 1.5;
+  max-height: 200px; overflow-y: auto; padding: 2px 0 0;
+}
+.pc-ta::placeholder { color: var(--pc-text-3); }
+
+.pc-composer-bar { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.pc-composer-bar .pc-spacer { flex: 1; min-width: 0; }
+
+.pc-icon-btn {
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; color: var(--pc-text-2); cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.pc-icon-btn:hover:not(:disabled) { background: var(--pc-sand); color: var(--pc-text); }
+.pc-icon-btn:disabled { opacity: 0.4; cursor: default; }
+
+.pc-send {
+  flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--pc-accent); border: none; color: var(--pc-on-accent);
+  cursor: pointer; transition: background 120ms ease, opacity 120ms ease;
+}
+.pc-send:hover:not(:disabled) { background: var(--pc-accent-2); }
+.pc-send:disabled { background: var(--pc-sand-2); color: var(--pc-text-3); cursor: default; }
+
+/* Model / options pills that live inside the composer bar. */
+.pc-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12.5px; font-weight: 550; color: var(--pc-text-2);
+  background: transparent; border: none; border-radius: 7px;
+  padding: 5px 8px; cursor: pointer; max-width: 100%;
+  transition: background 120ms ease, color 120ms ease;
+}
+.pc-tag:hover { background: var(--pc-sand); color: var(--pc-text); }
+.pc-tag--on { color: var(--pc-accent); }
+.pc-tag-dots { display: inline-flex; gap: 3px; flex-shrink: 0; }
+.pc-tag-dots i { width: 7px; height: 7px; border-radius: 50%; display: block; }
+
+/* Attachment chips sit above the text, inside the box. */
+.pc-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 9px; }
+.pc-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  background: var(--pc-sand); border: 1px solid var(--pc-line);
+  border-radius: 8px; padding: 4px 5px 4px 9px; font-size: 12.5px; color: var(--pc-text-2);
+}
+.pc-chip button { background: none; border: none; cursor: pointer; color: inherit; font: inherit; }
+.pc-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+.pc-chip-x {
+  flex-shrink: 0; width: 18px; height: 18px; border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--pc-text-3);
+}
+.pc-chip-x:hover { background: var(--pc-sand-2); color: var(--pc-text); }
+
+/* ── Panels, sheets and notices ──────────────────────────────────────────── */
+.pc-sheet {
+  background: var(--pc-surface); border: 1px solid var(--pc-line);
+  border-radius: var(--pc-radius); padding: 16px 18px; margin: 0 0 10px;
+}
+.pc-note { font-size: 13px; line-height: 1.55; color: var(--pc-text-2); }
+.pc-alert { border-color: var(--pc-accent); border-left: 3px solid var(--pc-accent); }
+.pc-alert-title { font-size: 15px; font-weight: 650; margin-bottom: 5px; color: var(--pc-text); }
+
+.pc-check { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; cursor: pointer; font-size: 14.5px; }
+.pc-check input { width: 17px; height: 17px; margin-top: 2px; accent-color: var(--pc-accent); flex-shrink: 0; }
+.pc-check span em { font-style: normal; color: var(--pc-text-3); }
+
+.pc-field {
+  background: var(--pc-sand); border: 1px solid var(--pc-line); border-radius: 8px;
+  padding: 6px 9px; color: var(--pc-text); font: inherit; font-size: 14.5px; outline: none;
+}
+.pc-field:focus { border-color: var(--pc-accent); }
+
+/* ── Recents ─────────────────────────────────────────────────────────────── */
+.pc-recents { background: var(--pc-surface); border: 1px solid var(--pc-line); border-radius: var(--pc-radius); overflow: hidden; }
+.pc-recent {
+  display: flex; align-items: center; gap: 8px; padding: 11px 15px;
+  transition: background 110ms ease;
+}
+.pc-recent + .pc-recent { border-top: 1px solid var(--pc-line); }
+.pc-recent:hover { background: var(--pc-sand); }
+.pc-recent--on { background: var(--pc-sand); }
+.pc-recent-q { font-size: 14.5px; color: var(--pc-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-recent-sub { font-size: 12.5px; color: var(--pc-text-3); margin-top: 2px; }
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.pc-head { padding: 22px 0 6px; }
+.pc-title {
+  font-family: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
+  font-size: 34px; line-height: 1.12; letter-spacing: -0.012em;
+  font-weight: 400; color: var(--pc-text);
+}
+.pc-sub { font-size: 14.5px; color: var(--pc-text-2); margin-top: 6px; line-height: 1.5; }
+
+/* Thinking placeholder — a slow warm pulse, not the iOS shimmer. */
+@keyframes pc-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.8; } }
+.pc-pulse { animation: pc-pulse 1.7s ease-in-out infinite; }
+.pc-skel { height: 10px; border-radius: 5px; background: var(--pc-sand-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-pulse { animation: none; opacity: 0.6; }
+  .pc-btn, .pc-icon-btn, .pc-send, .pc-tag, .pc-recent, .pc-composer { transition: none; }
+}
+
+/* ── Sheets ──────────────────────────────────────────────────────────────────
+   The model picker, the file preview and the hub-file browser. They stay
+   bottom-sheets — this is still a phone-first app — but wear the panel's warm
+   surface rather than iOS gray, so opening one does not change design systems
+   mid-gesture. */
+.pc-sheet-title { font-size: 16px; font-weight: 650; letter-spacing: -0.008em; color: var(--pc-text); }
+.pc-body { font-size: 14.5px; line-height: 1.55; color: var(--pc-text); }
+.pc-modal {
+  background: var(--pc-surface);
+  border: 1px solid var(--pc-line);
+  border-bottom: none;
+  border-radius: var(--pc-radius-lg) var(--pc-radius-lg) 0 0;
+  box-shadow: 0 -8px 40px rgba(31,30,28,0.16);
+}
+.pc-scrim { background: rgba(31,30,28,0.32); backdrop-filter: blur(2px); }
+
+/* ── Narrow screens ──────────────────────────────────────────────────────────
+   The composer bar carries five things: attach, options, which models, the
+   estimate and send. On a phone there is not room for all five at full width,
+   so the two labelled tags truncate rather than wrapping the bar to a second
+   line — the icons and the model dots still say what they are. */
+@media (max-width: 430px) {
+  .pc-composer { padding: 11px 10px 9px 13px; }
+  .pc-composer-bar { gap: 3px; }
+  .pc-tag { padding: 6px 7px; }
+  .pc-hide-sm { display: none; }
+  .pc-turn { padding: 20px 0 4px; }
+  .pc-card, .pc-synth { padding: 16px 16px; }
+  .pc-user { max-width: 100%; }
+  .pc-title { font-size: 30px; }
+}

@@ -40,17 +40,15 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [showTestForm, setShowTestForm] = useState(false);
 
+  // An already-signed-in visitor is sent straight to Today. This deliberately
+  // does not gate the render: the sign-in card used to be replaced by a
+  // "Loading…" line until an auth round trip came back, so on a phone the first
+  // thing you saw after tapping "Sign in" was a spinner. The check is now local
+  // and resolves in a frame or two, so the card is drawn immediately and the
+  // redirect happens underneath it for the rare visitor who is already signed in.
   useEffect(() => {
     if (!loading && user) router.replace("/home");
   }, [user, loading, router]);
-
-  if (loading) {
-    return (
-      <div data-ui="ios" style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>Loading…</span>
-      </div>
-    );
-  }
 
   async function handleTestLogin(e: React.FormEvent) {
     e.preventDefault();

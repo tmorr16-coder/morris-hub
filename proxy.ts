@@ -31,14 +31,29 @@ export async function proxy(request: NextRequest) {
 
   if (process.env.NEXT_PUBLIC_AUTH_BYPASS === "true") return response;
 
-  // Fetch user with retry logic for rate limit resilience
-  const user = await withAuthRetry(
+  // Verify the session locally rather than asking Supabase to do it.
+  //
+  // This used to call supabase.auth.getUser(), which is a network round trip to
+  // /auth/v1/user — paid before *every* navigation into a protected section,
+  // and then paid again by the layout rendering that same request. Two serial
+  // trips to answer one question, in front of the first byte of HTML.
+  //
+  // The project signs tokens with an asymmetric key, so getClaims() checks the
+  // signature with WebCrypto here at the edge. auth-js keeps the public key in
+  // a process-wide cache for 10 minutes, so this costs one fetch per container
+  // and nothing thereafter. See getCurrentClaims() in lib/supabase/server.ts
+  // for the revocation trade-off; RLS still guards every query.
+  //
+  // The retry wrapper stays for the cold-start fetch of the signing key, which
+  // is the only part that can still be rate limited.
+  const claims = await withAuthRetry(
     async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      return user;
+      const { data } = await supabase.auth.getClaims();
+      return data?.claims ?? null;
     },
     { maxAttempts: 3, initialDelayMs: 100 }
   ).catch(() => null);
+  const user = claims?.sub ? claims : null;
 
   // This used to set x-user-id / x-user-email on the response, described as a
   // way to avoid redundant getUser() calls downstream. It never could: response
