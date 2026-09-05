@@ -13,10 +13,11 @@ import type { HealthAssessment, Signal } from "@/lib/health/assessment";
  * gone anywhere; it reads as the evidence under the conversation, which is
  * what it is.
  *
- * The prompts under the composer are the point of the design. "Assess my
- * results" is a hard thing to type from a blank box, and the questions worth
- * asking are the same handful every time — so they are offered rather than
- * left to be invented.
+ * There are no suggested questions. A row of canned prompts answers a problem
+ * this screen does not have: the questions worth asking here come from the
+ * person's own numbers, which are on the same page, and offering six generic
+ * ones mostly teaches people to pick from the list instead of asking what they
+ * actually came to ask.
  */
 
 const TONE: Record<Signal["kind"], { color: string; label: string }> = {
@@ -35,15 +36,6 @@ const AREA_LABEL: Record<Signal["area"], string> = {
   medication: "Medication",
   labs: "Labs",
 };
-
-const STARTERS = [
-  "What should I change first?",
-  "How have my labs moved since the last draw?",
-  "Build me a week of training from this",
-  "How should I eat to match my training?",
-  "What's my body composition telling me?",
-  "Why might my sleep be off?",
-];
 
 function esc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -105,8 +97,8 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
   const [checker, setChecker] = useState(CHECKERS[0].id);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  async function ask(text?: string) {
-    const q = (text ?? input).trim();
+  async function ask() {
+    const q = input.trim();
     if (!q || busy) return;
     setErr(null);
     setInput("");
@@ -185,26 +177,12 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
             {busy ? "…" : "↑"}
           </button>
         </div>
-        {turns.length === 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-            {STARTERS.map((s) => (
-              <button
-                key={s}
-                onClick={() => ask(s)}
-                disabled={busy}
-                className="ios-caption"
-                style={{ background: "var(--ios-fill)", border: "none", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 600, cursor: "pointer", padding: "7px 11px", textAlign: "left" }}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
         <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 10, lineHeight: 1.45 }}>
           Coaching from your own measurements — not medical advice. Anything about symptoms,
           medication or an abnormal lab result belongs with your doctor.
         </div>
       </div>
+
       {/* ── Conversation ─────────────────────────────────────────────────── */}
       {turns.length > 0 && (
         <>
