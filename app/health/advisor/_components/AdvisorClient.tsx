@@ -5,7 +5,13 @@ import Link from "next/link";
 import type { HealthAssessment, Signal } from "@/lib/health/assessment";
 
 /**
- * The advisor screen: what the numbers say, then a place to ask about them.
+ * The advisor screen: a place to ask, then the numbers behind the answers.
+ *
+ * The composer leads. What people come here to do is ask something, and the
+ * summary that used to sit above it meant scrolling past three sections of
+ * data to reach the box — on a phone, past most of a screen. The data has not
+ * gone anywhere; it reads as the evidence under the conversation, which is
+ * what it is.
  *
  * The prompts under the composer are the point of the design. "Assess my
  * results" is a hard thing to type from a blank box, and the questions worth
@@ -157,8 +163,138 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
 
   return (
     <div>
+      {/* ── Ask ──────────────────────────────────────────────────────────── */}
+      <div className="ios-list" style={{ margin: "6px 0 0", padding: 12 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); ask(); }
+            }}
+            placeholder="Ask about your training, diet, sleep…"
+            rows={1}
+            style={{ flex: 1, minWidth: 0, background: "var(--ios-fill)", border: "none", borderRadius: 17, padding: "9px 13px", fontSize: 16, lineHeight: 1.35, color: "var(--ios-label)", resize: "none", fontFamily: "inherit", maxHeight: 110, overflowY: "auto" }}
+          />
+          <button
+            onClick={() => ask()}
+            disabled={busy || !input.trim()}
+            aria-label="Ask the advisor"
+            style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 17, background: "var(--ios-tint)", border: "none", color: "var(--ios-on-tint)", fontSize: 16, fontWeight: 700, cursor: "pointer", opacity: busy || !input.trim() ? 0.4 : 1 }}
+          >
+            {busy ? "…" : "↑"}
+          </button>
+        </div>
+        {turns.length === 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+            {STARTERS.map((s) => (
+              <button
+                key={s}
+                onClick={() => ask(s)}
+                disabled={busy}
+                className="ios-caption"
+                style={{ background: "var(--ios-fill)", border: "none", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 600, cursor: "pointer", padding: "7px 11px", textAlign: "left" }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 10, lineHeight: 1.45 }}>
+          Coaching from your own measurements — not medical advice. Anything about symptoms,
+          medication or an abnormal lab result belongs with your doctor.
+        </div>
+      </div>
+      {/* ── Conversation ─────────────────────────────────────────────────── */}
+      {turns.length > 0 && (
+        <>
+          <div className="ios-group-header" style={{ padding: "16px 0 7px" }}>CONVERSATION</div>
+          {turns.map((t, i) => (
+            <div
+              key={i}
+              className="ios-list"
+              style={{
+                margin: "0 0 8px", padding: "12px 14px",
+                background: t.role === "user" ? "var(--ios-fill-2)" : "var(--ios-cell)",
+              }}
+            >
+              {t.role === "user" ? (
+                <div className="ios-subhead" style={{ color: "var(--ios-label)", whiteSpace: "pre-wrap" }}>{t.content}</div>
+              ) : (
+                <>
+                  <div className="ios-subhead" style={{ color: "var(--ios-label)" }} dangerouslySetInnerHTML={{ __html: md(t.content) }} />
+
+                  {/* A second opinion, from a model that didn't write the answer. */}
+                  {!t.review && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                      <button
+                        type="button"
+                        onClick={() => check(i)}
+                        disabled={t.checking}
+                        className="ios-caption"
+                        style={{
+                          background: "none", border: "0.5px solid var(--ios-separator)",
+                          borderRadius: 999, padding: "5px 11px",
+                          color: t.checking ? "var(--ios-label-3)" : "var(--ios-tint)",
+                          fontWeight: 600, cursor: t.checking ? "default" : "pointer",
+                        }}
+                      >
+                        {t.checking ? "Checking…" : "Double-check this"}
+                      </button>
+                      <select
+                        value={checker}
+                        onChange={(e) => setChecker(e.target.value)}
+                        className="ios-caption"
+                        aria-label="Model to check with"
+                        style={{
+                          background: "none", border: "none",
+                          color: "var(--ios-label-2)", padding: "4px 0",
+                        }}
+                      >
+                        {CHECKERS.map((c) => (
+                          <option key={c.id} value={c.id}>with {c.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {t.reviewErr && (
+                    <div className="ios-footnote" style={{ color: "var(--ios-red)", marginTop: 8 }}>{t.reviewErr}</div>
+                  )}
+
+                  {t.review && (
+                    <div
+                      style={{
+                        marginTop: 12, paddingTop: 11,
+                        borderTop: "0.5px solid var(--ios-separator)",
+                      }}
+                    >
+                      <div className="ios-caption" style={{ color: "var(--ios-label-3)", fontWeight: 700, marginBottom: 6 }}>
+                        CHECKED BY {(CHECKERS.find((c) => c.id === t.review!.model)?.label ?? t.review!.model).toUpperCase()}
+                      </div>
+                      <div
+                        className="ios-footnote"
+                        style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}
+                        dangerouslySetInnerHTML={{ __html: md(t.review.text) }}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+      {busy && (
+        <div className="ios-caption ios-pending" style={{ color: "var(--ios-label-3)", textAlign: "center", padding: "8px 0" }}>
+          Reading your data…
+        </div>
+      )}
+      {err && <div className="ios-footnote" style={{ color: "var(--ios-red)", padding: "6px 2px" }}>{err}</div>}
+      <div ref={bottomRef} />
+
       {/* ── What the numbers say ─────────────────────────────────────────── */}
-      <div className="ios-group-header" style={{ padding: "6px 0 7px" }}>
+      <div className="ios-group-header" style={{ padding: "22px 0 7px" }}>
         LAST {assessment.windowDays} DAYS
       </div>
       <div className="ios-list" style={{ margin: 0, padding: "4px 14px" }}>
@@ -264,137 +400,6 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
           </Link>
         </div>
       )}
-
-      {/* ── Conversation ─────────────────────────────────────────────────── */}
-      {turns.length > 0 && (
-        <>
-          <div className="ios-group-header" style={{ padding: "16px 0 7px" }}>CONVERSATION</div>
-          {turns.map((t, i) => (
-            <div
-              key={i}
-              className="ios-list"
-              style={{
-                margin: "0 0 8px", padding: "12px 14px",
-                background: t.role === "user" ? "var(--ios-fill-2)" : "var(--ios-cell)",
-              }}
-            >
-              {t.role === "user" ? (
-                <div className="ios-subhead" style={{ color: "var(--ios-label)", whiteSpace: "pre-wrap" }}>{t.content}</div>
-              ) : (
-                <>
-                  <div className="ios-subhead" style={{ color: "var(--ios-label)" }} dangerouslySetInnerHTML={{ __html: md(t.content) }} />
-
-                  {/* A second opinion, from a model that didn't write the answer. */}
-                  {!t.review && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-                      <button
-                        type="button"
-                        onClick={() => check(i)}
-                        disabled={t.checking}
-                        className="ios-caption"
-                        style={{
-                          background: "none", border: "0.5px solid var(--ios-separator)",
-                          borderRadius: 999, padding: "5px 11px",
-                          color: t.checking ? "var(--ios-label-3)" : "var(--ios-tint)",
-                          fontWeight: 600, cursor: t.checking ? "default" : "pointer",
-                        }}
-                      >
-                        {t.checking ? "Checking…" : "Double-check this"}
-                      </button>
-                      <select
-                        value={checker}
-                        onChange={(e) => setChecker(e.target.value)}
-                        className="ios-caption"
-                        aria-label="Model to check with"
-                        style={{
-                          background: "none", border: "none",
-                          color: "var(--ios-label-2)", padding: "4px 0",
-                        }}
-                      >
-                        {CHECKERS.map((c) => (
-                          <option key={c.id} value={c.id}>with {c.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {t.reviewErr && (
-                    <div className="ios-footnote" style={{ color: "var(--ios-red)", marginTop: 8 }}>{t.reviewErr}</div>
-                  )}
-
-                  {t.review && (
-                    <div
-                      style={{
-                        marginTop: 12, paddingTop: 11,
-                        borderTop: "0.5px solid var(--ios-separator)",
-                      }}
-                    >
-                      <div className="ios-caption" style={{ color: "var(--ios-label-3)", fontWeight: 700, marginBottom: 6 }}>
-                        CHECKED BY {(CHECKERS.find((c) => c.id === t.review!.model)?.label ?? t.review!.model).toUpperCase()}
-                      </div>
-                      <div
-                        className="ios-footnote"
-                        style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}
-                        dangerouslySetInnerHTML={{ __html: md(t.review.text) }}
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          ))}
-        </>
-      )}
-      {busy && (
-        <div className="ios-caption ios-pending" style={{ color: "var(--ios-label-3)", textAlign: "center", padding: "8px 0" }}>
-          Reading your data…
-        </div>
-      )}
-      {err && <div className="ios-footnote" style={{ color: "var(--ios-red)", padding: "6px 2px" }}>{err}</div>}
-      <div ref={bottomRef} />
-
-      {/* ── Ask ──────────────────────────────────────────────────────────── */}
-      <div className="ios-list" style={{ margin: "12px 0 0", padding: 12 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); ask(); }
-            }}
-            placeholder="Ask about your training, diet, sleep…"
-            rows={1}
-            style={{ flex: 1, minWidth: 0, background: "var(--ios-fill)", border: "none", borderRadius: 17, padding: "9px 13px", fontSize: 16, lineHeight: 1.35, color: "var(--ios-label)", resize: "none", fontFamily: "inherit", maxHeight: 110, overflowY: "auto" }}
-          />
-          <button
-            onClick={() => ask()}
-            disabled={busy || !input.trim()}
-            aria-label="Ask the advisor"
-            style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 17, background: "var(--ios-tint)", border: "none", color: "var(--ios-on-tint)", fontSize: 16, fontWeight: 700, cursor: "pointer", opacity: busy || !input.trim() ? 0.4 : 1 }}
-          >
-            {busy ? "…" : "↑"}
-          </button>
-        </div>
-        {turns.length === 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-            {STARTERS.map((s) => (
-              <button
-                key={s}
-                onClick={() => ask(s)}
-                disabled={busy}
-                className="ios-caption"
-                style={{ background: "var(--ios-fill)", border: "none", borderRadius: 8, color: "var(--ios-tint)", fontWeight: 600, cursor: "pointer", padding: "7px 11px", textAlign: "left" }}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 10, lineHeight: 1.45 }}>
-          Coaching from your own measurements — not medical advice. Anything about symptoms,
-          medication or an abnormal lab result belongs with your doctor.
-        </div>
-      </div>
     </div>
   );
 }
