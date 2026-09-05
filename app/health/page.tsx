@@ -435,6 +435,19 @@ export default async function DashboardPage() {
     <div className="ios-scroll">
       <LargeTitle brand title="Health" subtitle={`${today} · ${greetingForTz(tz)}${firstName ? `, ${firstName}` : ""}`} avatarInitial={(userName || "T")[0]?.toUpperCase()} />
 
+      {/* The advisor leads the screen. It reads every record below it — labs,
+          body composition, vitals, wearables, meals, medications — so the one
+          thing on this page that reasons across all of them should not be found
+          by scrolling past the things it reasons about. */}
+      <Group header="Advisor">
+        <Cell
+          href="/health/advisor"
+          lead={<IconBadge color="#5E5CE6"><Icons.SparkleIcon /></IconBadge>}
+          title="Health advisory"
+          subtitle="Your last 30 days across every record, and what to do about them"
+        />
+      </Group>
+
       {/* No device connected → one onboarding card instead of empty metric rows. */}
       {!hasDeviceData && (
         <div className="ios-list" style={{ margin: "8px 16px 0", padding: 18 }}>
@@ -504,17 +517,6 @@ export default async function DashboardPage() {
         })}
       </Group>
       )}
-
-      {/* The advisor reads everything above and below this card — labs, body
-          composition, vitals, wearables, meals — so it sits between them. */}
-      <Group header="Advisor">
-        <Cell
-          href="/health/advisor"
-          lead={<IconBadge color="#5E5CE6"><Icons.SparkleIcon /></IconBadge>}
-          title="Health advisory"
-          subtitle="Your last 30 days across every record, and what to do about them"
-        />
-      </Group>
 
       <Group header="Medical records" footer={latestLabPanel.length === 0 && !latestBodyComp ? "Upload a lab report or body-composition scan to track your results over time." : undefined}>
         {latestLabPanel.length > 0 ? (
