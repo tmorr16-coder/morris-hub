@@ -11,6 +11,11 @@ export interface RetirementProfile {
   base_return: number;
   retirement_return: number | null; // return applied at/after retirement age (null = same as base_return)
   inflation_rate: number;
+  // Social Security assumptions. Optional: added after the profile table
+  // existed, and a save must not fail on a database that lacks the columns.
+  ss_cola_rate?: number | null;   // annual COLA as a fraction; null = plan inflation
+  ss_cut_pct?: number | null;     // % reduction to every benefit from ss_cut_year; null/0 = none
+  ss_cut_year?: number | null;    // calendar year the reduction starts; null = 2033
   created_at: string;
   updated_at: string;
 }

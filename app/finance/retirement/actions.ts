@@ -194,18 +194,32 @@ export async function savePlan(data: {
   // created_at on insert and we set updated_at explicitly here.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { id: _pid, user_id: _uid, created_at: _pca, updated_at: _pua, ...profileRest } = data.profile as RetirementProfile;
-  const profilePayload = {
+  const profilePayload: Record<string, unknown> = {
     ...profileRest,
     user_id: user.id,
     updated_at: new Date().toISOString(),
   };
+  // The Social Security assumption columns arrived after the table did. A
+  // deploy can land before the migration runs, and an upsert naming a column
+  // that does not exist fails the whole save — every autosave on the page.
+  // Leaving unset assumptions out of the payload keeps saving working until
+  // the migration is applied; only a value someone actually entered can fail,
+  // and that failure is named below.
+  for (const k of ["ss_cola_rate", "ss_cut_pct", "ss_cut_year"]) {
+    if (profilePayload[k] == null) delete profilePayload[k];
+  }
   const { data: profileRow, error: profileErr } = await schema
     .from("retirement_profiles")
     .upsert(profilePayload, { onConflict: "user_id" })
     .select("id")
     .single();
 
-  if (profileErr) return { error: profileErr.message };
+  if (profileErr) {
+    if (/ss_(cola_rate|cut_pct|cut_year)/.test(profileErr.message)) {
+      return { error: "Social Security assumptions need a database migration first: run supabase/migrations/20260905_ss_assumptions.sql." };
+    }
+    return { error: profileErr.message };
+  }
   const profileId = profileRow.id as string;
 
   // Delete and re-insert child tables atomically

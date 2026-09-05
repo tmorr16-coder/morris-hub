@@ -9,7 +9,7 @@ import Link from "next/link";
 import { requireFinanceAccess } from "@/lib/finance/access";
 import { loadPlan } from "../actions";
 import { buildPlanReport, bucketLabel, fmtUSD, fmtCompact, fmtPct, type PlanReport } from "../_lib/plan-report";
-import { bucketOf, type TaxBucket } from "../_lib/cashflow";
+import { bucketOf, SS_DEFAULT_CUT_YEAR, type TaxBucket } from "../_lib/cashflow";
 import { PlanToolbar, PlanNarrative } from "./PlanActions";
 import styles from "./plan.module.css";
 
@@ -142,6 +142,8 @@ export default async function PlanDocumentPage() {
                   <tr><td>Return before retirement</td><td className={styles.num}>{fmtPct(p.weightedReturn)} <span className={styles.muted}>(balance-weighted)</span></td></tr>
                   <tr><td>Return in retirement</td><td className={styles.num}>{fmtPct(profile.retirement_return ?? p.weightedReturn)}</td></tr>
                   <tr><td>Inflation</td><td className={styles.num}>{fmtPct(profile.inflation_rate)}</td></tr>
+                  <tr><td>Social Security COLA</td><td className={styles.num}>{fmtPct(profile.ss_cola_rate ?? profile.inflation_rate)}{profile.ss_cola_rate == null ? <span className={styles.muted}> (inflation)</span> : null}</td></tr>
+                  <tr><td>Social Security paid</td><td className={`${styles.num} ${(profile.ss_cut_pct ?? 0) > 0 ? styles.bad : ""}`}>{(profile.ss_cut_pct ?? 0) > 0 ? `${100 - (profile.ss_cut_pct ?? 0)}% of scheduled from ${profile.ss_cut_year ?? SS_DEFAULT_CUT_YEAR}` : "100% of scheduled"}</td></tr>
                   <tr><td>State tax</td><td className={styles.num}>{(scenario.state_tax_rate ?? 5).toFixed(1)}%</td></tr>
                   <tr><td>Market volatility (simulation)</td><td className={styles.num}>12% a year, fat left tail</td></tr>
                 </tbody>

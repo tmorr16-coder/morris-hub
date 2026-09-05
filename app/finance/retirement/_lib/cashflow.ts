@@ -136,6 +136,28 @@ export function streamGrowth(inc: RetirementIncome, years: number): number {
 /** Full retirement age for anyone born 1960 or later. */
 export const SS_FRA_AGE = 67;
 
+/** The year the trust fund is projected to be unable to pay full benefits,
+ *  used when a reduction is set without a year. The 2025 Trustees Report put
+ *  retirement-benefit depletion at 2033 with about 77% payable. */
+export const SS_DEFAULT_CUT_YEAR = 2033;
+
+/**
+ * Share of the scheduled Social Security benefit actually paid at `age`.
+ *
+ * The plan's largest unstated optimism was that every scheduled benefit is
+ * paid in full for life. Once the trust fund is exhausted, current law pays
+ * only what payroll tax brings in — roughly three-quarters of what is
+ * scheduled — unless Congress acts. This lets a plan assume that, or any other
+ * reduction, from a chosen year. Null or zero means benefits are paid in full.
+ */
+export function ssPayableFraction(age: number, profile: RetirementProfile): number {
+  const cut = profile.ss_cut_pct ?? 0;
+  if (cut <= 0) return 1;
+  const year = new Date().getFullYear() + (age - profile.current_age);
+  if (year < (profile.ss_cut_year ?? SS_DEFAULT_CUT_YEAR)) return 1;
+  return Math.max(0, 1 - Math.min(cut, 100) / 100);
+}
+
 /**
  * Monthly benefit as a fraction of the full-retirement-age benefit, by claim age.
  *
@@ -157,8 +179,6 @@ export function ssBenefitFactor(claimAge: number, fraAge: number = SS_FRA_AGE): 
 /** Annual amount of a single income stream at a given age (0 outside window).
  *  Mirrors the projection's chart series exactly. */
 export function incomeAnnualAt(inc: RetirementIncome, age: number, profile: RetirementProfile): number {
-  const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
-
   if (inc.type === "social_security") {
     const claim = inc.ss_claim_age ?? SS_FRA_AGE;
     if (age < claim) return 0;
@@ -166,7 +186,15 @@ export function incomeAnnualAt(inc: RetirementIncome, age: number, profile: Reti
     // an SSA statement leads with. Claiming earlier or later changes it
     // permanently, so the factor is applied here rather than left to the
     // optimiser screen (which computed it correctly and was never wired in).
-    return inc.monthly_amount * ssBenefitFactor(claim) * 12 * inflFactor;
+    //
+    // Growth is the Social Security COLA, not general inflation, when the plan
+    // sets one apart. It applies from today, not from the claim date: the
+    // statement figure is in today's dollars, and benefits are wage-indexed
+    // until claiming (historically a little above inflation), so growing at a
+    // COLA over that stretch is already the conservative reading.
+    const cola = profile.ss_cola_rate ?? profile.inflation_rate;
+    const colaFactor = Math.pow(1 + cola, age - profile.current_age);
+    return inc.monthly_amount * ssBenefitFactor(claim) * 12 * colaFactor * ssPayableFraction(age, profile);
   }
   if (inc.type === "pension") {
     const start = inc.start_age ?? profile.retirement_age;

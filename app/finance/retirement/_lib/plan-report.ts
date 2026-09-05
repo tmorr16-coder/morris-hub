@@ -267,6 +267,7 @@ export function planReportBrief(r: PlanReport): string {
   lines.push(`Ages: now ${profile.current_age}, retire ${profile.retirement_age} (${r.retirementYear}), plan to ${profile.life_expectancy} (${r.planEndYear}).`);
   if (profile.spouse_enabled) lines.push(`Spouse: ${profile.spouse_name ?? "unnamed"}, age ${profile.spouse_age ?? "?"}, retiring ${profile.spouse_retirement_age ?? "?"}. Filing jointly.`);
   lines.push(`Assumptions: return ${fmtPct(profile.base_return)} pre-retirement, ${fmtPct(profile.retirement_return ?? p.weightedReturn)} after; inflation ${fmtPct(profile.inflation_rate)}.`);
+  lines.push(`Social Security: COLA ${fmtPct(profile.ss_cola_rate ?? profile.inflation_rate)}${profile.ss_cola_rate == null ? " (same as inflation)" : ""}; ${(profile.ss_cut_pct ?? 0) > 0 ? `benefits reduced ${profile.ss_cut_pct}% from ${profile.ss_cut_year ?? 2033} onward` : "every scheduled dollar assumed paid (no trust-fund reduction)"}.`);
   lines.push("");
   lines.push("## Headline");
   lines.push(`Nest egg at ${profile.retirement_age}: ${fmtUSD(p.nestEgg)} nominal (${fmtUSD(r.nestEggReal)} in today's dollars). Safe withdrawal (4%): ${fmtUSD(p.safeMonthlyWithdrawal)}/mo.`);

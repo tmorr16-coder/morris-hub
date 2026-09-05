@@ -123,6 +123,73 @@ export default function ScenariosTab({ profile, setProfile, scenario, setScenari
               style={inputStyle}
             />
           </div>
+          {/* Social Security used to grow at plan inflation for life with every
+              scheduled dollar assumed paid. These make both assumptions
+              explicit and editable. */}
+          <div>
+            <label style={labelStyle}>Social Security COLA (%/yr)</label>
+            <input
+              type="number"
+              min="0"
+              max="10"
+              step="0.1"
+              value={profile.ss_cola_rate != null ? (profile.ss_cola_rate * 100).toFixed(1) : ""}
+              onChange={(e) => updateProfile("ss_cola_rate", e.target.value === "" ? null : (parseFloat(e.target.value) || 0) / 100)}
+              placeholder={`same as inflation (${(profile.inflation_rate * 100).toFixed(1)})`}
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Benefit reduction (%)</label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              value={profile.ss_cut_pct != null && profile.ss_cut_pct > 0 ? String(profile.ss_cut_pct) : ""}
+              onChange={(e) => updateProfile("ss_cut_pct", e.target.value === "" ? null : parseFloat(e.target.value) || 0)}
+              placeholder="none"
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>Reduction from year</label>
+            <input
+              type="number"
+              min="2026"
+              max="2100"
+              step="1"
+              value={profile.ss_cut_year != null ? String(profile.ss_cut_year) : ""}
+              onChange={(e) => updateProfile("ss_cut_year", e.target.value === "" ? null : parseInt(e.target.value) || null)}
+              placeholder="2033"
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <div className="ios-caption" style={{ color: "var(--ios-label-2)", lineHeight: 1.5 }}>
+              The benefit you enter is today&rsquo;s-dollar figure from an SSA statement; it grows at the COLA from now on and is reduced by the percentage above from that year, for life.
+              The 2025 Trustees Report projected the retirement trust fund unable to pay full benefits from 2033, with about 77% payable.{" "}
+              <button
+                type="button"
+                onClick={() => setProfile({ ...profile, ss_cut_pct: 23, ss_cut_year: 2033 })}
+                style={{ color: "var(--ios-tint)", fontWeight: 600, background: "none", border: "none", padding: 0, cursor: "pointer", font: "inherit" }}
+              >
+                Assume that: −23% from 2033
+              </button>
+              {(profile.ss_cut_pct ?? 0) > 0 && (
+                <>
+                  {" · "}
+                  <button
+                    type="button"
+                    onClick={() => setProfile({ ...profile, ss_cut_pct: null, ss_cut_year: null })}
+                    style={{ color: "var(--ios-tint)", fontWeight: 600, background: "none", border: "none", padding: 0, cursor: "pointer", font: "inherit" }}
+                  >
+                    Assume full benefits
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
           <div>
             <label style={labelStyle}>Home value ($)</label>
             <input
