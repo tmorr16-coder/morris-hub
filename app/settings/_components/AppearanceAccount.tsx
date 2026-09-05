@@ -1,11 +1,13 @@
 "use client";
 
 // Appearance (theme + color scheme) + account actions for the Settings hub.
-// Theme (light/dark) and scheme (brand tint) are applied by stamping
-// data-theme / data-scheme on every `[data-ui="ios"]` scope and persisted to
-// localStorage; ThemeApplier re-applies them on every navigation so the choice
-// is global. "automatic" theme defers to the OS; "classic" scheme clears the
-// override back to the default indigo brand.
+//
+// Both are stamped on <html> and persisted to localStorage, which is where
+// app/ios.css reads them from. They used to be written onto every
+// `[data-ui="ios"]` scope; that could not hold, because scopes nest and any one
+// of them that missed the stamp repainted its subtree with the light default.
+// "automatic" clears the theme override, which is light — the app is
+// deliberately light-first. "classic" clears the tint back to the brand blue.
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -16,17 +18,25 @@ type Theme = "automatic" | "light" | "dark";
 type Scheme = "classic" | "famu" | "braves";
 
 function applyTheme(theme: Theme) {
-  document.querySelectorAll<HTMLElement>('[data-ui="ios"]').forEach((scope) => {
-    if (theme === "automatic") scope.removeAttribute("data-theme");
-    else scope.setAttribute("data-theme", theme);
-  });
+  const root = document.documentElement;
+  if (theme === "automatic") root.removeAttribute("data-theme");
+  else root.setAttribute("data-theme", theme);
 }
 
 function applyScheme(scheme: Scheme) {
-  document.querySelectorAll<HTMLElement>('[data-ui="ios"]').forEach((scope) => {
-    if (scheme === "classic") scope.removeAttribute("data-scheme");
-    else scope.setAttribute("data-scheme", scheme);
-  });
+  const root = document.documentElement;
+  if (scheme === "classic") root.removeAttribute("data-scheme");
+  else root.setAttribute("data-scheme", scheme);
+}
+
+/** localStorage read that survives private mode and server rendering. */
+function readStored(key: string, fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 const SCHEME_SWATCH: Record<Scheme, string> = {
@@ -37,17 +47,19 @@ const SCHEME_SWATCH: Record<Scheme, string> = {
 
 export default function AppearanceAccount() {
   const router = useRouter();
-  const [theme, setTheme] = useState<Theme>("automatic");
-  const [scheme, setScheme] = useState<Scheme>("classic");
+  // Read straight into state rather than through an effect, so the controls
+  // show the saved choice on the first frame instead of flicking off "Automatic".
+  const [theme, setTheme] = useState<Theme>(() => readStored("ios-theme", "automatic") as Theme);
+  const [scheme, setScheme] = useState<Scheme>(() => readStored("ios-scheme", "classic") as Scheme);
   const [signingOut, setSigningOut] = useState(false);
 
+  // The boot script in app/layout.tsx has already stamped <html>; re-applying
+  // here only matters if it was blocked.
   useEffect(() => {
-    const savedTheme = (localStorage.getItem("ios-theme") as Theme | null) ?? "automatic";
-    const savedScheme = (localStorage.getItem("ios-scheme") as Scheme | null) ?? "classic";
-    setTheme(savedTheme);
-    setScheme(savedScheme);
-    applyTheme(savedTheme);
-    applyScheme(savedScheme);
+    applyTheme(theme);
+    applyScheme(scheme);
+    // Once, on mount: afterwards the setters below own both.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onTheme = (t: Theme) => {

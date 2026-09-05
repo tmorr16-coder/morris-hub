@@ -16,7 +16,7 @@
 //   }, []);
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 const TRIGGER = 72;   // pull distance (px, after resistance) that arms a refresh
 const MAX = 112;      // furthest the dial travels
@@ -38,7 +38,6 @@ function inNestedScroller(target: EventTarget | null): boolean {
 
 export default function PullToRefresh() {
   const router = useRouter();
-  const pathname = usePathname();
   const [pending, startTransition] = useTransition();
   const [dist, setDist] = useState(0);
   const [spinning, setSpinning] = useState(false);
@@ -51,14 +50,6 @@ export default function PullToRefresh() {
   const g = useRef({ y0: 0, x0: 0, tracking: false, armed: false, dist: 0 });
 
   useEffect(() => { pendingRef.current = pending; }, [pending]);
-
-  // Match the appearance override ThemeApplier writes onto the iOS scopes.
-  useEffect(() => {
-    let dark = false;
-    try { dark = localStorage.getItem("ios-theme") === "dark"; } catch { /* ignore */ }
-    if (dark) rootRef.current?.setAttribute("data-theme", "dark");
-    else rootRef.current?.removeAttribute("data-theme");
-  }, [pathname]);
 
   useEffect(() => {
     function onStart(e: TouchEvent) {

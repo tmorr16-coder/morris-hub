@@ -99,7 +99,7 @@ html, body {
   overflow-x:          clip;
 }
 
-[data-section="health"][data-theme="dark"] {
+[data-theme="dark"] [data-section="health"] {
   --color-bg:          #14130f;
   --color-bg-raised:   #1c1b16;
   --color-bg-sunk:     #100f0c;
@@ -217,7 +217,7 @@ body[data-back="true"] .ios-title-block { padding-top: 46px; }
   .ptr-dial { color: #5e9bd6; background: rgba(44, 44, 46, 0.92); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45); }
 }
 /* Explicit appearance override (mirrors the ios-theme preference). */
-.ptr[data-theme="dark"] .ptr-dial { color: #5e9bd6; background: rgba(44, 44, 46, 0.92); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45); }
+[data-theme="dark"] .ptr .ptr-dial { color: #5e9bd6; background: rgba(44, 44, 46, 0.92); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45); }
 @media (prefers-reduced-motion: reduce) {
   .ptr-spin { animation-duration: 1.6s; }
 }

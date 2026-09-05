@@ -96,6 +96,35 @@ export const viewport: Viewport = {
   maximumScale: 5,
 };
 
+/**
+ * Stamp the appearance choice on <html> before the first paint.
+ *
+ * This runs synchronously in the document head, ahead of any React render, for
+ * two reasons. It removes the flash of the default theme that an effect-based
+ * applier always produces; and it puts the decision on one element above every
+ * screen, which is what makes it reliable at all.
+ *
+ * The previous design stamped each `[data-ui="ios"]` scope from an effect keyed
+ * on the pathname. Two things went wrong with that. Scopes nest — a module
+ * layout opens one and a page opens another inside it — and app/ios.css
+ * declares the light palette on the bare `[data-ui="ios"]` selector, so any
+ * scope that missed the stamp did not merely fail to go dark, it actively
+ * repainted its whole subtree light and reset the brand tint. And a scope that
+ * mounted after the effect never got stamped at all: navigating to Today
+ * rendered the loading skeleton's scope, stamped that, then swapped in the real
+ * page's scope with no pathname change to trigger a re-run. Today came out
+ * light while every other screen honoured the setting.
+ *
+ * Written as a string because it must be inline and parser-blocking. Failures
+ * are swallowed: private mode can throw on localStorage, and an unthemed app is
+ * a far better outcome than a blank one.
+ */
+const THEME_BOOT = `(function(){try{
+var d=document.documentElement,t=localStorage.getItem("ios-theme"),s=localStorage.getItem("ios-scheme");
+if(t==="light"||t==="dark"){d.setAttribute("data-theme",t)}else{d.removeAttribute("data-theme")}
+if(s==="famu"||s==="braves"){d.setAttribute("data-scheme",s)}else{d.removeAttribute("data-scheme")}
+}catch(e){}})()`;
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -107,6 +136,9 @@ export default async function RootLayout({
       lang="en"
       className={`${geist.variable} ${jetBrainsMono.variable} ${instrumentSerif.variable}`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+      </head>
       <body>
         <ThemeApplier />
         <GlobalBackButton />
