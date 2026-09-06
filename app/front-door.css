@@ -35,14 +35,14 @@
   --paper-3:   #61737A;
 
   /* The eight, lifted off their in-app values so they hold on ink. */
-  --m-hub:         #6E9BC9;
-  --m-health:      #8CBA63;
-  --m-finance:     #C79A6C;
-  --m-investments: #E8A461;
-  --m-career:      #5FA684;
-  --m-student:     #A292D6;
-  --m-bible:       #8FA3DC;
-  --m-travel:      #4FC0CE;
+  --m-hub:         #4FAEFF;
+  --m-health:      #2BE075;
+  --m-finance:     #FFB63F;
+  --m-investments: #FF9E3D;
+  --m-career:      #22DDB8;
+  --m-student:     #BE7BFF;
+  --m-bible:       #8B98FF;
+  --m-travel:      #3AD8EC;
 
   --display: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
   --body: var(--font-geist), system-ui, -apple-system, "Segoe UI", sans-serif;

@@ -64,26 +64,26 @@
   --pf-tint-press: light-dark(#147480, #7BD3DD);
   --pf-on-tint:    light-dark(#FFFFFF, #08181B);
 
-  --pf-red:    light-dark(#D2493C, #F0796B);
-  --pf-orange: light-dark(#C77A2A, #E8A461);
-  --pf-green:  light-dark(#4F8F3C, #8CBA63);
-  --pf-yellow: light-dark(#B08A17, #E3C55F);
+  --pf-red:    light-dark(#FF4D42, #FF6659);
+  --pf-orange: light-dark(#FF9F0A, #FFB13A);
+  --pf-green:  light-dark(#2ACF5F, #45E077);
+  --pf-yellow: light-dark(#FFC91A, #FFD645);
 
   /* The eight, plus the legacy accents. Light uses the in-app values from
      app/ios.css, which were chosen for a light ground; dark uses the front
      door's lifted set, which were chosen for ink. */
-  --pf-finance:     light-dark(#C58B4F, #C79A6C);
-  --pf-health:      light-dark(#2FA24E, #8CBA63);
-  --pf-money:       light-dark(#BE842B, #C79A6C);
-  --pf-investments: light-dark(#D9772B, #E8A461);
-  --pf-family:      light-dark(#7B5EA8, #A292D6);
-  --pf-morris:      light-dark(#356FB0, #6E9BC9);
-  --pf-career:      light-dark(#2E7D6B, #5FA684);
-  --pf-bible:       light-dark(#5B6B9E, #8FA3DC);
-  --pf-news:        light-dark(#B04A34, #D98A72);
-  --pf-travel:      light-dark(#2A8390, #4FC0CE);
-  --pf-children:    light-dark(#C56A93, #DB8FAE);
-  --pf-alert:       light-dark(#E5484D, #F0796B);
+  --pf-finance:     light-dark(#F0A222, #FFB63F);
+  --pf-health:      light-dark(#1FC963, #2BE075);
+  --pf-money:       light-dark(#F0A222, #FFB63F);
+  --pf-investments: light-dark(#FF8A1F, #FF9E3D);
+  --pf-family:      light-dark(#A855F7, #BE7BFF);
+  --pf-morris:      light-dark(#2E9BFF, #4FAEFF);
+  --pf-career:      light-dark(#12C9A6, #22DDB8);
+  --pf-bible:       light-dark(#6E7DFF, #8B98FF);
+  --pf-news:        light-dark(#FF6B4A, #FF8163);
+  --pf-travel:      light-dark(#1FC9E0, #3AD8EC);
+  --pf-children:    light-dark(#FF5C96, #FF77A8);
+  --pf-alert:       light-dark(#FF4D42, #FF6659);
 
   /* The ambient wash and grid, dialled well down in both. */
   --pf-wash-1: light-dark(rgba(42,131,144,0.08), rgba(79,192,206,0.07));
@@ -246,7 +246,18 @@ html body.pf { background: var(--pf-ground); color: var(--pf-text); }
 /* IconBadge keeps its module colour — that fill is what tells you a row is
    Money rather than Health. The inset highlight and drop shadow are gloss and
    read as grime on ink, so those go and the colour stays. */
-.pf [data-ui="ios"]:not([data-theme]) .ios-icon { box-shadow: none; border-radius: 9px; }
+/* A dark glyph, because the tiles are now vivid.
+ *
+ * IconBadge fills itself with the module colour and .ios-icon set the mark to
+ * white. That is what capped how bright these could be: white on the old muted
+ * fills already measured as low as 1.7:1, and every step brighter made the mark
+ * fainter. Ink on a saturated tile clears 4.5:1 on all sixteen, so the colour is
+ * free to be as rich as it should have been. */
+.pf [data-ui="ios"]:not([data-theme]) .ios-icon {
+  box-shadow: none;
+  border-radius: 9px;
+  color: #0A1013;
+}
 
 .pf [data-ui="ios"]:not([data-theme]) .ios-chip {
   font-family: var(--pf-mono);

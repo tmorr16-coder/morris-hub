@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { BRAND_GRADIENT, BRAND_MARK_PATH } from "@/lib/brand";
+import { BRAND_GRADIENT, BRAND_MARK_PATH, BRAND_INK } from "@/lib/brand";
 
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
@@ -15,7 +15,7 @@ export default function AppleIcon() {
           background: BRAND_GRADIENT,
         }}
       >
-        <svg width="112" height="112" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="112" height="112" viewBox="0 0 24 24" fill="none" stroke={BRAND_INK} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d={BRAND_MARK_PATH} />
         </svg>
       </div>

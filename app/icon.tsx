@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { BRAND_GRADIENT, BRAND_MARK_PATH } from "@/lib/brand";
+import { BRAND_GRADIENT, BRAND_MARK_PATH, BRAND_INK } from "@/lib/brand";
 
 export const size = { width: 64, height: 64 };
 export const contentType = "image/png";
@@ -16,7 +16,7 @@ export default function Icon() {
           borderRadius: 15,
         }}
       >
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={BRAND_INK} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
           <path d={BRAND_MARK_PATH} />
         </svg>
       </div>

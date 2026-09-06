@@ -2,7 +2,7 @@ import { Children, isValidElement, type ReactNode } from "react";
 import Link from "next/link";
 import { ComposeIcon, ChevronLeft } from "./icons";
 import { TabBar } from "./TabBar";
-import { BRAND_GRADIENT, BRAND_MARK_PATH } from "@/lib/brand";
+import { BRAND_GRADIENT, BRAND_MARK_PATH, BRAND_INK } from "@/lib/brand";
 
 /**
  * Compact top nav bar for pushed detail screens — a back button (with the
@@ -72,7 +72,7 @@ export function BrandMark({ style }: { style?: React.CSSProperties }) {
           display: "inline-flex", alignItems: "center", justifyContent: "center",
         }}
       >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.7" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={BRAND_INK} strokeWidth="2.7" strokeLinecap="round" strokeLinejoin="round">
           <path d={BRAND_MARK_PATH} />
         </svg>
       </span>
