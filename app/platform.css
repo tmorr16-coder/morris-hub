@@ -56,12 +56,18 @@
   --pf-pressed:   light-dark(rgba(11,17,20,0.06),   rgba(231,239,241,0.06));
   --pf-fill:      light-dark(rgba(11,17,20,0.06),   rgba(231,239,241,0.07));
   --pf-fill-2:    light-dark(rgba(11,17,20,0.035),  rgba(231,239,241,0.045));
-  /* Opaque. The bar sits in flow at the bottom of the shell now rather than
-     floating over the content, so there is nothing behind it to show through —
-     and while it was translucent, the rows it covered stayed legible through
-     it, which is what made it read as hovering rather than as the edge of the
-     app. The hairline above it is what separates bar from content. */
-  --pf-bar:       light-dark(#F1F3F2, #0B1114);
+  /* Opaque, and a step off the ground rather than the ground itself.
+     
+     Both halves of that matter, and the second is what "not anchored to the
+     bottom" actually was. On a home-screen app the bar reserves the home
+     indicator — its box runs to the physical bottom edge, but the last ~34px
+     of it is padding under the labels. Painted the ground colour (or, before
+     that, a translucent wash of it), that strip was indistinguishable from the
+     page behind it, so the row of labels looked like it was floating with a gap
+     beneath it instead of sitting on the bottom edge. Given its own surface,
+     the whole slab reads as the bar, indicator space included — which is how
+     the system's own tab bar reads on the same hardware. */
+  --pf-bar:       light-dark(#FFFFFF, #162126);
 
   /* Verdigris is the interactive colour in both — deep on paper, lifted on ink
      so it does not sink.
