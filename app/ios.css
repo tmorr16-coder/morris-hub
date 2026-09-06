@@ -276,11 +276,11 @@
      (viewport-fit=cover + black-translucent), so without this the first row of
      content sits underneath the clock. */
   padding-top: var(--ios-safe-top, env(safe-area-inset-top, 0px));
-  /* The tab bar is in flow below this element and takes its own height out of
-     the column, so there is nothing left to clear — only the home indicator on
-     a screen that carries no bar at all, and a little breathing room under the
-     last row either way. */
-  padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  /* Clears the tab bar, which is fixed over the content — this is exactly the
+     bar's own height (50px + the home indicator) plus a little breathing room,
+     so the last row stops at the bar's hairline instead of running under it.
+     On a screen with no bar the same padding clears the home indicator. */
+  padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px));
   /* width:100% matters now that this is a flex item. As a block, max-width plus
      `margin: 0 auto` gave a 640px centred column. As a flex item in a column
      container, an auto cross-axis margin overrides stretch and the item sizes
@@ -481,36 +481,26 @@ button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed);
 
 /* ══ Tab bar ═════════════════════════════════════════════════════════════════ */
 .ios-tabbar {
-  /* Sticky and in flow — the bar is the bottom edge of the shell, not something
-     floating over it.
+  /* Fixed, and — since IOSScreen lifts it — no longer inside the element that
+     scrolls. Those two facts together are what pin it to the bottom.
      
-     Fixed got it close: IOSScreen lifts the bar out of the scroller, so it no
-     longer travelled with the content. But a fixed element is out of flow, so
-     the shell never reserved its height, the content ran on underneath it, and
-     the bar's translucent ground was the only thing separating the two. The bar
-     read as an overlay hovering above the bottom of the screen — rows sliding
-     visibly through it — rather than as the bottom of the app. Fixed also
-     positions against the layout viewport, which is the one thing on iOS that
-     does not agree with the shell's own 100dvh while Safari's toolbars come and
-     go.
+     Fixed alone was not enough: a fixed element inside a scrolling container is
+     the case iOS gets wrong, painting it against the scroller so it travels
+     with the content. Outside the scroller, that bug has nothing to bite on.
      
-     In flow, none of that arises. The shell is exactly one viewport and never
-     scrolls, so the last item in its column is exactly the bottom border of
-     what the user can see, in every browser, with nothing to drift against.
-     .ios-scroll takes the height that is left, so content ends where the bar
-     begins instead of running under it.
+     In flow is worse, and this rule has now been round the loop to prove it.
+     Whether static or sticky, it depends on an unbroken flex chain from the
+     shell down to the bar, and it inherits the shell's 100dvh — so a page that
+     wraps its screen in a plain div, or a browser whose dynamic viewport does
+     not agree with what is actually visible, drops the bar below the fold.
+     Fixed ignores nesting and measures against the viewport itself, so the
+     worst case is a bar pinned somewhere on screen rather than a bar nobody
+     can reach.
      
-     Sticky rather than static is the insurance the old note was reaching for.
-     Static depends on an unbroken flex chain from the shell down to the bar; if
-     a page ever breaks that chain and the bar lands inside the scroller
-     instead, `bottom: 0` pins it to the bottom of the scrollport rather than
-     letting it fall hundreds of pixels below the fold. Both placements end up
-     in the same spot on screen.
-     
-     margin-top: auto keeps it last in the column even where the scroller above
-     it does not stretch. */
-  position: sticky; bottom: 0; z-index: 100;
-  flex: 0 0 auto; margin-top: auto;
+     What the bar does need from being out of flow is for the content to stop
+     above it rather than run underneath: .ios-scroll pads itself by exactly
+     this height, and the ground below is opaque, so nothing shows through. */
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
   display: flex; align-items: stretch;
   height: calc(50px + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
