@@ -1,9 +1,7 @@
-"use client";
-
-import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { useRouter } from "next/navigation";
+import { redirect } from "next/navigation";
+import { getCurrentClaims } from "@/lib/supabase/server";
+import WaitlistForm from "./_landing/WaitlistForm";
 import "./front-door.css";
 
 /**
@@ -17,7 +15,15 @@ import "./front-door.css";
  * moss, tobacco, amber, pine, iris, delft, verdigris — lifted for a dark
  * ground. Eight domains under one roof is the product, so the page is built
  * from them rather than from one accent chosen for the occasion. See
- * app/landing.css.
+ * app/front-door.css.
+ *
+ * A server component, and that is the point. It used to be a client component
+ * that rendered the whole page and then discovered, in an effect, that the
+ * visitor was already signed in — so anyone opening the app at the root
+ * watched the entire marketing page paint and then vanish. The check now
+ * happens before anything is sent, and a signed-in visitor never sees this
+ * page at all. getCurrentClaims() verifies the token locally, so it costs no
+ * round trip.
  */
 
 // ── Module definitions ──────────────────────────────────────────────────────
@@ -99,86 +105,12 @@ const MODULES = [
   },
 ];
 
-// ── Waitlist ────────────────────────────────────────────────────────────────
-
-function WaitlistForm() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
-  const [errorMsg, setErrorMsg] = useState("");
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setStatus("loading");
-    setErrorMsg("");
-    try {
-      const res = await fetch("/api/waitlist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setErrorMsg(data.error ?? "Something went wrong."); setStatus("error"); return; }
-      setStatus("done");
-    } catch {
-      setErrorMsg("Could not submit. Check your connection.");
-      setStatus("error");
-    }
-  }
-
-  if (status === "done") {
-    return (
-      <div className="lp-done">
-        <div className="lp-done-mark" aria-hidden>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 12.5 9.5 18 20 6.5" />
-          </svg>
-        </div>
-        <div className="lp-done-title">You&rsquo;re on the list</div>
-        <div className="lp-note">We&rsquo;ll be in touch when access opens up for new members.</div>
-      </div>
-    );
-  }
-
-  return (
-    <form onSubmit={submit} className="lp-form">
-      <input
-        required
-        className="lp-input"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Your name"
-        autoComplete="name"
-      />
-      <input
-        required
-        type="email"
-        className="lp-input"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="Email address"
-        autoComplete="email"
-      />
-      {errorMsg && <div className="lp-err">{errorMsg}</div>}
-      <button type="submit" disabled={status === "loading"} className="lp-btn lp-btn--solid" style={{ marginTop: 4 }}>
-        {status === "loading" ? "Requesting…" : "Request access"}
-      </button>
-      <div className="lp-note">
-        Invitation only. We&rsquo;ll never share your address, and there is no mailing list to unsubscribe from.
-      </div>
-    </form>
-  );
-}
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
-export default function LandingPage() {
-  const { user, loading } = useCurrentUser();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!loading && user) router.replace("/home");
-  }, [user, loading, router]);
+export default async function LandingPage() {
+  // Decided before the page is sent, so there is nothing to flash.
+  if (await getCurrentClaims()) redirect("/home");
 
   return (
     <div className="lp">
