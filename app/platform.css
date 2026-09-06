@@ -1,0 +1,189 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   Platform skin — the front-door language, carried inside the app
+   ---------------------------------------------------------------------------
+   Scoped under .pf. Wrap a screen in it and that screen adopts the treatment;
+   every other screen keeps the iOS system untouched. That is what makes this
+   testable on one page before it goes near the other seven, and reverting it
+   is deleting one class name.
+
+   It works by redefining the --ios-* tokens, not by restyling class by class.
+   The first attempt did the latter and it was wrong: it painted the surfaces
+   dark and left every token at its light value, so anything not named by hand
+   stayed light. The segmented control, the Next-up card and the composer came
+   out as white blocks on a dark page, and the wordmark went dark-on-dark.
+   Redefining the tokens means components nobody thought about follow anyway,
+   which is what a token layer is for.
+
+   So: the tokens below are the ink palette expressed in the iOS system's own
+   vocabulary, and the rules under them add only the character that vocabulary
+   has no word for — the serif for the one large moment, mono for labels,
+   hairline panels instead of filled cards, and the ambient ground.
+
+   The translation, not the transplant. The front door is read once: 96px
+   serif, enormous whitespace, low density. Today is scanned and operated forty
+   times a day, so the spacing and type scale stay close to what a dashboard
+   needs and only the language crosses over.
+
+   Committed dark, like the front door. If this is adopted platform-wide the
+   light/dark setting needs a decision: a light variant of the same language,
+   or the setting stops applying to skinned screens.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.pf {
+  /* Mirrors app/front-door.css. If the two ever disagree, that file wins —
+     it is the surface people meet first. */
+  --pf-ink:     #0B1114;
+  --pf-ink-2:   #111A1E;
+  --pf-ink-3:   #162126;
+  --pf-rule:    rgba(226,240,243,0.09);
+  --pf-rule-2:  rgba(226,240,243,0.16);
+  --pf-paper:   #E7EFF1;
+  --pf-paper-2: #93A6AD;
+  --pf-paper-3: #61737A;
+
+  --pf-display: var(--font-instrument-serif), Georgia, serif;
+  --pf-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ── The palette, in the iOS system's own vocabulary ─────────────────────────
+   One extra class over app/ios.css, so this wins whichever stylesheet the
+   bundler emits first. The module accents are lifted the same way the front
+   door lifts them: the in-app values are mid-tone and go muddy on ink. */
+.pf [data-ui="ios"] {
+  --ios-bg:            var(--pf-ink);
+  --ios-bg-elevated:   var(--pf-ink-2);
+  --ios-cell:          rgba(17,26,30,0.72);
+  --ios-cell-pressed:  rgba(231,239,241,0.06);
+  --ios-fill:          rgba(231,239,241,0.07);
+  --ios-fill-2:        rgba(231,239,241,0.045);
+
+  --ios-label:         var(--pf-paper);
+  --ios-label-2:       var(--pf-paper-2);
+  --ios-label-3:       var(--pf-paper-3);
+  --ios-separator:     var(--pf-rule);
+
+  --ios-tint:          #4FC0CE;
+  --ios-tint-press:    #7BD3DD;
+  --ios-on-tint:       #08181B;
+
+  --ios-red:           #F0796B;
+  --ios-orange:        #E8A461;
+  --ios-green:         #8CBA63;
+  --ios-yellow:        #E3C55F;
+  --ios-alert:         #F0796B;
+
+  --ios-finance:       #C79A6C;
+  --ios-health:        #8CBA63;
+  --ios-money:         #C79A6C;
+  --ios-investments:   #E8A461;
+  --ios-family:        #A292D6;
+  --ios-morris:        #6E9BC9;
+  --ios-career:        #5FA684;
+  --ios-bible:         #8FA3DC;
+  --ios-news:          #D98A72;
+  --ios-travel:        #4FC0CE;
+  --ios-children:      #DB8FAE;
+
+  --ios-bar:           rgba(11,17,20,0.82);
+  --ios-bar-border:    var(--pf-rule);
+  --ios-shadow-card:   none;
+  --ios-hair:          1px;
+}
+
+/* ── Ground ─────────────────────────────────────────────────────────────────
+   The front door's wash and grid, dialled well down. A dashboard that shimmers
+   is a dashboard you cannot read; this is here so the dark is not a flat void
+   and for no other reason. */
+.pf [data-ui="ios"] .ios-scroll {
+  background:
+    radial-gradient(72% 30% at 12% 0%, rgba(79,192,206,0.07), transparent 70%),
+    radial-gradient(60% 26% at 92% 3%, rgba(162,146,214,0.05), transparent 72%),
+    var(--pf-ink);
+}
+.pf [data-ui="ios"] .ios-scroll::before {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image:
+    repeating-linear-gradient(to right, var(--pf-rule) 0 1px, transparent 1px 96px),
+    repeating-linear-gradient(to bottom, var(--pf-rule) 0 1px, transparent 1px 96px);
+  opacity: 0.3;
+  mask-image: radial-gradient(110% 46% at 50% 0%, #000 8%, transparent 70%);
+  -webkit-mask-image: radial-gradient(110% 46% at 50% 0%, #000 8%, transparent 70%);
+}
+.pf [data-ui="ios"] .ios-scroll > * { position: relative; z-index: 1; }
+
+/* ── The one large moment ───────────────────────────────────────────────────
+   Today opens on a greeting and a date. That is the only place on a dashboard
+   where display type earns its keep, so it is the only place that gets it. */
+.pf [data-ui="ios"] .ios-large-title {
+  font-family: var(--pf-display);
+  font-weight: 400;
+  font-size: clamp(34px, 9vw, 46px);
+  line-height: 1.02;
+  letter-spacing: -0.014em;
+  word-spacing: 0.04em;
+}
+.pf [data-ui="ios"] .ios-title-sub {
+  font-family: var(--pf-mono);
+  font-size: 11px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+/* ── Labels ─────────────────────────────────────────────────────────────── */
+.pf [data-ui="ios"] .ios-group-header {
+  font-family: var(--pf-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  font-weight: 400;
+}
+.pf [data-ui="ios"] .ios-tile-label {
+  font-family: var(--pf-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+/* ── Surfaces ───────────────────────────────────────────────────────────────
+   iOS groups are opaque blocks with a generous radius. Here they are a
+   near-flat panel behind a hairline: less contrast, more precision, and the
+   rules do the separating rather than the fills. */
+.pf [data-ui="ios"] .ios-list,
+.pf [data-ui="ios"] .ios-group {
+  background: rgba(17,26,30,0.7);
+  border: 1px solid var(--pf-rule);
+  border-radius: 13px;
+  box-shadow: none;
+}
+/* Rows inside a group let the group's own surface show through; only a
+   standalone card fills itself. */
+.pf [data-ui="ios"] .ios-list > .ios-cell,
+.pf [data-ui="ios"] .ios-group > .ios-cell { background: transparent; }
+
+/* The glance tiles stay the one raised object, because those four figures are
+   what the screen is answering when you open it. */
+.pf [data-ui="ios"] .ios-tile {
+  background: linear-gradient(180deg, var(--pf-ink-3), var(--pf-ink-2));
+  border: 1px solid var(--pf-rule-2);
+  border-radius: 14px;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 18px 40px -26px rgba(0,0,0,0.9);
+}
+
+/* IconBadge keeps its module colour — that fill is what tells you a row is
+   Money rather than Health, and it is the only place the eight colours appear
+   on this screen. The inset highlight and drop shadow are light-mode gloss and
+   read as grime on ink, so those go and the colour stays. */
+.pf [data-ui="ios"] .ios-icon { box-shadow: none; border-radius: 9px; }
+
+.pf [data-ui="ios"] .ios-chip {
+  font-family: var(--pf-mono);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  border: 1px solid var(--pf-rule);
+}
+
+.pf [data-ui="ios"] .ios-num { font-variant-numeric: tabular-nums; }
+.pf [data-ui="ios"] .ios-tabbar {
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+}
+.pf [data-ui="ios"] :focus-visible { outline: 2px solid var(--ios-tint); outline-offset: 2px; }
