@@ -402,6 +402,17 @@ button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed);
 .ios-tile-sub   { font-size: 12.5px; color: var(--ios-label-2); letter-spacing: -0.003em; }
 /* A tile slot still streaming in behind <Suspense>. Dimmed and gently pulsing
    so the tile holds its size — the value swaps in without the grid reflowing. */
+/* A loading state that waits its turn.
+   Next paints a loading.tsx the moment a navigation begins, so a transition
+   that resolves quickly flashed a wireframe and swapped it out again. Held at
+   zero opacity for 240ms, a fast render never shows one; a slow render fades
+   it in. */
+.ios-skeleton { opacity: 0; animation: ios-skeleton-in 160ms ease-out 240ms forwards; }
+@keyframes ios-skeleton-in { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .ios-skeleton { animation-duration: 1ms; }
+}
+
 .ios-tile-pending { color: var(--ios-label-3); animation: ios-pulse 1.4s ease-in-out infinite; }
 @keyframes ios-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.85; } }
 @media (prefers-reduced-motion: reduce) {

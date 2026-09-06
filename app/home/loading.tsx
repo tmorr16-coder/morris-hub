@@ -17,7 +17,7 @@ function Block({ height, width, radius = 8 }: { height: number; width: string; r
 export default function Loading() {
   return (
     <div data-ui="ios">
-      <main className="ios-scroll" style={{ padding: "20px var(--ios-gutter)" }} aria-busy="true" aria-label="Loading Today">
+      <main className="ios-scroll ios-skeleton" style={{ padding: "20px var(--ios-gutter)" }} aria-busy="true" aria-label="Loading Today">
         {/* Greeting + date */}
         <Block height={13} width="34%" />
         <div style={{ height: 10 }} />

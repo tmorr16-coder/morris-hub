@@ -60,12 +60,69 @@ export interface AuthFailure {
  * Rate limits are retried here, since they were the one failure the old
  * per-request cache handled and the rewrite dropped.
  */
+/**
+ * Successful verifications, held briefly and keyed by the token they verified.
+ *
+ * The check above is a network round trip to Supabase, and it sits on the
+ * critical path of every navigation — the layout and the page share one, but
+ * each new page pays again. Moving through the app therefore cost a trip per
+ * screen, which is most of the pause before a page appears.
+ *
+ * Only successes are cached, and only for a minute. That bounds the one thing
+ * being traded away: a session ended elsewhere keeps working for up to 60
+ * seconds rather than being caught on the next navigation. Failures are never
+ * cached — a rate limit or a blip must not lock someone out for a minute, and
+ * a genuinely dead session still reaches the signout route on the next check.
+ *
+ * Keyed by the access token rather than the user, so a refreshed or reissued
+ * token is verified afresh rather than inheriting the old token's verdict.
+ *
+ * Module state, so it lives as long as the serverless instance does. That is
+ * exactly the window that matters: several screens in a row on one warm
+ * instance.
+ */
+const VERIFIED_TTL_MS = 60_000;
+const verified = new Map<string, { at: number; user: User }>();
+
+function readVerified(token: string): User | null {
+  const hit = verified.get(token);
+  if (!hit) return null;
+  if (Date.now() - hit.at > VERIFIED_TTL_MS) {
+    verified.delete(token);
+    return null;
+  }
+  return hit.user;
+}
+
+function rememberVerified(token: string, user: User) {
+  // A handful of tokens at most (one per signed-in person on this instance);
+  // the clear is a belt-and-braces bound, not an eviction policy.
+  if (verified.size > 64) verified.clear();
+  verified.set(token, { at: Date.now(), user });
+}
+
 const fetchUserResult = cache(async (): Promise<{ user: User | null; error: AuthFailure | null }> => {
   const supabase = await createClient();
+
+  // The token is read from the cookie, which costs nothing. If this exact
+  // token was verified in the last minute, that verdict stands.
+  let token: string | null = null;
+  try {
+    const { data } = await supabase.auth.getSession();
+    token = data.session?.access_token ?? null;
+    if (token) {
+      const hit = readVerified(token);
+      if (hit) return { user: hit, error: null };
+    }
+  } catch {
+    /* no session to read — fall through to the authoritative check */
+  }
+
   try {
     return await withAuthRetry(
       async () => {
         const { data: { user }, error } = await supabase.auth.getUser();
+        if (user && token) rememberVerified(token, user);
         // getUser() reports a rate limit as a value, not a throw; the retry
         // helper only sees throws.
         if (error && error.status === 429) throw error;

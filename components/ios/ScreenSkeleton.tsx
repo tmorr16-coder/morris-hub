@@ -9,6 +9,13 @@
 // for the length of a slow render reads as flashing rather than as progress. A
 // still outline says "something is coming" without asking for attention.
 //
+// And it holds itself back for a quarter of a second. Next renders a loading
+// state the instant a navigation starts, so a fast transition flashed a
+// wireframe and replaced it almost immediately — visible often enough to read
+// as the app stuttering rather than as feedback. Starting at zero opacity and
+// fading in on a delay means a render that beats the delay shows nothing at
+// all, and only a genuinely slow one draws the outline.
+//
 // It renders only the scrolling area: every module layout already opens the
 // `data-ui="ios"` scope and draws the tab bar around it.
 
@@ -30,7 +37,7 @@ function Row({ shrink }: { shrink: number }) {
 
 export function ScreenSkeleton({ groups = 2, rows = 3 }: { groups?: number; rows?: number }) {
   return (
-    <main className="ios-scroll" aria-busy="true" aria-label="Loading">
+    <main className="ios-scroll ios-skeleton" aria-busy="true" aria-label="Loading">
       <div style={{ padding: "20px var(--ios-gutter)" }}>
         {/* Title block */}
         <Block h={13} w="32%" r={4} />
