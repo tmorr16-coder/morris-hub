@@ -43,6 +43,31 @@ html, body {
   text-rendering: optimizeLegibility;
 }
 
+/* The document ground follows the appearance choice.
+ *
+ * The rule above paints the page cream and never changed with the theme, which
+ * was invisible while the iOS scopes were mostly failing to go dark themselves.
+ * Now that the theme is stamped reliably on <html>, the content is near-black
+ * over a cream document, and the cream shows through wherever the scope is not
+ * painted yet: while a route streams, between transitions, and in the
+ * rubber-band overscroll above and below the content. On Today that is most
+ * visible, because it is force-dynamic behind a loading skeleton with several
+ * Suspense boundaries, so there are more moments with nothing painted over it.
+ *
+ * #000 rather than a near-black, so there is no seam where an iOS scope
+ * (--ios-bg in dark) meets the document behind it.
+ *
+ * color-scheme is the other half: it is what tells the browser to draw its own
+ * furniture dark — scrollbars, form controls, and the overscroll area that CSS
+ * cannot reach at all. */
+html { color-scheme: light; }
+html[data-theme="dark"] { color-scheme: dark; }
+html[data-theme="dark"],
+html[data-theme="dark"] body {
+  background: #000000;
+  color: #FFFFFF;
+}
+
 * { box-sizing: border-box; }
 
 .serif {
@@ -164,9 +189,11 @@ html, body {
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);
 }
-@media (prefers-color-scheme: dark) {
-  .global-back-btn { color: #5e9bd6; background: rgba(44, 44, 46, 0.82); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4); }
-}
+/* Follows the appearance setting, not the OS. Following the OS meant dark
+   chrome on a light app whenever the two disagreed, and this button is
+   fixed-position and comes and goes with navigation, so the mismatch read as
+   the chrome flashing rather than as a wrong colour. */
+html[data-theme="dark"] .global-back-btn { color: #5e9bd6; background: rgba(44, 44, 46, 0.82); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4); }
 /* Reserve room at the top of the title area so the fixed button never overlaps
    it. The scroll container already absorbs the status-bar inset, so this is just
    the button's own height (34px) plus its offset and a little breathing room —
@@ -213,11 +240,9 @@ body[data-back="true"] .ios-title-block { padding-top: 46px; }
   clip-path: inset(50%);
   white-space: nowrap;
 }
-@media (prefers-color-scheme: dark) {
-  .ptr-dial { color: #5e9bd6; background: rgba(44, 44, 46, 0.92); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45); }
-}
-/* Explicit appearance override (mirrors the ios-theme preference). */
-[data-theme="dark"] .ptr .ptr-dial { color: #5e9bd6; background: rgba(44, 44, 46, 0.92); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45); }
+/* Same again: the OS-keyed copy of this rule is gone, leaving the one that
+   follows the appearance setting. */
+html[data-theme="dark"] .ptr-dial { color: #5e9bd6; background: rgba(44, 44, 46, 0.92); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45); }
 @media (prefers-reduced-motion: reduce) {
   .ptr-spin { animation-duration: 1.6s; }
 }
