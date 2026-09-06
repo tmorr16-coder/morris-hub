@@ -6,12 +6,22 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { withAuthRetrySafe } from "@/lib/supabase/auth-retry";
+import "../front-door.css";
+
+/**
+ * Sign in — the second half of the front door.
+ *
+ * Shares app/front-door.css with the landing page rather than the iOS system
+ * behind the login, because a visitor who crosses from one look to the other
+ * while deciding whether to hand over an account notices, and it reads as two
+ * different products.
+ */
 
 const TEST_AUTH_ENABLED = process.env.NEXT_PUBLIC_ENABLE_TEST_AUTH === "true";
 
 function GoogleIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
       <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
       <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.909-2.259c-.806.54-1.837.86-3.047.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
       <path d="M3.964 10.71C3.784 10.17 3.682 9.593 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
@@ -41,11 +51,10 @@ export default function LoginPage() {
   const [showTestForm, setShowTestForm] = useState(false);
 
   // An already-signed-in visitor is sent straight to Today. This deliberately
-  // does not gate the render: the sign-in card used to be replaced by a
-  // "Loading…" line until an auth round trip came back, so on a phone the first
-  // thing you saw after tapping "Sign in" was a spinner. The check is now local
-  // and resolves in a frame or two, so the card is drawn immediately and the
-  // redirect happens underneath it for the rare visitor who is already signed in.
+  // does not gate the render: the card used to be replaced by a "Loading…" line
+  // until an auth round trip came back, so on a phone the first thing you saw
+  // after tapping "Sign in" was a spinner. The check is local and resolves in a
+  // frame or two, so the card is drawn immediately.
   useEffect(() => {
     if (!loading && user) router.replace("/home");
   }, [user, loading, router]);
@@ -66,7 +75,7 @@ export default function LoginPage() {
         setSubmitting(false);
         return;
       }
-      // Session cookie is set by the server route — reload to pick it up
+      // Session cookie is set by the server route — reload to pick it up.
       window.location.href = "/home";
     } catch {
       setError("Network error — try again");
@@ -74,119 +83,78 @@ export default function LoginPage() {
     }
   }
 
-  const input: React.CSSProperties = {
-    width: "100%", padding: "13px 15px", borderRadius: 10,
-    border: "0.5px solid var(--ios-separator)", background: "var(--ios-bg-elevated)",
-    color: "var(--ios-label)", fontSize: 17, fontFamily: "inherit",
-    outline: "none", boxSizing: "border-box",
-  };
-
   return (
-    <div data-ui="ios" className="ios-scroll" style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px var(--ios-gutter)" }}>
-      {/* Logo */}
-      <Link href="/" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 32 }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--ios-tint)", flexShrink: 0 }} />
-        <span className="ios-title-3" style={{ letterSpacing: "-0.01em", color: "var(--ios-label)" }}>
-          morrisai<span style={{ color: "var(--ios-tint)" }}>.family</span>
-        </span>
-      </Link>
+    <div className="lp">
+      <div className="lp-auth">
+        <Link href="/" className="lp-mark">
+          <span className="lp-mark-dot" aria-hidden />
+          <span className="lp-mark-text">
+            morrisai<i>.family</i>
+          </span>
+        </Link>
 
-      {/* Card */}
-      <div style={{ width: "100%", maxWidth: 360, background: "var(--ios-cell)", borderRadius: "var(--ios-radius-tile)", padding: "32px 26px" }}>
-        <h1 className="ios-title-2" style={{ textAlign: "center", marginBottom: 4 }}>
-          Sign in
-        </h1>
-        <p className="ios-subhead" style={{ color: "var(--ios-label-2)", textAlign: "center", marginBottom: 26, lineHeight: 1.4 }}>
-          Access the Morris family platform
-        </p>
+        <div className="lp-auth-card">
+          <h1 className="lp-auth-title">Welcome back</h1>
+          <p className="lp-auth-sub">Sign in to the Morris family platform.</p>
 
-        {/* Google OAuth — primary */}
-        <button
-          onClick={signInWithGoogle}
-          className="ios-btn ios-btn--full"
-          style={{
-            gap: 10, background: "var(--ios-bg-elevated)",
-            border: "0.5px solid var(--ios-separator)", color: "var(--ios-label)",
-            fontSize: 17, fontWeight: 500,
-          }}
-        >
-          <GoogleIcon />
-          Continue with Google
-        </button>
+          <button onClick={signInWithGoogle} className="lp-oauth">
+            <GoogleIcon />
+            Continue with Google
+          </button>
 
-        {/* Test auth — only shown when NEXT_PUBLIC_ENABLE_TEST_AUTH=true */}
-        {TEST_AUTH_ENABLED && (
-          <>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "20px 0 0" }}>
-              <div style={{ flex: 1, height: "0.5px", background: "var(--ios-separator)" }} />
-              <span className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>or</span>
-              <div style={{ flex: 1, height: "0.5px", background: "var(--ios-separator)" }} />
-            </div>
+          {/* Only when NEXT_PUBLIC_ENABLE_TEST_AUTH is on. */}
+          {TEST_AUTH_ENABLED && (
+            <>
+              <div className="lp-or">or</div>
 
-            {!showTestForm ? (
-              <button
-                onClick={() => setShowTestForm(true)}
-                className="ios-btn ios-btn--full"
-                style={{
-                  marginTop: 12, background: "var(--ios-fill)",
-                  color: "var(--ios-label)", fontSize: 15, fontWeight: 600,
-                  border: "1px solid var(--ios-separator)",
-                }}
-              >
-                Use walkthrough account
-              </button>
-            ) : (
-              <form onSubmit={handleTestLogin} style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
-                <div className="ios-caption" style={{ fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--ios-label-3)", textAlign: "center" }}>
-                  Walkthrough account
-                </div>
-                <input
-                  autoFocus
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="test@morrisai.family"
-                  required
-                  style={input}
-                />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password"
-                  required
-                  style={input}
-                />
-                {error && (
-                  <div className="ios-footnote" style={{ color: "var(--ios-red)", padding: "8px 12px", background: "var(--ios-fill)", borderRadius: 8 }}>
-                    {error}
-                  </div>
-                )}
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="ios-btn ios-btn--primary"
-                  style={{ cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.6 : 1 }}
-                >
-                  {submitting ? "Signing in…" : "Sign in"}
+              {!showTestForm ? (
+                <button onClick={() => setShowTestForm(true)} className="lp-auth-alt">
+                  Use the walkthrough account
                 </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowTestForm(false); setError(null); }}
-                  className="ios-footnote"
-                  style={{ color: "var(--ios-label-3)", padding: 4 }}
-                >
-                  Cancel
-                </button>
-              </form>
-            )}
-          </>
-        )}
+              ) : (
+                <form onSubmit={handleTestLogin} className="lp-auth-form">
+                  <div className="lp-auth-formlabel">Walkthrough account</div>
+                  <input
+                    autoFocus
+                    type="email"
+                    className="lp-input"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="test@morrisai.family"
+                    autoComplete="username"
+                    required
+                  />
+                  <input
+                    type="password"
+                    className="lp-input"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Password"
+                    autoComplete="current-password"
+                    required
+                  />
+                  {error && <div className="lp-err">{error}</div>}
+                  <button type="submit" disabled={submitting} className="lp-oauth">
+                    {submitting ? "Signing in…" : "Sign in"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowTestForm(false); setError(null); }}
+                    className="lp-auth-alt"
+                    style={{ border: "none" }}
+                  >
+                    Cancel
+                  </button>
+                </form>
+              )}
+            </>
+          )}
 
-        <p className="ios-footnote" style={{ color: "var(--ios-label-2)", textAlign: "center", marginTop: 20, lineHeight: 1.4 }}>
-          Access is by invitation only.{" "}
-          <Link href="/#waitlist" style={{ color: "var(--ios-tint)" }}>Request access →</Link>
-        </p>
+          <p className="lp-auth-foot">
+            Access is by invitation.{" "}
+            <Link href="/#waitlist">Request it →</Link>
+          </p>
+        </div>
       </div>
     </div>
   );

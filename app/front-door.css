@@ -1,10 +1,12 @@
 /* ══════════════════════════════════════════════════════════════════════════
    morrisai.family — the front door
    ---------------------------------------------------------------------------
-   Everything here is scoped under .lp and this is the only screen that uses it.
+   The logged-out perimeter: the landing page and the sign-in screen. Both are
+   scoped under .lp and nothing behind the login uses it.
    The rest of the app is iOS-native, which is right for a tool you open forty
-   times a day; it is not right for the one page whose whole job is to say what
-   this thing is to someone who has never seen it.
+   times a day. It is not right for the pages whose whole job is to say what
+   this thing is to someone who has never seen it, and then to let them in —
+   and a visitor who crosses from one look to the other mid-flow notices.
 
    The palette is not invented. The product already assigns each of its eight
    modules a colour, and those eight — slate, moss, tobacco, amber, pine,
@@ -334,4 +336,97 @@
 
 @media (prefers-reduced-motion: reduce) {
   .lp *, .lp *::before, .lp *::after { transition: none !important; animation: none !important; }
+}
+
+/* ── Sign in ────────────────────────────────────────────────────────────────
+   The other half of the front door. It was an iOS card on the grouped-grey
+   ground, which meant crossing from the landing page to sign in changed design
+   language mid-flow — the one moment a visitor is deciding whether this thing
+   is real. Same ground, same type, same one raised object. */
+.lp-auth {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 30px;
+  padding: 40px var(--gutter);
+}
+.lp-auth-card {
+  width: 100%;
+  max-width: 400px;
+  background: linear-gradient(180deg, var(--ink-3), var(--ink-2));
+  border: 1px solid var(--rule-2);
+  border-radius: 18px;
+  padding: clamp(26px, 5vw, 36px);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.045) inset, 0 30px 70px -30px rgba(0,0,0,0.85);
+}
+.lp-auth-title {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 34px;
+  line-height: 1.05;
+  /* Instrument Serif has a narrow word space; at display size the negative
+     tracking that suits the headline closes it up until two words read as one. */
+  letter-spacing: -0.008em;
+  word-spacing: 0.06em;
+  margin: 0 0 6px;
+  text-align: center;
+}
+.lp-auth-sub {
+  font-size: 14.5px;
+  color: var(--paper-2);
+  text-align: center;
+  margin: 0 0 26px;
+  line-height: 1.5;
+}
+
+/* The one action on the page, so it gets the solid treatment. Google's mark
+   keeps its own colours — a monochrome version reads as a knock-off. */
+.lp-oauth {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%;
+  font: inherit; font-size: 15.5px; font-weight: 500;
+  padding: 13px 18px; border-radius: 11px;
+  background: var(--paper); color: var(--ink);
+  border: none; cursor: pointer;
+  transition: background 140ms ease, transform 140ms ease;
+}
+.lp-oauth:hover { background: #fff; transform: translateY(-1px); }
+
+.lp-or {
+  display: flex; align-items: center; gap: 12px;
+  margin: 22px 0 14px;
+  font-family: var(--mono);
+  font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--paper-3);
+}
+.lp-or::before, .lp-or::after { content: ""; height: 1px; flex: 1; background: var(--rule); }
+
+.lp-auth-alt {
+  width: 100%;
+  font: inherit; font-size: 14px; font-weight: 500;
+  padding: 11px 16px; border-radius: 11px;
+  background: transparent; color: var(--paper-2);
+  border: 1px solid var(--rule-2); cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+.lp-auth-alt:hover { border-color: var(--paper-3); color: var(--paper); }
+
+.lp-auth-foot {
+  font-size: 13.5px;
+  color: var(--paper-3);
+  text-align: center;
+  margin: 22px 0 0;
+  line-height: 1.5;
+}
+.lp-auth-foot a { color: var(--paper-2); text-decoration: none; }
+.lp-auth-foot a:hover { color: var(--paper); }
+
+/* The walkthrough form, shown only when NEXT_PUBLIC_ENABLE_TEST_AUTH is on. */
+.lp-auth-form { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.lp-auth-formlabel {
+  font-family: var(--mono);
+  font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--paper-3); text-align: center;
 }
