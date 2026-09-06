@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import { Children, isValidElement, type ReactNode } from "react";
 import Link from "next/link";
 import { ComposeIcon, ChevronLeft } from "./icons";
+import { TabBar } from "./TabBar";
 
 /**
  * Compact top nav bar for pushed detail screens — a back button (with the
@@ -25,9 +26,29 @@ export function NavBar({ back, title, trailing }: { back: { label: string; onBac
  * theme with `theme`; otherwise it follows the OS.
  */
 export function IOSScreen({ children, theme }: { children: ReactNode; theme?: "light" | "dark" }) {
+  // The tab bar is lifted out of the scrolling area.
+  //
+  // Most screens pass it as a child of IOSScreen, which put it inside <main>
+  // — the element that now scrolls. A bar inside the thing that scrolls can
+  // only be held still by position: fixed, and a fixed element inside a
+  // scrolling container is exactly the case iOS gets wrong: it paints against
+  // the scroller and travels with the content. That is the drifting bar.
+  //
+  // Rendered as a sibling of <main> instead, it is a plain flex item at the
+  // bottom of a shell that never scrolls, so it cannot move at all — no fixed
+  // positioning, and nothing for a browser to disagree about. The eight module
+  // layouts already render it as a sibling and are unaffected.
+  //
+  // If the identity check ever fails to match, the bar simply stays where it
+  // was and the screen behaves as it did before.
+  const kids = Children.toArray(children);
+  const bar = kids.find((c) => isValidElement(c) && c.type === TabBar);
+  const rest = bar ? kids.filter((c) => c !== bar) : kids;
+
   return (
     <div data-ui="ios" data-theme={theme}>
-      <main className="ios-scroll">{children}</main>
+      <main className="ios-scroll">{rest}</main>
+      {bar}
     </div>
   );
 }

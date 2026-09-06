@@ -90,6 +90,21 @@
    */
   height: 100dvh;
   overflow: hidden;
+  /* A column, so a screen whose markup is a clean scope → scroller chain gives
+     the scroller the remaining height. Where an intermediate wrapper breaks
+     that chain the scroller simply grows instead, which is survivable: the bar
+     is fixed and stays put either way. */
+  display: flex;
+  flex-direction: column;
+}
+
+/* A nested scope — a module layout opens one and the page inside opens
+   another — fills its parent rather than declaring a second viewport height,
+   which would push the bar below the fold. */
+[data-ui="ios"] [data-ui="ios"] {
+  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 /* ══ Appearance ══════════════════════════════════════════════════════════════
@@ -243,19 +258,21 @@
 
 /* ══ Layout scaffold ═════════════════════════════════════════════════════════ */
 .ios-scroll {
-  /* The one scrolling element on a screen — see the shell note above. */
-  height: 100%;
+  /* The one scrolling element on a screen — see the shell note above. It takes
+     whatever height the tab bar leaves. */
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  /* Stops a scroll that reaches the end from chaining to the document and
-     triggering the rubber band that moved the bar in the first place. */
+  /* Stops a scroll reaching the end from chaining out to the document and
+     bringing the rubber band with it. */
   overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
 
   /* Clear the status bar / Dynamic Island: the app renders edge-to-edge
      (viewport-fit=cover + black-translucent), so without this the first row of
      content sits underneath the clock. */
   padding-top: var(--ios-safe-top, env(safe-area-inset-top, 0px));
+  /* Clears the tab bar, which floats over the content. */
   padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   max-width: 640px; margin: 0 auto;
 }
@@ -439,6 +456,18 @@ button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed);
 
 /* ══ Tab bar (translucent) ═══════════════════════════════════════════════════ */
 .ios-tabbar {
+  /* Fixed, and — since IOSScreen lifts it — no longer inside the element that
+     scrolls. Those two facts together are the fix.
+     
+     Fixed alone was not enough: a fixed element inside a scrolling container is
+     the case iOS gets wrong, painting it against the scroller so it travels
+     with the content. Outside the scroller, that bug has nothing to bite on.
+     
+     Static alone was worse. It depends on an unbroken flex chain from the shell
+     down to the bar, and any page that wraps its screen in a plain div breaks
+     the chain — the bar then lands wherever the content ends, hundreds of
+     pixels below the fold. Fixed ignores nesting entirely, so the worst case is
+     a bar pinned to the viewport rather than a bar lost off-screen. */
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
   display: flex; align-items: stretch;
   height: calc(50px + env(safe-area-inset-bottom, 0px));
