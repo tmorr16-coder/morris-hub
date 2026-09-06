@@ -1,0 +1,337 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   morrisai.family — the front door
+   ---------------------------------------------------------------------------
+   Everything here is scoped under .lp and this is the only screen that uses it.
+   The rest of the app is iOS-native, which is right for a tool you open forty
+   times a day; it is not right for the one page whose whole job is to say what
+   this thing is to someone who has never seen it.
+
+   The palette is not invented. The product already assigns each of its eight
+   modules a colour, and those eight — slate, moss, tobacco, amber, pine,
+   iris, delft, verdigris — are a genuinely distinctive set: muted, earthy,
+   nothing like a default. They are lifted for legibility on a dark ground and
+   then used as the page's spectrum, because eight domains under one roof IS
+   the product and a page about it should be built from them rather than from
+   one accent picked at random.
+
+   Committed to a single dark treatment on purpose, so every colour is painted
+   explicitly and the page cannot borrow a ground from anywhere else.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.lp {
+  /* Ground and surface. Cyan-biased ink rather than neutral grey or pure
+     black — it sits under the cool half of the module spectrum without
+     fighting the warm half. */
+  --ink:       #0B1114;
+  --ink-2:     #111A1E;
+  --ink-3:     #162126;
+  --rule:      rgba(226,240,243,0.09);
+  --rule-2:    rgba(226,240,243,0.16);
+
+  --paper:     #E7EFF1;
+  --paper-2:   #93A6AD;
+  --paper-3:   #61737A;
+
+  /* The eight, lifted off their in-app values so they hold on ink. */
+  --m-hub:         #6E9BC9;
+  --m-health:      #8CBA63;
+  --m-finance:     #C79A6C;
+  --m-investments: #E8A461;
+  --m-career:      #5FA684;
+  --m-student:     #A292D6;
+  --m-bible:       #8FA3DC;
+  --m-travel:      #4FC0CE;
+
+  --display: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
+  --body: var(--font-geist), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --gutter: clamp(20px, 5vw, 60px);
+  --measure: 1080px;
+
+  position: relative;
+  min-height: 100dvh;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--body);
+  font-size: 16.5px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+/* Ambient ground: two wide, very low-opacity washes drawn from opposite ends
+   of the spectrum, over a hairline grid. The grid is what stops a dark page
+   reading as a flat void — it gives the light something to fall across. */
+.lp::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(58% 40% at 18% 0%, rgba(79,192,206,0.13), transparent 70%),
+    radial-gradient(52% 38% at 88% 12%, rgba(162,146,214,0.10), transparent 72%),
+    radial-gradient(70% 45% at 50% 100%, rgba(110,155,201,0.07), transparent 75%);
+}
+.lp::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(to right, var(--rule) 0 1px, transparent 1px 88px),
+    repeating-linear-gradient(to bottom, var(--rule) 0 1px, transparent 1px 88px);
+  opacity: 0.5;
+  mask-image: radial-gradient(120% 70% at 50% 0%, #000 20%, transparent 78%);
+  -webkit-mask-image: radial-gradient(120% 70% at 50% 0%, #000 20%, transparent 78%);
+}
+
+.lp > * { position: relative; z-index: 1; }
+.lp-wrap { max-width: var(--measure); margin: 0 auto; padding: 0 var(--gutter); }
+
+/* ── Header ─────────────────────────────────────────────────────────────────
+   A floating bar rather than a full-width one: it sits on the gradient with
+   air around it, which is most of what separates a considered page from a
+   template with a navbar stuck to the top. */
+.lp-head { padding: 18px var(--gutter) 0; max-width: var(--measure); margin: 0 auto; }
+.lp-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px 10px 18px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: rgba(17,26,30,0.62);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+}
+.lp-mark { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; color: var(--paper); }
+.lp-mark-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--m-travel);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--m-travel) 70%, transparent);
+  flex-shrink: 0;
+}
+.lp-mark-text { font-size: 15px; letter-spacing: -0.012em; font-weight: 500; }
+.lp-mark-text i { font-style: normal; color: var(--paper-2); }
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.lp-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font: inherit; font-size: 14.5px; font-weight: 500;
+  padding: 10px 18px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid transparent; cursor: pointer; text-decoration: none;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+/* Light on dark, not a coloured pill: with eight accents already in play, the
+   one control that must be unmistakable should not be a ninth colour. */
+.lp-btn--solid { background: var(--paper); color: var(--ink); }
+.lp-btn--solid:hover { background: #fff; transform: translateY(-1px); }
+.lp-btn--ghost { border-color: var(--rule-2); color: var(--paper); }
+.lp-btn--ghost:hover { border-color: var(--paper-2); background: rgba(231,239,241,0.05); }
+.lp-btn--quiet { color: var(--paper-2); padding: 10px 12px; }
+.lp-btn--quiet:hover { color: var(--paper); }
+/* The bar carries both actions on a laptop. On a phone there is not room for
+   two, and the hero repeats them a screen below — so the quiet one goes. */
+@media (max-width: 560px) { .lp-bar .lp-btn--quiet { display: none; } }
+.lp-btn:disabled { opacity: 0.5; cursor: default; transform: none; }
+
+/* ── Hero ───────────────────────────────────────────────────────────────────
+   Asymmetric and left-set. A centred hero is the default everyone reaches for;
+   this one reads as a statement someone wrote rather than a banner. */
+.lp-hero { padding: clamp(56px, 9vh, 104px) 0 0; }
+.lp-eyebrow {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--paper-3);
+  margin: 0 0 26px;
+  display: flex; align-items: center; gap: 12px;
+}
+.lp-eyebrow span { height: 1px; flex: 1; max-width: 90px; background: var(--rule-2); }
+
+.lp-title {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(44px, 7.4vw, 96px);
+  line-height: 0.95;
+  letter-spacing: -0.022em;
+  margin: 0 0 26px;
+  max-width: 17ch;
+  text-wrap: balance;
+}
+/* One accent phrase, on its own line. Set inline it crept across half the
+   headline, which turns a note into the melody. */
+.lp-title em {
+  display: block;
+  font-style: italic;
+  color: var(--m-investments);
+}
+.lp-lede {
+  font-size: clamp(17px, 1.7vw, 20px);
+  line-height: 1.55;
+  color: var(--paper-2);
+  max-width: 54ch;
+  margin: 0 0 36px;
+}
+.lp-cta { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* ── The spectrum ───────────────────────────────────────────────────────────
+   Eight columns, one per module, in module order. This is the page's signature
+   and it is made of content: the colours, the names and the count are all real,
+   so it says "eight domains, one household" without a word of copy. */
+.lp-spectrum {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 3px;
+  margin: clamp(40px, 6vh, 68px) 0 0;
+  border-top: 1px solid var(--rule);
+  padding-top: 18px;
+}
+.lp-spec {
+  display: flex; flex-direction: column; gap: 9px;
+  text-decoration: none; color: inherit;
+}
+.lp-spec-bar {
+  height: 4px; border-radius: 2px; background: var(--c);
+  opacity: 0.85;
+  transition: opacity 160ms ease, height 160ms ease;
+}
+.lp-spec:hover .lp-spec-bar { opacity: 1; height: 7px; }
+.lp-spec-name {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--paper-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+@media (max-width: 640px) {
+  .lp-spectrum { grid-template-columns: repeat(4, 1fr); gap: 10px 8px; }
+}
+
+/* ── Section headings ───────────────────────────────────────────────────── */
+.lp-section { padding: clamp(72px, 12vh, 132px) 0 0; }
+.lp-kicker {
+  font-family: var(--mono);
+  font-size: 11.5px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--paper-3); margin: 0 0 14px;
+}
+.lp-h2 {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(30px, 4.4vw, 52px);
+  line-height: 1.02;
+  letter-spacing: -0.018em;
+  margin: 0 0 8px;
+  text-wrap: balance;
+}
+.lp-h2 em { font-style: italic; color: var(--m-travel); }
+
+/* ── Modules ────────────────────────────────────────────────────────────────
+   Rows, not cards. Eight fat cards down a phone is eight screens of scrolling
+   and gives every module the same weight as the page itself; a ruled row reads
+   as an index, which is what a list of eight things is. */
+.lp-modules { margin-top: 34px; border-top: 1px solid var(--rule); }
+.lp-mod {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding: 26px 0;
+  border-bottom: 1px solid var(--rule);
+  position: relative;
+  transition: background 160ms ease;
+}
+@media (min-width: 860px) {
+  .lp-mod { grid-template-columns: 186px 1fr; gap: 34px; align-items: start; }
+}
+.lp-mod::before {
+  content: "";
+  position: absolute; left: calc(var(--gutter) * -0.5); top: 0; bottom: 0;
+  width: 2px; background: var(--c); opacity: 0; transition: opacity 160ms ease;
+}
+.lp-mod:hover::before { opacity: 1; }
+.lp-mod:hover { background: rgba(231,239,241,0.022); }
+
+.lp-mod-id { display: flex; align-items: baseline; gap: 11px; }
+.lp-mod-glyph {
+  font-family: var(--display);
+  font-size: 19px; line-height: 1; color: var(--c);
+  width: 20px; flex-shrink: 0;
+}
+.lp-mod-name {
+  font-family: var(--mono);
+  font-size: 11.5px; letter-spacing: 0.11em; text-transform: uppercase;
+  color: var(--paper-2);
+}
+.lp-mod-headline {
+  font-size: 20px; line-height: 1.28; letter-spacing: -0.012em;
+  margin: 0 0 8px; color: var(--paper);
+}
+.lp-mod-desc { font-size: 15.5px; line-height: 1.55; color: var(--paper-2); margin: 0 0 14px; max-width: 62ch; }
+.lp-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.lp-tag {
+  font-family: var(--mono);
+  font-size: 11px; letter-spacing: 0.03em;
+  color: var(--paper-3);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  padding: 4px 8px;
+}
+
+/* ── Waitlist ───────────────────────────────────────────────────────────────
+   One raised object, the way the reference makes its composer the centrepiece.
+   It is the only elevated surface on the page, which is what makes it read as
+   the thing to do. */
+.lp-panel {
+  margin-top: 34px;
+  background: linear-gradient(180deg, var(--ink-3), var(--ink-2));
+  border: 1px solid var(--rule-2);
+  border-radius: 18px;
+  padding: clamp(26px, 4vw, 44px);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.045) inset, 0 30px 70px -30px rgba(0,0,0,0.85);
+  max-width: 560px;
+}
+.lp-form { display: flex; flex-direction: column; gap: 10px; }
+.lp-input {
+  width: 100%;
+  background: rgba(11,17,20,0.6);
+  border: 1px solid var(--rule-2);
+  border-radius: 11px;
+  padding: 13px 15px;
+  color: var(--paper);
+  font: inherit; font-size: 16px;
+  outline: none;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.lp-input::placeholder { color: var(--paper-3); }
+.lp-input:focus { border-color: var(--m-travel); background: rgba(11,17,20,0.85); }
+.lp-note { font-size: 13.5px; color: var(--paper-3); line-height: 1.5; }
+.lp-err { font-size: 13.5px; color: var(--m-investments); }
+.lp-done { text-align: center; padding: 18px 4px; }
+.lp-done-mark {
+  width: 40px; height: 40px; border-radius: 50%; margin: 0 auto 14px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--m-career) 55%, transparent);
+  color: var(--m-career);
+}
+.lp-done-title { font-family: var(--display); font-size: 25px; margin: 0 0 6px; }
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+.lp-foot {
+  margin-top: clamp(72px, 12vh, 120px);
+  border-top: 1px solid var(--rule);
+  padding: 26px 0 44px;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+  font-size: 13.5px; color: var(--paper-3);
+}
+.lp-foot a { color: var(--paper-2); text-decoration: none; }
+.lp-foot a:hover { color: var(--paper); }
+
+.lp :focus-visible { outline: 2px solid var(--m-travel); outline-offset: 3px; border-radius: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lp *, .lp *::before, .lp *::after { transition: none !important; animation: none !important; }
+}

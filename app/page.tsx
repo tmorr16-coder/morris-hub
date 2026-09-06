@@ -4,15 +4,32 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useRouter } from "next/navigation";
+import "./landing.css";
+
+/**
+ * The front door.
+ *
+ * Deliberately not the iOS design system the rest of the app uses. That system
+ * is built for a tool opened forty times a day; this page is read once, by
+ * someone who has never seen the product, and has to say what it is.
+ *
+ * The palette is the eight module colours the app already assigns — slate,
+ * moss, tobacco, amber, pine, iris, delft, verdigris — lifted for a dark
+ * ground. Eight domains under one roof is the product, so the page is built
+ * from them rather than from one accent chosen for the occasion. See
+ * app/landing.css.
+ */
 
 // ── Module definitions ──────────────────────────────────────────────────────
+// `dot` mirrors the in-app module colour; `tone` is the same hue lifted to hold
+// its own against the dark ground here.
 
 const MODULES = [
   {
     key: "hub",
     label: "Hub",
-    dot: "#3B5C7F",
-    icon: "⌂",
+    tone: "var(--m-hub)",
+    glyph: "⌂",
     headline: "Your daily command center",
     description: "Reminders, weather, news, sports, and a full-family overview — all on one personalized home screen.",
     tags: ["Reminders", "News", "Weather", "Sports"],
@@ -20,8 +37,8 @@ const MODULES = [
   {
     key: "health",
     label: "Health",
-    dot: "#4D6B3A",
-    icon: "♡",
+    tone: "var(--m-health)",
+    glyph: "♡",
     headline: "Track what matters to your body",
     description: "Body composition trends, workout logging, GLP-1 dose tracking, and real-time sync with Oura and Withings.",
     tags: ["Workouts", "Body comp", "Oura sync", "Zepbound"],
@@ -29,8 +46,8 @@ const MODULES = [
   {
     key: "finance",
     label: "Finance",
-    dot: "#8B6A47",
-    icon: "$",
+    tone: "var(--m-finance)",
+    glyph: "$",
     headline: "Family finances, unified",
     description: "Connected accounts, net worth over time, shared visibility between family members, and AI spending insights.",
     tags: ["Net worth", "Bank sync", "Family sharing"],
@@ -38,8 +55,8 @@ const MODULES = [
   {
     key: "investments",
     label: "Investments",
-    dot: "#C97A3A",
-    icon: "↗",
+    tone: "var(--m-investments)",
+    glyph: "↗",
     headline: "Research-grade stock analysis",
     description: "Deep research with real-time web search, live charts, watchlist, and paper trading via Alpaca — all in one dashboard.",
     tags: ["Deep research", "Live charts", "Paper trading"],
@@ -47,8 +64,8 @@ const MODULES = [
   {
     key: "career",
     label: "Career",
-    dot: "#2A6049",
-    icon: "◈",
+    tone: "var(--m-career)",
+    glyph: "◈",
     headline: "Your personal career advisor",
     description: "AI coaching grounded in your resume and goals. Track milestones, learning paths, and key relationships.",
     tags: ["AI advisor", "Goal tracking", "Learning log"],
@@ -56,8 +73,8 @@ const MODULES = [
   {
     key: "student",
     label: "Student Success",
-    dot: "#6B5B95",
-    icon: "✦",
+    tone: "var(--m-student)",
+    glyph: "✦",
     headline: "Academic progress, tracked",
     description: "LSAT prep with AI scoring, certification paths, course tracking, and performance analytics.",
     tags: ["LSAT prep", "Certifications", "Course log"],
@@ -65,8 +82,8 @@ const MODULES = [
   {
     key: "bible",
     label: "Bible",
-    dot: "#5B6B9E",
-    icon: "✝",
+    tone: "var(--m-bible)",
+    glyph: "✝",
     headline: "Scripture, read together",
     description: "Reading plans that keep the whole family in step, hands-free audio that plays straight through, plus highlights and notes.",
     tags: ["Reading plans", "Audio", "Family challenges"],
@@ -74,28 +91,15 @@ const MODULES = [
   {
     key: "travel",
     label: "Travel",
-    dot: "#2A8390",
-    icon: "✈",
+    tone: "var(--m-travel)",
+    glyph: "✈",
     headline: "Plan the trip, then track it",
     description: "Search flights, stays, and cars with real prices and points, build the itinerary, and get check-in reminders when it's time.",
     tags: ["Flights", "Stays & cars", "Trip alerts"],
   },
 ];
 
-// ── Waitlist form ───────────────────────────────────────────────────────────
-
-const iosInput: React.CSSProperties = {
-  width: "100%",
-  padding: "13px 15px",
-  borderRadius: 10,
-  border: "0.5px solid var(--ios-separator)",
-  background: "var(--ios-bg-elevated)",
-  color: "var(--ios-label)",
-  fontSize: 17,
-  fontFamily: "inherit",
-  outline: "none",
-  boxSizing: "border-box",
-};
+// ── Waitlist ────────────────────────────────────────────────────────────────
 
 function WaitlistForm() {
   const [name, setName] = useState("");
@@ -124,28 +128,49 @@ function WaitlistForm() {
 
   if (status === "done") {
     return (
-      <div style={{ textAlign: "center", padding: "28px 20px" }}>
-        <div style={{ fontSize: 40, marginBottom: 8, color: "var(--ios-green)" }}>✓</div>
-        <div className="ios-headline" style={{ marginBottom: 4 }}>You&rsquo;re on the list</div>
-        <div className="ios-subhead" style={{ color: "var(--ios-label-2)" }}>We&rsquo;ll be in touch when access opens up for new members.</div>
+      <div className="lp-done">
+        <div className="lp-done-mark" aria-hidden>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 12.5 9.5 18 20 6.5" />
+          </svg>
+        </div>
+        <div className="lp-done-title">You&rsquo;re on the list</div>
+        <div className="lp-note">We&rsquo;ll be in touch when access opens up for new members.</div>
       </div>
     );
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" style={iosInput} />
-      <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" style={iosInput} />
-      {errorMsg && <div className="ios-footnote" style={{ color: "var(--ios-red)" }}>{errorMsg}</div>}
-      <button type="submit" disabled={status === "loading"} className="ios-btn ios-btn--primary"
-        style={{ marginTop: 4, cursor: status === "loading" ? "wait" : "pointer", opacity: status === "loading" ? 0.6 : 1 }}>
-        {status === "loading" ? "Requesting…" : "Request Access"}
+    <form onSubmit={submit} className="lp-form">
+      <input
+        required
+        className="lp-input"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Your name"
+        autoComplete="name"
+      />
+      <input
+        required
+        type="email"
+        className="lp-input"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Email address"
+        autoComplete="email"
+      />
+      {errorMsg && <div className="lp-err">{errorMsg}</div>}
+      <button type="submit" disabled={status === "loading"} className="lp-btn lp-btn--solid" style={{ marginTop: 4 }}>
+        {status === "loading" ? "Requesting…" : "Request access"}
       </button>
+      <div className="lp-note">
+        Invitation only. We&rsquo;ll never share your address, and there is no mailing list to unsubscribe from.
+      </div>
     </form>
   );
 }
 
-// ── Landing page ────────────────────────────────────────────────────────────
+// ── Page ────────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
   const { user, loading } = useCurrentUser();
@@ -156,95 +181,113 @@ export default function LandingPage() {
   }, [user, loading, router]);
 
   return (
-    <div data-ui="ios" className="ios-scroll" style={{ minHeight: "100dvh" }}>
-
-      {/* Top bar */}
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px var(--ios-gutter)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--ios-tint)", flexShrink: 0 }} />
-          <span className="ios-headline" style={{ letterSpacing: "-0.01em" }}>
-            morrisai<span style={{ color: "var(--ios-tint)" }}>.family</span>
-          </span>
-        </div>
-        <Link href="/login" className="ios-headline" style={{ color: "var(--ios-tint)", fontWeight: 400 }}>
-          Sign in
-        </Link>
-      </header>
-
-      {/* Hero */}
-      <section style={{ padding: "48px var(--ios-gutter) 40px", textAlign: "center" }}>
-        <div className="ios-chip ios-chip--sm" style={{ color: "var(--ios-tint)", marginBottom: 22 }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--ios-tint)", flexShrink: 0 }} />
-          <span style={{ fontWeight: 600, letterSpacing: "0.02em" }}>Private · Family · AI-powered</span>
-        </div>
-        <h1 style={{ fontSize: 44, lineHeight: 1.06, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 16, color: "var(--ios-label)" }}>
-          Your family&rsquo;s<br />intelligent platform.
-        </h1>
-        <p className="ios-body" style={{ color: "var(--ios-label-2)", maxWidth: 440, margin: "0 auto 28px", lineHeight: 1.5 }}>
-          Eight integrated apps — health, finance, investments, career, academics, scripture, travel, and a shared family hub — powered by AI and built for one family.
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 340, margin: "0 auto" }}>
-          <a href="#waitlist" className="ios-btn ios-btn--primary">Request Access</a>
-          <Link href="/login" className="ios-btn ios-btn--full" style={{ background: "var(--ios-fill)", color: "var(--ios-tint)" }}>
-            Sign in
+    <div className="lp">
+      <header className="lp-head">
+        <div className="lp-bar">
+          <Link href="/" className="lp-mark">
+            <span className="lp-mark-dot" aria-hidden />
+            <span className="lp-mark-text">
+              morrisai<i>.family</i>
+            </span>
           </Link>
-        </div>
-      </section>
-
-      {/* Module list */}
-      <section style={{ padding: "0 var(--ios-gutter) 8px" }}>
-        <h2 className="ios-group-header" style={{ padding: "0 4px 10px" }}>Eight apps, one platform</h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {MODULES.map((mod) => (
-            <div key={mod.key} style={{ background: "var(--ios-cell)", borderRadius: "var(--ios-radius-tile)", padding: "18px 18px 16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: mod.dot, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, color: "#fff", flexShrink: 0 }}>
-                  {mod.icon}
-                </div>
-                <div>
-                  <div className="ios-caption" style={{ fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--ios-label-2)" }}>
-                    {mod.label}
-                  </div>
-                  <div className="ios-headline" style={{ lineHeight: 1.25, marginTop: 1 }}>
-                    {mod.headline}
-                  </div>
-                </div>
-              </div>
-              <p className="ios-subhead" style={{ color: "var(--ios-label-2)", lineHeight: 1.45, marginBottom: 12 }}>
-                {mod.description}
-              </p>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {mod.tags.map((tag) => (
-                  <span key={tag} className="ios-chip ios-chip--sm" style={{ background: "var(--ios-fill)", color: "var(--ios-label-2)", fontSize: 12 }}>
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Waitlist */}
-      <section id="waitlist" style={{ padding: "36px var(--ios-gutter) 16px" }}>
-        <div style={{ background: "var(--ios-cell)", borderRadius: "var(--ios-radius-tile)", padding: "28px 22px", textAlign: "center" }}>
-          <h2 className="ios-title-2" style={{ marginBottom: 8 }}>Request access</h2>
-          <p className="ios-subhead" style={{ color: "var(--ios-label-2)", lineHeight: 1.45, marginBottom: 22 }}>
-            morrisai.family is invitation-only. Leave your name and email and we&rsquo;ll reach out when access opens.
-          </p>
-          <div style={{ textAlign: "left" }}>
-            <WaitlistForm />
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <Link href="/login" className="lp-btn lp-btn--quiet">Sign in</Link>
+            <a href="#waitlist" className="lp-btn lp-btn--solid">Request access</a>
           </div>
         </div>
-      </section>
+      </header>
 
-      {/* Footer */}
-      <footer style={{ padding: "20px var(--ios-gutter) 32px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-        <span className="ios-footnote" style={{ color: "var(--ios-label-3)" }}>
-          morrisai.family — Private family platform
-        </span>
-        <Link href="/privacy" className="ios-footnote" style={{ color: "var(--ios-tint)" }}>Privacy &amp; Data Handling</Link>
-      </footer>
+      <main className="lp-wrap">
+        {/* ── Hero ───────────────────────────────────────────────────────── */}
+        <section className="lp-hero">
+          <p className="lp-eyebrow">
+            <span aria-hidden />
+            Private · Invitation only
+          </p>
+          <h1 className="lp-title">
+            Eight apps for one family.
+            <em>Built for this one.</em>
+          </h1>
+          <p className="lp-lede">
+            Health, finance, investments, career, academics, scripture, travel and a shared
+            home screen. Everything reads from the same records, so the advice each one gives
+            is grounded in what the others already know.
+          </p>
+          <div className="lp-cta">
+            <a href="#waitlist" className="lp-btn lp-btn--solid">Request access</a>
+            <Link href="/login" className="lp-btn lp-btn--ghost">Sign in</Link>
+          </div>
+
+          {/* The spectrum: eight columns in module order. Colour, name and
+              count are all real, so it states the shape of the product
+              without a line of copy. */}
+          <nav className="lp-spectrum" aria-label="The eight modules">
+            {MODULES.map((m) => (
+              <a
+                key={m.key}
+                href={`#${m.key}`}
+                className="lp-spec"
+                style={{ "--c": m.tone } as React.CSSProperties}
+              >
+                <span className="lp-spec-bar" />
+                <span className="lp-spec-name">{m.label}</span>
+              </a>
+            ))}
+          </nav>
+        </section>
+
+        {/* ── Modules ────────────────────────────────────────────────────── */}
+        <section className="lp-section">
+          <p className="lp-kicker">The eight</p>
+          <h2 className="lp-h2">
+            One record, read <em>eight ways.</em>
+          </h2>
+          <div className="lp-modules">
+            {MODULES.map((m) => (
+              <article
+                key={m.key}
+                id={m.key}
+                className="lp-mod"
+                style={{ "--c": m.tone } as React.CSSProperties}
+              >
+                <div className="lp-mod-id">
+                  <span className="lp-mod-glyph" aria-hidden>{m.glyph}</span>
+                  <span className="lp-mod-name">{m.label}</span>
+                </div>
+                <div>
+                  <h3 className="lp-mod-headline">{m.headline}</h3>
+                  <p className="lp-mod-desc">{m.description}</p>
+                  <div className="lp-tags">
+                    {m.tags.map((t) => (
+                      <span key={t} className="lp-tag">{t}</span>
+                    ))}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Waitlist ───────────────────────────────────────────────────── */}
+        <section className="lp-section" id="waitlist">
+          <p className="lp-kicker">Access</p>
+          <h2 className="lp-h2">
+            Built for one household. <em>Open to a few more.</em>
+          </h2>
+          <p className="lp-lede" style={{ marginTop: 14 }}>
+            morrisai.family is invitation-only. Leave your name and we&rsquo;ll reach out when
+            access opens.
+          </p>
+          <div className="lp-panel">
+            <WaitlistForm />
+          </div>
+        </section>
+
+        <footer className="lp-foot">
+          <span>morrisai.family — a private family platform</span>
+          <Link href="/privacy">Privacy &amp; data handling</Link>
+        </footer>
+      </main>
     </div>
   );
 }
