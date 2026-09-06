@@ -134,9 +134,39 @@ html:not([data-theme]) { color-scheme: light dark; }
    palettes, so nothing shows through while a route streams or in the
    overscroll, and there is no seam between the document and a screen. This
    file is imported after app/globals.css, which is what lets `html body.pf`
-   win over that file's rules of the same weight. */
-html:has(> body.pf) { background: var(--pf-ground); }
-html body.pf { background: var(--pf-ground); color: var(--pf-text); }
+   win over that file's rules of the same weight.
+
+   html and body are painted differently on purpose, and this is the one place
+   in the app where the distinction is visible.
+
+   Added to the home screen, the app runs with statusBarStyle
+   "black-translucent" so it can go edge-to-edge under the clock. iOS then hands
+   it a layout viewport sized as though the status bar were reserved but
+   anchored at the top of the screen anyway — so the viewport ends exactly one
+   status bar short of the physical bottom (62pt on a 16 Pro Max, and it is the
+   top inset every time). The tab bar is correctly at `bottom: 0` of that
+   viewport, and still floats that far above the bottom edge, with the document
+   canvas showing underneath it. Painted the ground, that band read as a gap
+   under the menu — which is what "not anchored to the bottom border" was, all
+   along, and why neither making the bar opaque nor moving it into flow touched
+   it.
+
+   Painting the canvas the bar's colour instead continues the bar through the
+   band, so the slab reaches the physical edge on the hardware that has this
+   quirk and nothing changes anywhere that does not. body keeps the ground, so
+   the page behind a screen is unaffected: html's background is what propagates
+   to the canvas, and body only paints its own box.
+
+   The alternative is to give up black-translucent, which fixes the geometry
+   properly but costs the edge-to-edge status bar and leaves iOS drawing an
+   opaque light bar above a dark app. */
+html:has(> body.pf) { background: var(--pf-bar); }
+/* min-height keeps the two apart. Without it, body is only as tall as its
+   content, so the canvas colour would also show through in the moment before a
+   route paints — the flash this rule exists to prevent. Filling the viewport
+   means the bar colour is seen in one place only: below the viewport, where the
+   bar needs continuing. */
+html body.pf { background: var(--pf-ground); color: var(--pf-text); min-height: 100dvh; }
 
 /* ── The palette, in the iOS system's own vocabulary ─────────────────────────
    Two classes over app/ios.css, so this wins over both the bare scope and the
