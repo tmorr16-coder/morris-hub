@@ -129,7 +129,10 @@
   flex-shrink: 0;
 }
 .lp-mark-text { font-size: 15px; letter-spacing: -0.012em; font-weight: 500; }
-.lp-mark-text i { font-style: normal; color: var(--paper-2); }
+/* ".family" carries the brand teal, the same as it does inside the app and on
+   the dot beside it. It was a muted grey, which made the wordmark read as a
+   different, duller mark than the one behind the login. */
+.lp-mark-text i { font-style: normal; color: var(--m-travel); }
 
 /* ── Buttons ──────────────────────────────────────────────────────────────── */
 .lp-btn {

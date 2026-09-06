@@ -2,6 +2,7 @@ import { Children, isValidElement, type ReactNode } from "react";
 import Link from "next/link";
 import { ComposeIcon, ChevronLeft } from "./icons";
 import { TabBar } from "./TabBar";
+import { BRAND_GRADIENT, BRAND_MARK_PATH } from "@/lib/brand";
 
 /**
  * Compact top nav bar for pushed detail screens — a back button (with the
@@ -66,13 +67,13 @@ export function BrandMark({ style }: { style?: React.CSSProperties }) {
         aria-hidden
         style={{
           width: 20, height: 20, borderRadius: 6, flexShrink: 0,
-          background: "linear-gradient(140deg, #4A86C6 0%, #2F62A0 100%)",
+          background: BRAND_GRADIENT,
           boxShadow: "inset 0 0.5px 0 rgba(255,255,255,0.30), 0 1px 2px rgba(16,24,40,0.20)",
           display: "inline-flex", alignItems: "center", justifyContent: "center",
         }}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.7" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 19V6l8 8 8-8v13" />
+          <path d={BRAND_MARK_PATH} />
         </svg>
       </span>
       <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: "-0.006em", color: "var(--ios-label)" }}>

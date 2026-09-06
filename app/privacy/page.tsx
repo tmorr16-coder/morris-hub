@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BRAND_TEAL_DEEP } from "@/lib/brand";
 
 export const metadata = {
   title: "Privacy & Data Handling — morrisai.family",
@@ -45,9 +46,13 @@ export default function PrivacyPage() {
       {/* Nav */}
       <nav style={{ borderBottom: "1px solid var(--color-rule)", padding: "0 28px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 56 }}>
         <Link href="/" style={{ display: "flex", alignItems: "baseline", gap: 6, textDecoration: "none" }}>
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-accent)", alignSelf: "center", flexShrink: 0 }} />
+          {/* Brand teal, not this page's editorial slate: the dot and ".family"
+              are the mark, and the mark should not change colour depending on
+              which page you happen to be reading. BRAND_TEAL_DEEP rather than
+              the bright one because this page is set on cream. */}
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: BRAND_TEAL_DEEP, alignSelf: "center", flexShrink: 0 }} />
           <span className="serif" style={{ fontSize: 20, color: "var(--color-ink)" }}>morrisai</span>
-          <span className="serif" style={{ color: "var(--color-accent-dark)", fontStyle: "italic", fontSize: 18 }}>.family</span>
+          <span className="serif" style={{ color: BRAND_TEAL_DEEP, fontStyle: "italic", fontSize: 18 }}>.family</span>
         </Link>
         <Link href="/login" style={{ fontSize: 13, color: "var(--color-ink-3)", textDecoration: "none" }}>Sign in</Link>
       </nav>
