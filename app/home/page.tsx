@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
+import { createServiceClient, getCurrentUserResult, getCurrentClaims, isTransientAuthError } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { getAllUpcomingReminders, getAssignedReminders } from "@/lib/reminders";
 import { findConflicts, type TimelineItem } from "./_components/timelineConflicts";
@@ -46,8 +46,23 @@ const cachedMemberNames = unstable_cache(
 );
 
 export default async function HomePage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/");
+  const { user, error } = await getCurrentUserResult();
+  if (!user) {
+    // Supabase could not be asked — do not guess. Bouncing to "/" here, where
+    // the token is checked locally and passes, is the loop; an error boundary
+    // with a retry is the honest answer for an outage.
+    if (isTransientAuthError(error)) {
+      throw new Error("Could not reach the sign-in service. Pull down to try again.");
+    }
+    // Supabase looked at the token and will not vouch for it, yet it verifies
+    // locally: the session was ended somewhere else (a sign-out on another
+    // device, a refresh-token rotation). The cookies are holding a corpse.
+    // Clear them on the way out, or "/" reads the same token, decides we are
+    // signed in, and sends us straight back here — for as long as the access
+    // token has left to live.
+    if (await getCurrentClaims()) redirect("/auth/signout?next=/");
+    redirect("/");
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;

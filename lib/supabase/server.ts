@@ -2,6 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { cache } from "react";
+import type { User } from "@supabase/supabase-js";
+import { withAuthRetry } from "./auth-retry";
 
 // Set in production to .morrisai.family so the auth cookie is shared across
 // hub / health / finance subdomains (SSO). Leave unset on preview / localhost.
@@ -30,8 +32,16 @@ export async function createClient() {
   );
 }
 
+/** How an attempt to read the signed-in user from Supabase failed, if it did. */
+export interface AuthFailure {
+  message: string;
+  status?: number;
+  code?: string;
+}
+
 /**
- * The signed-in user, fetched at most once per request.
+ * The signed-in user, fetched at most once per request — with the reason when
+ * there is none.
  *
  * `supabase.auth.getUser()` is not a cookie read — it makes a network call to
  * Supabase's /auth/v1/user endpoint to verify the JWT. A layout and the page
@@ -39,15 +49,59 @@ export async function createClient() {
  * round-trip twice on every navigation. React's `cache()` scopes one result to
  * one render pass, so the layout's call and the page's call share it.
  *
- * Prefer this over `(await createClient()).auth.getUser()` in any server
- * component. Route handlers can use it too; they just have nothing to dedupe
- * against, since each one authenticates a single time.
+ * The reason matters because "no user" is two different situations. Supabase
+ * can refuse a token whose signature is perfectly good — the session behind it
+ * was ended by a sign-out elsewhere or a refresh-token rotation — and it can
+ * also simply be unreachable for a moment (rate limit, outage). A gate that
+ * treats both as "signed out" bounces the visitor to a page that checks the
+ * token locally, finds it good, and sends them straight back. That loop ran
+ * about a thousand times an hour and looked, on the phone, like flashing.
+ *
+ * Rate limits are retried here, since they were the one failure the old
+ * per-request cache handled and the rewrite dropped.
  */
-export const getCurrentUser = cache(async () => {
+const fetchUserResult = cache(async (): Promise<{ user: User | null; error: AuthFailure | null }> => {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
+  try {
+    return await withAuthRetry(
+      async () => {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        // getUser() reports a rate limit as a value, not a throw; the retry
+        // helper only sees throws.
+        if (error && error.status === 429) throw error;
+        return { user, error: error ? { message: error.message, status: error.status, code: error.code } : null };
+      },
+      { maxAttempts: 3, initialDelayMs: 100 },
+    );
+  } catch (e) {
+    const err = e as { message?: string; status?: number; code?: string };
+    return { user: null, error: { message: err?.message ?? String(e), status: err?.status, code: err?.code } };
+  }
 });
+
+export async function getCurrentUserResult() {
+  return fetchUserResult();
+}
+
+/**
+ * The signed-in user, or null. Prefer this over
+ * `(await createClient()).auth.getUser()` in any server component. Route
+ * handlers can use it too; they just have nothing to dedupe against, since
+ * each one authenticates a single time.
+ */
+export const getCurrentUser = cache(async () => (await fetchUserResult()).user);
+
+/**
+ * Whether a failed user read says nothing about the session — the service was
+ * rate-limiting, down, or unreachable — as opposed to Supabase having looked at
+ * the token and declined it.
+ */
+export function isTransientAuthError(error: AuthFailure | null | undefined): boolean {
+  if (!error) return false;
+  if (error.status === 429 || (error.status != null && error.status >= 500)) return true;
+  if (error.status == null && /fetch failed|network|ECONN|ETIMEDOUT|timeout|socket/i.test(error.message)) return true;
+  return false;
+}
 
 /**
  * The signed-in user's identity, verified locally, at most once per request.
