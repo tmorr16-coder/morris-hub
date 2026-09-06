@@ -49,8 +49,12 @@
   --ios-children:      #FF5C96;   /* rose */
   --ios-alert:         #FF4D42;   /* alert red */
 
-  /* ── Bars (translucent) ───────────────────────────────────────────────── */
-  --ios-bar:           rgba(249,249,249,0.82);
+  /* ── Bars ─────────────────────────────────────────────────────────────────
+     Opaque. These were translucent, from when the tab bar floated over the
+     content; it sits in flow at the bottom of the shell now, so there is
+     nothing behind it to see through and a solid ground is what makes it read
+     as the edge of the app rather than a panel hovering over one. */
+  --ios-bar:           #F9F9F9;
   --ios-bar-border:    rgba(60,60,67,0.16);
 
   /* ── Geometry ─────────────────────────────────────────────────────────── */
@@ -145,7 +149,7 @@
   --ios-red:          #FF453A;
   --ios-orange:       #FF9F0A;
   --ios-green:        #30D158;
-  --ios-bar:          rgba(30,30,32,0.80);
+  --ios-bar:          #1E1E20;
   --ios-bar-border:   rgba(84,84,88,0.6);
 }
 
@@ -168,7 +172,7 @@
   --ios-red:          #FF453A;
   --ios-orange:       #FF9F0A;
   --ios-green:        #30D158;
-  --ios-bar:          rgba(30,30,32,0.80);
+  --ios-bar:          #1E1E20;
   --ios-bar-border:   rgba(84,84,88,0.6);
 }
 
@@ -272,8 +276,11 @@
      (viewport-fit=cover + black-translucent), so without this the first row of
      content sits underneath the clock. */
   padding-top: var(--ios-safe-top, env(safe-area-inset-top, 0px));
-  /* Clears the tab bar, which floats over the content. */
-  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  /* The tab bar is in flow below this element and takes its own height out of
+     the column, so there is nothing left to clear — only the home indicator on
+     a screen that carries no bar at all, and a little breathing room under the
+     last row either way. */
+  padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
   /* width:100% matters now that this is a flex item. As a block, max-width plus
      `margin: 0 auto` gave a 640px centred column. As a flex item in a column
      container, an auto cross-axis margin overrides stretch and the item sizes
@@ -351,7 +358,7 @@ button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed);
 .ios-chip:active { transform: scale(0.96); }
 .ios-chip[aria-pressed="true"], .ios-chip.is-selected {
   background: var(--ios-tint); color: var(--ios-on-tint); font-weight: 600;
-  box-shadow: 0 1px 2px rgba(53,111,176,0.28);
+  box-shadow: 0 1px 2px rgba(11,17,20,0.28);
 }
 .ios-chip--sm { padding: 5px 11px; font-size: 13px; }
 
@@ -432,7 +439,7 @@ button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed);
   transition: transform 0.12s ease, background 0.12s ease, opacity 0.12s ease;
 }
 .ios-btn:active { transform: scale(0.98); }
-.ios-btn--primary { background: var(--ios-tint); color: var(--ios-on-tint); width: 100%; box-shadow: 0 1px 2px rgba(53,111,176,0.28); }
+.ios-btn--primary { background: var(--ios-tint); color: var(--ios-on-tint); width: 100%; box-shadow: 0 1px 2px rgba(11,17,20,0.28); }
 .ios-btn--primary:active { background: var(--ios-tint-press); }
 .ios-btn--plain { color: var(--ios-tint); padding: 8px; min-height: 0; font-weight: 400; box-shadow: none; }
 .ios-btn--full { width: 100%; }
@@ -452,7 +459,7 @@ button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed);
   max-width: 80%; padding: 9px 14px; border-radius: 20px;
   font-size: 16px; line-height: 21px; width: fit-content;
 }
-.ios-bubble--me { background: var(--ios-tint); color: #fff; border-bottom-right-radius: 6px; margin-left: auto; }
+.ios-bubble--me { background: var(--ios-tint); color: var(--ios-on-tint); border-bottom-right-radius: 6px; margin-left: auto; }
 .ios-bubble--ai { background: var(--ios-fill); color: var(--ios-label); border-bottom-left-radius: 6px; }
 .ios-composer {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 100;
@@ -469,31 +476,46 @@ button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed);
 }
 .ios-send {
   width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
-  background: var(--ios-tint); color: #fff; display: flex; align-items: center; justify-content: center;
+  background: var(--ios-tint); color: var(--ios-on-tint); display: flex; align-items: center; justify-content: center;
 }
 
-/* ══ Tab bar (translucent) ═══════════════════════════════════════════════════ */
+/* ══ Tab bar ═════════════════════════════════════════════════════════════════ */
 .ios-tabbar {
-  /* Fixed, and — since IOSScreen lifts it — no longer inside the element that
-     scrolls. Those two facts together are the fix.
+  /* Sticky and in flow — the bar is the bottom edge of the shell, not something
+     floating over it.
      
-     Fixed alone was not enough: a fixed element inside a scrolling container is
-     the case iOS gets wrong, painting it against the scroller so it travels
-     with the content. Outside the scroller, that bug has nothing to bite on.
+     Fixed got it close: IOSScreen lifts the bar out of the scroller, so it no
+     longer travelled with the content. But a fixed element is out of flow, so
+     the shell never reserved its height, the content ran on underneath it, and
+     the bar's translucent ground was the only thing separating the two. The bar
+     read as an overlay hovering above the bottom of the screen — rows sliding
+     visibly through it — rather than as the bottom of the app. Fixed also
+     positions against the layout viewport, which is the one thing on iOS that
+     does not agree with the shell's own 100dvh while Safari's toolbars come and
+     go.
      
-     Static alone was worse. It depends on an unbroken flex chain from the shell
-     down to the bar, and any page that wraps its screen in a plain div breaks
-     the chain — the bar then lands wherever the content ends, hundreds of
-     pixels below the fold. Fixed ignores nesting entirely, so the worst case is
-     a bar pinned to the viewport rather than a bar lost off-screen. */
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+     In flow, none of that arises. The shell is exactly one viewport and never
+     scrolls, so the last item in its column is exactly the bottom border of
+     what the user can see, in every browser, with nothing to drift against.
+     .ios-scroll takes the height that is left, so content ends where the bar
+     begins instead of running under it.
+     
+     Sticky rather than static is the insurance the old note was reaching for.
+     Static depends on an unbroken flex chain from the shell down to the bar; if
+     a page ever breaks that chain and the bar lands inside the scroller
+     instead, `bottom: 0` pins it to the bottom of the scrollport rather than
+     letting it fall hundreds of pixels below the fold. Both placements end up
+     in the same spot on screen.
+     
+     margin-top: auto keeps it last in the column even where the scroller above
+     it does not stretch. */
+  position: sticky; bottom: 0; z-index: 100;
+  flex: 0 0 auto; margin-top: auto;
   display: flex; align-items: stretch;
   height: calc(50px + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--ios-bar);
   border-top: var(--ios-hair) solid var(--ios-bar-border);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  backdrop-filter: saturate(180%) blur(20px);
 }
 .ios-tab {
   flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
@@ -504,9 +526,9 @@ button.ios-cell:active, a.ios-cell:active { background: var(--ios-cell-pressed);
 .ios-tab--capture { justify-content: center; }
 .ios-tab--capture .ios-capture-fab {
   width: 44px; height: 44px; border-radius: 50%;
-  background: var(--ios-tint); color: #fff;
+  background: var(--ios-tint); color: var(--ios-on-tint);
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 2px 8px rgba(53,111,176,0.4);
+  box-shadow: 0 2px 8px rgba(11,17,20,0.28);
 }
 .ios-tab--capture .ios-capture-fab svg { width: 26px; height: 26px; }
 

@@ -125,7 +125,7 @@ export function LargeTitle({
             aria-label="Settings"
             title="Settings"
             style={{
-              width: 32, height: 32, borderRadius: "50%", background: "var(--ios-tint)", color: "#fff",
+              width: 32, height: 32, borderRadius: "50%", background: "var(--ios-tint)", color: "var(--ios-on-tint)",
               display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 600,
               textDecoration: "none", flexShrink: 0,
               boxShadow: "inset 0 0.5px 0 rgba(255,255,255,0.25), 0 1px 2px rgba(16,24,40,0.16)",
