@@ -14,53 +14,47 @@
    ══════════════════════════════════════════════════════════════════════════ */
 
 .pc {
-  /* Surfaces — warm neutrals, not the blue-gray of iOS. */
-  --pc-bg:        #faf9f7;
-  --pc-surface:   #ffffff;
-  --pc-sand:      #f0eee6;  /* the user's own words */
-  --pc-sand-2:    #e8e5db;
-  --pc-line:      #e6e2da;
-  --pc-line-2:    #d8d3c8;
+  /* Wired to the platform tokens rather than a palette of its own.
+   *
+   * This screen was built as a deliberate departure — a warm Claude-desktop
+   * paper, its own clay accent — back when the rest of the app was iOS grey and
+   * this was the one long-form reading surface. The app has since moved to the
+   * platform skin, and the departure stopped reading as a considered choice and
+   * started reading as a page that had been missed.
+   *
+   * What survives is everything that made it good to read: the measured column,
+   * the composer as one solid object, the prose rhythm, the answer cards. Only
+   * the colours change, and they now follow light, dark and the brand tint with
+   * every other screen instead of being pinned to one look.
+   */
+  --pc-bg:        var(--ios-bg);
+  --pc-surface:   var(--ios-cell);
+  --pc-sand:      var(--ios-fill);
+  --pc-sand-2:    var(--ios-fill-2);
+  --pc-line:      var(--ios-separator);
+  --pc-line-2:    var(--ios-separator);
 
-  /* Content */
-  --pc-text:      #1f1e1c;
-  --pc-text-2:    #6b6862;
-  --pc-text-3:    #97938a;
+  --pc-text:      var(--ios-label);
+  --pc-text-2:    var(--ios-label-2);
+  --pc-text-3:    var(--ios-label-3);
 
-  /* Accent — Claude's clay. Deliberately not --ios-tint: this screen keeps its
-     own accent so the brand-scheme picker (FAMU orange, Braves red) does not
-     repaint a surface whose whole point is looking like Claude. */
-  --pc-accent:    #c96442;
-  --pc-accent-2:  #b5512f;
-  --pc-on-accent: #ffffff;
+  --pc-accent:    var(--ios-tint);
+  --pc-accent-2:  var(--ios-tint-press);
+  --pc-on-accent: var(--ios-on-tint);
 
   --pc-radius:    12px;
   --pc-radius-lg: 20px;
-  --pc-shadow:    0 1px 2px rgba(31,30,28,0.04), 0 4px 16px rgba(31,30,28,0.045);
+  --pc-shadow:    0 1px 2px rgba(0,0,0,0.10), 0 4px 16px rgba(0,0,0,0.12);
 
-  background: var(--pc-bg);
+  background: transparent;
   color: var(--pc-text);
   font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
-[data-theme="dark"] .pc,
-.pc[data-theme="dark"] {
-  --pc-bg:        #262624;
-  --pc-surface:   #30302e;
-  --pc-sand:      #3b3a37;
-  --pc-sand-2:    #454340;
-  --pc-line:      rgba(255,255,255,0.10);
-  --pc-line-2:    rgba(255,255,255,0.17);
-  --pc-text:      #f5f4ef;
-  --pc-text-2:    #b6b2a9;
-  --pc-text-3:    #8b877f;
-  --pc-accent:    #d97757;
-  --pc-accent-2:  #e08d70;
-  --pc-on-accent: #1f1e1c;
-  --pc-shadow:    0 1px 2px rgba(0,0,0,0.28), 0 4px 16px rgba(0,0,0,0.22);
-}
+/* No dark block: --pc-* above are platform tokens, which already carry the
+   theme. A second set here could only disagree with them. */
 
 /* ── The column ──────────────────────────────────────────────────────────────
    Claude keeps the conversation in a measured column and lets it breathe. A
@@ -110,7 +104,7 @@
 .pc-prose ul, .pc-prose ol { margin: 0 0 0.85em; padding-left: 1.35em; }
 .pc-prose li { margin: 0.3em 0; }
 .pc-prose li::marker { color: var(--pc-text-3); }
-.pc-prose a { color: var(--pc-accent); text-decoration: none; border-bottom: 1px solid rgba(201,100,66,0.35); }
+.pc-prose a { color: var(--pc-accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--pc-accent) 35%, transparent); }
 .pc-prose a:hover { border-bottom-color: var(--pc-accent); }
 .pc-prose strong { font-weight: 650; }
 .pc-prose code {
@@ -215,7 +209,7 @@
   padding: 12px 12px 10px 16px;
   transition: border-color 130ms ease, box-shadow 130ms ease;
 }
-.pc-composer:focus-within { border-color: var(--pc-accent); box-shadow: var(--pc-shadow), 0 0 0 3px rgba(201,100,66,0.13); }
+.pc-composer:focus-within { border-color: var(--pc-accent); box-shadow: var(--pc-shadow), 0 0 0 3px color-mix(in srgb, var(--pc-accent) 18%, transparent); }
 .pc-composer--drag { border-color: var(--pc-accent); border-style: dashed; }
 
 .pc-ta {
@@ -337,9 +331,9 @@
   border: 1px solid var(--pc-line);
   border-bottom: none;
   border-radius: var(--pc-radius-lg) var(--pc-radius-lg) 0 0;
-  box-shadow: 0 -8px 40px rgba(31,30,28,0.16);
+  box-shadow: 0 -8px 40px rgba(0,0,0,0.28);
 }
-.pc-scrim { background: rgba(31,30,28,0.32); backdrop-filter: blur(2px); }
+.pc-scrim { background: rgba(0,0,0,0.42); backdrop-filter: blur(2px); }
 
 /* ── Narrow screens ──────────────────────────────────────────────────────────
    The composer bar carries five things: attach, options, which models, the
