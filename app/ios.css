@@ -274,7 +274,12 @@
   padding-top: var(--ios-safe-top, env(safe-area-inset-top, 0px));
   /* Clears the tab bar, which floats over the content. */
   padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
-  max-width: 640px; margin: 0 auto;
+  /* width:100% matters now that this is a flex item. As a block, max-width plus
+     `margin: 0 auto` gave a 640px centred column. As a flex item in a column
+     container, an auto cross-axis margin overrides stretch and the item sizes
+     to its content instead — which quietly narrowed every screen from 640px to
+     whatever the longest line happened to be. */
+  width: 100%; max-width: 640px; margin: 0 auto;
 }
 .ios-title-block { padding: 8px var(--ios-gutter) 6px; }
 .ios-title-sub   { color: var(--ios-label-2); margin-top: 2px; }
