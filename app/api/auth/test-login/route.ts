@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { publicOrigin } from "@/lib/site-url";
 import { createServiceClient } from "@/lib/supabase/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -27,8 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: hint }, { status: 401 });
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://morrisai.family";
-  return NextResponse.json({ ok: true, redirectTo: `${appUrl}/home`, userId: data.user?.id });
+  return NextResponse.json({ ok: true, redirectTo: `${publicOrigin()}/home`, userId: data.user?.id });
 }
 
 // GET — create a test user account (admin only, server-side)

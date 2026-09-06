@@ -1,6 +1,7 @@
 "use server";
 
 import { Resend } from "resend";
+import { publicOrigin } from "@/lib/site-url";
 import { requireAdmin } from "@/lib/supabase/auth-utils";
 import { logEvent } from "@/lib/usage";
 
@@ -139,7 +140,11 @@ export async function approveUser(userId: string, appAccess: AppKey[] = ["hub"])
 
   const { data: authUser } = await db.auth.admin.getUserById(userId);
   const userEmail = authUser?.user?.email;
-  const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://morrisai.family";
+  // publicOrigin() rather than a local read of NEXT_PUBLIC_APP_URL. This link
+  // goes in an email and is the first thing a newly approved person clicks, so
+  // it must point at the canonical site — pointing it at a per-module subdomain
+  // sends them somewhere that no longer exists, with no way back.
+  const siteUrl = publicOrigin();
   const appsList = appAccess.map((a) => a.charAt(0).toUpperCase() + a.slice(1)).join(", ");
   await sendUserEmail(
     userEmail ?? "",

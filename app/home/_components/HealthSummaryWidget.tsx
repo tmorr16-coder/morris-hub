@@ -123,7 +123,11 @@ export default async function HealthSummaryWidget({ userId }: { userId: string }
     <div style={card}>
       <div style={header}>
         <span className="ios-headline">Health summary</span>
-        <a href="https://health.morrisai.family/dashboard" className="ios-footnote" style={{ color: "var(--ios-tint)" }}>
+        {/* Relative, not https://health.morrisai.family — the per-module
+            subdomains are gone and the health module lives at /health on the
+            main site. An absolute link here left the app to reach a host that
+            no longer resolves. */}
+        <a href="/health" className="ios-footnote" style={{ color: "var(--ios-tint)" }}>
           View
         </a>
       </div>
