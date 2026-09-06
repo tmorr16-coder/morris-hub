@@ -34,12 +34,13 @@ export default async function ComparePage() {
 
   const { pricing, newest } = await loadCatalog();
 
-  // The screen paints its own surface rather than sitting on the iOS grouped
-  // gray: a warm reading page, edge to edge, with the conversation in one
-  // measured column. data-ui="ios" stays so the tab bar and the theme switcher
-  // keep working — only the page inside it changes systems.
+  // Hand-rolled rather than wrapped in IOSScreen, because this screen wanted a
+  // reading column of its own width. That is also why it missed the tab-bar
+  // fix: IOSScreen lifts <TabBar/> out of the scrolling area, and a page that
+  // builds its own scope has to do the same by hand. The bar is a sibling of
+  // <main>, not a child, so it cannot scroll with the conversation.
   return (
-    <div data-ui="ios" className="pc" style={{ minHeight: "100dvh" }}>
+    <div data-ui="ios" className="pc">
       <main className="ios-scroll" style={{ background: "transparent" }}>
         <div className="pc-col pc-col--wide" style={{ padding: "0 18px" }}>
           <header className="pc-head">
@@ -57,9 +58,8 @@ export default async function ComparePage() {
             merge into a single answer.
           </p>
         </div>
-        <div style={{ height: 16 }} />
-        <TabBar current="more" currentUserId={user.id} sourceApp="hub" />
       </main>
+      <TabBar current="more" currentUserId={user.id} sourceApp="hub" />
     </div>
   );
 }
