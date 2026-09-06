@@ -71,8 +71,25 @@
   color: var(--ios-label);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  min-height: 100dvh;
-  overflow-x: clip;
+  /* An app shell, not a tall document.
+   *
+   * The scope is exactly one viewport and never scrolls; .ios-scroll below is
+   * the only thing that does. That is what anchors the tab bar.
+   *
+   * It was `min-height: 100dvh` with the document itself scrolling, and on iOS
+   * that is what makes a fixed bottom bar appear to drift. Safari collapses and
+   * expands its address bar in response to *document* scrolling, and a
+   * `position: fixed; bottom: 0` element is laid out against the layout
+   * viewport, so every one of those transitions slides the bar. Nothing is
+   * wrong with the bar's own CSS — it is fixed, and on a desktop browser it
+   * sits perfectly still.
+   *
+   * When the scrolling happens inside a nested container instead, Safari has no
+   * document scroll to react to, leaves its chrome alone, and the fixed bar
+   * stops moving. dvh becomes stable for the same reason.
+   */
+  height: 100dvh;
+  overflow: hidden;
 }
 
 /* ══ Appearance ══════════════════════════════════════════════════════════════
@@ -226,6 +243,15 @@
 
 /* ══ Layout scaffold ═════════════════════════════════════════════════════════ */
 .ios-scroll {
+  /* The one scrolling element on a screen — see the shell note above. */
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Stops a scroll that reaches the end from chaining to the document and
+     triggering the rubber band that moved the bar in the first place. */
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+
   /* Clear the status bar / Dynamic Island: the app renders edge-to-edge
      (viewport-fit=cover + black-translucent), so without this the first row of
      content sits underneath the clock. */
