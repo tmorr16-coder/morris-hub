@@ -10,7 +10,6 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { IOSScreen, TabBar } from "@/components/ios";
-import "../platform.css";
 import TodayHubIOS, {
   type TodayHubProps, type ItemKind,
 } from "./_components/TodayHubIOS";
@@ -138,11 +137,9 @@ export default function HomeClient({
   };
 
   return (
-    // The platform skin — the front-door language carried inside the app,
-    // being tried on this screen first. app/platform.css restyles the iOS
-    // classes underneath rather than replacing any markup, so this is one
-    // class name to adopt and one to undo.
-    <div className="pf">
+    // The platform skin used to be applied here, on this screen alone, as a
+    // trial. It now lives on <body> in app/layout.tsx for every screen.
+    <>
       <IOSScreen>
         <TodayHubIOS
           {...hub}
@@ -159,6 +156,6 @@ export default function HomeClient({
         />
         <TabBar current="today" members={members} currentUserId={currentUserId} sourceApp="hub" />
       </IOSScreen>
-    </div>
+    </>
   );
 }

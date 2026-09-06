@@ -10,6 +10,9 @@ import { unstable_cache } from "next/cache";
 import { isPersonalPersona } from "@/lib/prefs";
 import "./globals.css";
 import "./ios.css";
+// After ios.css and globals.css on purpose: the skin overrides both by
+// specificity where it can and by order where the weights tie.
+import "./platform.css";
 
 /**
  * One user's persona, cached across requests for five minutes.
@@ -139,7 +142,8 @@ export default async function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       </head>
-      <body>
+      {/* The platform skin, applied once for every screen. See app/platform.css. */}
+      <body className="pf">
         <ThemeApplier />
         <GlobalBackButton />
         <PullToRefresh />

@@ -1,90 +1,163 @@
 /* ══════════════════════════════════════════════════════════════════════════
    Platform skin — the front-door language, carried inside the app
    ---------------------------------------------------------------------------
-   Scoped under .pf. Wrap a screen in it and that screen adopts the treatment;
-   every other screen keeps the iOS system untouched. That is what makes this
-   testable on one page before it goes near the other seven, and reverting it
-   is deleting one class name.
+   Applied once, on <body class="pf"> in app/layout.tsx, so every
+   [data-ui="ios"] screen inherits it. It was trialled on Today under a local
+   wrapper first; that wrapper is gone and this is now the platform's look.
+   Reverting the whole thing is still one class name, on one element.
 
    It works by redefining the --ios-* tokens, not by restyling class by class.
    The first attempt did the latter and it was wrong: it painted the surfaces
    dark and left every token at its light value, so anything not named by hand
-   stayed light. The segmented control, the Next-up card and the composer came
-   out as white blocks on a dark page, and the wordmark went dark-on-dark.
-   Redefining the tokens means components nobody thought about follow anyway,
-   which is what a token layer is for.
+   stayed light. Redefining the tokens means components nobody thought about
+   follow anyway, which is what a token layer is for.
 
-   So: the tokens below are the ink palette expressed in the iOS system's own
+   So: the tokens below are the palette expressed in the iOS system's own
    vocabulary, and the rules under them add only the character that vocabulary
    has no word for — the serif for the one large moment, mono for labels,
    hairline panels instead of filled cards, and the ambient ground.
 
-   The translation, not the transplant. The front door is read once: 96px
-   serif, enormous whitespace, low density. Today is scanned and operated forty
-   times a day, so the spacing and type scale stay close to what a dashboard
-   needs and only the language crosses over.
+   Light and dark. The trial was committed dark like the front door, and the
+   note on it said adopting it platform-wide needed a decision about the
+   appearance setting. The decision: the same language in two palettes, and
+   the setting drives it. Dark is the front door's ink; light is the same
+   structure on paper, with the app's own in-app module colours, which were
+   designed for a light ground in the first place. Automatic follows the
+   device, which is what the setting's own description has said all along.
 
-   Committed dark, like the front door. If this is adopted platform-wide the
-   light/dark setting needs a decision: a light variant of the same language,
-   or the setting stops applying to skinned screens.
+   Every token is written as light-dark(light, dark) and resolved by the
+   colour-scheme on <html>: app/globals.css sets `light` by default and `dark`
+   under data-theme="dark", and the rule at the bottom of this file sets
+   `light dark` when no choice is stamped, so the device decides. One block,
+   no duplicated palette, nothing to drift.
+
+   The translation, not the transplant. The front door is read once: 96px
+   serif, enormous whitespace, low density. The app is scanned and operated
+   forty times a day, so the spacing and type scale stay close to what a
+   dashboard needs and only the language crosses over.
    ══════════════════════════════════════════════════════════════════════════ */
 
-.pf {
-  /* Mirrors app/front-door.css. If the two ever disagree, that file wins —
-     it is the surface people meet first. */
-  --pf-ink:     #0B1114;
-  --pf-ink-2:   #111A1E;
-  --pf-ink-3:   #162126;
-  --pf-rule:    rgba(226,240,243,0.09);
-  --pf-rule-2:  rgba(226,240,243,0.16);
-  --pf-paper:   #E7EFF1;
-  --pf-paper-2: #93A6AD;
-  --pf-paper-3: #61737A;
+:root {
+  /* ── Ground and text ──────────────────────────────────────────────────────
+     Dark mirrors app/front-door.css; if the two ever disagree, that file wins.
+     Light is the same cyan bias on paper rather than ink: not the iOS grouped
+     grey and not the document cream, so the skin reads as one thing in both. */
+  --pf-ground:    light-dark(#F1F3F2, #0B1114);
+  --pf-ground-2:  light-dark(#FFFFFF, #111A1E);
+  --pf-ground-3:  light-dark(#E8ECEB, #162126);
+  --pf-rule:      light-dark(rgba(11,17,20,0.10), rgba(226,240,243,0.09));
+  --pf-rule-2:    light-dark(rgba(11,17,20,0.18), rgba(226,240,243,0.16));
+  --pf-text:      light-dark(#0F1719, #E7EFF1);
+  --pf-text-2:    light-dark(#4E5F65, #93A6AD);
+  --pf-text-3:    light-dark(#7E8C91, #61737A);
+
+  --pf-panel:     light-dark(rgba(255,255,255,0.72), rgba(17,26,30,0.70));
+  --pf-cell:      light-dark(rgba(255,255,255,0.80), rgba(17,26,30,0.72));
+  --pf-pressed:   light-dark(rgba(11,17,20,0.06),   rgba(231,239,241,0.06));
+  --pf-fill:      light-dark(rgba(11,17,20,0.06),   rgba(231,239,241,0.07));
+  --pf-fill-2:    light-dark(rgba(11,17,20,0.035),  rgba(231,239,241,0.045));
+  --pf-bar:       light-dark(rgba(241,243,242,0.82), rgba(11,17,20,0.82));
+
+  /* Verdigris is the interactive colour in both; deepened on paper so text in
+     it clears contrast, lifted on ink so it does not sink. */
+  --pf-tint:       light-dark(#1A8E9C, #4FC0CE);
+  --pf-tint-press: light-dark(#147480, #7BD3DD);
+  --pf-on-tint:    light-dark(#FFFFFF, #08181B);
+
+  --pf-red:    light-dark(#D2493C, #F0796B);
+  --pf-orange: light-dark(#C77A2A, #E8A461);
+  --pf-green:  light-dark(#4F8F3C, #8CBA63);
+  --pf-yellow: light-dark(#B08A17, #E3C55F);
+
+  /* The eight, plus the legacy accents. Light uses the in-app values from
+     app/ios.css, which were chosen for a light ground; dark uses the front
+     door's lifted set, which were chosen for ink. */
+  --pf-finance:     light-dark(#C58B4F, #C79A6C);
+  --pf-health:      light-dark(#2FA24E, #8CBA63);
+  --pf-money:       light-dark(#BE842B, #C79A6C);
+  --pf-investments: light-dark(#D9772B, #E8A461);
+  --pf-family:      light-dark(#7B5EA8, #A292D6);
+  --pf-morris:      light-dark(#356FB0, #6E9BC9);
+  --pf-career:      light-dark(#2E7D6B, #5FA684);
+  --pf-bible:       light-dark(#5B6B9E, #8FA3DC);
+  --pf-news:        light-dark(#B04A34, #D98A72);
+  --pf-travel:      light-dark(#2A8390, #4FC0CE);
+  --pf-children:    light-dark(#C56A93, #DB8FAE);
+  --pf-alert:       light-dark(#E5484D, #F0796B);
+
+  /* The ambient wash and grid, dialled well down in both. */
+  --pf-wash-1: light-dark(rgba(42,131,144,0.08), rgba(79,192,206,0.07));
+  --pf-wash-2: light-dark(rgba(123,94,168,0.05), rgba(162,146,214,0.05));
+  --pf-grid-opacity: light-dark(0.35, 0.3);
+
+  /* The glance tiles: the one raised object on a screen. */
+  --pf-tile-top:    light-dark(#FFFFFF, #162126);
+  --pf-tile-bottom: light-dark(#F3F5F4, #111A1E);
+  --pf-tile-shadow: light-dark(
+    0 1px 0 rgba(255,255,255,0.6) inset, 0 12px 30px -22px rgba(11,17,20,0.35),
+    0 1px 0 rgba(255,255,255,0.04) inset, 0 18px 40px -26px rgba(0,0,0,0.9)
+  );
 
   --pf-display: var(--font-instrument-serif), Georgia, serif;
   --pf-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* ── The palette, in the iOS system's own vocabulary ─────────────────────────
-   One extra class over app/ios.css, so this wins whichever stylesheet the
-   bundler emits first. The module accents are lifted the same way the front
-   door lifts them: the in-app values are mid-tone and go muddy on ink. */
-.pf [data-ui="ios"] {
-  --ios-bg:            var(--pf-ink);
-  --ios-bg-elevated:   var(--pf-ink-2);
-  --ios-cell:          rgba(17,26,30,0.72);
-  --ios-cell-pressed:  rgba(231,239,241,0.06);
-  --ios-fill:          rgba(231,239,241,0.07);
-  --ios-fill-2:        rgba(231,239,241,0.045);
+/* ── Automatic follows the device ───────────────────────────────────────────
+   app/globals.css sets colour-scheme light by default and dark under an
+   explicit dark choice. When nothing is stamped, let the device choose; every
+   light-dark() above, and the browser's own scrollbars and form controls,
+   follow from this one declaration. */
+html:not([data-theme]) { color-scheme: light dark; }
 
-  --ios-label:         var(--pf-paper);
-  --ios-label-2:       var(--pf-paper-2);
-  --ios-label-3:       var(--pf-paper-3);
+/* ── The document ground follows the skin ──────────────────────────────────
+   The page behind every screen is painted the skin's ground, in both
+   palettes, so nothing shows through while a route streams or in the
+   overscroll, and there is no seam between the document and a screen. This
+   file is imported after app/globals.css, which is what lets `html body.pf`
+   win over that file's rules of the same weight. */
+html:has(> body.pf) { background: var(--pf-ground); }
+html body.pf { background: var(--pf-ground); color: var(--pf-text); }
+
+/* ── The palette, in the iOS system's own vocabulary ─────────────────────────
+   Two classes over app/ios.css, so this wins over both the bare scope and the
+   [data-theme] scope rules there. A scope that forces its own theme through
+   IOSScreen's `theme` prop (/ios-demo shows both side by side) is left alone. */
+.pf [data-ui="ios"]:not([data-theme]) {
+  --ios-bg:            var(--pf-ground);
+  --ios-bg-elevated:   var(--pf-ground-2);
+  --ios-cell:          var(--pf-cell);
+  --ios-cell-pressed:  var(--pf-pressed);
+  --ios-fill:          var(--pf-fill);
+  --ios-fill-2:        var(--pf-fill-2);
+
+  --ios-label:         var(--pf-text);
+  --ios-label-2:       var(--pf-text-2);
+  --ios-label-3:       var(--pf-text-3);
   --ios-separator:     var(--pf-rule);
 
-  --ios-tint:          #4FC0CE;
-  --ios-tint-press:    #7BD3DD;
-  --ios-on-tint:       #08181B;
+  --ios-tint:          var(--pf-tint);
+  --ios-tint-press:    var(--pf-tint-press);
+  --ios-on-tint:       var(--pf-on-tint);
 
-  --ios-red:           #F0796B;
-  --ios-orange:        #E8A461;
-  --ios-green:         #8CBA63;
-  --ios-yellow:        #E3C55F;
-  --ios-alert:         #F0796B;
+  --ios-red:           var(--pf-red);
+  --ios-orange:        var(--pf-orange);
+  --ios-green:         var(--pf-green);
+  --ios-yellow:        var(--pf-yellow);
+  --ios-alert:         var(--pf-alert);
 
-  --ios-finance:       #C79A6C;
-  --ios-health:        #8CBA63;
-  --ios-money:         #C79A6C;
-  --ios-investments:   #E8A461;
-  --ios-family:        #A292D6;
-  --ios-morris:        #6E9BC9;
-  --ios-career:        #5FA684;
-  --ios-bible:         #8FA3DC;
-  --ios-news:          #D98A72;
-  --ios-travel:        #4FC0CE;
-  --ios-children:      #DB8FAE;
+  --ios-finance:       var(--pf-finance);
+  --ios-health:        var(--pf-health);
+  --ios-money:         var(--pf-money);
+  --ios-investments:   var(--pf-investments);
+  --ios-family:        var(--pf-family);
+  --ios-morris:        var(--pf-morris);
+  --ios-career:        var(--pf-career);
+  --ios-bible:         var(--pf-bible);
+  --ios-news:          var(--pf-news);
+  --ios-travel:        var(--pf-travel);
+  --ios-children:      var(--pf-children);
 
-  --ios-bar:           rgba(11,17,20,0.82);
+  --ios-bar:           var(--pf-bar);
   --ios-bar-border:    var(--pf-rule);
   --ios-shadow-card:   none;
   --ios-hair:          1px;
@@ -92,30 +165,32 @@
 
 /* ── Ground ─────────────────────────────────────────────────────────────────
    The front door's wash and grid, dialled well down. A dashboard that shimmers
-   is a dashboard you cannot read; this is here so the dark is not a flat void
-   and for no other reason. */
-.pf [data-ui="ios"] .ios-scroll {
+   is a dashboard you cannot read; this is here so the ground is not a flat
+   void and for no other reason. The grid is drawn once per screen: a scroll
+   container nested inside another does not draw a second one over the first. */
+.pf [data-ui="ios"]:not([data-theme]) .ios-scroll {
   background:
-    radial-gradient(72% 30% at 12% 0%, rgba(79,192,206,0.07), transparent 70%),
-    radial-gradient(60% 26% at 92% 3%, rgba(162,146,214,0.05), transparent 72%),
-    var(--pf-ink);
+    radial-gradient(72% 30% at 12% 0%, var(--pf-wash-1), transparent 70%),
+    radial-gradient(60% 26% at 92% 3%, var(--pf-wash-2), transparent 72%),
+    var(--pf-ground);
 }
-.pf [data-ui="ios"] .ios-scroll::before {
+.pf [data-ui="ios"]:not([data-theme]) .ios-scroll:not(.ios-scroll .ios-scroll)::before {
   content: "";
   position: fixed; inset: 0; pointer-events: none; z-index: 0;
   background-image:
     repeating-linear-gradient(to right, var(--pf-rule) 0 1px, transparent 1px 96px),
     repeating-linear-gradient(to bottom, var(--pf-rule) 0 1px, transparent 1px 96px);
-  opacity: 0.3;
+  opacity: var(--pf-grid-opacity);
   mask-image: radial-gradient(110% 46% at 50% 0%, #000 8%, transparent 70%);
   -webkit-mask-image: radial-gradient(110% 46% at 50% 0%, #000 8%, transparent 70%);
 }
-.pf [data-ui="ios"] .ios-scroll > * { position: relative; z-index: 1; }
+.pf [data-ui="ios"]:not([data-theme]) .ios-scroll > * { position: relative; z-index: 1; }
 
 /* ── The one large moment ───────────────────────────────────────────────────
-   Today opens on a greeting and a date. That is the only place on a dashboard
-   where display type earns its keep, so it is the only place that gets it. */
-.pf [data-ui="ios"] .ios-large-title {
+   Every screen opens on a large title. That is the only place on a working
+   screen where display type earns its keep, so it is the only place that
+   gets it. */
+.pf [data-ui="ios"]:not([data-theme]) .ios-large-title {
   font-family: var(--pf-display);
   font-weight: 400;
   font-size: clamp(34px, 9vw, 46px);
@@ -123,7 +198,7 @@
   letter-spacing: -0.014em;
   word-spacing: 0.04em;
 }
-.pf [data-ui="ios"] .ios-title-sub {
+.pf [data-ui="ios"]:not([data-theme]) .ios-title-sub {
   font-family: var(--pf-mono);
   font-size: 11px;
   letter-spacing: 0.11em;
@@ -131,13 +206,13 @@
 }
 
 /* ── Labels ─────────────────────────────────────────────────────────────── */
-.pf [data-ui="ios"] .ios-group-header {
+.pf [data-ui="ios"]:not([data-theme]) .ios-group-header {
   font-family: var(--pf-mono);
   font-size: 10.5px;
   letter-spacing: 0.14em;
   font-weight: 400;
 }
-.pf [data-ui="ios"] .ios-tile-label {
+.pf [data-ui="ios"]:not([data-theme]) .ios-tile-label {
   font-family: var(--pf-mono);
   font-size: 10px;
   letter-spacing: 0.12em;
@@ -147,43 +222,42 @@
    iOS groups are opaque blocks with a generous radius. Here they are a
    near-flat panel behind a hairline: less contrast, more precision, and the
    rules do the separating rather than the fills. */
-.pf [data-ui="ios"] .ios-list,
-.pf [data-ui="ios"] .ios-group {
-  background: rgba(17,26,30,0.7);
+.pf [data-ui="ios"]:not([data-theme]) .ios-list,
+.pf [data-ui="ios"]:not([data-theme]) .ios-group {
+  background: var(--pf-panel);
   border: 1px solid var(--pf-rule);
   border-radius: 13px;
   box-shadow: none;
 }
 /* Rows inside a group let the group's own surface show through; only a
    standalone card fills itself. */
-.pf [data-ui="ios"] .ios-list > .ios-cell,
-.pf [data-ui="ios"] .ios-group > .ios-cell { background: transparent; }
+.pf [data-ui="ios"]:not([data-theme]) .ios-list > .ios-cell,
+.pf [data-ui="ios"]:not([data-theme]) .ios-group > .ios-cell { background: transparent; }
 
-/* The glance tiles stay the one raised object, because those four figures are
+/* The glance tiles stay the one raised object, because those figures are
    what the screen is answering when you open it. */
-.pf [data-ui="ios"] .ios-tile {
-  background: linear-gradient(180deg, var(--pf-ink-3), var(--pf-ink-2));
+.pf [data-ui="ios"]:not([data-theme]) .ios-tile {
+  background: linear-gradient(180deg, var(--pf-tile-top), var(--pf-tile-bottom));
   border: 1px solid var(--pf-rule-2);
   border-radius: 14px;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 18px 40px -26px rgba(0,0,0,0.9);
+  box-shadow: var(--pf-tile-shadow);
 }
 
 /* IconBadge keeps its module colour — that fill is what tells you a row is
-   Money rather than Health, and it is the only place the eight colours appear
-   on this screen. The inset highlight and drop shadow are light-mode gloss and
+   Money rather than Health. The inset highlight and drop shadow are gloss and
    read as grime on ink, so those go and the colour stays. */
-.pf [data-ui="ios"] .ios-icon { box-shadow: none; border-radius: 9px; }
+.pf [data-ui="ios"]:not([data-theme]) .ios-icon { box-shadow: none; border-radius: 9px; }
 
-.pf [data-ui="ios"] .ios-chip {
+.pf [data-ui="ios"]:not([data-theme]) .ios-chip {
   font-family: var(--pf-mono);
   font-size: 11px;
   letter-spacing: 0.03em;
   border: 1px solid var(--pf-rule);
 }
 
-.pf [data-ui="ios"] .ios-num { font-variant-numeric: tabular-nums; }
-.pf [data-ui="ios"] .ios-tabbar {
+.pf [data-ui="ios"]:not([data-theme]) .ios-num { font-variant-numeric: tabular-nums; }
+.pf [data-ui="ios"]:not([data-theme]) .ios-tabbar {
   backdrop-filter: blur(18px) saturate(1.3);
   -webkit-backdrop-filter: blur(18px) saturate(1.3);
 }
-.pf [data-ui="ios"] :focus-visible { outline: 2px solid var(--ios-tint); outline-offset: 2px; }
+.pf [data-ui="ios"]:not([data-theme]) :focus-visible { outline: 2px solid var(--ios-tint); outline-offset: 2px; }
