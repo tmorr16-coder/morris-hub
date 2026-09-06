@@ -56,12 +56,26 @@
   --pf-pressed:   light-dark(rgba(11,17,20,0.06),   rgba(231,239,241,0.06));
   --pf-fill:      light-dark(rgba(11,17,20,0.06),   rgba(231,239,241,0.07));
   --pf-fill-2:    light-dark(rgba(11,17,20,0.035),  rgba(231,239,241,0.045));
-  --pf-bar:       light-dark(rgba(241,243,242,0.82), rgba(11,17,20,0.82));
+  /* Opaque. The bar sits in flow at the bottom of the shell now rather than
+     floating over the content, so there is nothing behind it to show through —
+     and while it was translucent, the rows it covered stayed legible through
+     it, which is what made it read as hovering rather than as the edge of the
+     app. The hairline above it is what separates bar from content. */
+  --pf-bar:       light-dark(#F1F3F2, #0B1114);
 
-  /* Verdigris is the interactive colour in both; deepened on paper so text in
-     it clears contrast, lifted on ink so it does not sink. */
-  --pf-tint:       light-dark(#1A8E9C, #4FC0CE);
-  --pf-tint-press: light-dark(#147480, #7BD3DD);
+  /* Verdigris is the interactive colour in both — deep on paper, lifted on ink
+     so it does not sink.
+     
+     It was a softer, chalkier pair (#1A8E9C / #4FC0CE) and it read as washed
+     out: the light value sat at 3.49:1 on the ground, under the 4.5:1 a colour
+     needs to carry text at all, which is exactly what "too soft" looks like
+     when the accent is mostly small type and 22px glyphs. Both values keep the
+     hue and take the chroma up instead — the light one deepens to a petrol
+     verdigris (5.33:1 on paper, 5.94:1 under white), the dark one saturates and
+     settles rather than brightens (7.97:1 on ink, against the old 8.84:1), so
+     it reads as a jewel rather than a pastel. */
+  --pf-tint:       light-dark(#0B6E7C, #1AB8CF);
+  --pf-tint-press: light-dark(#085761, #4FD2E4);
   --pf-on-tint:    light-dark(#FFFFFF, #08181B);
 
   --pf-red:    light-dark(#FF4D42, #FF6659);
@@ -86,7 +100,7 @@
   --pf-alert:       light-dark(#FF4D42, #FF6659);
 
   /* The ambient wash and grid, dialled well down in both. */
-  --pf-wash-1: light-dark(rgba(42,131,144,0.08), rgba(79,192,206,0.07));
+  --pf-wash-1: light-dark(rgba(11,110,124,0.08), rgba(26,184,207,0.07));
   --pf-wash-2: light-dark(rgba(123,94,168,0.05), rgba(162,146,214,0.05));
   --pf-grid-opacity: light-dark(0.35, 0.3);
 
@@ -267,8 +281,4 @@ html body.pf { background: var(--pf-ground); color: var(--pf-text); }
 }
 
 .pf [data-ui="ios"]:not([data-theme]) .ios-num { font-variant-numeric: tabular-nums; }
-.pf [data-ui="ios"]:not([data-theme]) .ios-tabbar {
-  backdrop-filter: blur(18px) saturate(1.3);
-  -webkit-backdrop-filter: blur(18px) saturate(1.3);
-}
 .pf [data-ui="ios"]:not([data-theme]) :focus-visible { outline: 2px solid var(--ios-tint); outline-offset: 2px; }
