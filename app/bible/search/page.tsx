@@ -6,7 +6,7 @@ import SearchAndAsk from "./_components/SearchAndAsk";
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; q?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -21,8 +21,12 @@ export default async function SearchPage({
     .maybeSingle();
   const preferredBibleId = prefs?.preferred_bible_id ?? "de4e12af7f28f599-02";
 
-  const { tab } = await searchParams;
+  // ReferenceField sends a query that is not a reference here as ?q=, from
+  // whichever screen it was typed on. Without picking it up, a topic search
+  // from the dashboard arrived at an empty search box and had to be retyped.
+  const { tab, q } = await searchParams;
   const initialTab = tab === "ask" ? "ask" : "search";
+  const initialQuery = (q ?? "").slice(0, 200);
 
   return (
     <div className="ios-scroll">
@@ -30,6 +34,7 @@ export default async function SearchPage({
         versions={KNOWN_VERSIONS}
         defaultBibleId={preferredBibleId}
         initialTab={initialTab}
+        initialQuery={initialQuery}
         firstName={user.user_metadata?.full_name?.split(" ")[0] ?? ""}
       />
     </div>

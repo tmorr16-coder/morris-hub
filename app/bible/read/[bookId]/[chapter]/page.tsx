@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
-import { fetchChapter, bookById, BIBLE_BOOKS, KNOWN_VERSIONS, DEFAULT_VERSION_ID } from "@/lib/bible-api";
+import { fetchChapter, bookById, KNOWN_VERSIONS, DEFAULT_VERSION_ID } from "@/lib/bible-api";
+import { parseReference } from "@/lib/bible-reference";
 import ChapterReader from "./ChapterReader";
 
 interface Props {
@@ -14,14 +15,20 @@ interface Props {
   }>;
 }
 
-/** Parse "John 3" or "Genesis 1-2" → { bookId, chapter } */
+/**
+ * A plan reading ("John 3", "1 Cor 13", "Ps 23-24") → the chapter to open.
+ *
+ * This was a fourth reference parser, and the strictest of them: it matched the
+ * full book name with the spaces stripped and nothing else. A plan whose
+ * readings were written "Ps 23" rather than "Psalms 23" — which is how most
+ * plans are written, and how the generator writes them — produced null here,
+ * and null meant the reading was quietly dropped from the auto-continue queue.
+ * Read-aloud just stopped early with nothing to say why.
+ */
 function parseRef(ref: string): { bookId: string; chapter: number } | null {
-  const m = ref.trim().match(/^(.+?)\s+(\d+)(?:-\d+)?$/);
-  if (!m) return null;
-  const name = m[1].trim().toLowerCase().replace(/\s/g, "");
-  const bk = BIBLE_BOOKS.find(b => b.name.toLowerCase().replace(/\s/g, "") === name);
-  if (!bk) return null;
-  return { bookId: bk.id, chapter: parseInt(m[2]) };
+  const parsed = parseReference(ref);
+  if (!parsed || parsed.chapter == null) return null;
+  return { bookId: parsed.book.id, chapter: parsed.chapter };
 }
 
 export default async function ChapterPage({ params, searchParams }: Props) {

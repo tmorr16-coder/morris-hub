@@ -3,6 +3,7 @@ import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { BIBLE_BOOKS } from "@/lib/bible-api";
 import { LargeTitle } from "@/components/ios";
 import BookPickerClient from "./_components/BookPickerClient";
+import ReferenceField from "../_components/ReferenceField";
 
 export default async function ReadPage() {
   const user = await getCurrentUser();
@@ -22,7 +23,8 @@ export default async function ReadPage() {
 
   return (
     <div className="ios-scroll">
-      <LargeTitle title="Read" subtitle="Select a book" />
+      <LargeTitle title="Read" subtitle="Go to a passage, or browse the books" />
+      <ReferenceField bibleId={preferredBibleId} placeholder="John 3:16, Psalm 23, Philippians…" />
       <div style={{ padding: "0 16px 16px" }}>
         <BookPickerClient books={BIBLE_BOOKS} preferredBibleId={preferredBibleId} />
       </div>

@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
-import { BIBLE_BOOKS } from "@/lib/bible-api";
 import { LargeTitle, Group, Cell, IconBadge, AskMorrisPill, HeatStrip, Icons } from "@/components/ios";
 import ResumeReadingButton from "./_components/ResumeReadingButton";
+import ReferenceField from "../_components/ReferenceField";
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -18,6 +18,15 @@ export default async function DashboardPage() {
     .select("user_id").eq("member_user_id", user.id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const circleOwnerIds = [user.id, ...((circleRows ?? []) as any[]).map((r) => r.user_id as string)];
+
+  // The translation the field should open passages in — the same preference
+  // /bible/read reads. Tolerates the table not being migrated yet.
+  let preferredBibleId = "de4e12af7f28f599-02";
+  try {
+    const { data: prefs } = await db.schema("bible").from("user_preferences")
+      .select("preferred_bible_id").eq("user_id", user.id).maybeSingle();
+    if (prefs?.preferred_bible_id) preferredBibleId = prefs.preferred_bible_id;
+  } catch { /* table not yet created */ }
 
   const [plansRes, completionsRes, notesRes, platformChallengesRes, familyChallengesRes] = await Promise.all([
     db.schema("bible").from("user_plans").select("*, plan:reading_plans(*)").eq("user_id", user.id).order("started_at", { ascending: false }).limit(3),
@@ -43,19 +52,25 @@ export default async function DashboardPage() {
 
   const firstName = (user.user_metadata?.full_name ?? user.email ?? "friend").split(" ")[0];
   const dateLabel = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-  const todayBook = BIBLE_BOOKS[Math.floor(new Date().getTime() / 86_400_000) % BIBLE_BOOKS.length];
 
   return (
     <div className="ios-scroll">
       <LargeTitle brand title="Bible" subtitle={`Good ${getTimeOfDay()}, ${firstName} · ${dateLabel}`} avatarInitial={firstName[0]?.toUpperCase()} />
 
-      {/* Quick access to reading — first thing in the module. */}
+      {/* The way in, on the screen you land on.
+
+          This group used to be five rows: a resume link, a "Continue where I
+          left off" that went to the book list rather than anywhere you had
+          been, a rotating book-of-the-day, John 3 and Psalms 23. Four of the
+          five were guesses at what you wanted, and none of them was the thing
+          you actually wanted often enough to be worth a permanent row. The
+          field answers all of them in a few letters, and it is the same field
+          that is on Read and on Search. */}
+      <ReferenceField bibleId={preferredBibleId} placeholder="John 3:16, Psalm 23, forgiveness…" />
+
       <Group header="Start reading">
         <ResumeReadingButton />
-        <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.BookIcon /></IconBadge>} title="Continue where I left off" href="/bible/read" />
-        <Cell lead={<IconBadge color="#3B5C7F"><Icons.BookIcon /></IconBadge>} title={`${todayBook.name} 1`} subtitle="Today's book" href={`/bible/read/${todayBook.id}/1`} />
-        <Cell lead={<IconBadge color="#6B5B95"><Icons.BookIcon /></IconBadge>} title="John 3" href="/bible/read/JHN/3" />
-        <Cell lead={<IconBadge color="#8B6A47"><Icons.BookIcon /></IconBadge>} title="Psalms 23" href="/bible/read/PSA/23" />
+        <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.BookIcon /></IconBadge>} title="Browse all books" subtitle="Old and New Testament" href="/bible/read" />
       </Group>
 
       {/* Streak hero — number + 10-week heatmap */}
@@ -104,13 +119,14 @@ export default async function DashboardPage() {
         </Group>
       )}
 
+      {/* "Ask about a passage" and "Search Scripture" were two rows pointing at
+          the same screen under two names — /bible/chat is a redirect to it. */}
       <Group header="Study">
-        <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.SparkleIcon /></IconBadge>} title="Ask about a passage" subtitle="AI study companion" href="/bible/chat" />
-        <Cell lead={<IconBadge color="#8B6A47"><Icons.BookIcon /></IconBadge>} title="Search Scripture" href="/bible/search" />
+        <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.SparkleIcon /></IconBadge>} title="Ask Morris" subtitle="Questions about a passage or theme" href="/bible/search?tab=ask" />
         <Cell lead={<IconBadge color="#8E8E93"><Icons.GearIcon /></IconBadge>} title="Settings" href="/bible/settings" />
       </Group>
 
-      <AskMorrisPill placeholder="Ask about today's reading…" href="/bible/chat" />
+      <AskMorrisPill placeholder="Ask about today's reading…" href="/bible/search?tab=ask" />
 
       <div style={{ height: 12 }} />
     </div>

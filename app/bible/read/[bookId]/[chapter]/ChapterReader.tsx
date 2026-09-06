@@ -100,6 +100,32 @@ export default function ChapterReader({
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
 
+  // The verse a "#v16" link asked for, held only long enough to point at it.
+  const [targetVerse, setTargetVerse] = useState<number | null>(null);
+
+  // Land on the verse, not the top of the chapter.
+  //
+  // The browser cannot do this for us: the anchors belong to a client component
+  // that has not rendered when the hash is first read, and the scrolling element
+  // is .ios-scroll rather than the document, which native hash handling does not
+  // touch. So it is done by hand once the verses are on the page, and the
+  // highlight fades on its own so the chapter does not stay marked up.
+  useEffect(() => {
+    if (!chapterData?.verses.length) return;
+    const m = window.location.hash.match(/^#v(\d+)$/);
+    if (!m) return;
+    const number = parseInt(m[1], 10);
+    if (!chapterData.verses.some((v) => v.number === number)) return;
+    // Both the mark and the scroll wait a frame: the row has to exist to be
+    // scrolled to, and setting state straight from an effect cascades a render.
+    const raf = requestAnimationFrame(() => {
+      setTargetVerse(number);
+      document.getElementById(`v${number}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+    const fade = setTimeout(() => setTargetVerse(null), 2600);
+    return () => { cancelAnimationFrame(raf); clearTimeout(fade); };
+  }, [chapterData]);
+
   // ── TTS state ─────────────────────────────────────────────
   const [speaking, setSpeaking] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -324,7 +350,7 @@ export default function ChapterReader({
   };
 
   return (
-    <div style={{ maxWidth: "var(--reader-width)", margin: "0 auto", padding: "24px 16px 120px" }}>
+    <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px 32px" }}>
 
       {/* ── Header ── */}
       <div style={{ marginBottom: 24 }}>
@@ -462,20 +488,28 @@ export default function ChapterReader({
             const hasNote  = notes[verse.number];
             const isReading = readingVerseIdx === idx;
             const isSelected = selectedVerse?.id === verse.id;
+            const isTargeted = targetVerse === verse.number;
 
             return (
               <div
                 key={verse.id}
+                // Anchored, so "John 3:16" can land on verse 16 rather than at
+                // the top of the chapter. Every screen has been building #v16
+                // links for months; nothing was here to receive them.
+                id={`v${verse.number}`}
                 style={{
                   display: "flex",
                   alignItems: "flex-start",
-                  gap: 14,
+                  gap: 10,
                   padding: "10px 12px",
                   borderRadius: 12,
+                  scrollMarginTop: 76,
                   background: isReading
                     ? "color-mix(in srgb, var(--ios-tint) 12%, transparent)"
                     : isSelected
                     ? "var(--ios-fill)"
+                    : isTargeted
+                    ? "color-mix(in srgb, var(--ios-tint) 16%, transparent)"
                     : hlDef
                     ? hlDef.bg
                     : "transparent",
@@ -483,34 +517,43 @@ export default function ChapterReader({
                     ? "1px solid var(--ios-tint)"
                     : "1px solid transparent",
                   cursor: "pointer",
-                  transition: "background 120ms",
+                  transition: "background 400ms",
                 }}
                 onClick={() => setSelectedVerse(isSelected ? null : verse)}
               >
-                {/* Left: play button (verse number hidden) */}
-                <div style={{
-                  display: "flex", flexDirection: "column", alignItems: "center",
-                  gap: 4, flexShrink: 0, paddingTop: 2,
-                }}>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); speakFrom(idx); }}
-                    title={`Read from verse ${verse.number}`}
-                    aria-label={`Read from verse ${verse.number}`}
-                    style={{
-                      background: isReading ? "var(--ios-tint)" : "transparent",
-                      border: "none", cursor: "pointer", padding: "3px 5px",
-                      borderRadius: 6, fontSize: 9,
-                      color: isReading ? "var(--ios-on-tint)" : "var(--ios-label-3)",
-                      opacity: isReading ? 1 : 0.6,
-                      transition: "opacity 120ms",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = isReading ? "1" : "0.6"; }}
-                  >
-                    <PlayIcon />
-                  </button>
-                </div>
+                {/* Left: the verse number.
+
+                    This was a play button, with the number hidden behind it —
+                    which left the one thing you need in order to read along
+                    with somebody else ("verse fourteen") nowhere on the page.
+                    The number is the control now: it says where you are and
+                    still starts read-aloud from here, so nothing was lost by
+                    showing it. */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); speakFrom(idx); }}
+                  title={`Read from verse ${verse.number}`}
+                  aria-label={`Read from verse ${verse.number}`}
+                  className="ios-num"
+                  style={{
+                    flexShrink: 0,
+                    minWidth: 26,
+                    marginTop: 3,
+                    padding: "1px 5px",
+                    borderRadius: 7,
+                    border: "none",
+                    textAlign: "right",
+                    fontSize: 13,
+                    lineHeight: "20px",
+                    fontWeight: isReading ? 700 : 600,
+                    fontVariantNumeric: "tabular-nums",
+                    background: isReading ? "var(--ios-tint)" : "transparent",
+                    color: isReading ? "var(--ios-on-tint)" : "var(--ios-label-3)",
+                    cursor: "pointer",
+                    transition: "background 120ms, color 120ms",
+                  }}
+                >
+                  {verse.number}
+                </button>
 
                 {/* Right: verse text */}
                 <div style={{

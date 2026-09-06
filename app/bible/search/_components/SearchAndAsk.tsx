@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import type { BibleVersion } from "@/lib/bible-api";
 import { Segmented, Chip, Group, List, Cell, IconBadge, Icons } from "@/components/ios";
 import MarkdownMessage from "@/components/MarkdownMessage";
 import { useChatHistory } from "@/hooks/useChatHistory";
+import ReferenceField from "../../_components/ReferenceField";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +26,8 @@ interface Props {
   versions: BibleVersion[];
   defaultBibleId: string;
   initialTab: "search" | "ask";
+  /** A topic handed over from another screen's ReferenceField — run on arrival. */
+  initialQuery?: string;
   firstName: string;
 }
 
@@ -65,42 +67,17 @@ const ASK_STARTERS = [
   "What does the Bible say about anxiety?",
 ];
 
-// ── Book reference lookup ────────────────────────────────────────────────────
-
-const BOOKS: Record<string, { id: string; chapters: number }> = {
-  genesis: { id: "GEN", chapters: 50 }, gen: { id: "GEN", chapters: 50 },
-  exodus: { id: "EXO", chapters: 40 }, exo: { id: "EXO", chapters: 40 },
-  psalms: { id: "PSA", chapters: 150 }, psalm: { id: "PSA", chapters: 150 }, psa: { id: "PSA", chapters: 150 },
-  proverbs: { id: "PRO", chapters: 31 }, prov: { id: "PRO", chapters: 31 },
-  isaiah: { id: "ISA", chapters: 66 }, isa: { id: "ISA", chapters: 66 },
-  matthew: { id: "MAT", chapters: 28 }, mat: { id: "MAT", chapters: 28 },
-  mark: { id: "MRK", chapters: 16 }, mrk: { id: "MRK", chapters: 16 },
-  luke: { id: "LUK", chapters: 24 }, luk: { id: "LUK", chapters: 24 },
-  john: { id: "JHN", chapters: 21 }, jhn: { id: "JHN", chapters: 21 },
-  acts: { id: "ACT", chapters: 28 }, act: { id: "ACT", chapters: 28 },
-  romans: { id: "ROM", chapters: 16 }, rom: { id: "ROM", chapters: 16 },
-  galatians: { id: "GAL", chapters: 6 }, gal: { id: "GAL", chapters: 6 },
-  ephesians: { id: "EPH", chapters: 6 }, eph: { id: "EPH", chapters: 6 },
-  philippians: { id: "PHP", chapters: 4 }, php: { id: "PHP", chapters: 4 },
-  hebrews: { id: "HEB", chapters: 13 }, heb: { id: "HEB", chapters: 13 },
-  james: { id: "JAS", chapters: 5 }, jas: { id: "JAS", chapters: 5 },
-  revelation: { id: "REV", chapters: 22 }, rev: { id: "REV", chapters: 22 },
-};
-
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function SearchAndAsk({ versions, defaultBibleId, initialTab, firstName }: Props) {
-  const router = useRouter();
+export default function SearchAndAsk({ versions, defaultBibleId, initialTab, initialQuery = "", firstName }: Props) {
   const [tab, setTab] = useState<"search" | "ask">(initialTab);
 
   // Search state
   const [bibleId, setBibleId] = useState(defaultBibleId);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
-  const [goTo, setGoTo] = useState("");
-  const [goToError, setGoToError] = useState("");
 
   // Chat state — persisted so the conversation carries across screens.
   const { messages, setMessages, clear: clearChat } = useChatHistory("morris:bible-ask");
@@ -112,6 +89,15 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, chatLoading]);
+
+  // Run the handed-over query once, on arrival.
+  const ranInitial = useRef(false);
+  useEffect(() => {
+    if (!initialQuery || ranInitial.current) return;
+    ranInitial.current = true;
+    search(initialQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQuery]);
 
   // ── Search ────────────────────────────────────────────────────────────────
 
@@ -132,23 +118,10 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
     setSearched(true);
   }
 
-  function handleGoTo(e: React.FormEvent) {
-    e.preventDefault();
-    const raw = goTo.trim();
-    const match = raw.match(/^(.+?)\s+(\d+)(?::(\d+))?$/i);
-    if (!match) { setGoToError("Try: John 3:16 or Psalms 23"); return; }
-    const [, bookInput, chStr, verseStr] = match;
-    const found = BOOKS[bookInput.toLowerCase()];
-    if (!found) { setGoToError(`Book not recognised: "${bookInput}"`); return; }
-    const ch = Math.min(parseInt(chStr), found.chapters);
-    const hash = verseStr ? `#v${verseStr}` : "";
-    router.push(`/bible/read/${found.id}/${ch}?bibleId=${bibleId}${hash}`);
-  }
-
   function resultHref(r: SearchResult): string {
     if (!r.id) return "#";
     const parts = r.id.split(".");
-    if (parts.length >= 2) return `/bible/read/${parts[0]}/${parts[1]}?bibleId=${bibleId}`;
+    if (parts.length >= 2) return `/bible/read/${parts[0]}/${parts[1]}?v=${bibleId}`;
     return "#";
   }
 
@@ -228,8 +201,16 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
       {/* ── SEARCH TAB ─────────────────────────────────────────────────── */}
       {tab === "search" && (
         <div>
-          {/* Translation + search field */}
-          <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px var(--ios-gutter) 0" }}>
+          {/* One field.
+
+              This screen used to carry two: a "Search scripture, topic, or
+              phrase" box at the top and a separate "Go to reference" card
+              further down, each with its own parser — and the reference one
+              knew only 18 of the 66 books, so Nahum, Obadiah and Zephaniah
+              could not be reached from here at all. ReferenceField decides
+              which of the two a query is and does the right thing, so there is
+              nothing to choose between and nothing to scroll to. */}
+          <div style={{ display: "flex", justifyContent: "flex-end", padding: "6px var(--ios-gutter) 8px" }}>
             <select
               value={bibleId}
               onChange={(e) => setBibleId(e.target.value)}
@@ -238,41 +219,12 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
             >
               {versions.map((v) => <option key={v.id} value={v.id}>{v.abbreviation}</option>)}
             </select>
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "9px 14px",
-                borderRadius: 999,
-                background: "var(--ios-cell)",
-                border: "var(--ios-hair) solid var(--ios-separator)",
-              }}
-            >
-              <MagnifierIcon style={{ width: 17, height: 17, color: "var(--ios-label-3)", flexShrink: 0 }} />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") search(); }}
-                placeholder="Search scripture, topic, or phrase…"
-                style={{
-                  flex: 1, minWidth: 0, border: "none", outline: "none",
-                  background: "transparent", color: "var(--ios-label)",
-                  fontSize: 16, fontFamily: "inherit",
-                }}
-              />
-            </div>
-            <button
-              onClick={() => search()}
-              disabled={searching}
-              aria-label="Search"
-              className="ios-send"
-              style={{ opacity: searching ? 0.5 : 1, cursor: searching ? "wait" : "pointer" }}
-            >
-              <MagnifierIcon style={{ width: 17, height: 17 }} />
-            </button>
           </div>
+          <ReferenceField
+            bibleId={bibleId}
+            placeholder="John 3:16, Philippians, forgiveness…"
+            onTopic={(q) => { setQuery(q); search(q); }}
+          />
 
           {/* Topic chips */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", padding: "14px var(--ios-gutter) 4px" }}>
@@ -281,46 +233,13 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
             ))}
           </div>
 
-          {/* Go to reference */}
-          <div style={{ marginTop: 20 }}>
-            <h2 className="ios-group-header">Go to reference</h2>
-            <form
-              onSubmit={handleGoTo}
-              style={{
-                margin: "0 var(--ios-gutter)", padding: "12px 14px",
-                background: "var(--ios-cell)", borderRadius: "var(--ios-radius-card)",
-                display: "flex", flexDirection: "column", gap: 8,
-              }}
-            >
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input
-                  value={goTo}
-                  onChange={(e) => { setGoTo(e.target.value); setGoToError(""); }}
-                  placeholder="John 3:16  ·  Psalms 23  ·  Romans 8:28"
-                  style={{
-                    flex: 1, minWidth: 0, padding: "9px 12px", borderRadius: 8,
-                    border: `var(--ios-hair) solid ${goToError ? "var(--ios-red)" : "var(--ios-separator)"}`,
-                    background: "var(--ios-bg)", color: "var(--ios-label)",
-                    fontSize: 15, fontFamily: "inherit", outline: "none", boxSizing: "border-box",
-                  }}
-                />
-                <button
-                  type="submit"
-                  className="ios-btn ios-btn--plain"
-                  style={{ display: "inline-flex", alignItems: "center", gap: 2, fontWeight: 600, whiteSpace: "nowrap" }}
-                >
-                  Go
-                  <Icons.ChevronRight style={{ width: 16, height: 16 }} />
-                </button>
-              </div>
-              {goToError && (
-                <div className="ios-footnote" style={{ color: "var(--ios-red)" }}>{goToError}</div>
-              )}
-            </form>
-          </div>
-
           {/* Results */}
-          {searched && results.length === 0 && (
+          {searching && (
+            <div className="ios-subhead" style={{ textAlign: "center", padding: "28px 24px", color: "var(--ios-label-2)" }}>
+              Searching…
+            </div>
+          )}
+          {!searching && searched && results.length === 0 && (
             <div style={{ textAlign: "center", padding: "40px 24px", color: "var(--ios-label-2)" }}>
               <MagnifierIcon style={{ width: 30, height: 30, color: "var(--ios-label-3)", margin: "0 auto 10px" }} />
               <div className="ios-subhead">
