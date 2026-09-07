@@ -47,12 +47,27 @@ const BUDDY_RATE_KEY = "buddy-rate";
  * A warm adult voice a child likes, from what this device has. Apple's
  * neural voices in a natural register first — Ava, Zoe, Joelle, Noelle, then
  * Evan, Nathan, Aaron — Premium over Enhanced, then whatever ranks best.
- * Never a novelty voice; the shared ranking already drops those.
+ * Never a classic or sound-effect voice, though both are still offered below.
  */
 const KID_FRIENDLY = ["Ava", "Zoe", "Samantha", "Allison", "Joelle", "Noelle", "Nicky", "Evan", "Nathan", "Aaron", "Tom", "Susan"];
-const NOVELTY = /compact|eloquence|bahh|bells|boing|bubbles|cellos|deranged|good news|bad news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|albert|junior|ralph|fred|grandma|grandpa|rocko|shelley|sandy|flo|eddy|reed|kathy|hysterical|pipe|deity|diety/i;
 
-/** Every real English voice on this device: novelty and legacy "compact" voices dropped, nothing else. */
+/**
+ * Sound effects, not voices. Zarvox is a robot, Bells sings the sentence,
+ * Bubbles gargles it. Nothing here can read a spelling word to a child, so
+ * they are the only names dropped outright.
+ */
+const NOVELTY = /compact|eloquence|bahh|bells|boing|bubbles|cellos|deranged|good news|bad news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|hysterical|pipe|deity|diety/i;
+
+/**
+ * Apple's classic speech voices — Fred was the Mac's default for years, and
+ * Junior, Kathy, Ralph, Albert, Bruce, Agnes and Victoria are its siblings.
+ * They are thin next to the neural voices, so they sort to the bottom of the
+ * list and are never chosen automatically, but a grown-up asking for Fred
+ * should find Fred. They exist on macOS; an iPad or iPhone does not ship them.
+ */
+const CLASSIC = /\b(fred|junior|kathy|ralph|albert|bruce|agnes|victoria|princess)\b/i;
+
+/** Every real English voice on this device: only the sound-effect voices are dropped. */
 function englishVoices(all: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
   const lang = (v: SpeechSynthesisVoice) => (v.lang || "").replace("_", "-");
   const quality = (v: SpeechSynthesisVoice) => (/\bpremium\b/i.test(v.name) ? 2 : /\benhanced\b/i.test(v.name) ? 1 : 0);
@@ -61,6 +76,8 @@ function englishVoices(all: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
     .sort((a, b) => {
       const us = (lang(b) === "en-US" ? 1 : 0) - (lang(a) === "en-US" ? 1 : 0);
       if (us) return us;
+      const cl = (CLASSIC.test(a.name) ? 1 : 0) - (CLASSIC.test(b.name) ? 1 : 0);
+      if (cl) return cl;
       const q = quality(b) - quality(a);
       if (q) return q;
       const ka = KID_FRIENDLY.findIndex((n) => new RegExp(`\\b${n}\\b`, "i").test(a.name));
@@ -82,7 +99,8 @@ function pickKidVoice(all: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null 
     const v = us.find((x) => new RegExp(`\\b${n}\\b`, "i").test(x.name));
     if (v) return v;
   }
-  return us[0] ?? englishVoices(all)[0] ?? pickBestVoice(all);
+  const natural = englishVoices(all).filter((v) => !CLASSIC.test(v.name));
+  return natural.find((v) => (v.lang || "").replace("_", "-") === "en-US") ?? natural[0] ?? us[0] ?? pickBestVoice(all);
 }
 
 function readLocal(key: string): string | null {
@@ -262,13 +280,13 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
                 <div key={group}>
                   <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--ios-label-3)", margin: "10px 0 4px" }}>{group === "en-US" ? "US English" : "Other English"}</div>
                   {list.map((v) => {
-                    const q = /\bpremium\b/i.test(v.name) ? "Premium" : /\benhanced\b/i.test(v.name) ? "Enhanced" : null;
+                    const q = /\bpremium\b/i.test(v.name) ? "Premium" : /\benhanced\b/i.test(v.name) ? "Enhanced" : CLASSIC.test(v.name) ? "Classic" : null;
                     return (
                       <div key={v.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--ios-separator)" }}>
                         <button type="button" onClick={() => { choose(v.name); speak(`Hi ${first}, I'm Buddy! Let's learn something.`, 1); }} style={{ flex: 1, textAlign: "left", background: "none", border: "none", fontSize: 17, fontWeight: v.name === voiceName ? 800 : 500, color: v.name === voiceName ? "var(--ios-tint)" : "var(--ios-label)", cursor: "pointer", padding: 0 }}>
                           {v.name === voiceName ? "✓ " : ""}{v.name.replace(/\s*\((premium|enhanced)\)/i, "")}
                         </button>
-                        {q && <span style={{ fontSize: 11, fontWeight: 700, color: q === "Premium" ? "var(--ios-green)" : "var(--ios-tint)", border: "1px solid currentColor", borderRadius: 999, padding: "2px 8px" }}>{q}</span>}
+                        {q && <span style={{ fontSize: 11, fontWeight: 700, color: q === "Premium" ? "var(--ios-green)" : q === "Enhanced" ? "var(--ios-tint)" : "var(--ios-label-3)", border: "1px solid currentColor", borderRadius: 999, padding: "2px 8px" }}>{q}</span>}
                         <span style={{ fontSize: 12, color: "var(--ios-label-3)" }}>{v.lang}</span>
                       </div>
                     );
@@ -277,7 +295,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
               );
             })}
             <div style={{ fontSize: 13, color: "var(--ios-label-2)", lineHeight: 1.5, marginTop: 12, padding: "10px 12px", background: "var(--ios-fill)", borderRadius: 10 }}>
-              <strong>The natural ones have to be downloaded first.</strong> On the iPad or iPhone: Settings → Accessibility → Spoken Content → Voices → English → tap <em>Ava</em>, <em>Zoe</em>, <em>Evan</em> or <em>Nathan</em> and download the <em>Premium</em> version (about 200 MB each). Then close Safari fully and reopen this screen; they appear here marked Premium, and Buddy picks the best one by himself.
+              <strong>The natural ones have to be downloaded first.</strong> On the iPad or iPhone: Settings → Accessibility → Spoken Content → Voices → English → tap <em>Ava</em>, <em>Zoe</em>, <em>Evan</em> or <em>Nathan</em> and download the <em>Premium</em> version (about 200 MB each). Then close Safari fully and reopen this screen; they appear here marked Premium, and Buddy picks the best one by himself. The <em>Classic</em> voices — Fred, Junior, Kathy, Ralph — are a Mac thing; an iPad or iPhone does not ship them, so they only show up here on a computer.
             </div>
           </div>
         )}
