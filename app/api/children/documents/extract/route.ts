@@ -21,7 +21,7 @@ const SYSTEM = `You read what an elementary school sends home — weekly newslet
 
 You are careful, literal, and specific. You transcribe dates, words and scores exactly as printed. You never invent a score, a date or a teacher's comment. When you propose practice, every exercise is anchored to something on the page: a teacher's note in the margin, an item marked wrong, a pattern being taught this week, or a request the teacher made of families. You write for a parent with ten minutes at the kitchen table, not for a teacher.
 
-Return ONLY a JSON object — no prose, no markdown fences.`;
+Return ONLY a JSON object — no prose before or after it, no markdown fences, no comments. Emit it compactly (no indentation) so a long document fits.`;
 
 function promptFor(childName: string, gradeLabel: string | null, today: string): string {
   return `The child is ${childName}${gradeLabel ? `, in ${gradeLabel}` : ""}. Today is ${today}. Every page attached belongs to the same document (a multi-page newsletter, or one graded paper). Read all of them.
@@ -68,6 +68,8 @@ Rules:
 - Observations are yours, from looking: reversals (b/d, p/q), letter sizing and baseline, which vowel sound was confused (the child wrote 'fex' for 'fix'), which strategy the child used in math. Be concrete and kind.
 - Exercises: 3 to 6. Each must trace to the page. A teacher's note ("start at 2 on the clock" for the letter d) becomes an exercise that repeats her exact cue. A pattern being taught this week (silent e) becomes a game with this week's actual words. A request to families (practise tying shoes, recite the poem with the map) becomes an exercise. Age-appropriate for ${gradeLabel ?? "the child's grade"}: short, physical, playful, with the child doing the writing or saying.
 - Never include an exercise for a skill the page shows the child has already mastered.
+- Pages may be photographed or scanned sideways or upside down; read them in whatever orientation they are.
+- Keep "items" to the graded items themselves — at most 30 per assessment, each entry short. Keep "observations" to at most six per assessment.
 - Set spelling to null for a graded paper that carries no list of words to study. Set assessments to [] for a newsletter.
 - kind is "newsletter" when the pages are a newsletter and its attachments together (spelling sheet, word list); "word_list" only when a word list arrives alone.`;
 }
@@ -125,17 +127,25 @@ export async function POST(req: NextRequest) {
   try {
     const response = await client.messages.create({
       model: MODEL_BALANCED,
-      max_tokens: 8000,
+      max_tokens: 16000,
       system: SYSTEM,
       messages: [{ role: "user", content: [...blocks, { type: "text", text: promptFor(childName, gradeLabel, today) }] }],
     });
     const text = response.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("\n").trim();
-    const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-    let parsed: DocumentExtraction;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      return NextResponse.json({ error: "Could not read those pages clearly. Try again with better light, one page at a time." }, { status: 422 });
+
+    // The reply ran out of room before the closing brace. Five graded pages
+    // with every item transcribed can do that; say so, rather than blaming
+    // the photographs.
+    if (response.stop_reason === "max_tokens") {
+      console.error("[children/documents/extract] reply truncated at max_tokens", { pages: files.length, chars: text.length });
+      return NextResponse.json({ error: "There was more on those pages than can be read in one go. Send them in twos, or one graded paper at a time." }, { status: 422 });
+    }
+
+    const parsed = parseJsonObject(text);
+    if (!parsed) {
+      // Log the shape of what came back, so the next failure is a fact and not a guess.
+      console.error("[children/documents/extract] unparseable reply", { pages: files.length, chars: text.length, head: text.slice(0, 300), tail: text.slice(-200) });
+      return NextResponse.json({ error: "The reader's reply could not be understood. This is on our side, not the photographs — try once more, or send fewer pages at a time." }, { status: 422 });
     }
     return NextResponse.json({ extraction: normalize(parsed) });
   } catch (err) {
@@ -143,6 +153,25 @@ export async function POST(req: NextRequest) {
     console.error("[children/documents/extract]", err);
     return NextResponse.json({ error: "Could not read the document." }, { status: 500 });
   }
+}
+
+/**
+ * Find and parse the JSON object in a model reply. Tolerates fences, prose
+ * before or after, and trailing commas — every one of which the first
+ * version treated as an unreadable photograph.
+ */
+function parseJsonObject(text: string): any | null {
+  const candidates: string[] = [];
+  const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  candidates.push(stripped);
+  const first = text.indexOf("{");
+  const last = text.lastIndexOf("}");
+  if (first >= 0 && last > first) candidates.push(text.slice(first, last + 1));
+  for (const c of candidates) {
+    try { return JSON.parse(c); } catch { /* next */ }
+    try { return JSON.parse(c.replace(/,\s*([}\]])/g, "$1")); } catch { /* next */ }
+  }
+  return null;
 }
 
 const FREQ = new Set(["daily", "three_a_week", "weekly", "once"]);
