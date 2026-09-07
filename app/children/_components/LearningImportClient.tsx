@@ -13,7 +13,21 @@ import { Group, Cell, Chip, IconBadge, Icons } from "@/components/ios";
 import type { DocumentExtraction } from "../_lib/learning";
 import { saveChildDocument, findSimilarDocument, deleteChildDocument, type SimilarDocument } from "../_lib/learning-actions";
 
-type Phase = "pick" | "reading" | "review" | "saving";
+type Phase = "pick" | "reading" | "review" | "saving" | "batch";
+
+/** SHA-256 of a file's bytes, hex. What makes "already read" independent of the file's name. */
+async function fingerprint(file: File): Promise<string | null> {
+  try {
+    const buf = await file.arrayBuffer();
+    const digest = await crypto.subtle.digest("SHA-256", buf);
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return null;
+  }
+}
+
+type BatchStatus = "waiting" | "reading" | "kept" | "duplicate" | "failed";
+interface BatchItem { file: File; url: string; status: BatchStatus; note: string; hash: string | null }
 
 /**
  * Get a picked file into a shape that will actually arrive. Vercel drops any
@@ -60,6 +74,11 @@ export default function LearningImportClient({ childId, childName }: { childId: 
   const [addTodos, setAddTodos] = useState(true);
   const [similar, setSimilar] = useState<SimilarDocument | null>(null);
   const [replace, setReplace] = useState(true);
+  const [hashes, setHashes] = useState<string[]>([]);
+  const [many, setMany] = useState(false);
+  const [batch, setBatch] = useState<BatchItem[]>([]);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const batchRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const pickerRef = useRef<HTMLInputElement>(null);
 
@@ -67,11 +86,66 @@ export default function LearningImportClient({ childId, childName }: { childId: 
     if (!list) return;
     setError(null);
     const next: { file: File; url: string }[] = [];
+    const nextHashes: string[] = [];
     for (const f of Array.from(list).slice(0, 3 - pages.length)) {
       const p = await prepare(f);
       next.push({ file: p, url: p.type === "application/pdf" ? "" : URL.createObjectURL(p) });
+      const h = await fingerprint(p);
+      if (h) nextHashes.push(h);
     }
     setPages((prev) => [...prev, ...next]);
+    setHashes((prev) => [...prev, ...nextHashes]);
+  }
+
+  // ── Several documents, one at a time ──────────────────────────────────────
+  // A folder of scans — from Photos, Files, or Google Drive through the Files
+  // picker — each file its own document, read and kept in turn with the
+  // defaults (every recommended exercise, dates to reminders, practice to
+  // to-dos). A file already read is recognised by its bytes and skipped, so a
+  // folder can be run again any time without a second copy of anything.
+  async function addBatch(list: FileList | null) {
+    if (!list) return;
+    setError(null);
+    const items: BatchItem[] = [];
+    for (const f of Array.from(list).slice(0, 40)) {
+      const p = await prepare(f);
+      items.push({ file: p, url: p.type === "application/pdf" ? "" : URL.createObjectURL(p), status: "waiting", note: "", hash: await fingerprint(p) });
+    }
+    setBatch((prev) => [...prev, ...items]);
+    setPhase("batch");
+  }
+  function setItem(i: number, patch: Partial<BatchItem>) {
+    setBatch((prev) => prev.map((it, k) => (k === i ? { ...it, ...patch } : it)));
+  }
+  async function runBatch() {
+    setBatchRunning(true);
+    for (let i = 0; i < batch.length; i++) {
+      const it = batch[i];
+      if (it.status !== "waiting" && it.status !== "failed") continue;
+      setItem(i, { status: "reading", note: "Reading…" });
+      try {
+        const body = new FormData();
+        body.append("childId", childId);
+        body.append("files", it.file);
+        const res = await fetch("/api/children/documents/extract", { method: "POST", body });
+        const raw = await res.text();
+        let data: { extraction?: DocumentExtraction; error?: string } | null = null;
+        try { data = JSON.parse(raw); } catch { data = null; }
+        if (!res.ok || !data?.extraction) throw new Error(data?.error ?? (res.status === 504 ? "Timed out" : `Reader error ${res.status}`));
+        const ex = data.extraction;
+        const sim = await findSimilarDocument(childId, ex, it.hash ? [it.hash] : []);
+        if (sim.match) { setItem(i, { status: "duplicate", note: `Already kept: ${sim.match.title}` }); continue; }
+        const r = await saveChildDocument({ childId, extraction: ex, exerciseIndexes: ex.exercises.map((_, k) => k), addDateReminders: true, addPracticeTodos: true, pageHashes: it.hash ? [it.hash] : [] });
+        if (r.error || !r.documentId) throw new Error(r.error ?? "Could not save");
+        const fd = new FormData();
+        fd.append("childId", childId); fd.append("documentId", r.documentId); fd.append("files", it.file);
+        await fetch("/api/children/documents/upload", { method: "POST", body: fd }).catch(() => {});
+        setItem(i, { status: "kept", note: `${ex.title}${r.todos ? ` · ${r.todos} to-dos` : ""}${r.reminders ? ` · ${r.reminders} reminders` : ""}` });
+      } catch (e) {
+        setItem(i, { status: "failed", note: (e as Error).message });
+      }
+    }
+    setBatchRunning(false);
   }
 
   function removePage(i: number) {
@@ -104,7 +178,7 @@ export default function LearningImportClient({ childId, childName }: { childId: 
       setChosen(new Set(ex.exercises.map((_, i) => i)));
       setPhase("review");
       // Same document already kept? Ask before making a second copy.
-      findSimilarDocument(childId, ex).then((r) => { if (r.match) { setSimilar(r.match); setReplace(true); } }).catch(() => {});
+      findSimilarDocument(childId, ex, hashes).then((r) => { if (r.match) { setSimilar(r.match); setReplace(true); } }).catch(() => {});
     } catch (e) {
       setError((e as Error).message);
       setPhase("pick");
@@ -127,6 +201,7 @@ export default function LearningImportClient({ childId, childName }: { childId: 
         exerciseIndexes: [...chosen],
         addDateReminders: addDates,
         addPracticeTodos: addTodos,
+        pageHashes: hashes,
       });
     } catch (e) {
       setError((e as Error).message || "Could not save.");
@@ -156,14 +231,61 @@ export default function LearningImportClient({ childId, childName }: { childId: 
     router.push(`/children/${childId}?saved=1&reminders=${r.reminders ?? 0}&todos=${r.todos ?? 0}${pagesNote}`);
   }
 
+  // ── Batch ─────────────────────────────────────────────────────────────────
+  if (phase === "batch") {
+    const counts = { kept: batch.filter((b) => b.status === "kept").length, dup: batch.filter((b) => b.status === "duplicate").length, failed: batch.filter((b) => b.status === "failed").length, waiting: batch.filter((b) => b.status === "waiting").length };
+    const STATUS_COLOR: Record<BatchStatus, string> = { waiting: "var(--ios-label-3)", reading: "var(--ios-tint)", kept: "var(--ios-green)", duplicate: "var(--ios-orange)", failed: "var(--ios-red)" };
+    const STATUS_LABEL: Record<BatchStatus, string> = { waiting: "Waiting", reading: "Reading…", kept: "Kept", duplicate: "Skipped", failed: "Failed" };
+    return (
+      <>
+        <input ref={batchRef} type="file" accept="image/*,application/pdf" multiple hidden onChange={(e) => { addBatch(e.target.files); e.target.value = ""; }} />
+        <Group header={`${batch.length} document${batch.length === 1 ? "" : "s"}`} footer="Each file is read as its own document and kept with the defaults. A file that was read before is recognised by its contents and skipped, however it is named.">
+          {batch.map((b, i) => (
+            <Cell
+              key={i}
+              chevron={false}
+              // eslint-disable-next-line @next/next/no-img-element -- local preview
+              lead={b.url ? <img src={b.url} alt="" style={{ width: 40, height: 52, objectFit: "cover", borderRadius: 6, border: "1px solid var(--ios-separator)" }} /> : <IconBadge color="#8E8E93"><Icons.BookIcon /></IconBadge>}
+              title={b.note || b.file.name}
+              subtitle={b.note ? b.file.name : `${(b.file.size / 1024).toFixed(0)} KB`}
+              trailing={<span className="ios-caption" style={{ color: STATUS_COLOR[b.status], fontWeight: 700 }}>{STATUS_LABEL[b.status]}</span>}
+            />
+          ))}
+          <Cell chevron={false} onClick={() => !batchRunning && batchRef.current?.click()} lead={<IconBadge color="#8E8E93"><Icons.BookIcon /></IconBadge>} title="Add more files" subtitle="Photos, Files, or Google Drive through Files" />
+        </Group>
+        {error && <p className="ios-footnote" style={{ color: "var(--ios-red)", margin: "8px var(--ios-gutter)" }}>{error}</p>}
+        <div style={{ margin: "12px var(--ios-gutter) 0", display: "grid", gap: 10 }}>
+          <button type="button" className="ios-btn ios-btn--primary" disabled={batchRunning || counts.waiting + counts.failed === 0} onClick={runBatch} style={{ opacity: batchRunning || counts.waiting + counts.failed === 0 ? 0.5 : 1 }}>
+            {batchRunning ? `Processing… ${counts.kept + counts.dup + counts.failed} of ${batch.length}` : counts.failed > 0 && counts.waiting === 0 ? `Retry ${counts.failed} failed` : `Process ${counts.waiting} one at a time`}
+          </button>
+          {!batchRunning && counts.kept + counts.dup > 0 && (
+            <button type="button" className="ios-btn" onClick={() => router.push(`/children/${childId}?saved=1`)}>Done — {counts.kept} kept{counts.dup ? `, ${counts.dup} already there` : ""}{counts.failed ? `, ${counts.failed} failed` : ""}</button>
+          )}
+          <button type="button" className="ios-btn" disabled={batchRunning} onClick={() => { setBatch([]); setPhase("pick"); }} style={{ opacity: batchRunning ? 0.5 : 1 }}>Back</button>
+        </div>
+      </>
+    );
+  }
+
   // ── Pick ──────────────────────────────────────────────────────────────────
   if (phase === "pick" || phase === "reading") {
     return (
       <>
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
         <input ref={pickerRef} type="file" accept="image/*,application/pdf" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+        <input ref={batchRef} type="file" accept="image/*,application/pdf" multiple hidden onChange={(e) => { addBatch(e.target.files); e.target.value = ""; }} />
 
-        <Group header="Pages" footer="Up to three pages per read. A newsletter's front, its spelling sheet and the word list go in together. A graded paper goes in on its own.">
+        <div style={{ margin: "0 var(--ios-gutter) 8px", display: "flex", gap: 8 }}>
+          <Chip small selected={!many} onClick={() => setMany(false)}>One document</Chip>
+          <Chip small selected={many} onClick={() => setMany(true)}>A folder of documents</Chip>
+        </div>
+        {many && (
+          <Group header="Several documents, one at a time" footer="Pick as many files as you like — from Photos, from Files, or from a Google Drive folder through the Files picker. Each file is read as its own document. Files already read are recognised by their contents and skipped, so there are never two copies.">
+            <Cell chevron={false} onClick={() => batchRef.current?.click()} lead={<IconBadge color="var(--ios-tint)"><Icons.BookIcon /></IconBadge>} title="Choose the files" subtitle="Then process them one at a time" />
+          </Group>
+        )}
+
+        {!many && <Group header="Pages" footer="Up to three pages per read. A newsletter's front, its spelling sheet and the word list go in together. A graded paper goes in on its own.">
           {pages.map((p, i) => (
             <Cell
               key={i}
@@ -177,18 +299,18 @@ export default function LearningImportClient({ childId, childName }: { childId: 
           ))}
           <Cell chevron={false} onClick={() => cameraRef.current?.click()} lead={<IconBadge color="var(--ios-tint)"><Icons.ComposeIcon /></IconBadge>} title="Take a photo" subtitle="Opens the camera" />
           <Cell chevron={false} onClick={() => pickerRef.current?.click()} lead={<IconBadge color="#8E8E93"><Icons.BookIcon /></IconBadge>} title="Choose from photos or a PDF" subtitle="Several at once is fine" />
-        </Group>
+        </Group>}
 
         {error && <p className="ios-footnote" style={{ color: "var(--ios-red)", margin: "8px var(--ios-gutter)" }}>{error}</p>}
 
-        <div style={{ margin: "12px var(--ios-gutter) 0" }}>
+        {!many && <div style={{ margin: "12px var(--ios-gutter) 0" }}>
           <button type="button" className="ios-btn ios-btn--primary" disabled={pages.length === 0 || phase === "reading"} onClick={read} style={{ width: "100%", opacity: pages.length === 0 || phase === "reading" ? 0.5 : 1 }}>
             {phase === "reading" ? "Reading the pages…" : pages.length > 1 ? `Read these ${pages.length} pages` : "Read it"}
           </button>
           <p className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 8, lineHeight: 1.5 }}>
             Dates, spelling words, scores and the teacher&rsquo;s notes are read off the page. You review everything before it is kept, and nothing reaches Today until you say so.
           </p>
-        </div>
+        </div>}
       </>
     );
   }

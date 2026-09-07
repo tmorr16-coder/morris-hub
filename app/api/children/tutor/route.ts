@@ -4,7 +4,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { MODEL_FAST } from "@/lib/models";
 import { childForGuardian } from "@/app/children/_lib/children";
 import { loadLearning } from "@/app/children/_lib/learning";
-import { recordFailure } from "@/lib/system-events";
+import { recordFailure, clearFailures } from "@/lib/system-events";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -97,6 +97,7 @@ ${context}`;
         { child_id: childId, session_id: sessionId, role: "assistant", content: reply },
       ]);
       if (error) await recordFailure({ source: "children", subject: "tutor-transcript", userId: user.id, severity: "warning", message: `Buddy transcript not saved: ${error.message}` });
+      else await clearFailures("children", "tutor-transcript");
     }
     return NextResponse.json({ reply });
   } catch (err) {

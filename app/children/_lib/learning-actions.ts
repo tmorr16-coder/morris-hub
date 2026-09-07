@@ -245,6 +245,8 @@ export async function saveChildDocument(input: {
   exerciseIndexes: number[];        // which of the proposed exercises to adopt
   addDateReminders: boolean;
   addPracticeTodos: boolean;
+  /** SHA-256 of each page as sent, so the same file is recognised next time whatever it is called. */
+  pageHashes?: string[];
 }): Promise<{ error?: string; documentId?: string; reminders?: number; todos?: number }> {
   const g = await requireGuardian(input.childId);
   if ("error" in g) return { error: g.error };
@@ -253,23 +255,26 @@ export async function saveChildDocument(input: {
   const x = input.extraction;
   const childName = child.display_name ?? "your child";
 
-  // 1. The document.
-  const { data: doc, error: docErr } = await svc.schema("hub").from("child_documents")
-    .insert({
-      child_id: input.childId,
-      kind: x.kind,
-      title: x.title || "School document",
-      doc_date: x.doc_date,
-      week_start: x.week_start,
-      week_end: x.week_end,
-      summary: x.summary,
-      extracted: x,
-      created_by: userId,
-    })
-    .select("id")
-    .single();
-  if (docErr) return { error: docErr.message };
-  const documentId = doc.id as string;
+  // 1. The document. The page fingerprints ride along when the column exists;
+  //    a database that has not had that migration yet still gets the document.
+  const row: Record<string, unknown> = {
+    child_id: input.childId,
+    kind: x.kind,
+    title: x.title || "School document",
+    doc_date: x.doc_date,
+    week_start: x.week_start,
+    week_end: x.week_end,
+    summary: x.summary,
+    extracted: x,
+    created_by: userId,
+  };
+  const hashes = (input.pageHashes ?? []).filter((h) => /^[0-9a-f]{64}$/i.test(h));
+  let ins = await svc.schema("hub").from("child_documents").insert(hashes.length ? { ...row, page_hashes: hashes } : row).select("id").single();
+  if (ins.error && hashes.length && /page_hashes/.test(ins.error.message)) {
+    ins = await svc.schema("hub").from("child_documents").insert(row).select("id").single();
+  }
+  if (ins.error) return { error: ins.error.message };
+  const documentId = ins.data.id as string;
 
   const m = await materialise(svc, userId, child, input, documentId);
   if (m.error) return { error: m.error };
@@ -432,10 +437,21 @@ function bareTitle(t: string): string {
  * printed date, or a newsletter covering the same week, or the same title.
  * Reading a packet twice used to make a second copy of everything.
  */
-export async function findSimilarDocument(childId: string, x: DocumentExtraction): Promise<{ error?: string; match?: SimilarDocument | null }> {
+export async function findSimilarDocument(childId: string, x: DocumentExtraction, pageHashes?: string[]): Promise<{ error?: string; match?: SimilarDocument | null }> {
   const g = await requireGuardian(childId);
   if ("error" in g) return { error: g.error };
   const svc = db();
+  // The same bytes, whatever the file is called: the surest match. Skipped
+  // quietly where the column has not been migrated yet.
+  const hashes = (pageHashes ?? []).filter((h) => /^[0-9a-f]{64}$/i.test(h));
+  if (hashes.length) {
+    const { data: byHash, error: hashErr } = await svc.schema("hub").from("child_documents")
+      .select("id, title, created_at").eq("child_id", childId).overlaps("page_hashes", hashes).limit(1);
+    if (!hashErr && byHash?.[0]) {
+      const im = await documentImpact(childId, byHash[0].id);
+      return { match: { id: byHash[0].id, title: byHash[0].title, createdAt: byHash[0].created_at, reason: "same file already read", exercises: im.exercises ?? 0, todos: im.todos ?? 0, reminders: im.reminders ?? 0 } };
+    }
+  }
   const { data: rows } = await svc.schema("hub").from("child_documents")
     .select("id, kind, title, doc_date, week_start, created_at")
     .eq("child_id", childId)
