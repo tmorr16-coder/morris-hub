@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { rankVoices } from "@/lib/tts-voices";
+import { pickBestVoice } from "@/lib/tts-voices";
 import type { ChildTask } from "../_lib/learning";
 import { completeTask, markWordPracticed } from "../_lib/learning-actions";
 
@@ -30,22 +30,46 @@ type View = { kind: "home" } | { kind: "task"; task: ChildTask } | { kind: "tuto
 const TASK_EMOJI: Record<string, string> = { exercise: "✏️", spelling: "🔤", reading: "📖", custom: "⭐" };
 const PRAISE = ["Yes!", "You got it!", "Super!", "Great job!", "Wow!", "Nice work!"];
 
+/**
+ * Read aloud with the platform voice.
+ *
+ * The voice and speed chosen under Bible → Settings are saved through
+ * /api/tts-prefs, the single source of truth for read-aloud everywhere in the
+ * app. The first version ranked the device's voices on its own and picked the
+ * top one, which on the phone was not the one the family had chosen and
+ * sounded it. Now: the saved voice when the device has it, the best-ranked
+ * voice only until the preference arrives or when it is missing.
+ */
 function useSpeech() {
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  const rateRef = useRef(1);
   useEffect(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    const pick = () => { const v = rankVoices(window.speechSynthesis.getVoices()); if (v[0]) voiceRef.current = v[0]; };
-    pick();
-    window.speechSynthesis.addEventListener("voiceschanged", pick);
-    return () => window.speechSynthesis.removeEventListener("voiceschanged", pick);
+    let savedName: string | null = null;
+    const apply = () => {
+      const all = window.speechSynthesis.getVoices();
+      if (all.length === 0) return;
+      const saved = savedName ? all.find((v) => v.name === savedName) ?? null : null;
+      if (saved) voiceRef.current = saved;
+      else if (!voiceRef.current) voiceRef.current = pickBestVoice(all);
+    };
+    fetch("/api/tts-prefs").then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (d?.tts_voice) savedName = d.tts_voice;
+      if (typeof d?.tts_speed === "number") rateRef.current = d.tts_speed;
+      apply();
+    }).catch(() => {});
+    apply();
+    window.speechSynthesis.addEventListener("voiceschanged", apply);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", apply);
   }, []);
-  return useCallback((text: string, rate = 0.9) => {
+  // `pace` scales the saved speed: spelling letters go a little slower, a
+  // cheer a little faster.
+  return useCallback((text: string, pace = 0.95) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     if (voiceRef.current) u.voice = voiceRef.current;
-    u.rate = rate;
-    u.pitch = 1.05;
+    u.rate = Math.max(0.5, Math.min(2, rateRef.current * pace));
     window.speechSynthesis.speak(u);
   }, []);
 }
@@ -207,7 +231,7 @@ function SpellingRun({ words, speak, childId, weekId, onBack, onFinish, onRight 
       setTimeout(() => (i + 1 < words.length ? go(i + 1) : onFinish(right + 1)), 900);
     } else {
       setWrongOnce(true);
-      speak(`Not yet. Listen again: ${word}. ${word.split("").join(", ")}.`);
+      speak(`Not yet. Listen again: ${word}. ${word.split("").join(", ")}.`, 0.8);
       setShown(true);
     }
   }
@@ -234,7 +258,7 @@ function SpellingRun({ words, speak, childId, weekId, onBack, onFinish, onRight 
         <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
           <button type="button" style={bigBtn("#2ACF5F")} onClick={check} disabled={!typed.trim()}>✓ Check</button>
           <div style={{ display: "flex", gap: 10 }}>
-            <button type="button" onClick={() => { setShown(true); speak(word.split("").join(", ")); }} style={{ ...bigBtn("var(--ios-fill)"), color: "var(--ios-label)", fontSize: 18, boxShadow: "none" }}>👀 Show me</button>
+            <button type="button" onClick={() => { setShown(true); speak(word.split("").join(", "), 0.8); }} style={{ ...bigBtn("var(--ios-fill)"), color: "var(--ios-label)", fontSize: 18, boxShadow: "none" }}>👀 Show me</button>
             <button type="button" onClick={() => (i + 1 < words.length ? go(i + 1) : onFinish(right))} style={{ ...bigBtn("var(--ios-fill)"), color: "var(--ios-label)", fontSize: 18, boxShadow: "none" }}>Skip →</button>
           </div>
         </div>
