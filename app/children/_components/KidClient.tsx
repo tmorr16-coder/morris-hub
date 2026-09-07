@@ -103,6 +103,7 @@ function useSpeech() {
   // which silences Chrome; and speak() is never called in the same tick as
   // cancel(), which silences Safari on iPad and iPhone.
   const currentRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [speaking, setSpeaking] = useState(false);
   // `pace` scales the saved speed: spelling letters go a little slower, a
   // cheer a little faster.
   const speak = useCallback((text: string, pace = 0.95) => {
@@ -111,6 +112,9 @@ function useSpeech() {
     const u = new SpeechSynthesisUtterance(text);
     if (voiceRef.current) u.voice = voiceRef.current;
     u.rate = Math.max(0.5, Math.min(2, rateRef.current * pace));
+    u.onstart = () => setSpeaking(true);
+    u.onend = () => { if (currentRef.current === u) setSpeaking(false); };
+    u.onerror = () => { if (currentRef.current === u) setSpeaking(false); };
     currentRef.current = u;
     const wasBusy = synth.speaking || synth.pending;
     if (wasBusy) synth.cancel();
@@ -119,7 +123,14 @@ function useSpeech() {
     try { synth.resume(); } catch { /* not every browser has it */ }
     window.setTimeout(() => { if (currentRef.current === u) synth.speak(u); }, wasBusy ? 150 : 0);
   }, []);
-  return { speak, voiceName, choices, choose };
+  // Stop: the child (or parent) wants quiet now — mid-story, mid-quiz.
+  const stop = useCallback(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    currentRef.current = null;
+    window.speechSynthesis.cancel();
+    setSpeaking(false);
+  }, []);
+  return { speak, stop, speaking, voiceName, choices, choose };
 }
 
 /**
@@ -173,7 +184,7 @@ const cardStyle: React.CSSProperties = { background: "var(--ios-cell)", borderRa
 const bigBtn = (bg: string): React.CSSProperties => ({ width: "100%", padding: "18px 20px", borderRadius: 18, border: "none", background: bg, color: "#fff", fontSize: 22, fontWeight: 800, cursor: "pointer", boxShadow: "0 6px 0 rgba(0,0,0,0.15)" });
 
 export default function KidClient({ childId, name, gradeLabel, tasks: initialTasks, exercises, spelling, stars: initialStars }: Props) {
-  const { speak, voiceName, choices, choose } = useSpeech();
+  const { speak, stop, speaking, voiceName, choices, choose } = useSpeech();
   const [pickingVoice, setPickingVoice] = useState(false);
   const first = name.split(" ")[0] || name;
   const [tasks, setTasks] = useState<ChildTask[]>(initialTasks);
@@ -200,7 +211,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
   // ── Home ────────────────────────────────────────────────────────────────
   if (view.kind === "home") {
     return (
-      <Shell burst={burst}>
+      <Shell burst={burst} speaking={speaking} onStop={stop}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
           <h1 style={{ ...big, fontSize: 36, margin: 0 }}>Hi, {first}! 👋</h1>
           <span style={{ fontSize: 22, fontWeight: 800, whiteSpace: "nowrap" }}>⭐ {stars.total}</span>
@@ -264,7 +275,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
     const t = view.task;
     if (t.kind === "spelling" && (t.payload.words?.length ?? 0) > 0) {
       return (
-        <Shell burst={burst}>
+        <Shell burst={burst} speaking={speaking} onStop={stop}>
           <SpellingRun words={t.payload.words!} speak={speak} childId={childId} weekId={spelling?.weekId ?? null} onBack={() => setView({ kind: "home" })} onFinish={(right) => finish(t, right >= t.payload.words!.length ? 3 : right > 0 ? 2 : 1)} onRight={(w) => celebrate(`${PRAISE[Math.floor(Math.random() * PRAISE.length)]} ${w}!`)} />
         </Shell>
       );
@@ -272,7 +283,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
     const ex = t.exerciseId ? exercises.find((e) => e.id === t.exerciseId) : null;
     const text = t.instructions ?? t.payload.steps ?? ex?.steps ?? "";
     return (
-      <Shell burst={burst}>
+      <Shell burst={burst} speaking={speaking} onStop={stop}>
         <BackButton onClick={() => setView({ kind: "home" })} />
         <div style={{ fontSize: 48, marginTop: 8 }}>{TASK_EMOJI[t.kind] ?? "⭐"}</div>
         <h1 style={{ ...big, margin: "8px 0 12px" }}>{t.title}</h1>
@@ -288,7 +299,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
 
   // ── Tutor ───────────────────────────────────────────────────────────────
   return (
-    <Shell burst={burst}>
+    <Shell burst={burst} speaking={speaking} onStop={stop}>
       <BackButton onClick={() => setView({ kind: "home" })} />
       <Tutor childId={childId} first={first} gradeLabel={gradeLabel} speak={speak} words={spelling ? [...spelling.words, ...spelling.sightWords] : []} />
       <Footer childId={childId} />
@@ -296,10 +307,15 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
   );
 }
 
-function Shell({ children, burst }: { children: React.ReactNode; burst: string | null }) {
+function Shell({ children, burst, speaking, onStop }: { children: React.ReactNode; burst: string | null; speaking?: boolean; onStop?: () => void }) {
   return (
     <main className="ios-scroll" style={{ padding: "max(16px, env(safe-area-inset-top)) 18px 40px", maxWidth: 560, margin: "0 auto", position: "relative" }}>
       {children}
+      {speaking && onStop && (
+        <button type="button" onClick={onStop} aria-label="Stop talking" style={{ position: "fixed", right: 16, bottom: "max(20px, env(safe-area-inset-bottom))", zIndex: 40, background: "#FF4D42", color: "#fff", border: "none", borderRadius: 999, padding: "14px 20px", fontSize: 18, fontWeight: 800, boxShadow: "0 8px 24px -8px rgba(0,0,0,0.5)", cursor: "pointer" }}>
+          ⏹ Stop
+        </button>
+      )}
       {burst && (
         <div aria-live="polite" style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 50 }}>
           <div style={{ background: "var(--ios-cell)", borderRadius: 28, padding: "22px 30px", fontSize: 34, fontWeight: 900, boxShadow: "0 20px 60px -20px rgba(0,0,0,0.5)", animation: "kidpop 0.35s ease-out" }}>🎉 {burst}</div>
