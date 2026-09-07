@@ -223,9 +223,13 @@ export async function saveChildDocument(input: {
         }
       }
     }
-    // The spelling test is a date too.
-    if (x.spelling?.test_on && x.spelling.test_on >= today) {
-      const title = `${childName}: spelling test${x.spelling.pattern ? ` (${x.spelling.pattern})` : ""}`;
+    // The spelling test is a date too — unless the newsletter already listed
+    // it as one, in which case the row above covers it. The first save made
+    // two reminders for one test, one of them titled with a whole paragraph.
+    const testListed = x.dates.some((d) => d.date === x.spelling?.test_on && (d.kind === "test" || /spelling/i.test(d.title)));
+    if (x.spelling?.test_on && x.spelling.test_on >= today && !testListed) {
+      const pattern = x.spelling.pattern && x.spelling.pattern.length <= 48 ? x.spelling.pattern : null;
+      const title = `${childName}: spelling test${pattern ? ` (${pattern})` : ""}`;
       if (!have.has(`${x.spelling.test_on}|${title.toLowerCase()}`)) {
         rows.push({
           user_id: userId, title, notes: x.spelling.words.join(", ") || null,

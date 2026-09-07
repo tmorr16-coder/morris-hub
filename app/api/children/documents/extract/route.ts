@@ -35,7 +35,7 @@ Return this exact JSON shape:
   "week_end": "YYYY-MM-DD (Friday), or null",
   "summary": "two or three plain sentences a parent would want first",
   "dates": [ { "date": "YYYY-MM-DD", "title": "as printed, shortened", "kind": "no_school" | "early_dismissal" | "field_trip" | "test" | "event" | "other", "note": "time or detail, or null" } ],
-  "spelling": { "week_start": "YYYY-MM-DD or null", "week_end": "YYYY-MM-DD or null", "pattern": "the rule in one line, e.g. 'Silent e: long a, i and o'", "words": ["every practice word printed, lowercase, in order, no duplicates"], "sight_words": ["high-frequency words to practise"], "test_on": "YYYY-MM-DD of the test, or null" } or null,
+  "spelling": { "week_start": "YYYY-MM-DD or null", "week_end": "YYYY-MM-DD or null", "pattern": "the rule as a short label of at most eight words, e.g. 'Silent e: long a, i and o' — never a sentence", "words": ["every practice word printed, lowercase, in order, no duplicates"], "sight_words": ["high-frequency words to practise"], "test_on": "YYYY-MM-DD of the test, or null" } or null,
   "academics": [ { "subject": "Language Arts" | "Math" | "Science" | "Bible" | "Reading" | "...", "topics": ["as printed"] } ],
   "read_aloud": "book title, or null",
   "memory_verse": "reference and text, or null",
