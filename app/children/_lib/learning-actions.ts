@@ -44,44 +44,20 @@ function weekdaysBetween(start: string, endExclusive: string): string[] {
 }
 
 /**
- * Save what was read off the school's paper, and — if asked — turn it into
- * the household's week: reminders for the dates, to-dos for the practice.
- *
- * Reminders and to-dos are created as household items with no assignee, which
- * is exactly what Today lists for every adult in the circle. Both parents see
- * them; whoever gets to it first checks it off.
+ * Turn a saved read into the workspace: the spelling week, the assessments,
+ * the adopted exercises, and — when asked — the household's to-dos and
+ * reminders. Shared by the first save and by Rebuild, which runs it again
+ * from the stored read without another trip through the camera.
  */
-export async function saveChildDocument(input: {
-  childId: string;
-  extraction: DocumentExtraction;
-  exerciseIndexes: number[];        // which of the proposed exercises to adopt
-  addDateReminders: boolean;
-  addPracticeTodos: boolean;
-}): Promise<{ error?: string; documentId?: string; reminders?: number; todos?: number }> {
-  const g = await requireGuardian(input.childId);
-  if ("error" in g) return { error: g.error };
-  const { userId, child } = g;
-  const svc = db();
+async function materialise(
+  svc: any,
+  userId: string,
+  child: { user_id: string; display_name: string | null },
+  input: { childId: string; extraction: DocumentExtraction; exerciseIndexes: number[]; addDateReminders: boolean; addPracticeTodos: boolean },
+  documentId: string,
+): Promise<{ reminders: number; todos: number; error?: string }> {
   const x = input.extraction;
   const childName = child.display_name ?? "your child";
-
-  // 1. The document.
-  const { data: doc, error: docErr } = await svc.schema("hub").from("child_documents")
-    .insert({
-      child_id: input.childId,
-      kind: x.kind,
-      title: x.title || "School document",
-      doc_date: x.doc_date,
-      week_start: x.week_start,
-      week_end: x.week_end,
-      summary: x.summary,
-      extracted: x,
-      created_by: userId,
-    })
-    .select("id")
-    .single();
-  if (docErr) return { error: docErr.message };
-  const documentId = doc.id as string;
 
   // 2. Spelling week — one per child per week; a re-scan of the same
   //    newsletter updates rather than duplicates.
@@ -120,7 +96,7 @@ export async function saveChildDocument(input: {
         items: a.items ?? [],
       })),
     );
-    if (error) return { error: error.message };
+    if (error) return { error: error.message, reminders: 0, todos: 0 };
   }
 
   // 4. Exercises the parent chose to adopt.
@@ -142,7 +118,7 @@ export async function saveChildDocument(input: {
         created_by: userId,
       })))
       .select("id, title, minutes");
-    if (error) return { error: error.message };
+    if (error) return { error: error.message, reminders: 0, todos: 0 };
 
     // A to-do per adopted exercise for the coming days. Daily ones get a
     // weekday each until the spelling test or for a week; the rest get one.
@@ -252,6 +228,52 @@ export async function saveChildDocument(input: {
     }
   }
 
+  return { reminders, todos };
+}
+
+/**
+ * Save what was read off the school's paper, and — if asked — turn it into
+ * the household's week: reminders for the dates, to-dos for the practice.
+ *
+ * Reminders and to-dos are created as household items with no assignee, which
+ * is exactly what Today lists for every adult in the circle. Both parents see
+ * them; whoever gets to it first checks it off.
+ */
+export async function saveChildDocument(input: {
+  childId: string;
+  extraction: DocumentExtraction;
+  exerciseIndexes: number[];        // which of the proposed exercises to adopt
+  addDateReminders: boolean;
+  addPracticeTodos: boolean;
+}): Promise<{ error?: string; documentId?: string; reminders?: number; todos?: number }> {
+  const g = await requireGuardian(input.childId);
+  if ("error" in g) return { error: g.error };
+  const { userId, child } = g;
+  const svc = db();
+  const x = input.extraction;
+  const childName = child.display_name ?? "your child";
+
+  // 1. The document.
+  const { data: doc, error: docErr } = await svc.schema("hub").from("child_documents")
+    .insert({
+      child_id: input.childId,
+      kind: x.kind,
+      title: x.title || "School document",
+      doc_date: x.doc_date,
+      week_start: x.week_start,
+      week_end: x.week_end,
+      summary: x.summary,
+      extracted: x,
+      created_by: userId,
+    })
+    .select("id")
+    .single();
+  if (docErr) return { error: docErr.message };
+  const documentId = doc.id as string;
+
+  const m = await materialise(svc, userId, child, input, documentId);
+  if (m.error) return { error: m.error };
+  const { reminders, todos } = m;
   revalidatePath(`/children/${input.childId}`);
   revalidatePath("/children");
   revalidatePath("/home");
@@ -337,6 +359,56 @@ export async function documentImpact(childId: string, documentId: string): Promi
     count("todos", "child_document_id"), count("reminders", "child_document_id"),
   ]);
   return { exercises, assessments, spellingWeeks, todos, reminders };
+}
+
+// ── Rebuild and reset ────────────────────────────────────────────────────────
+
+/**
+ * Rebuild the plan from a document's stored read — no camera, no model.
+ * Everything the document created is removed and made again from what the
+ * reader originally returned, with every recommended exercise adopted, so a
+ * plan that was pruned or tapped into a mess comes back as it was proposed.
+ */
+export async function rebuildFromDocument(childId: string, documentId: string, opts?: { addDateReminders?: boolean; addPracticeTodos?: boolean }): Promise<{ error?: string; exercises?: number; reminders?: number; todos?: number }> {
+  const g = await requireGuardian(childId);
+  if ("error" in g) return { error: g.error };
+  const svc = db();
+  const { data: doc } = await svc.schema("hub").from("child_documents").select("id, extracted").eq("id", documentId).eq("child_id", childId).maybeSingle();
+  if (!doc) return { error: "Not found" };
+  const x = doc.extracted as DocumentExtraction;
+  if (!x || typeof x !== "object" || !Array.isArray(x.exercises)) return { error: "This document has no stored read to rebuild from." };
+  await Promise.all([
+    svc.schema("hub").from("child_exercises").delete().eq("document_id", documentId).eq("child_id", childId),
+    svc.schema("hub").from("child_assessments").delete().eq("document_id", documentId).eq("child_id", childId),
+    svc.schema("hub").from("child_spelling_weeks").delete().eq("document_id", documentId).eq("child_id", childId),
+    svc.schema("hub").from("todos").delete().eq("child_document_id", documentId),
+    svc.schema("hub").from("reminders").delete().eq("child_document_id", documentId),
+  ]);
+  const m = await materialise(svc, g.userId, g.child, {
+    childId,
+    extraction: x,
+    exerciseIndexes: x.exercises.map((_, i) => i),
+    addDateReminders: opts?.addDateReminders ?? true,
+    addPracticeTodos: opts?.addPracticeTodos ?? true,
+  }, documentId);
+  if (m.error) return { error: m.error };
+  revalidatePath(`/children/${childId}`);
+  revalidatePath("/home");
+  return { exercises: x.exercises.length, reminders: m.reminders, todos: m.todos };
+}
+
+/** Zero this week's word taps and clear the practice log for the active exercises. Documents and exercises stay. */
+export async function resetWeekPractice(childId: string): Promise<{ error?: string }> {
+  const g = await requireGuardian(childId);
+  if ("error" in g) return { error: g.error };
+  const svc = db();
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+  await Promise.all([
+    svc.schema("hub").from("child_practice_log").delete().eq("child_id", childId).gte("done_on", weekAgo),
+    svc.schema("hub").from("child_spelling_weeks").update({ practiced: {} }).eq("child_id", childId).gte("week_start", weekAgo),
+  ]);
+  revalidatePath(`/children/${childId}`);
+  return {};
 }
 
 // ── Duplicate detection at review time ───────────────────────────────────────

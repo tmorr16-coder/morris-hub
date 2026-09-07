@@ -21,7 +21,7 @@ import type { ChildWorkspaceData, ChildActivity, ChildHealthNote } from "../_lib
 import type { Exercise, SchoolDate, ChildTask } from "../_lib/learning";
 import {
   logPractice, unlogPractice, setExerciseStatus, markWordPracticed, childDocumentUrls,
-  deleteChildDocument, documentImpact, assignTask, deleteTask, reopenTask,
+  deleteChildDocument, documentImpact, assignTask, deleteTask, reopenTask, rebuildFromDocument, resetWeekPractice,
 } from "../_lib/learning-actions";
 import AddActivityForm from "./AddActivityForm";
 import AddHealthNoteForm from "./AddHealthNoteForm";
@@ -229,6 +229,24 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     const r = await childDocumentUrls(data.childId, id);
     if (r.urls && r.urls[0]) window.open(r.urls[0], "_blank");
   }
+  async function rebuildDocument(id: string, title: string, kind: string) {
+    const ok = window.confirm(`Rebuild the plan from “${title}” without re-reading it?\n\nEverything it created is removed and made again from the stored read, with every recommended exercise back in${kind === "newsletter" ? ", and its dates and the spelling test back on Today" : ""}. Practice taps and “Did it” logs for its exercises start over.`);
+    if (!ok) return;
+    const r = await rebuildFromDocument(data.childId, id);
+    if (r.error) { say(r.error); return; }
+    say(`Rebuilt from “${title}”: ${r.exercises} exercise${r.exercises === 1 ? "" : "s"}${r.todos ? `, ${r.todos} to-dos` : ""}${r.reminders ? `, ${r.reminders} reminders` : ""}.`);
+    router.refresh();
+  }
+  async function resetPractice() {
+    const ok = window.confirm("Reset this week's practice? Word taps go back to zero and “Did it” marks from the last seven days are cleared. Documents and exercises stay.");
+    if (!ok) return;
+    const r = await resetWeekPractice(data.childId);
+    if (r.error) { say(r.error); return; }
+    setPracticed({}); setTapStack([]);
+    setExercises((prev) => prev.map((e) => ({ ...e, doneToday: false, streak: 0, doneDates: [] })));
+    say("Practice reset for the week.");
+    router.refresh();
+  }
   async function removeDocument(id: string, title: string) {
     const im = await documentImpact(data.childId, id);
     const parts = [
@@ -334,6 +352,11 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       <div id="practice" />
       {L && (
         <Group header="Practice tonight" footer={exercises.length === 0 ? "Nothing planned yet. Photograph a graded paper or the newsletter and the plan is proposed from the teacher's marks." : "Each one traces to something the teacher wrote or the paper showed. Tap for the steps; tap Done again to take it back."}>
+          {isGuardian && exercises.length > 0 && (
+            <div style={{ padding: "8px 16px 0", textAlign: "right" }}>
+              <button type="button" className="ios-btn--plain" onClick={resetPractice} style={{ color: "var(--ios-label-3)", fontSize: 13 }}>Reset this week's practice</button>
+            </div>
+          )}
           {exercises.map((ex) => {
             const open = openExercise === ex.id;
             return (
@@ -438,7 +461,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
 
       {/* ── Documents ──────────────────────────────────────────────────── */}
       {L && L.documents.length > 0 && (
-        <Group header="From school" footer="Delete removes the document and everything it created — exercises, scores, the spelling list, and its to-dos and reminders on Today.">
+        <Group header="From school" footer="Rebuild remakes the plan from the stored read — no camera, no waiting — with every recommended exercise back. Delete removes the document and everything it created.">
           {L.documents.slice(0, 12).map((d) => (
             <Cell
               key={d.id}
@@ -447,7 +470,12 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
               lead={<IconBadge color={d.kind === "graded_work" ? "#B565A7" : "var(--ios-tint)"}><Icons.BookIcon /></IconBadge>}
               title={d.title}
               subtitle={`${d.docDate ? fmtDate(d.docDate, false) : fmtDate(d.createdAt.slice(0, 10), false)}${d.filePaths.length > 0 ? ` · ${d.filePaths.length} page${d.filePaths.length === 1 ? "" : "s"} · tap to view` : " · no pages attached"}`}
-              trailing={isGuardian ? <button type="button" className="ios-btn--plain" onClick={(e) => { e.stopPropagation(); removeDocument(d.id, d.title); }} style={{ color: "var(--ios-red)" }}>Delete</button> : undefined}
+              trailing={isGuardian ? (
+                <span style={{ display: "inline-flex", gap: 14 }}>
+                  <button type="button" className="ios-btn--plain" onClick={(e) => { e.stopPropagation(); rebuildDocument(d.id, d.title, d.kind); }} style={{ color: "var(--ios-tint)" }}>Rebuild</button>
+                  <button type="button" className="ios-btn--plain" onClick={(e) => { e.stopPropagation(); removeDocument(d.id, d.title); }} style={{ color: "var(--ios-red)" }}>Delete</button>
+                </span>
+              ) : undefined}
             />
           ))}
         </Group>
