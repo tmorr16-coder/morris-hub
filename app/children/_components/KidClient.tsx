@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { pickBestVoice } from "@/lib/tts-voices";
+import { rankVoices, pickBestVoice } from "@/lib/tts-voices";
 import type { ChildTask } from "../_lib/learning";
 import { completeTask, markWordPracticed } from "../_lib/learning-actions";
 
@@ -40,27 +40,64 @@ const PRAISE = ["Yes!", "You got it!", "Super!", "Great job!", "Wow!", "Nice wor
  * sounded it. Now: the saved voice when the device has it, the best-ranked
  * voice only until the preference arrives or when it is missing.
  */
+const BUDDY_VOICE_KEY = "buddy-voice";
+const BUDDY_RATE_KEY = "buddy-rate";
+
+/**
+ * A warm adult voice a child likes, from what this device has. Apple's
+ * neural voices in a natural register first — Ava, Zoe, Joelle, Noelle, then
+ * Evan, Nathan, Aaron — Premium over Enhanced, then whatever ranks best.
+ * Never a novelty voice; the shared ranking already drops those.
+ */
+const KID_FRIENDLY = ["Ava", "Zoe", "Joelle", "Noelle", "Evan", "Nathan", "Aaron", "Jackson"];
+function pickKidVoice(all: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  const ranked = rankVoices(all);
+  for (const tier of [/\bpremium\b/i, /\benhanced\b/i, /./]) {
+    for (const n of KID_FRIENDLY) {
+      const v = ranked.find((x) => tier.test(x.name) && new RegExp(`\\b${n}\\b`, "i").test(x.name));
+      if (v) return v;
+    }
+  }
+  return pickBestVoice(all);
+}
+
+function readLocal(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+
 function useSpeech() {
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
-  const rateRef = useRef(1);
+  const rateRef = useRef(0.92);
+  const [voiceName, setVoiceName] = useState<string | null>(null);
+  const [choices, setChoices] = useState<SpeechSynthesisVoice[]>([]);
   useEffect(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    let savedName: string | null = null;
+    const savedRate = parseFloat(readLocal(BUDDY_RATE_KEY) ?? "");
+    if (Number.isFinite(savedRate) && savedRate >= 0.5 && savedRate <= 2) rateRef.current = savedRate;
     const apply = () => {
       const all = window.speechSynthesis.getVoices();
       if (all.length === 0) return;
-      const saved = savedName ? all.find((v) => v.name === savedName) ?? null : null;
-      if (saved) voiceRef.current = saved;
-      else if (!voiceRef.current) voiceRef.current = pickBestVoice(all);
+      // The grown-ups' choice on this device wins; otherwise the kid-friendly
+      // default. The platform read-aloud voice is not used here on purpose —
+      // it is chosen for reading Scripture to an adult, not for a tutor
+      // talking to a six-year-old.
+      const chosen = readLocal(BUDDY_VOICE_KEY);
+      const picked = (chosen ? all.find((v) => v.name === chosen) : null) ?? pickKidVoice(all);
+      voiceRef.current = picked;
+      setVoiceName(picked?.name ?? null);
+      setChoices(rankVoices(all).slice(0, 10));
     };
-    fetch("/api/tts-prefs").then((r) => (r.ok ? r.json() : null)).then((d) => {
-      if (d?.tts_voice) savedName = d.tts_voice;
-      if (typeof d?.tts_speed === "number") rateRef.current = d.tts_speed;
-      apply();
-    }).catch(() => {});
     apply();
     window.speechSynthesis.addEventListener("voiceschanged", apply);
     return () => window.speechSynthesis.removeEventListener("voiceschanged", apply);
+  }, []);
+  const choose = useCallback((name: string) => {
+    const all = window.speechSynthesis.getVoices();
+    const v = all.find((x) => x.name === name);
+    if (!v) return;
+    voiceRef.current = v;
+    setVoiceName(v.name);
+    try { localStorage.setItem(BUDDY_VOICE_KEY, v.name); } catch { /* private mode */ }
   }, []);
   // The utterance being spoken is held here so it is not collected mid-sentence,
   // which silences Chrome; and speak() is never called in the same tick as
@@ -68,7 +105,7 @@ function useSpeech() {
   const currentRef = useRef<SpeechSynthesisUtterance | null>(null);
   // `pace` scales the saved speed: spelling letters go a little slower, a
   // cheer a little faster.
-  return useCallback((text: string, pace = 0.95) => {
+  const speak = useCallback((text: string, pace = 0.95) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const synth = window.speechSynthesis;
     const u = new SpeechSynthesisUtterance(text);
@@ -82,6 +119,7 @@ function useSpeech() {
     try { synth.resume(); } catch { /* not every browser has it */ }
     window.setTimeout(() => { if (currentRef.current === u) synth.speak(u); }, wasBusy ? 150 : 0);
   }, []);
+  return { speak, voiceName, choices, choose };
 }
 
 /**
@@ -135,7 +173,8 @@ const cardStyle: React.CSSProperties = { background: "var(--ios-cell)", borderRa
 const bigBtn = (bg: string): React.CSSProperties => ({ width: "100%", padding: "18px 20px", borderRadius: 18, border: "none", background: bg, color: "#fff", fontSize: 22, fontWeight: 800, cursor: "pointer", boxShadow: "0 6px 0 rgba(0,0,0,0.15)" });
 
 export default function KidClient({ childId, name, gradeLabel, tasks: initialTasks, exercises, spelling, stars: initialStars }: Props) {
-  const speak = useSpeech();
+  const { speak, voiceName, choices, choose } = useSpeech();
+  const [pickingVoice, setPickingVoice] = useState(false);
   const first = name.split(" ")[0] || name;
   const [tasks, setTasks] = useState<ChildTask[]>(initialTasks);
   const [stars, setStars] = useState(initialStars);
@@ -169,9 +208,28 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
         <p style={{ fontSize: 18, color: "var(--ios-label-2)", margin: "4px 0 10px" }}>
           {open.length === 0 ? "No jobs right now. Ask your tutor a question!" : open.length === 1 ? "You have 1 job today." : `You have ${open.length} jobs today.`}
         </p>
-        <button type="button" onClick={() => speak(`Hi ${first}! Can you hear me? Let's go!`, 1)} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "10px 16px", fontSize: 16, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer", marginBottom: 14 }}>
-          🔊 Tap if you can&rsquo;t hear me
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+          <button type="button" onClick={() => speak(`Hi ${first}! Can you hear me? Let's go!`, 1)} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "10px 16px", fontSize: 16, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>
+            🔊 Tap if you can&rsquo;t hear me
+          </button>
+          <button type="button" onClick={() => setPickingVoice((v) => !v)} style={{ background: "transparent", border: "1px solid var(--ios-separator)", borderRadius: 999, padding: "10px 14px", fontSize: 14, fontWeight: 600, color: "var(--ios-label-2)", cursor: "pointer" }}>
+            {pickingVoice ? "Done" : `Buddy's voice${voiceName ? `: ${voiceName.replace(/\s*\(.*?\)/g, "")}` : ""}`}
+          </button>
+        </div>
+        {pickingVoice && (
+          <div style={{ ...cardStyle, marginBottom: 14, padding: "12px 14px" }}>
+            <div style={{ fontSize: 14, color: "var(--ios-label-2)", marginBottom: 8 }}>For grown-ups: pick the voice Buddy uses on this device. Tap ▶︎ to hear one.</div>
+            {choices.length === 0 && <div style={{ fontSize: 15, color: "var(--ios-label-3)" }}>No voices loaded yet — tap the sound check first.</div>}
+            {choices.map((v) => (
+              <div key={v.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--ios-separator)" }}>
+                <button type="button" onClick={() => { choose(v.name); speak(`Hi ${first}, I'm Buddy! Let's learn something.`, 1); }} style={{ flex: 1, textAlign: "left", background: "none", border: "none", fontSize: 17, fontWeight: v.name === voiceName ? 800 : 500, color: v.name === voiceName ? "var(--ios-tint)" : "var(--ios-label)", cursor: "pointer", padding: 0 }}>
+                  {v.name === voiceName ? "✓ " : ""}{v.name}
+                </button>
+                <span style={{ fontSize: 12, color: "var(--ios-label-3)" }}>{v.lang}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div style={{ display: "grid", gap: 12 }}>
           {open.map((t) => (
