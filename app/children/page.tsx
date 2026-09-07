@@ -32,16 +32,15 @@ export default async function ChildrenPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
 
-  const { data: ownedChildren } = await service.schema("hub").from("family_members")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("role", "child");
+  // Children of every circle this parent belongs to — their own, and the
+  // ones the other parent added. A child used to appear only for whichever
+  // parent created the profile.
+  const cards = await listChildrenForParent(user.id, new Date());
 
-  if (ownedChildren?.length) {
-    const cards = await listChildrenForParent(user.id, new Date());
+  if (cards.length > 0) {
     return (
       <IOSScreen>
-        <LargeTitle brand title="Children" subtitle="Support each of your kids" avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()} />
+        <LargeTitle brand title="Student Success" subtitle="Support each of your kids, at every age" avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()} />
 
         <Group header={`Kids · ${cards.length}`} footer="Tap a child to open their workspace.">
           {cards.map((c, i) => (
@@ -84,7 +83,7 @@ export default async function ChildrenPage() {
 
   return (
     <IOSScreen>
-      <LargeTitle brand title="Children" avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()} />
+      <LargeTitle brand title="Student Success" avatarInitial={(user.user_metadata?.full_name ?? "T")[0]?.toUpperCase()} />
 
       <Group
         header="No children yet"

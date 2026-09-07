@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { computeAgeTier, computeAge, type AgeTier } from "@/lib/ageTier";
+import { loadLearning, type LearningData } from "./learning";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Svc = any;
@@ -49,6 +50,50 @@ export interface ChildWorkspaceData {
   healthNotes: ChildHealthNote[];
   goals: { title: string; progressPct: number | null }[];
   academicsSummary: AcademicsSummary | null;
+  /** Elementary only: the school's paper, the practice plan, the record. */
+  learning: LearningData | null;
+  /** Whether the viewer is a parent (owner or co-parent) rather than the child. */
+  viewerIsGuardian: boolean;
+}
+
+/**
+ * The parents who may act for a child: the owner of the family_members row
+ * and every adult in that owner's circle. A child used to belong to whichever
+ * parent happened to add them; the other parent could not even open the
+ * workspace.
+ */
+export async function guardianUserIds(db: Svc, ownerUserId: string): Promise<string[]> {
+  const { data } = await db.schema("hub").from("family_members")
+    .select("member_user_id")
+    .eq("user_id", ownerUserId)
+    .eq("role", "adult")
+    .not("member_user_id", "is", null);
+  const ids = ((data ?? []) as { member_user_id: string }[]).map((r) => r.member_user_id);
+  return [ownerUserId, ...ids];
+}
+
+/** The child owners whose children this viewer may see: themself, plus every circle they are an adult member of. */
+async function ownerIdsVisibleTo(db: Svc, viewerUserId: string): Promise<string[]> {
+  const { data } = await db.schema("hub").from("family_members")
+    .select("user_id")
+    .eq("member_user_id", viewerUserId)
+    .eq("role", "adult");
+  const owners = ((data ?? []) as { user_id: string }[]).map((r) => r.user_id);
+  return [...new Set([viewerUserId, ...owners])];
+}
+
+/** Resolve a child row and confirm the viewer may act for them. Null when not. */
+export async function childForGuardian(db: Svc, childId: string, viewerUserId: string): Promise<{
+  id: string; user_id: string; member_user_id: string | null; display_name: string | null; birth_year: number | null; life_stage_override: AgeTier | null;
+} | null> {
+  const { data: row } = await db.schema("hub").from("family_members")
+    .select("id, user_id, member_user_id, display_name, birth_year, life_stage_override, role")
+    .eq("id", childId)
+    .maybeSingle();
+  if (!row || row.role !== "child") return null;
+  if (row.user_id === viewerUserId || row.member_user_id === viewerUserId) return row;
+  const guardians = await guardianUserIds(db, row.user_id);
+  return guardians.includes(viewerUserId) ? row : null;
 }
 
 function nameFor(row: { display_name: string | null; member_user_id: string | null }, userMap: Map<string, { full_name: string | null; email: string | null }>): string {
@@ -88,9 +133,10 @@ export async function listChildrenForParent(parentUserId: string, now: Date): Pr
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
 
+  const owners = await ownerIdsVisibleTo(db, parentUserId);
   const { data: rows } = await db.schema("hub").from("family_members")
     .select("id, member_user_id, display_name, birth_year, life_stage_override")
-    .eq("user_id", parentUserId)
+    .in("user_id", owners)
     .eq("role", "child");
 
   const children = (rows ?? []) as {
@@ -161,16 +207,12 @@ export async function getChildWorkspace(childId: string, viewerUserId: string, n
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
 
-  const { data: row } = await db.schema("hub").from("family_members")
-    .select("id, user_id, member_user_id, display_name, birth_year, life_stage_override")
-    .eq("id", childId)
-    .maybeSingle();
+  const row = await childForGuardian(db, childId, viewerUserId);
   if (!row) return null;
 
-  // Defense in depth: viewer must be the owning parent or the child themselves.
-  const isParent = row.user_id === viewerUserId;
+  // The owning parent or a co-parent; or the child themself.
   const isSelf = row.member_user_id === viewerUserId;
-  if (!isParent && !isSelf) return null;
+  const isParent = !isSelf;
 
   let name = row.display_name;
   if (!name && row.member_user_id) {
@@ -182,7 +224,7 @@ export async function getChildWorkspace(childId: string, viewerUserId: string, n
   const ageTier = computeAgeTier(row.birth_year, row.life_stage_override, now);
   const age = computeAge(row.birth_year, now);
 
-  const [{ data: activityRows }, { data: healthRows }] = await Promise.all([
+  const [{ data: activityRows }, { data: healthRows }, learning] = await Promise.all([
     db.schema("hub").from("child_activities")
       .select("id, category, title, notes, due_at, completed")
       .eq("child_id", childId)
@@ -191,6 +233,7 @@ export async function getChildWorkspace(childId: string, viewerUserId: string, n
       .select("id, note, target_visit_date, resolved")
       .eq("child_id", childId)
       .order("created_at", { ascending: false }),
+    ageTier === "elementary" ? loadLearning(db, childId, row.birth_year, now) : Promise.resolve(null),
   ]);
 
   const activities: ChildActivity[] = ((activityRows ?? []) as { id: string; category: string; title: string; notes: string | null; due_at: string | null; completed: boolean }[])
@@ -241,5 +284,7 @@ export async function getChildWorkspace(childId: string, viewerUserId: string, n
     healthNotes,
     goals: [],
     academicsSummary,
+    learning,
+    viewerIsGuardian: isParent,
   };
 }
