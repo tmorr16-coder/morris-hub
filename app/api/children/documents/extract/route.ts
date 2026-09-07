@@ -4,6 +4,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { MODEL_BALANCED } from "@/lib/models";
 import { childForGuardian } from "@/app/children/_lib/children";
 import { gradeLabelFor, type DocumentExtraction } from "@/app/children/_lib/learning";
+import { recordFailure } from "@/lib/system-events";
 
 export const runtime = "nodejs";
 // Five pages of graded work timed out at 120 seconds: the reply is the slow
@@ -153,6 +154,8 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ extraction: normalize(parsed) });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await recordFailure({ source: "children", subject: "document-read", userId: user.id, message: `Document read failed: ${msg}`, detail: { pages: files.length } });
     if (err instanceof Anthropic.APIError) return NextResponse.json({ error: "The reading service had a problem. Try again in a moment." }, { status: 502 });
     console.error("[children/documents/extract]", err);
     return NextResponse.json({ error: "Could not read the document." }, { status: 500 });

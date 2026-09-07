@@ -53,6 +53,10 @@ function span(firstSeen: string, lastSeen: string): string {
 }
 
 const SOURCE_LABEL: Record<string, string> = {
+  app: "Platform (uncaught error)",
+  children: "Student Success",
+  retirement: "Retirement",
+  health: "Health",
   simplefin: "Bank sync",
   oura: "Oura",
   withings: "Withings",

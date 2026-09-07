@@ -4,6 +4,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { MODEL_FAST } from "@/lib/models";
 import { childForGuardian } from "@/app/children/_lib/children";
 import { loadLearning } from "@/app/children/_lib/learning";
+import { recordFailure } from "@/lib/system-events";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -36,9 +37,10 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!allow(user.id)) return NextResponse.json({ reply: "Let's take a little break and come back in a few minutes!" });
 
-  let body: { childId?: string; messages?: { role: "user" | "assistant"; content: string }[] };
+  let body: { childId?: string; sessionId?: string; messages?: { role: "user" | "assistant"; content: string }[] };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   const childId = String(body.childId ?? "");
+  const sessionId = /^[0-9a-f-]{36}$/i.test(String(body.sessionId ?? "")) ? String(body.sessionId) : null;
   const messages = (body.messages ?? []).filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim()).slice(-8).map((m) => ({ role: m.role, content: m.content.slice(0, 600) }));
   if (!childId || messages.length === 0 || messages[messages.length - 1].role !== "user") return NextResponse.json({ error: "Bad request" }, { status: 400 });
 
@@ -70,7 +72,9 @@ How you talk:
 - Praise effort. Never say "wrong" harshly; say "not yet" or "almost".
 - No emoji except one at the end sometimes.
 
-What you are for: this week's school work below — spelling, reading, the math being taught, the Bible story, the recitation. If ${first} asks about anything else (videos, games, other people, buying things, the internet, anything grown-up, anything scary), say gently that Buddy only helps with school stuff and offer a school thing to do instead. Never ask for personal information. Never pretend to be a person. If ${first} seems upset or mentions being hurt, say to go find Mom or Dad right now.
+What you are for: learning. This week's school work below comes first — spelling, reading, the math being taught, the Bible story, the recitation — and anything else a first, second or third grader learns is welcome too: phonics and reading, spelling patterns, adding and subtracting and place value, telling time, money, shapes, science questions (animals, weather, the body, plants, space), continents and maps, Bible stories, handwriting. Keep it at ${first}'s level and one idea at a time. If ${first} asks about something that is not learning (videos, games, other people, buying things, the internet, anything grown-up, anything scary), say gently that Buddy only helps with learning and offer a learning thing to do instead. Never ask for personal information. Never pretend to be a person. If ${first} seems upset or mentions being hurt, say to go find Mom or Dad right now.
+
+Quizzes: ${first} can see the screen. When you ask ${first} to spell a word, or to read a word or sound it out, put the secret word inside double square brackets, like [[cake]]. The screen hides what is in the brackets and the voice says it, so ${first} hears the word without seeing it. Use the brackets only for the word being tested, never for anything else. After ${first} has tried, you may write the word plainly.
 
 ${context}`;
 
@@ -82,9 +86,23 @@ ${context}`;
       messages,
     });
     const reply = res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join(" ").trim() || "Let's try that again!";
+    // Keep the exchange for the parents. A failure here (the table not yet
+    // migrated) must not cost the child the reply.
+    // Awaited on purpose: a serverless function can be frozen the moment the
+    // response goes out, and a fire-and-forget insert never lands.
+    if (sessionId) {
+      const last = messages[messages.length - 1];
+      const { error } = await svc.schema("hub").from("child_tutor_messages").insert([
+        { child_id: childId, session_id: sessionId, role: "user", content: last.content },
+        { child_id: childId, session_id: sessionId, role: "assistant", content: reply },
+      ]);
+      if (error) await recordFailure({ source: "children", subject: "tutor-transcript", userId: user.id, severity: "warning", message: `Buddy transcript not saved: ${error.message}` });
+    }
     return NextResponse.json({ reply });
   } catch (err) {
-    console.error("[children/tutor]", err instanceof Error ? err.message : err);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[children/tutor]", msg);
+    await recordFailure({ source: "children", subject: "tutor", userId: user.id, message: `Buddy could not answer: ${msg}` });
     return NextResponse.json({ reply: "Hmm, I got a little mixed up. Ask me again?" });
   }
 }

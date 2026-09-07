@@ -291,7 +291,8 @@ function SpellingRun({ words, speak, childId, weekId, onBack, onFinish, onRight 
       <div style={{ ...cardStyle, marginTop: 16, textAlign: "center" }}>
         <div style={{ fontSize: 18, color: "var(--ios-label-2)" }}>Listen, then spell it</div>
         <button type="button" onClick={() => speak(word)} style={{ ...bigBtn("var(--ios-tint)"), marginTop: 12 }}>🔊 Hear the word</button>
-        <div style={{ marginTop: 16, minHeight: 44, fontSize: 40, fontWeight: 900, letterSpacing: "0.12em", color: shown ? "var(--ios-orange)" : "transparent" }}>{word}</div>
+        {/* The word is not on the screen at all until a first try or "Show me": a child can read a faint word. */}
+        <div style={{ marginTop: 16, minHeight: 44, fontSize: 40, fontWeight: 900, letterSpacing: "0.12em", color: shown ? "var(--ios-orange)" : "var(--ios-label-3)" }}>{shown ? word : "•".repeat(word.length)}</div>
         <input
           ref={inputRef}
           value={typed}
@@ -317,8 +318,14 @@ function SpellingRun({ words, speak, childId, weekId, onBack, onFinish, onRight 
 
 // ── Buddy, the tutor ────────────────────────────────────────────────────────
 
+/** Words Buddy is testing arrive as [[word]]: hidden on screen, spoken aloud, shown after the child's first try. */
+const HIDDEN = /\[\[([^\]]+)\]\]/g;
+function forSpeech(text: string): string { return text.replace(HIDDEN, "$1"); }
+function forScreen(text: string, revealed: boolean): string { return text.replace(HIDDEN, (_m, w: string) => (revealed ? w : "🔊 " + "•".repeat(Math.min(8, Math.max(3, w.length))))); }
+
 function Tutor({ childId, first, gradeLabel, speak, words }: { childId: string; first: string; gradeLabel: string | null; speak: (t: string, rate?: number) => void; words: string[] }) {
-  const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([
+  const [sessionId] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`));
+  const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string; revealed?: boolean }[]>([
     { role: "assistant", content: `Hi ${first}! I'm Buddy. 🦉 What do you want to work on?` },
   ]);
   const [input, setInput] = useState("");
@@ -335,15 +342,16 @@ function Tutor({ childId, first, gradeLabel, speak, words }: { childId: string; 
     const q = text.trim();
     if (!q || busy) return;
     setInput("");
-    const next = [...messages, { role: "user" as const, content: q }];
+    // The child has had a try: any word Buddy was hiding may now be shown.
+    const next = [...messages.map((m) => ({ ...m, revealed: true })), { role: "user" as const, content: q }];
     setMessages(next);
     setBusy(true);
     try {
-      const res = await fetch("/api/children/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ childId, messages: next.slice(-8) }) });
+      const res = await fetch("/api/children/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ childId, sessionId, messages: next.slice(-8).map((m) => ({ role: m.role, content: m.content })) }) });
       const data = await res.json();
       const reply = res.ok ? String(data.reply) : "Hmm, I got a little mixed up. Ask me again?";
-      setMessages((m) => [...m, { role: "assistant", content: reply }]);
-      speak(reply);
+      setMessages((m) => [...m, { role: "assistant", content: reply, revealed: false }]);
+      speak(forSpeech(reply));
     } catch {
       setMessages((m) => [...m, { role: "assistant", content: "Hmm, I got a little mixed up. Ask me again?" }]);
     } finally {
@@ -365,7 +373,10 @@ function Tutor({ childId, first, gradeLabel, speak, words }: { childId: string; 
       <div style={{ display: "grid", gap: 10 }}>
         {messages.map((m, i) => (
           <div key={i} style={{ ...cardStyle, padding: "12px 16px", fontSize: 20, lineHeight: 1.45, alignSelf: m.role === "user" ? "end" : "start", background: m.role === "user" ? "var(--ios-tint)" : "var(--ios-cell)", color: m.role === "user" ? "var(--ios-on-tint)" : "var(--ios-label)", maxWidth: "88%", justifySelf: m.role === "user" ? "end" : "start", border: m.role === "user" ? "none" : undefined }}>
-            {m.content}
+            {m.role === "assistant" ? forScreen(m.content, m.revealed !== false) : m.content}
+            {m.role === "assistant" && HIDDEN.test(m.content) && m.revealed === false && (
+              <button type="button" onClick={() => speak(forSpeech(m.content))} style={{ display: "block", marginTop: 8, background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "8px 14px", fontSize: 16, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>🔊 Say it again</button>
+            )}
           </div>
         ))}
         {busy && <div style={{ fontSize: 18, color: "var(--ios-label-3)" }}>Buddy is thinking…</div>}

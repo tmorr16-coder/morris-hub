@@ -12,7 +12,10 @@ import { createServiceClient } from "@/lib/supabase/server";
  * logging about is worse than no logger.
  */
 
-export type EventSource = "simplefin" | "oura" | "withings" | "apple-health" | "cron" | "openrouter";
+// The integrations that write here by name, plus "app" for anything the
+// request-error hook in instrumentation.ts catches across the platform, and
+// any module that records its own handled failures ("children", "retirement").
+export type EventSource = "simplefin" | "oura" | "withings" | "apple-health" | "cron" | "openrouter" | "app" | "children" | "retirement" | "health" | (string & {});
 
 export interface RecordFailureInput {
   source: EventSource;

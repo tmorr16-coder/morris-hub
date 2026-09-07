@@ -182,6 +182,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         childId: data.childId, kind: "exercise", exerciseId: ex.id, title: ex.title,
         instructions: ex.steps, payload: { steps: ex.steps, minutes: ex.minutes },
       });
+      if (r.error) { say(`Couldn't send: ${r.error}`); return; }
       if (r.id) {
         setSent((s) => new Set(s).add(ex.id));
         setTasks((t) => [{ id: r.id!, kind: "exercise", exerciseId: ex.id, title: ex.title, instructions: ex.steps, payload: { steps: ex.steps, minutes: ex.minutes }, assignedOn: new Date().toISOString().slice(0, 10), dueOn: null, completedAt: null, stars: 0, childNote: null }, ...t]);
@@ -197,6 +198,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         childId: data.childId, kind: "spelling", title: `Practise this week's words${week.pattern ? ` — ${week.pattern}` : ""}`,
         instructions: "Listen to each word, then spell it.", payload: { words },
       });
+      if (r.error) { say(`Couldn't send: ${r.error}`); return; }
       if (r.id) {
         setSent((s) => new Set(s).add("words"));
         setTasks((t) => [{ id: r.id!, kind: "spelling", exerciseId: null, title: "Practise this week's words", instructions: null, payload: { words }, assignedOn: new Date().toISOString().slice(0, 10), dueOn: null, completedAt: null, stars: 0, childNote: null }, ...t]);
@@ -210,6 +212,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     setCustomTask("");
     start(async () => {
       const r = await assignTask({ childId: data.childId, kind: "custom", title });
+      if (r.error) { say(`Couldn't send: ${r.error}`); setCustomTask(title); return; }
       if (r.id) {
         setTasks((t) => [{ id: r.id!, kind: "custom", exerciseId: null, title, instructions: null, payload: {}, assignedOn: new Date().toISOString().slice(0, 10), dueOn: null, completedAt: null, stars: 0, childNote: null }, ...t]);
         say(`Sent “${title}” to ${kid}'s screen.`);
@@ -411,6 +414,16 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
             <input value={customTask} onChange={(e) => setCustomTask(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendCustom(); }} placeholder={`Send ${kid} a task, e.g. “Read one page of Farmer Boy to Mom”`} style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: "none", background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 15 }} />
             <button type="button" className="ios-btn ios-btn--primary" disabled={!customTask.trim() || pending} onClick={sendCustom}>Send</button>
           </div>
+        </Group>
+      )}
+
+      {/* ── Buddy, for the parents ─────────────────────────────────────── */}
+      {isGuardian && L && (
+        <Group header={`What ${kid} asked Buddy`} footer={L.tutorRecent.length === 0 ? "Nothing yet. Everything Buddy and the child say to each other is kept here for you." : "The latest exchanges. Every conversation is kept."}>
+          {[...L.tutorRecent].reverse().slice(-6).map((m) => (
+            <Cell key={m.id} chevron={false} lead={<span style={{ fontSize: 20, width: 30, textAlign: "center" }}>{m.role === "assistant" ? "🦉" : "🧒"}</span>} title={<span style={{ fontWeight: 400, color: m.role === "assistant" ? "var(--ios-label-2)" : "var(--ios-label)" }}>{m.content.replace(/\[\[([^\]]+)\]\]/g, "$1")}</span>} subtitle={new Date(m.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} />
+          ))}
+          <Cell href={`/children/${data.childId}/buddy`} lead={<IconBadge color="var(--ios-orange)"><Icons.SparkleIcon /></IconBadge>} title="All conversations" subtitle="By day and sitting" />
         </Group>
       )}
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { childForGuardian } from "@/app/children/_lib/children";
+import { recordFailure } from "@/lib/system-events";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
     const path = `${user.id}/${childId}/${documentId}/${i + 1}-${safe}`;
     const { error } = await svc.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: true });
     if (!error) paths.push(path);
+    else await recordFailure({ source: "children", subject: "document-pages", userId: user.id, severity: "warning", message: `Page upload failed: ${error.message}`, detail: { documentId, index: i } });
   }
   if (paths.length > 0) {
     await svc.schema("hub").from("child_documents").update({ file_paths: paths }).eq("id", documentId).eq("child_id", childId);

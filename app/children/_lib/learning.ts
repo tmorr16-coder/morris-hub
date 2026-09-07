@@ -129,8 +129,18 @@ export interface ChildTask {
   childNote: string | null;
 }
 
+export interface TutorMessage {
+  id: string;
+  sessionId: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+}
+
 export interface LearningData {
   gradeLabel: string | null;
+  /** The last few Buddy exchanges, newest first, for the parents' review. */
+  tutorRecent: TutorMessage[];
   /** Open tasks plus anything completed today, newest first. */
   tasks: ChildTask[];
   /** Stars earned in total, and this week. */
@@ -179,7 +189,7 @@ function streakFrom(doneDates: string[], today: string): number {
 
 export async function loadLearning(db: any, childId: string, birthYear: number | null, now: Date): Promise<LearningData> {
   const today = isoDay(now);
-  const [{ data: docRows }, { data: weekRows }, { data: assessRows }, { data: exRows }, { data: logRows }, { data: taskRows }, { data: starRows }] = await Promise.all([
+  const [{ data: docRows }, { data: weekRows }, { data: assessRows }, { data: exRows }, { data: logRows }, { data: taskRows }, { data: starRows }, { data: tutorRows }] = await Promise.all([
     db.schema("hub").from("child_documents")
       .select("id, kind, title, doc_date, week_start, week_end, summary, extracted, file_paths, created_at")
       .eq("child_id", childId)
@@ -215,7 +225,13 @@ export async function loadLearning(db: any, childId: string, birthYear: number |
       .select("stars, completed_at")
       .eq("child_id", childId)
       .not("completed_at", "is", null),
+    db.schema("hub").from("child_tutor_messages")
+      .select("id, session_id, role, content, created_at")
+      .eq("child_id", childId)
+      .order("created_at", { ascending: false })
+      .limit(12),
   ]);
+  const tutorRecent: TutorMessage[] = ((tutorRows ?? []) as any[]).map((m) => ({ id: m.id, sessionId: m.session_id, role: m.role, content: m.content, createdAt: m.created_at }));
 
   const tasks: ChildTask[] = ((taskRows ?? []) as any[]).map((t) => ({
     id: t.id,
@@ -323,6 +339,7 @@ export async function loadLearning(db: any, childId: string, birthYear: number |
 
   return {
     gradeLabel: gradeLabelFor(birthYear, now),
+    tutorRecent,
     tasks,
     stars,
     spellingWeek,
