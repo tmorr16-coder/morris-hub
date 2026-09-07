@@ -74,6 +74,50 @@ function useSpeech() {
   }, []);
 }
 
+/**
+ * Listen, using the device's own speech recognition (Safari and Chrome both
+ * have it; iOS has had it since 14.5). Typing is a lot to ask of a first
+ * grader; talking is not. Returns null where the device cannot do it, and the
+ * button is simply not drawn.
+ */
+function useListening(onResult: (text: string, final: boolean) => void) {
+  const recRef = useRef<any>(null);
+  const [listening, setListening] = useState(false);
+  const [supported, setSupported] = useState(false);
+  const cb = useRef(onResult);
+  cb.current = onResult;
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    setSupported(true);
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.maxAlternatives = 1;
+    rec.onresult = (e: any) => {
+      let text = "";
+      let final = false;
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        text += e.results[i][0].transcript;
+        if (e.results[i].isFinal) final = true;
+      }
+      cb.current(text.trim(), final);
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recRef.current = rec;
+    return () => { try { rec.abort(); } catch { /* already stopped */ } };
+  }, []);
+  const start = useCallback(() => {
+    if (!recRef.current) return;
+    try { window.speechSynthesis?.cancel(); recRef.current.start(); setListening(true); } catch { setListening(false); }
+  }, []);
+  const stop = useCallback(() => { try { recRef.current?.stop(); } catch { /* fine */ } }, []);
+  return { supported, listening, start, stop };
+}
+
 const big: React.CSSProperties = { fontSize: 28, fontWeight: 800, lineHeight: 1.2, letterSpacing: "-0.01em" };
 const cardStyle: React.CSSProperties = { background: "var(--ios-cell)", borderRadius: 22, padding: "18px 20px", boxShadow: "0 8px 24px -16px rgba(0,0,0,0.4)", border: "1px solid var(--ios-separator)" };
 const bigBtn = (bg: string): React.CSSProperties => ({ width: "100%", padding: "18px 20px", borderRadius: 18, border: "none", background: bg, color: "#fff", fontSize: 22, fontWeight: 800, cursor: "pointer", boxShadow: "0 6px 0 rgba(0,0,0,0.15)" });
@@ -277,8 +321,13 @@ function Tutor({ childId, first, gradeLabel, speak, words }: { childId: string; 
   ]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [heard, setHeard] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  const ears = useListening((text, final) => {
+    setHeard(text);
+    if (final && text) { setHeard(""); void send(text); }
+  });
 
   async function send(text: string) {
     const q = text.trim();
@@ -323,8 +372,13 @@ function Tutor({ childId, first, gradeLabel, speak, words }: { childId: string; 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
         {quick.map((q) => <button key={q} type="button" onClick={() => send(q)} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "10px 14px", fontSize: 16, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>{q}</button>)}
       </div>
+      {ears.supported && (
+        <button type="button" onClick={ears.listening ? ears.stop : ears.start} disabled={busy} style={{ ...bigBtn(ears.listening ? "#FF4D42" : "#2ACF5F"), marginTop: 14 }}>
+          {ears.listening ? (heard ? `“${heard}”` : "🎤 Listening… tap when done") : "🎤 Talk to Buddy"}
+        </button>
+      )}
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(input); }} placeholder="Ask Buddy…" style={{ flex: 1, padding: "14px", borderRadius: 16, border: "2px solid var(--ios-separator)", fontSize: 20, background: "var(--ios-bg-elevated)", color: "var(--ios-label)" }} />
+        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(input); }} placeholder={ears.supported ? "or type here…" : "Ask Buddy…"} style={{ flex: 1, padding: "14px", borderRadius: 16, border: "2px solid var(--ios-separator)", fontSize: 20, background: "var(--ios-bg-elevated)", color: "var(--ios-label)" }} />
         <button type="button" onClick={() => send(input)} disabled={busy || !input.trim()} style={{ ...bigBtn("var(--ios-tint)"), width: "auto", padding: "0 20px", fontSize: 18 }}>Send</button>
       </div>
     </>
