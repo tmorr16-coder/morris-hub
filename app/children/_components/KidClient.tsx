@@ -62,15 +62,25 @@ function useSpeech() {
     window.speechSynthesis.addEventListener("voiceschanged", apply);
     return () => window.speechSynthesis.removeEventListener("voiceschanged", apply);
   }, []);
+  // The utterance being spoken is held here so it is not collected mid-sentence,
+  // which silences Chrome; and speak() is never called in the same tick as
+  // cancel(), which silences Safari on iPad and iPhone.
+  const currentRef = useRef<SpeechSynthesisUtterance | null>(null);
   // `pace` scales the saved speed: spelling letters go a little slower, a
   // cheer a little faster.
   return useCallback((text: string, pace = 0.95) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
+    const synth = window.speechSynthesis;
     const u = new SpeechSynthesisUtterance(text);
     if (voiceRef.current) u.voice = voiceRef.current;
     u.rate = Math.max(0.5, Math.min(2, rateRef.current * pace));
-    window.speechSynthesis.speak(u);
+    currentRef.current = u;
+    const wasBusy = synth.speaking || synth.pending;
+    if (wasBusy) synth.cancel();
+    // Safari leaves synthesis paused after a cancel or a backgrounded tab;
+    // a resume is harmless everywhere else.
+    try { synth.resume(); } catch { /* not every browser has it */ }
+    window.setTimeout(() => { if (currentRef.current === u) synth.speak(u); }, wasBusy ? 150 : 0);
   }, []);
 }
 
@@ -156,9 +166,12 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
           <h1 style={{ ...big, fontSize: 36, margin: 0 }}>Hi, {first}! 👋</h1>
           <span style={{ fontSize: 22, fontWeight: 800, whiteSpace: "nowrap" }}>⭐ {stars.total}</span>
         </div>
-        <p style={{ fontSize: 18, color: "var(--ios-label-2)", margin: "4px 0 18px" }}>
+        <p style={{ fontSize: 18, color: "var(--ios-label-2)", margin: "4px 0 10px" }}>
           {open.length === 0 ? "No jobs right now. Ask your tutor a question!" : open.length === 1 ? "You have 1 job today." : `You have ${open.length} jobs today.`}
         </p>
+        <button type="button" onClick={() => speak(`Hi ${first}! Can you hear me? Let's go!`, 1)} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "10px 16px", fontSize: 16, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer", marginBottom: 14 }}>
+          🔊 Tap if you can&rsquo;t hear me
+        </button>
 
         <div style={{ display: "grid", gap: 12 }}>
           {open.map((t) => (
@@ -374,7 +387,7 @@ function Tutor({ childId, first, gradeLabel, speak, words }: { childId: string; 
         {messages.map((m, i) => (
           <div key={i} style={{ ...cardStyle, padding: "12px 16px", fontSize: 20, lineHeight: 1.45, alignSelf: m.role === "user" ? "end" : "start", background: m.role === "user" ? "var(--ios-tint)" : "var(--ios-cell)", color: m.role === "user" ? "var(--ios-on-tint)" : "var(--ios-label)", maxWidth: "88%", justifySelf: m.role === "user" ? "end" : "start", border: m.role === "user" ? "none" : undefined }}>
             {m.role === "assistant" ? forScreen(m.content, m.revealed !== false) : m.content}
-            {m.role === "assistant" && HIDDEN.test(m.content) && m.revealed === false && (
+            {m.role === "assistant" && i > 0 && (
               <button type="button" onClick={() => speak(forSpeech(m.content))} style={{ display: "block", marginTop: 8, background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "8px 14px", fontSize: 16, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>🔊 Say it again</button>
             )}
           </div>
