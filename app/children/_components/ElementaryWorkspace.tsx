@@ -354,7 +354,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         <Group header="Practice tonight" footer={exercises.length === 0 ? "Nothing planned yet. Photograph a graded paper or the newsletter and the plan is proposed from the teacher's marks." : "Each one traces to something the teacher wrote or the paper showed. Tap for the steps; tap Done again to take it back."}>
           {isGuardian && exercises.length > 0 && (
             <div style={{ padding: "8px 16px 0", textAlign: "right" }}>
-              <button type="button" className="ios-btn--plain" onClick={resetPractice} style={{ color: "var(--ios-label-3)", fontSize: 13 }}>Reset this week's practice</button>
+              <button type="button" className="ios-btn--plain" onClick={resetPractice} style={{ color: "var(--ios-label-3)", fontSize: 13 }}>Reset this week&rsquo;s practice</button>
             </div>
           )}
           {exercises.map((ex) => {
