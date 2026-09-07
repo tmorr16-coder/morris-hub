@@ -198,7 +198,24 @@ html body.pf { background: var(--pf-ground); color: var(--pf-text); }
   mask-image: radial-gradient(110% 46% at 50% 0%, #000 8%, transparent 70%);
   -webkit-mask-image: radial-gradient(110% 46% at 50% 0%, #000 8%, transparent 70%);
 }
-.pf [data-ui="ios"]:not([data-theme]) .ios-scroll > * { position: relative; z-index: 1; }
+/* Lift the screen's content above the grid layer above.
+
+   `position: relative` alone does it. The grid is a positioned pseudo-element
+   with z-index 0, so it paints in the same layer as its positioned siblings
+   and loses to whichever comes later in the DOM — which every child of the
+   scroller does, the pseudo-element being first.
+
+   z-index: 1 was here and had to go. A positive z-index on a positioned
+   element opens a stacking context, and that context is a ceiling: everything
+   inside it is flattened to level 1 in the layer above, however high its own
+   z-index. Every sheet in the app renders inside one of these children, so
+   .ios-sheet's z-index of 201 counted for nothing against the tab bar's 100 —
+   the bar drew over the bottom of every open sheet, taking the submit button
+   with it. Tapping "Add activity" in the New activity sheet hit the tab bar's
+   capture button instead. With z-index auto no context is opened, the sheet's
+   201 is measured against the bar's 100 where it should be, and the paint
+   order down here is unchanged. */
+.pf [data-ui="ios"]:not([data-theme]) .ios-scroll > * { position: relative; }
 
 /* ── The one large moment ───────────────────────────────────────────────────
    Every screen opens on a large title. That is the only place on a working
