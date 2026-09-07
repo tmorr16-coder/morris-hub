@@ -91,14 +91,15 @@ export default function LearningImportClient({ childId, childName }: { childId: 
       // timeout page, a gateway error. Say so in words instead of failing on
       // "Unexpected token".
       const raw = await res.text();
-      let data: any = null;
+      let data: { extraction?: DocumentExtraction; error?: string } | null = null;
       try { data = JSON.parse(raw); } catch { data = null; }
       if (!res.ok || !data) {
         if (res.status === 504 || /timed out|timeout/i.test(raw)) throw new Error("Reading took too long. Send fewer pages at once — one graded paper, or a newsletter's three pages.");
         if (res.status === 413) throw new Error("Those pages are too large to send together. Try fewer at once.");
         throw new Error(data?.error ?? `The reader did not answer (${res.status}). Try again in a moment.`);
       }
-      const ex = data.extraction as DocumentExtraction;
+      if (!data.extraction) throw new Error(data.error ?? "The reader returned nothing.");
+      const ex = data.extraction;
       setX(ex);
       setChosen(new Set(ex.exercises.map((_, i) => i)));
       setPhase("review");
