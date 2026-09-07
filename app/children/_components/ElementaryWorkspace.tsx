@@ -55,6 +55,55 @@ function firstName(name: string): string {
   return name.split(" ")[0] || name;
 }
 
+const SUBJECT_LABEL: Record<string, string> = { spelling: "Spelling", handwriting: "Handwriting", reading: "Reading", decoding: "Decoding", math: "Math", science: "Science", bible: "Bible", other: "Other" };
+
+interface SubjectTrend {
+  subject: string;
+  label: string;
+  series: number[];       // percentages, oldest first
+  latest: number;         // percentage
+  latestText: string;     // "9/10"
+  delta: number | null;   // vs the previous paper, in points
+  count: number;
+  lastOn: string | null;
+}
+
+/**
+ * One line per subject, across every graded paper: the shape of the thing,
+ * not the last number. A 9/10 in spelling and a 22/24 in decoding say nothing
+ * next to each other; three spelling tests in a row say a great deal.
+ */
+function trendsBySubject(assessments: { subject: string; score: number | null; outOf: number | null; assessedOn: string | null }[]): SubjectTrend[] {
+  const by = new Map<string, { pct: number; text: string; on: string }[]>();
+  for (const a of assessments) {
+    if (a.score == null || !a.outOf) continue;
+    const arr = by.get(a.subject) ?? [];
+    arr.push({ pct: Math.round((a.score / a.outOf) * 100), text: `${a.score}/${a.outOf}`, on: a.assessedOn ?? "" });
+    by.set(a.subject, arr);
+  }
+  const out: SubjectTrend[] = [];
+  for (const [subject, rows] of by) {
+    rows.sort((x, y) => x.on.localeCompare(y.on));
+    const last = rows[rows.length - 1];
+    const prev = rows.length > 1 ? rows[rows.length - 2] : null;
+    out.push({
+      subject, label: SUBJECT_LABEL[subject] ?? subject, series: rows.map((r) => r.pct), latest: last.pct, latestText: last.text,
+      delta: prev ? last.pct - prev.pct : null, count: rows.length, lastOn: last.on || null,
+    });
+  }
+  // Weakest first: that is the one to look at.
+  return out.sort((a, b) => a.latest - b.latest || (a.delta ?? 0) - (b.delta ?? 0));
+}
+function arrow(delta: number | null): { glyph: string; color: string } {
+  if (delta == null) return { glyph: "", color: "var(--ios-label-3)" };
+  if (delta > 2) return { glyph: "▲", color: "var(--ios-green)" };
+  if (delta < -2) return { glyph: "▼", color: "var(--ios-red)" };
+  return { glyph: "▶", color: "var(--ios-label-3)" };
+}
+function pctColor(p: number): string {
+  return p >= 90 ? "var(--ios-green)" : p >= 75 ? "var(--ios-orange)" : "var(--ios-red)";
+}
+
 export default function ElementaryWorkspace({ data, viewerUserId }: { data: ChildWorkspaceData; viewerUserId: string }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -203,8 +252,8 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   const openTasks = tasks.filter((t) => !t.completedAt);
   const doneTasks = tasks.filter((t) => t.completedAt);
 
-  const latestScore = L?.assessments.find((a) => a.score != null && a.outOf);
-  const scoreSeries = (L?.assessments ?? []).filter((a) => a.score != null && a.outOf).slice(0, 10).reverse().map((a) => Math.round(((a.score ?? 0) / (a.outOf ?? 1)) * 100));
+  const trends = trendsBySubject(L?.assessments ?? []);
+  const watch = trends[0] ?? null;
   const wordsPracticed = week ? week.words.filter((w) => (practiced[w] ?? 0) > 0).length : 0;
   const newsletter = L?.latestNewsletter;
   const nx = newsletter?.extracted;
@@ -249,7 +298,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
           <GlanceTile href={`/children/${data.childId}#spelling`} label="Spelling test" icon={<Icons.CalendarIcon />} value={week?.testOn ? soon(week.testOn) : "—"} sub={week?.pattern ?? undefined} accent="var(--ios-tint)" />
           <GlanceTile href={`/children/${data.childId}#spelling`} label="Words practised" icon={<Icons.ChecklistIcon />} value={week ? `${wordsPracticed}/${week.words.length}` : "—"} sub={week ? "tap a word below" : undefined} accent="var(--ios-green)" />
           <GlanceTile href={`/children/${data.childId}#practice`} label="Practice days" icon={<Icons.SparkleIcon />} value={`${L.practiceDaysThisWeek}/7`} sub="this week" accent="var(--ios-orange)" />
-          <GlanceTile href={`/children/${data.childId}#progress`} label="Latest score" icon={<Icons.ChartIcon />} value={latestScore ? `${latestScore.score}/${latestScore.outOf}` : "—"} sub={latestScore?.subject} accent="#B565A7" />
+          <GlanceTile href={`/children/${data.childId}#progress`} label={watch ? "Watch" : "Scores"} icon={<Icons.ChartIcon />} value={watch ? `${watch.label} ${watch.latest}%` : "—"} sub={watch ? `${arrow(watch.delta).glyph ? `${arrow(watch.delta).glyph} ${Math.abs(watch.delta ?? 0)} pts · ` : ""}${trends.length} subject${trends.length === 1 ? "" : "s"} tracked` : "no graded work yet"} accent={watch ? pctColor(watch.latest) : "#B565A7"} />
         </GlanceGrid>
       )}
 
@@ -351,13 +400,25 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       {/* ── Progress ───────────────────────────────────────────────────── */}
       <div id="progress" />
       {L && L.assessments.length > 0 && (
-        <Group header="How it's going" footer="Scores as the teacher wrote them, with her notes and what the paper showed.">
-          {scoreSeries.length > 1 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px" }}>
-              <Sparkline points={scoreSeries} color="var(--ios-tint)" />
-              <span className="ios-caption" style={{ color: "var(--ios-label-2)" }}>Last {scoreSeries.length} scores, as a percentage</span>
-            </div>
-          )}
+        <Group header="How it's going" footer="One line per subject across every graded paper, weakest first. The arrow compares the latest paper with the one before it.">
+          {trends.map((t) => {
+            const ar = arrow(t.delta);
+            return (
+              <div key={t.subject} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderBottom: "1px solid var(--ios-separator)" }}>
+                <IconBadge color={SUBJECT_COLOR[t.subject] ?? SUBJECT_COLOR.other}><Icons.ChartIcon /></IconBadge>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="ios-subhead" style={{ fontWeight: 600 }}>{t.label}</div>
+                  <div className="ios-caption" style={{ color: "var(--ios-label-3)" }}>{t.count === 1 ? "first paper" : `${t.count} papers`}{t.lastOn ? ` · latest ${fmtDate(t.lastOn, false)}` : ""}</div>
+                </div>
+                {t.series.length > 1 ? <Sparkline points={t.series} color={pctColor(t.latest)} width={72} height={26} /> : <span style={{ width: 72 }} />}
+                <div style={{ textAlign: "right", minWidth: 64 }}>
+                  <div className="ios-num" style={{ fontWeight: 700, color: pctColor(t.latest) }}>{t.latestText}</div>
+                  <div className="ios-caption" style={{ color: ar.color }}>{t.delta == null ? `${t.latest}%` : `${ar.glyph} ${t.delta > 0 ? "+" : ""}${t.delta} pts`}</div>
+                </div>
+              </div>
+            );
+          })}
+          <div className="ios-caption" style={{ color: "var(--ios-label-3)", padding: "10px 16px 4px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Each paper</div>
           {L.assessments.map((a) => (
             <Cell
               key={a.id}
