@@ -404,8 +404,8 @@ function SpellingRun({ words, speak, childId, weekId, onBack, onFinish, onRight 
       setTimeout(() => (i + 1 < words.length ? go(i + 1) : onFinish(right + 1)), 900);
     } else {
       setWrongOnce(true);
-      speak(`Not yet. Listen again: ${word}. ${word.split("").join(", ")}.`, 0.8);
-      setShown(true);
+      setTyped("");
+      speak(`Not yet. Listen again: ${word}. Try again.`, 0.9);
     }
   }
 
@@ -436,7 +436,7 @@ function SpellingRun({ words, speak, childId, weekId, onBack, onFinish, onRight 
             <button type="button" onClick={() => (i + 1 < words.length ? go(i + 1) : onFinish(right))} style={{ ...bigBtn("var(--ios-fill)"), color: "var(--ios-label)", fontSize: 18, boxShadow: "none" }}>Skip →</button>
           </div>
         </div>
-        {wrongOnce && <div style={{ marginTop: 10, fontSize: 16, color: "var(--ios-label-2)" }}>Look at the word, then type it again.</div>}
+        {wrongOnce && !shown && <div style={{ marginTop: 10, fontSize: 16, color: "var(--ios-label-2)" }}>Not yet — listen and try again. Tap Show me if you need a peek.</div>}
       </div>
       <div style={{ marginTop: 14, textAlign: "center", fontSize: 18 }}>{"⭐".repeat(Math.min(right, 10))}</div>
     </>
@@ -469,8 +469,7 @@ function Tutor({ childId, first, gradeLabel, speak, words }: { childId: string; 
     const q = text.trim();
     if (!q || busy) return;
     setInput("");
-    // The child has had a try: any word Buddy was hiding may now be shown.
-    const next = [...messages.map((m) => ({ ...m, revealed: true })), { role: "user" as const, content: q }];
+    const next = [...messages, { role: "user" as const, content: q }];
     setMessages(next);
     setBusy(true);
     try {
@@ -502,7 +501,12 @@ function Tutor({ childId, first, gradeLabel, speak, words }: { childId: string; 
           <div key={i} style={{ ...cardStyle, padding: "12px 16px", fontSize: 20, lineHeight: 1.45, alignSelf: m.role === "user" ? "end" : "start", background: m.role === "user" ? "var(--ios-tint)" : "var(--ios-cell)", color: m.role === "user" ? "var(--ios-on-tint)" : "var(--ios-label)", maxWidth: "88%", justifySelf: m.role === "user" ? "end" : "start", border: m.role === "user" ? "none" : undefined }}>
             {m.role === "assistant" ? forScreen(m.content, m.revealed !== false) : m.content}
             {m.role === "assistant" && i > 0 && (
-              <button type="button" onClick={() => speak(forSpeech(m.content))} style={{ display: "block", marginTop: 8, background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "8px 14px", fontSize: 16, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>🔊 Say it again</button>
+              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                <button type="button" onClick={() => speak(forSpeech(m.content))} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "8px 14px", fontSize: 16, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>🔊 Say it again</button>
+                {HIDDEN.test(m.content) && m.revealed === false && (
+                  <button type="button" onClick={() => setMessages((all) => all.map((x, k) => (k === i ? { ...x, revealed: true } : x)))} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "8px 14px", fontSize: 16, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>👀 Show me</button>
+                )}
+              </div>
             )}
           </div>
         ))}
