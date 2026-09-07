@@ -184,13 +184,20 @@ export async function saveChildDocument(input: {
       .in("user_id", guardians)
       .eq("is_household", true)
       .gte("due_at", morningOf(new Date().toISOString().slice(0, 10)));
-    const have = new Set(((existing ?? []) as { title: string; due_at: string }[]).map((r) => `${r.due_at.slice(0, 10)}|${r.title.toLowerCase()}`));
+    // "Already there" is judged loosely on purpose. Two reads of the same
+    // newsletter titled the same day "No School – Labor Day" and "No School -
+    // Labor Day", and "Noon Dismissal" and "Noon Dismissal (Teacher PD)", and
+    // an exact match let all four through. Same day, same first few words,
+    // same child: that is the same reminder.
+    const keyOf = (date: string, title: string) => `${date}|${title.toLowerCase().replace(/\(.*?\)/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim().split(" ").slice(0, 4).join(" ")}`;
+    const have = new Set(((existing ?? []) as { title: string; due_at: string }[]).map((r) => keyOf(r.due_at.slice(0, 10), r.title)));
     const today = new Date().toISOString().slice(0, 10);
     const rows: any[] = [];
     for (const d of x.dates as SchoolDate[]) {
       if (!d.date || d.date < today) continue;
       const title = `${childName}: ${d.title}`;
-      if (have.has(`${d.date}|${title.toLowerCase()}`)) continue;
+      if (have.has(keyOf(d.date, title))) continue;
+      have.add(keyOf(d.date, title));
       rows.push({
         user_id: userId,
         title,
@@ -208,7 +215,8 @@ export async function saveChildDocument(input: {
         eve.setUTCDate(eve.getUTCDate() - 1);
         const eveDay = eve.toISOString().slice(0, 10);
         const eveTitle = `Tomorrow — ${childName}: ${d.title}`;
-        if (eveDay >= today && !have.has(`${eveDay}|${eveTitle.toLowerCase()}`)) {
+        if (eveDay >= today && !have.has(keyOf(eveDay, eveTitle))) {
+          have.add(keyOf(eveDay, eveTitle));
           rows.push({
             user_id: userId,
             title: eveTitle,
@@ -230,7 +238,7 @@ export async function saveChildDocument(input: {
     if (x.spelling?.test_on && x.spelling.test_on >= today && !testListed) {
       const pattern = x.spelling.pattern && x.spelling.pattern.length <= 48 ? x.spelling.pattern : null;
       const title = `${childName}: spelling test${pattern ? ` (${pattern})` : ""}`;
-      if (!have.has(`${x.spelling.test_on}|${title.toLowerCase()}`)) {
+      if (!have.has(keyOf(x.spelling.test_on, title))) {
         rows.push({
           user_id: userId, title, notes: x.spelling.words.join(", ") || null,
           due_at: morningOf(x.spelling.test_on), recurrence: "once", category: "personal",
