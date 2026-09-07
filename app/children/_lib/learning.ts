@@ -112,8 +112,29 @@ export interface Exercise {
   streak: number;            // consecutive days ending today or yesterday
 }
 
+export type TaskKind = "exercise" | "spelling" | "reading" | "custom";
+
+/** Something a parent sent to the child's own screen. */
+export interface ChildTask {
+  id: string;
+  kind: TaskKind;
+  exerciseId: string | null;
+  title: string;
+  instructions: string | null;
+  payload: { words?: string[]; steps?: string | null; minutes?: number | null };
+  assignedOn: string;
+  dueOn: string | null;
+  completedAt: string | null;
+  stars: number;
+  childNote: string | null;
+}
+
 export interface LearningData {
   gradeLabel: string | null;
+  /** Open tasks plus anything completed today, newest first. */
+  tasks: ChildTask[];
+  /** Stars earned in total, and this week. */
+  stars: { total: number; week: number };
   spellingWeek: SpellingWeek | null;
   latestNewsletter: ChildDocument | null;
   upcomingDates: SchoolDate[];
@@ -158,7 +179,7 @@ function streakFrom(doneDates: string[], today: string): number {
 
 export async function loadLearning(db: any, childId: string, birthYear: number | null, now: Date): Promise<LearningData> {
   const today = isoDay(now);
-  const [{ data: docRows }, { data: weekRows }, { data: assessRows }, { data: exRows }, { data: logRows }] = await Promise.all([
+  const [{ data: docRows }, { data: weekRows }, { data: assessRows }, { data: exRows }, { data: logRows }, { data: taskRows }, { data: starRows }] = await Promise.all([
     db.schema("hub").from("child_documents")
       .select("id, kind, title, doc_date, week_start, week_end, summary, extracted, file_paths, created_at")
       .eq("child_id", childId)
@@ -184,7 +205,36 @@ export async function loadLearning(db: any, childId: string, birthYear: number |
       .eq("child_id", childId)
       .gte("done_on", isoDay(new Date(now.getTime() - 60 * 86_400_000)))
       .order("done_on", { ascending: false }),
+    db.schema("hub").from("child_tasks")
+      .select("id, kind, exercise_id, title, instructions, payload, assigned_on, due_on, completed_at, stars, child_note")
+      .eq("child_id", childId)
+      .or(`completed_at.is.null,completed_at.gte.${today}T00:00:00Z`)
+      .order("created_at", { ascending: false })
+      .limit(30),
+    db.schema("hub").from("child_tasks")
+      .select("stars, completed_at")
+      .eq("child_id", childId)
+      .not("completed_at", "is", null),
   ]);
+
+  const tasks: ChildTask[] = ((taskRows ?? []) as any[]).map((t) => ({
+    id: t.id,
+    kind: t.kind,
+    exerciseId: t.exercise_id,
+    title: t.title,
+    instructions: t.instructions,
+    payload: (t.payload ?? {}) as ChildTask["payload"],
+    assignedOn: t.assigned_on,
+    dueOn: t.due_on,
+    completedAt: t.completed_at,
+    stars: t.stars ?? 0,
+    childNote: t.child_note,
+  }));
+  const weekAgoIso = isoDay(new Date(now.getTime() - 6 * 86_400_000));
+  const stars = ((starRows ?? []) as { stars: number; completed_at: string }[]).reduce(
+    (acc, r) => ({ total: acc.total + (r.stars ?? 0), week: acc.week + (r.completed_at >= weekAgoIso ? (r.stars ?? 0) : 0) }),
+    { total: 0, week: 0 },
+  );
 
   const documents: ChildDocument[] = ((docRows ?? []) as any[]).map((d) => ({
     id: d.id,
@@ -273,6 +323,8 @@ export async function loadLearning(db: any, childId: string, birthYear: number |
 
   return {
     gradeLabel: gradeLabelFor(birthYear, now),
+    tasks,
+    stars,
     spellingWeek,
     latestNewsletter,
     upcomingDates: upcomingDates.slice(0, 8),

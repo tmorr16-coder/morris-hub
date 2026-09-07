@@ -157,7 +157,7 @@ export async function saveChildDocument(input: {
         const days = freq === "daily" ? weekdaysBetween(today, horizon) : freq === "three_a_week" ? weekdaysBetween(today, horizon).filter((_, k) => k % 2 === 0) : [today];
         for (const day of days) {
           rows.push({
-            user_id: userId,
+            user_id: userId, child_document_id: documentId,
             title: `${e.title} — with ${childName}${e.minutes ? ` (${e.minutes} min)` : ""}`,
             due_date: day,
             priority: "medium",
@@ -199,7 +199,7 @@ export async function saveChildDocument(input: {
       if (have.has(keyOf(d.date, title))) continue;
       have.add(keyOf(d.date, title));
       rows.push({
-        user_id: userId,
+        user_id: userId, child_document_id: documentId,
         title,
         notes: d.note ?? null,
         due_at: morningOf(d.date),
@@ -218,7 +218,7 @@ export async function saveChildDocument(input: {
         if (eveDay >= today && !have.has(keyOf(eveDay, eveTitle))) {
           have.add(keyOf(eveDay, eveTitle));
           rows.push({
-            user_id: userId,
+            user_id: userId, child_document_id: documentId,
             title: eveTitle,
             notes: d.note ?? null,
             due_at: `${eveDay}T23:00:00.000Z`,
@@ -240,7 +240,7 @@ export async function saveChildDocument(input: {
       const title = `${childName}: spelling test${pattern ? ` (${pattern})` : ""}`;
       if (!have.has(keyOf(x.spelling.test_on, title))) {
         rows.push({
-          user_id: userId, title, notes: x.spelling.words.join(", ") || null,
+          user_id: userId, child_document_id: documentId, title, notes: x.spelling.words.join(", ") || null,
           due_at: morningOf(x.spelling.test_on), recurrence: "once", category: "personal",
           source_app: "hub", is_household: true, assigned_to: null,
         });
@@ -298,27 +298,189 @@ export async function setExerciseStatus(childId: string, exerciseId: string, sta
 }
 
 /** Tap a spelling word: one more practice of it this week. */
-export async function markWordPracticed(childId: string, weekId: string, word: string): Promise<{ error?: string; count?: number }> {
+export async function markWordPracticed(childId: string, weekId: string, word: string, delta = 1): Promise<{ error?: string; count?: number }> {
   const g = await requireGuardian(childId);
   if ("error" in g) return { error: g.error };
   const svc = db();
   const { data: row } = await svc.schema("hub").from("child_spelling_weeks").select("practiced").eq("id", weekId).eq("child_id", childId).maybeSingle();
   if (!row) return { error: "Not found" };
   const practiced = { ...(row.practiced ?? {}) } as Record<string, number>;
-  practiced[word] = (practiced[word] ?? 0) + 1;
+  practiced[word] = Math.max(0, (practiced[word] ?? 0) + delta);
+  if (practiced[word] === 0) delete practiced[word];
   const { error } = await svc.schema("hub").from("child_spelling_weeks").update({ practiced }).eq("id", weekId);
   if (error) return { error: error.message };
-  return { count: practiced[word] };
+  return { count: practiced[word] ?? 0 };
 }
 
-export async function deleteChildDocument(childId: string, documentId: string): Promise<{ error?: string }> {
+/** Take back a "Did it" logged today by mistake. */
+export async function unlogPractice(childId: string, exerciseId: string): Promise<{ error?: string }> {
+  const g = await requireGuardian(childId);
+  if ("error" in g) return { error: g.error };
+  const { error } = await db().schema("hub").from("child_practice_log").delete()
+    .eq("exercise_id", exerciseId).eq("child_id", childId).eq("done_on", new Date().toISOString().slice(0, 10));
+  if (error) return { error: error.message };
+  revalidatePath(`/children/${childId}`);
+  return {};
+}
+
+/** What deleting a document would take with it — shown before the tap. */
+export async function documentImpact(childId: string, documentId: string): Promise<{ error?: string; exercises?: number; assessments?: number; todos?: number; reminders?: number; spellingWeeks?: number }> {
+  const g = await requireGuardian(childId);
+  if ("error" in g) return { error: g.error };
+  const svc = db();
+  const count = async (table: string, col: string) => {
+    const { count: n } = await svc.schema("hub").from(table).select("id", { count: "exact", head: true }).eq(col, documentId);
+    return n ?? 0;
+  };
+  const [exercises, assessments, spellingWeeks, todos, reminders] = await Promise.all([
+    count("child_exercises", "document_id"), count("child_assessments", "document_id"), count("child_spelling_weeks", "document_id"),
+    count("todos", "child_document_id"), count("reminders", "child_document_id"),
+  ]);
+  return { exercises, assessments, spellingWeeks, todos, reminders };
+}
+
+// ── Duplicate detection at review time ───────────────────────────────────────
+
+export interface SimilarDocument {
+  id: string;
+  title: string;
+  createdAt: string;
+  reason: string;
+  exercises: number;
+  todos: number;
+  reminders: number;
+}
+
+function bareTitle(t: string): string {
+  return t.toLowerCase().replace(/\(.*?\)/g, " ").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Is this read the same paper as one already kept? Same kind on the same
+ * printed date, or a newsletter covering the same week, or the same title.
+ * Reading a packet twice used to make a second copy of everything.
+ */
+export async function findSimilarDocument(childId: string, x: DocumentExtraction): Promise<{ error?: string; match?: SimilarDocument | null }> {
+  const g = await requireGuardian(childId);
+  if ("error" in g) return { error: g.error };
+  const svc = db();
+  const { data: rows } = await svc.schema("hub").from("child_documents")
+    .select("id, kind, title, doc_date, week_start, created_at")
+    .eq("child_id", childId)
+    .order("created_at", { ascending: false })
+    .limit(40);
+  const docs = (rows ?? []) as { id: string; kind: string; title: string; doc_date: string | null; week_start: string | null; created_at: string }[];
+  const mine = bareTitle(x.title);
+  let hit: { doc: typeof docs[number]; reason: string } | null = null;
+  for (const d of docs) {
+    if (d.kind !== x.kind) continue;
+    if (x.kind === "newsletter" && x.week_start && d.week_start === x.week_start) { hit = { doc: d, reason: "same week" }; break; }
+    if (x.doc_date && d.doc_date === x.doc_date && (x.kind !== "graded_work" || bareTitle(d.title).split(" ").slice(0, 3).join(" ") === mine.split(" ").slice(0, 3).join(" "))) { hit = { doc: d, reason: "same date" }; break; }
+    if (mine && bareTitle(d.title) === mine) { hit = { doc: d, reason: "same title" }; break; }
+  }
+  if (!hit) return { match: null };
+  const im = await documentImpact(childId, hit.doc.id);
+  return { match: { id: hit.doc.id, title: hit.doc.title, createdAt: hit.doc.created_at, reason: hit.reason, exercises: im.exercises ?? 0, todos: im.todos ?? 0, reminders: im.reminders ?? 0 } };
+}
+
+// ── Tasks sent to the child's screen ─────────────────────────────────────────
+
+export async function assignTask(input: {
+  childId: string;
+  kind: "exercise" | "spelling" | "reading" | "custom";
+  exerciseId?: string | null;
+  title: string;
+  instructions?: string | null;
+  payload?: Record<string, unknown>;
+  dueOn?: string | null;
+}): Promise<{ error?: string; id?: string }> {
+  const g = await requireGuardian(input.childId);
+  if ("error" in g) return { error: g.error };
+  if (!input.title.trim()) return { error: "Give it a name." };
+  const { data, error } = await db().schema("hub").from("child_tasks").insert({
+    child_id: input.childId,
+    kind: input.kind,
+    exercise_id: input.exerciseId ?? null,
+    title: input.title.trim(),
+    instructions: input.instructions ?? null,
+    payload: input.payload ?? {},
+    assigned_by: g.userId,
+    due_on: input.dueOn ?? null,
+  }).select("id").single();
+  if (error) return { error: error.message };
+  revalidatePath(`/children/${input.childId}`);
+  revalidatePath(`/children/${input.childId}/kid`);
+  return { id: data.id };
+}
+
+/** The child finished a task on their screen. Stars are the reward; an exercise task also logs today's practice. */
+export async function completeTask(childId: string, taskId: string, stars = 1, childNote?: string): Promise<{ error?: string }> {
+  const g = await requireGuardian(childId);
+  if ("error" in g) return { error: g.error };
+  const svc = db();
+  const { data: task, error } = await svc.schema("hub").from("child_tasks")
+    .update({ completed_at: new Date().toISOString(), stars: Math.max(0, Math.min(5, stars)), child_note: childNote ?? null })
+    .eq("id", taskId).eq("child_id", childId).select("exercise_id").single();
+  if (error) return { error: error.message };
+  if (task?.exercise_id) {
+    await svc.schema("hub").from("child_practice_log").upsert(
+      { exercise_id: task.exercise_id, child_id: childId, done_on: new Date().toISOString().slice(0, 10), logged_by: g.userId, note: "Done on Jaxon's screen" },
+      { onConflict: "exercise_id,done_on" },
+    );
+  }
+  revalidatePath(`/children/${childId}`);
+  revalidatePath(`/children/${childId}/kid`);
+  return {};
+}
+
+export async function reopenTask(childId: string, taskId: string): Promise<{ error?: string }> {
+  const g = await requireGuardian(childId);
+  if ("error" in g) return { error: g.error };
+  const { error } = await db().schema("hub").from("child_tasks").update({ completed_at: null, stars: 0 }).eq("id", taskId).eq("child_id", childId);
+  if (error) return { error: error.message };
+  revalidatePath(`/children/${childId}`);
+  revalidatePath(`/children/${childId}/kid`);
+  return {};
+}
+
+export async function deleteTask(childId: string, taskId: string): Promise<{ error?: string }> {
+  const g = await requireGuardian(childId);
+  if ("error" in g) return { error: g.error };
+  const { error } = await db().schema("hub").from("child_tasks").delete().eq("id", taskId).eq("child_id", childId);
+  if (error) return { error: error.message };
+  revalidatePath(`/children/${childId}`);
+  revalidatePath(`/children/${childId}/kid`);
+  return {};
+}
+
+/**
+ * Delete a scanned document and everything it created: its exercises (and
+ * their practice log and any tasks built on them), its assessments, the
+ * spelling week it set, and the to-dos and reminders it put on Today. One
+ * tap corrects a bad scan; before this, each of those had to be found and
+ * removed by hand.
+ */
+export async function deleteChildDocument(childId: string, documentId: string): Promise<{ error?: string; removed?: { exercises: number; assessments: number; todos: number; reminders: number; spellingWeeks: number } }> {
   const g = await requireGuardian(childId);
   if ("error" in g) return { error: g.error };
   const svc = db();
   const { data: doc } = await svc.schema("hub").from("child_documents").select("file_paths").eq("id", documentId).eq("child_id", childId).maybeSingle();
-  if (doc?.file_paths?.length) await svc.storage.from(BUCKET).remove(doc.file_paths);
+  if (!doc) return { error: "Not found" };
+  const impact = await documentImpact(childId, documentId);
+  // Rows keyed to the document. Exercises cascade to their practice log and
+  // tasks through the foreign keys; the rest are removed explicitly because
+  // their keys are "set null" so a document can also be deleted alone.
+  await Promise.all([
+    svc.schema("hub").from("child_exercises").delete().eq("document_id", documentId).eq("child_id", childId),
+    svc.schema("hub").from("child_assessments").delete().eq("document_id", documentId).eq("child_id", childId),
+    svc.schema("hub").from("child_spelling_weeks").delete().eq("document_id", documentId).eq("child_id", childId),
+    svc.schema("hub").from("todos").delete().eq("child_document_id", documentId),
+    svc.schema("hub").from("reminders").delete().eq("child_document_id", documentId),
+  ]);
+  if (doc.file_paths?.length) await svc.storage.from(BUCKET).remove(doc.file_paths);
   const { error } = await svc.schema("hub").from("child_documents").delete().eq("id", documentId).eq("child_id", childId);
   if (error) return { error: error.message };
   revalidatePath(`/children/${childId}`);
-  return {};
+  revalidatePath("/home");
+  return { removed: { exercises: impact.exercises ?? 0, assessments: impact.assessments ?? 0, todos: impact.todos ?? 0, reminders: impact.reminders ?? 0, spellingWeeks: impact.spellingWeeks ?? 0 } };
 }

@@ -6,7 +6,11 @@ import { childForGuardian } from "@/app/children/_lib/children";
 import { gradeLabelFor, type DocumentExtraction } from "@/app/children/_lib/learning";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+// Five pages of graded work timed out at 120 seconds: the reply is the slow
+// part, and it scales with pages. So: three pages per read at most, the
+// function's ceiling raised, and a reply budget sized for a real document
+// rather than a worst case.
+export const maxDuration = 300;
 
 const client = new Anthropic();
 
@@ -76,7 +80,7 @@ Rules:
 
 const ALLOWED = new Set(["application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"]);
 const MAX_TOTAL = 4 * 1024 * 1024;   // Vercel drops bodies over 4.5MB before we run
-const MAX_PAGES = 5;
+const MAX_PAGES = 3;
 
 export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -127,7 +131,7 @@ export async function POST(req: NextRequest) {
   try {
     const response = await client.messages.create({
       model: MODEL_BALANCED,
-      max_tokens: 16000,
+      max_tokens: 6000,
       system: SYSTEM,
       messages: [{ role: "user", content: [...blocks, { type: "text", text: promptFor(childName, gradeLabel, today) }] }],
     });

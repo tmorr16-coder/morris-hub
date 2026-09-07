@@ -11,7 +11,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Group, Cell, Chip, IconBadge, Icons } from "@/components/ios";
 import type { DocumentExtraction } from "../_lib/learning";
-import { saveChildDocument } from "../_lib/learning-actions";
+import { saveChildDocument, findSimilarDocument, deleteChildDocument, type SimilarDocument } from "../_lib/learning-actions";
 
 type Phase = "pick" | "reading" | "review" | "saving";
 
@@ -58,6 +58,8 @@ export default function LearningImportClient({ childId, childName }: { childId: 
   const [chosen, setChosen] = useState<Set<number>>(new Set());
   const [addDates, setAddDates] = useState(true);
   const [addTodos, setAddTodos] = useState(true);
+  const [similar, setSimilar] = useState<SimilarDocument | null>(null);
+  const [replace, setReplace] = useState(true);
   const cameraRef = useRef<HTMLInputElement>(null);
   const pickerRef = useRef<HTMLInputElement>(null);
 
@@ -65,7 +67,7 @@ export default function LearningImportClient({ childId, childName }: { childId: 
     if (!list) return;
     setError(null);
     const next: { file: File; url: string }[] = [];
-    for (const f of Array.from(list).slice(0, 5 - pages.length)) {
+    for (const f of Array.from(list).slice(0, 3 - pages.length)) {
       const p = await prepare(f);
       next.push({ file: p, url: p.type === "application/pdf" ? "" : URL.createObjectURL(p) });
     }
@@ -85,12 +87,23 @@ export default function LearningImportClient({ childId, childName }: { childId: 
       body.append("childId", childId);
       for (const p of pages) body.append("files", p.file);
       const res = await fetch("/api/children/documents/extract", { method: "POST", body });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not read those pages.");
+      // A reply that is not JSON is the platform talking, not the reader: a
+      // timeout page, a gateway error. Say so in words instead of failing on
+      // "Unexpected token".
+      const raw = await res.text();
+      let data: any = null;
+      try { data = JSON.parse(raw); } catch { data = null; }
+      if (!res.ok || !data) {
+        if (res.status === 504 || /timed out|timeout/i.test(raw)) throw new Error("Reading took too long. Send fewer pages at once — one graded paper, or a newsletter's three pages.");
+        if (res.status === 413) throw new Error("Those pages are too large to send together. Try fewer at once.");
+        throw new Error(data?.error ?? `The reader did not answer (${res.status}). Try again in a moment.`);
+      }
       const ex = data.extraction as DocumentExtraction;
       setX(ex);
       setChosen(new Set(ex.exercises.map((_, i) => i)));
       setPhase("review");
+      // Same document already kept? Ask before making a second copy.
+      findSimilarDocument(childId, ex).then((r) => { if (r.match) { setSimilar(r.match); setReplace(true); } }).catch(() => {});
     } catch (e) {
       setError((e as Error).message);
       setPhase("pick");
@@ -103,6 +116,10 @@ export default function LearningImportClient({ childId, childName }: { childId: 
     setError(null);
     let r: Awaited<ReturnType<typeof saveChildDocument>>;
     try {
+      if (similar && replace) {
+        const d = await deleteChildDocument(childId, similar.id);
+        if (d.error) throw new Error(d.error);
+      }
       r = await saveChildDocument({
         childId,
         extraction: x,
@@ -145,7 +162,7 @@ export default function LearningImportClient({ childId, childName }: { childId: 
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
         <input ref={pickerRef} type="file" accept="image/*,application/pdf" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
 
-        <Group header="Pages" footer="A newsletter's front, its spelling sheet and the word list go in together as one document. A graded test goes in on its own.">
+        <Group header="Pages" footer="Up to three pages per read. A newsletter's front, its spelling sheet and the word list go in together. A graded paper goes in on its own.">
           {pages.map((p, i) => (
             <Cell
               key={i}
@@ -183,6 +200,16 @@ export default function LearningImportClient({ childId, childName }: { childId: 
       <Group header={KIND_LABEL[x.kind] ?? "Document"} footer={x.summary || undefined}>
         <Cell chevron={false} title={x.title} subtitle={x.doc_date ? fmtDate(x.doc_date) : undefined} />
       </Group>
+
+      {similar && (
+        <Group header="Already kept?" footer={replace ? `Replacing removes the earlier copy and everything it created${similar.exercises || similar.todos || similar.reminders ? ` (${[similar.exercises ? `${similar.exercises} exercises` : null, similar.todos ? `${similar.todos} to-dos` : null, similar.reminders ? `${similar.reminders} reminders` : null].filter(Boolean).join(", ")})` : ""}, then keeps this read. Nothing doubles.` : "Both copies will be kept. Their to-dos and reminders will not be doubled, but exercises will."}>
+          <Cell chevron={false} lead={<IconBadge color="var(--ios-orange)"><Icons.BookIcon /></IconBadge>} title={similar.title} subtitle={`Kept ${fmtDate(similar.createdAt.slice(0, 10))}${similar.reason ? ` · ${similar.reason}` : ""}`} />
+          <div style={{ display: "flex", gap: 8, padding: "10px 16px 12px" }}>
+            <Chip small selected={replace} onClick={() => setReplace(true)}>Replace it</Chip>
+            <Chip small selected={!replace} onClick={() => setReplace(false)}>Keep both</Chip>
+          </div>
+        </Group>
+      )}
 
       {x.dates.length > 0 && (
         <Group header="Dates" footer={addDates ? `These become household reminders on Today for both of you. No-school days also warn the evening before.` : "Not added to reminders."}>
