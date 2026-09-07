@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { rankVoices, pickBestVoice } from "@/lib/tts-voices";
+import { pickBestVoice } from "@/lib/tts-voices";
 import type { ChildTask } from "../_lib/learning";
 import { completeTask, markWordPracticed } from "../_lib/learning-actions";
 
@@ -49,16 +49,40 @@ const BUDDY_RATE_KEY = "buddy-rate";
  * Evan, Nathan, Aaron — Premium over Enhanced, then whatever ranks best.
  * Never a novelty voice; the shared ranking already drops those.
  */
-const KID_FRIENDLY = ["Ava", "Zoe", "Joelle", "Noelle", "Evan", "Nathan", "Aaron", "Jackson"];
+const KID_FRIENDLY = ["Ava", "Zoe", "Samantha", "Allison", "Joelle", "Noelle", "Nicky", "Evan", "Nathan", "Aaron", "Tom", "Susan"];
+const NOVELTY = /compact|eloquence|bahh|bells|boing|bubbles|cellos|deranged|good news|bad news|jester|organ|superstar|trinoids|whisper|wobble|zarvox|albert|junior|ralph|fred|grandma|grandpa|rocko|shelley|sandy|flo|eddy|reed|kathy|hysterical|pipe|deity|diety/i;
+
+/** Every real English voice on this device: novelty and legacy "compact" voices dropped, nothing else. */
+function englishVoices(all: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
+  const lang = (v: SpeechSynthesisVoice) => (v.lang || "").replace("_", "-");
+  const quality = (v: SpeechSynthesisVoice) => (/\bpremium\b/i.test(v.name) ? 2 : /\benhanced\b/i.test(v.name) ? 1 : 0);
+  return all
+    .filter((v) => lang(v).toLowerCase().startsWith("en") && !NOVELTY.test(v.name))
+    .sort((a, b) => {
+      const us = (lang(b) === "en-US" ? 1 : 0) - (lang(a) === "en-US" ? 1 : 0);
+      if (us) return us;
+      const q = quality(b) - quality(a);
+      if (q) return q;
+      const ka = KID_FRIENDLY.findIndex((n) => new RegExp(`\\b${n}\\b`, "i").test(a.name));
+      const kb = KID_FRIENDLY.findIndex((n) => new RegExp(`\\b${n}\\b`, "i").test(b.name));
+      return (ka < 0 ? 99 : ka) - (kb < 0 ? 99 : kb) || a.name.localeCompare(b.name);
+    });
+}
+
+/** The default: the most natural US voice this device has, in a warm adult register. */
 function pickKidVoice(all: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
-  const ranked = rankVoices(all);
-  for (const tier of [/\bpremium\b/i, /\benhanced\b/i, /./]) {
+  const us = englishVoices(all).filter((v) => (v.lang || "").replace("_", "-") === "en-US");
+  for (const tier of [/\bpremium\b/i, /\benhanced\b/i]) {
     for (const n of KID_FRIENDLY) {
-      const v = ranked.find((x) => tier.test(x.name) && new RegExp(`\\b${n}\\b`, "i").test(x.name));
+      const v = us.find((x) => tier.test(x.name) && new RegExp(`\\b${n}\\b`, "i").test(x.name));
       if (v) return v;
     }
   }
-  return pickBestVoice(all);
+  for (const n of KID_FRIENDLY) {
+    const v = us.find((x) => new RegExp(`\\b${n}\\b`, "i").test(x.name));
+    if (v) return v;
+  }
+  return us[0] ?? englishVoices(all)[0] ?? pickBestVoice(all);
 }
 
 function readLocal(key: string): string | null {
@@ -85,7 +109,7 @@ function useSpeech() {
       const picked = (chosen ? all.find((v) => v.name === chosen) : null) ?? pickKidVoice(all);
       voiceRef.current = picked;
       setVoiceName(picked?.name ?? null);
-      setChoices(rankVoices(all).slice(0, 10));
+      setChoices(englishVoices(all));
     };
     apply();
     window.speechSynthesis.addEventListener("voiceschanged", apply);
@@ -229,16 +253,32 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
         </div>
         {pickingVoice && (
           <div style={{ ...cardStyle, marginBottom: 14, padding: "12px 14px" }}>
-            <div style={{ fontSize: 14, color: "var(--ios-label-2)", marginBottom: 8 }}>For grown-ups: pick the voice Buddy uses on this device. Tap ▶︎ to hear one.</div>
+            <div style={{ fontSize: 14, color: "var(--ios-label-2)", marginBottom: 8 }}>For grown-ups: pick the voice Buddy uses on this device. Tap a name to hear it.</div>
             {choices.length === 0 && <div style={{ fontSize: 15, color: "var(--ios-label-3)" }}>No voices loaded yet — tap the sound check first.</div>}
-            {choices.map((v) => (
-              <div key={v.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--ios-separator)" }}>
-                <button type="button" onClick={() => { choose(v.name); speak(`Hi ${first}, I'm Buddy! Let's learn something.`, 1); }} style={{ flex: 1, textAlign: "left", background: "none", border: "none", fontSize: 17, fontWeight: v.name === voiceName ? 800 : 500, color: v.name === voiceName ? "var(--ios-tint)" : "var(--ios-label)", cursor: "pointer", padding: 0 }}>
-                  {v.name === voiceName ? "✓ " : ""}{v.name}
-                </button>
-                <span style={{ fontSize: 12, color: "var(--ios-label-3)" }}>{v.lang}</span>
-              </div>
-            ))}
+            {(["en-US", "other"] as const).map((group) => {
+              const list = choices.filter((v) => ((v.lang || "").replace("_", "-") === "en-US") === (group === "en-US"));
+              if (list.length === 0) return null;
+              return (
+                <div key={group}>
+                  <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--ios-label-3)", margin: "10px 0 4px" }}>{group === "en-US" ? "US English" : "Other English"}</div>
+                  {list.map((v) => {
+                    const q = /\bpremium\b/i.test(v.name) ? "Premium" : /\benhanced\b/i.test(v.name) ? "Enhanced" : null;
+                    return (
+                      <div key={v.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--ios-separator)" }}>
+                        <button type="button" onClick={() => { choose(v.name); speak(`Hi ${first}, I'm Buddy! Let's learn something.`, 1); }} style={{ flex: 1, textAlign: "left", background: "none", border: "none", fontSize: 17, fontWeight: v.name === voiceName ? 800 : 500, color: v.name === voiceName ? "var(--ios-tint)" : "var(--ios-label)", cursor: "pointer", padding: 0 }}>
+                          {v.name === voiceName ? "✓ " : ""}{v.name.replace(/\s*\((premium|enhanced)\)/i, "")}
+                        </button>
+                        {q && <span style={{ fontSize: 11, fontWeight: 700, color: q === "Premium" ? "var(--ios-green)" : "var(--ios-tint)", border: "1px solid currentColor", borderRadius: 999, padding: "2px 8px" }}>{q}</span>}
+                        <span style={{ fontSize: 12, color: "var(--ios-label-3)" }}>{v.lang}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+            <div style={{ fontSize: 13, color: "var(--ios-label-2)", lineHeight: 1.5, marginTop: 12, padding: "10px 12px", background: "var(--ios-fill)", borderRadius: 10 }}>
+              <strong>The natural ones have to be downloaded first.</strong> On the iPad or iPhone: Settings → Accessibility → Spoken Content → Voices → English → tap <em>Ava</em>, <em>Zoe</em>, <em>Evan</em> or <em>Nathan</em> and download the <em>Premium</em> version (about 200 MB each). Then close Safari fully and reopen this screen; they appear here marked Premium, and Buddy picks the best one by himself.
+            </div>
           </div>
         )}
 
