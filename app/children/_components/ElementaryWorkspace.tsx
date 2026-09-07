@@ -118,6 +118,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   const [sent, setSent] = useState<Set<string>>(new Set());
   const [customTask, setCustomTask] = useState("");
   const [notice, setNotice] = useState<{ text: string; undo?: () => void } | null>(null);
+  const [viewer, setViewer] = useState<{ title: string; urls: string[] } | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pending, start] = useTransition();
   const db = createClient() as any;
@@ -225,9 +226,13 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   }
 
   // ── Documents ───────────────────────────────────────────────────────────
-  async function openDocument(id: string) {
+  // Every page, stacked, in the app. The first version opened only the first
+  // page's link in a new tab.
+  async function openDocument(id: string, title: string) {
     const r = await childDocumentUrls(data.childId, id);
-    if (r.urls && r.urls[0]) window.open(r.urls[0], "_blank");
+    if (r.error) { say(r.error); return; }
+    if (!r.urls || r.urls.length === 0) { say("No pages are attached to this document."); return; }
+    setViewer({ title, urls: r.urls });
   }
   async function rebuildDocument(id: string, title: string, kind: string) {
     const ok = window.confirm(`Rebuild the plan from “${title}” without re-reading it?\n\nEverything it created is removed and made again from the stored read, with every recommended exercise back in${kind === "newsletter" ? ", and its dates and the spelling test back on Today" : ""}. Practice taps and “Did it” logs for its exercises start over.`);
@@ -466,7 +471,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
             <Cell
               key={d.id}
               chevron={false}
-              onClick={d.filePaths.length > 0 ? () => openDocument(d.id) : undefined}
+              onClick={d.filePaths.length > 0 ? () => openDocument(d.id, d.title) : undefined}
               lead={<IconBadge color={d.kind === "graded_work" ? "#B565A7" : "var(--ios-tint)"}><Icons.BookIcon /></IconBadge>}
               title={d.title}
               subtitle={`${d.docDate ? fmtDate(d.docDate, false) : fmtDate(d.createdAt.slice(0, 10), false)}${d.filePaths.length > 0 ? ` · ${d.filePaths.length} page${d.filePaths.length === 1 ? "" : "s"} · tap to view` : " · no pages attached"}`}
@@ -517,6 +522,20 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         <AddHealthNoteForm childId={data.childId} viewerUserId={viewerUserId} onAdded={(h) => setHealthNotes((prev) => [...prev, h])} />
       </div>
 
+      {viewer && (
+        <div role="dialog" aria-label={viewer.title} onClick={() => setViewer(null)} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.92)", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+          <div style={{ position: "sticky", top: 0, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "max(12px, env(safe-area-inset-top)) 16px 12px", background: "rgba(0,0,0,0.7)", color: "#fff", backdropFilter: "blur(10px)" }}>
+            <span style={{ fontWeight: 600, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{viewer.title} · {viewer.urls.length} page{viewer.urls.length === 1 ? "" : "s"}</span>
+            <button type="button" onClick={() => setViewer(null)} style={{ background: "rgba(255,255,255,0.15)", color: "#fff", border: "none", borderRadius: 999, padding: "8px 14px", fontWeight: 700 }}>Close</button>
+          </div>
+          <div onClick={(e) => e.stopPropagation()} style={{ display: "grid", gap: 12, padding: "12px 12px 40px", maxWidth: 820, margin: "0 auto" }}>
+            {viewer.urls.map((u, i) => (
+              // eslint-disable-next-line @next/next/no-img-element -- signed, short-lived storage URLs; next/image cannot proxy them
+              <img key={i} src={u} alt={`${viewer.title}, page ${i + 1}`} style={{ width: "100%", height: "auto", borderRadius: 8, background: "#fff" }} />
+            ))}
+          </div>
+        </div>
+      )}
       {pending && <span className="ios-caption" style={{ position: "fixed", bottom: 90, right: 16, color: "var(--ios-label-3)" }}>Saving…</span>}
     </>
   );

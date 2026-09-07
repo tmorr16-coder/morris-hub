@@ -9,7 +9,7 @@
 // there is nothing to get lost in. A small "Grown-ups" link at the bottom is
 // the only way out, and it goes back to the parents' workspace.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { pickBestVoice } from "@/lib/tts-voices";
 import type { ChildTask } from "../_lib/learning";
@@ -80,17 +80,19 @@ function useSpeech() {
  * grader; talking is not. Returns null where the device cannot do it, and the
  * button is simply not drawn.
  */
+const noSubscribe = () => () => {};
+const hasRecognition = () => !!((window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition);
+
 function useListening(onResult: (text: string, final: boolean) => void) {
   const recRef = useRef<any>(null);
   const [listening, setListening] = useState(false);
-  const [supported, setSupported] = useState(false);
+  // Read once on the client, false on the server, no state to set in an effect.
+  const supported = useSyncExternalStore(noSubscribe, hasRecognition, () => false);
   const cb = useRef(onResult);
-  cb.current = onResult;
+  useEffect(() => { cb.current = onResult; });
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!supported) return;
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
-    if (!SR) return;
-    setSupported(true);
     const rec = new SR();
     rec.lang = "en-US";
     rec.interimResults = true;
@@ -109,7 +111,7 @@ function useListening(onResult: (text: string, final: boolean) => void) {
     rec.onerror = () => setListening(false);
     recRef.current = rec;
     return () => { try { rec.abort(); } catch { /* already stopped */ } };
-  }, []);
+  }, [supported]);
   const start = useCallback(() => {
     if (!recRef.current) return;
     try { window.speechSynthesis?.cancel(); recRef.current.start(); setListening(true); } catch { setListening(false); }
