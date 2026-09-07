@@ -109,6 +109,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
           <div className="ios-subhead" style={{ fontWeight: 600, color: "var(--ios-green)" }}>Kept.</div>
           <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>
             {Number(params.get("reminders") ?? 0) > 0 ? `${params.get("reminders")} reminders and ` : ""}{Number(params.get("todos") ?? 0) > 0 ? `${params.get("todos")} practice to-dos ` : ""}{(Number(params.get("reminders") ?? 0) + Number(params.get("todos") ?? 0)) > 0 ? "are on Today for both of you." : "Nothing was added to Today."}
+            {params.get("pages") === "0" ? " The page photos could not be attached; the plan was kept without them." : ""}
           </div>
         </div>
       )}

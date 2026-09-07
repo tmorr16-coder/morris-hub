@@ -246,27 +246,8 @@ export async function saveChildDocument(input: {
   return { documentId, reminders, todos };
 }
 
-/** Attach the photographed pages to a saved document. Separate from the save so a storage hiccup never loses the read. */
-export async function uploadChildDocumentFiles(childId: string, documentId: string, formData: FormData): Promise<{ error?: string }> {
-  const g = await requireGuardian(childId);
-  if ("error" in g) return { error: g.error };
-  const svc = db();
-  const files = formData.getAll("files").filter((f): f is File => f instanceof File);
-  if (files.length === 0) return {};
-  const paths: string[] = [];
-  for (const [i, file] of files.entries()) {
-    if (file.size > 8 * 1024 * 1024) continue;
-    const safe = file.name.replace(/[^\w.\-]+/g, "_").slice(-80) || `page-${i + 1}.jpg`;
-    const path = `${g.userId}/${childId}/${documentId}/${i + 1}-${safe}`;
-    const { error } = await svc.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: true });
-    if (!error) paths.push(path);
-  }
-  if (paths.length > 0) {
-    await svc.schema("hub").from("child_documents").update({ file_paths: paths }).eq("id", documentId).eq("child_id", childId);
-  }
-  revalidatePath(`/children/${childId}`);
-  return {};
-}
+// Page uploads go through app/api/children/documents/upload, a route handler:
+// a server action's body is capped at 1 MB and phone photos exceed it.
 
 /** Short-lived links to the pages of a document, for viewing. */
 export async function childDocumentUrls(childId: string, documentId: string): Promise<{ error?: string; urls?: string[] }> {

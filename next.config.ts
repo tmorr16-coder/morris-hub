@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Server actions default to a 1 MB body. The Health record import sends a
+  // photographed lab report through one, and a phone photo is more than that
+  // even after resizing; the child-document flow hit exactly this and hung.
+  // 4 MB matches Vercel's request ceiling with room to spare.
+  experimental: {
+    serverActions: { bodySizeLimit: "4mb" },
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "lh3.googleusercontent.com" },

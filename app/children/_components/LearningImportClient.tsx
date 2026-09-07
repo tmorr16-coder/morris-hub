@@ -11,7 +11,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Group, Cell, Chip, IconBadge, Icons } from "@/components/ios";
 import type { DocumentExtraction } from "../_lib/learning";
-import { saveChildDocument, uploadChildDocumentFiles } from "../_lib/learning-actions";
+import { saveChildDocument } from "../_lib/learning-actions";
 
 type Phase = "pick" | "reading" | "review" | "saving";
 
@@ -101,24 +101,41 @@ export default function LearningImportClient({ childId, childName }: { childId: 
     if (!x) return;
     setPhase("saving");
     setError(null);
-    const r = await saveChildDocument({
-      childId,
-      extraction: x,
-      exerciseIndexes: [...chosen],
-      addDateReminders: addDates,
-      addPracticeTodos: addTodos,
-    });
+    let r: Awaited<ReturnType<typeof saveChildDocument>>;
+    try {
+      r = await saveChildDocument({
+        childId,
+        extraction: x,
+        exerciseIndexes: [...chosen],
+        addDateReminders: addDates,
+        addPracticeTodos: addTodos,
+      });
+    } catch (e) {
+      setError((e as Error).message || "Could not save.");
+      setPhase("review");
+      return;
+    }
     if (r.error || !r.documentId) {
       setError(r.error ?? "Could not save.");
       setPhase("review");
       return;
     }
-    // The pages themselves, after the read is safe. A storage hiccup here
-    // costs the scan, not the plan.
-    const fd = new FormData();
-    for (const p of pages) fd.append("files", p.file);
-    await uploadChildDocumentFiles(childId, r.documentId, fd);
-    router.push(`/children/${childId}?saved=1&reminders=${r.reminders ?? 0}&todos=${r.todos ?? 0}`);
+    // The pages themselves, after the read is safe — through a route
+    // handler, since a server action's body is capped at 1 MB and photos are
+    // bigger than that. A storage hiccup here costs the scan, not the plan,
+    // and never keeps the screen on "Saving…": the document is already kept.
+    let pagesNote = "";
+    try {
+      const fd = new FormData();
+      fd.append("childId", childId);
+      fd.append("documentId", r.documentId);
+      for (const p of pages) fd.append("files", p.file);
+      const res = await fetch("/api/children/documents/upload", { method: "POST", body: fd });
+      if (!res.ok) pagesNote = "&pages=0";
+    } catch {
+      pagesNote = "&pages=0";
+    }
+    router.push(`/children/${childId}?saved=1&reminders=${r.reminders ?? 0}&todos=${r.todos ?? 0}${pagesNote}`);
   }
 
   // ── Pick ──────────────────────────────────────────────────────────────────
