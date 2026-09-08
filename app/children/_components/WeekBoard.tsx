@@ -43,74 +43,50 @@ function completion(items: WeekItem[]): { done: number; total: number } {
   return { done, total: items.length };
 }
 
-export function WeekBoard({
-  items,
-  weekLabel,
-  emptyNote,
-}: {
-  items: WeekItem[];
-  weekLabel?: string | null;
-  emptyNote: string;
-}) {
+/** How far through the week, for the fold's header. Visible open or shut. */
+export function WeekProgress({ items, weekLabel }: { items: WeekItem[]; weekLabel?: string | null }) {
   const { done, total } = completion(items);
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
   const allDone = total > 0 && pct === 100;
-
   return (
-    <section className="ios-group" id="week">
-      <div
-        className="ios-list"
-        style={{ margin: "0 var(--ios-gutter)", overflow: "hidden", padding: 0 }}
-      >
-        {/* ── Header ──────────────────────────────────────────────────── */}
-        <div
-          style={{
-            padding: "14px 16px 12px",
-            background: "var(--ios-fill-2)",
-            borderBottom: "1px solid var(--ios-separator)",
-          }}
+    <div style={{ padding: "0 var(--ios-gutter) 4px" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+        <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>{weekLabel}</span>
+        <span
+          className="ios-subhead"
+          style={{ color: allDone ? "var(--ios-green)" : "var(--ios-label-2)", fontWeight: 700, whiteSpace: "nowrap" }}
         >
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-            <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", margin: 0 }}>
-              This week
-            </h2>
-            <span
-              className="ios-subhead"
-              style={{ color: allDone ? "var(--ios-green)" : "var(--ios-label-2)", fontWeight: 700, whiteSpace: "nowrap" }}
-            >
-              {total === 0 ? "—" : allDone ? "All done 🎉" : `${Math.round(done)} of ${total}`}
-            </span>
-          </div>
-          {weekLabel && (
-            <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 2 }}>{weekLabel}</div>
-          )}
-          {total > 0 && (
-            <div
-              aria-hidden
-              style={{
-                height: 6, borderRadius: 999, background: "var(--ios-fill)",
-                marginTop: 10, overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  height: "100%", width: `${pct}%`, borderRadius: 999,
-                  background: allDone ? "var(--ios-green)" : "var(--ios-tint)",
-                  transition: "width 0.3s ease",
-                }}
-              />
-            </div>
-          )}
+          {total === 0 ? "—" : allDone ? "All done 🎉" : `${Math.round(done)} of ${total}`}
+        </span>
+      </div>
+      {total > 0 && (
+        <div
+          aria-hidden
+          style={{ height: 6, borderRadius: 999, background: "var(--ios-fill)", marginTop: 6, overflow: "hidden" }}
+        >
+          <div
+            style={{
+              height: "100%", width: `${pct}%`, borderRadius: 999,
+              background: allDone ? "var(--ios-green)" : "var(--ios-tint)",
+              transition: "width 0.3s ease",
+            }}
+          />
         </div>
+      )}
+    </div>
+  );
+}
 
-        {/* ── Rows ────────────────────────────────────────────────────── */}
-        {items.length === 0 && (
-          <div style={{ padding: "18px 16px", color: "var(--ios-label-2)" }} className="ios-subhead">
-            {emptyNote}
-          </div>
-        )}
+export function WeekRows({ items, emptyNote }: { items: WeekItem[]; emptyNote: string }) {
+  return (
+    <div className="ios-list" style={{ margin: "8px var(--ios-gutter) 0", overflow: "hidden", padding: 0 }}>
+      {items.length === 0 && (
+        <div style={{ padding: "18px 16px", color: "var(--ios-label-2)" }} className="ios-subhead">
+          {emptyNote}
+        </div>
+      )}
 
-        {items.map((it, i) => {
+      {items.map((it, i) => {
           const body = (
             <>
               <span
@@ -198,7 +174,6 @@ export function WeekBoard({
             </div>
           );
         })}
-      </div>
-    </section>
+    </div>
   );
 }
