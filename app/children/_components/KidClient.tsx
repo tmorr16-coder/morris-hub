@@ -23,6 +23,9 @@ interface Props {
   exercises: { id: string; title: string; steps: string | null; minutes: number | null }[];
   spelling: { weekId: string; words: string[]; sightWords: string[]; pattern: string | null } | null;
   stars: { total: number; week: number };
+  /** "buddy" opens straight into the tutor. The link is bookmarkable, so the
+      iPad can have Buddy on its home screen and never show this menu at all. */
+  openTo?: "home" | "buddy";
 }
 
 type View = { kind: "home" } | { kind: "task"; task: ChildTask } | { kind: "tutor" };
@@ -225,13 +228,13 @@ const big: React.CSSProperties = { fontSize: 28, fontWeight: 800, lineHeight: 1.
 const cardStyle: React.CSSProperties = { background: "var(--ios-cell)", borderRadius: 22, padding: "18px 20px", boxShadow: "0 8px 24px -16px rgba(0,0,0,0.4)", border: "1px solid var(--ios-separator)" };
 const bigBtn = (bg: string): React.CSSProperties => ({ width: "100%", padding: "18px 20px", borderRadius: 18, border: "none", background: bg, color: "#fff", fontSize: 22, fontWeight: 800, cursor: "pointer", boxShadow: "0 6px 0 rgba(0,0,0,0.15)" });
 
-export default function KidClient({ childId, name, gradeLabel, tasks: initialTasks, exercises, spelling, stars: initialStars }: Props) {
+export default function KidClient({ childId, name, gradeLabel, tasks: initialTasks, exercises, spelling, stars: initialStars, openTo = "home" }: Props) {
   const { speak, stop, speaking, voiceName, choices, choose } = useSpeech();
   const [pickingVoice, setPickingVoice] = useState(false);
   const first = name.split(" ")[0] || name;
   const [tasks, setTasks] = useState<ChildTask[]>(initialTasks);
   const [stars, setStars] = useState(initialStars);
-  const [view, setView] = useState<View>({ kind: "home" });
+  const [view, setView] = useState<View>(openTo === "buddy" ? { kind: "tutor" } : { kind: "home" });
   const [burst, setBurst] = useState<string | null>(null);
   const open = tasks.filter((t) => !t.completedAt);
   const doneToday = tasks.filter((t) => t.completedAt);
@@ -240,6 +243,11 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
     setBurst(text);
     speak(text, 1);
     setTimeout(() => setBurst(null), 1400);
+  }
+
+  function askBuddy() {
+    setView({ kind: "tutor" });
+    speak(`Hi ${first}! I'm Buddy. What do you want to work on?`);
   }
 
   async function finish(task: ChildTask, earned: number) {
@@ -265,10 +273,31 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
           <button type="button" onClick={() => speak(`Hi ${first}! Can you hear me? Let's go!`, 1)} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "10px 16px", fontSize: 16, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>
             🔊 Tap if you can&rsquo;t hear me
           </button>
-          <button type="button" onClick={() => setPickingVoice((v) => !v)} style={{ background: "transparent", border: "1px solid var(--ios-separator)", borderRadius: 999, padding: "10px 14px", fontSize: 14, fontWeight: 600, color: "var(--ios-label-2)", cursor: "pointer" }}>
-            {pickingVoice ? "Done" : `Buddy's voice${voiceName ? `: ${voiceName.replace(/\s*\(.*?\)/g, "")}` : ""}`}
-          </button>
         </div>
+
+        <div style={{ display: "grid", gap: 12 }}>
+          <button type="button" onClick={askBuddy} style={{ ...cardStyle, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 16, background: "linear-gradient(135deg, #FFB13A, #FF7A59)", color: "#fff", border: "none" }}>
+            <span style={{ fontSize: 40 }}>🦉</span>
+            <span><span style={{ ...big, fontSize: 22, display: "block" }}>Ask Buddy</span><span style={{ fontSize: 16, opacity: 0.95 }}>Your tutor. Ask about your words or your math.</span></span>
+          </button>
+          {open.map((t) => (
+            <button key={t.id} type="button" onClick={() => { setView({ kind: "task", task: t }); speak(t.title); }} style={{ ...cardStyle, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 16 }}>
+              <span style={{ fontSize: 40 }}>{TASK_EMOJI[t.kind] ?? "⭐"}</span>
+              <span style={{ ...big, fontSize: 22 }}>{t.title}</span>
+            </button>
+          ))}
+        </div>
+
+        {doneToday.length > 0 && (
+          <div style={{ marginTop: 22 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Done today</div>
+            {doneToday.map((t) => (
+              <div key={t.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 4px", fontSize: 18, color: "var(--ios-label-2)", borderBottom: "1px solid var(--ios-separator)" }}>
+                <span>{TASK_EMOJI[t.kind]} {t.title}</span><span>{"⭐".repeat(Math.max(1, t.stars))}</span>
+              </div>
+            ))}
+          </div>
+        )}
         {pickingVoice && (
           <div style={{ ...cardStyle, marginBottom: 14, padding: "12px 14px" }}>
             <div style={{ fontSize: 14, color: "var(--ios-label-2)", marginBottom: 8 }}>For grown-ups: pick the voice Buddy uses on this device. Tap a name to hear it.</div>
@@ -299,31 +328,11 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
             </div>
           </div>
         )}
-
-        <div style={{ display: "grid", gap: 12 }}>
-          {open.map((t) => (
-            <button key={t.id} type="button" onClick={() => { setView({ kind: "task", task: t }); speak(t.title); }} style={{ ...cardStyle, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 16 }}>
-              <span style={{ fontSize: 40 }}>{TASK_EMOJI[t.kind] ?? "⭐"}</span>
-              <span style={{ ...big, fontSize: 22 }}>{t.title}</span>
-            </button>
-          ))}
-          <button type="button" onClick={() => { setView({ kind: "tutor" }); speak(`Hi ${first}! I'm Buddy. What do you want to work on?`); }} style={{ ...cardStyle, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 16, background: "linear-gradient(135deg, #FFB13A, #FF7A59)", color: "#fff", border: "none" }}>
-            <span style={{ fontSize: 40 }}>🦉</span>
-            <span><span style={{ ...big, fontSize: 22, display: "block" }}>Ask Buddy</span><span style={{ fontSize: 16, opacity: 0.95 }}>Your tutor. Ask about your words or your math.</span></span>
-          </button>
-        </div>
-
-        {doneToday.length > 0 && (
-          <div style={{ marginTop: 22 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Done today</div>
-            {doneToday.map((t) => (
-              <div key={t.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 4px", fontSize: 18, color: "var(--ios-label-2)", borderBottom: "1px solid var(--ios-separator)" }}>
-                <span>{TASK_EMOJI[t.kind]} {t.title}</span><span>{"⭐".repeat(Math.max(1, t.stars))}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        <Footer childId={childId} />
+        <Footer
+          childId={childId}
+          onVoice={() => setPickingVoice((v) => !v)}
+          voiceLabel={pickingVoice ? "Done" : `Voice${voiceName ? `: ${voiceName.replace(/\s*\(.*?\)/g, "")}` : ""}`}
+        />
       </Shell>
     );
   }
@@ -349,6 +358,9 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
         <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
           {text && <button type="button" style={bigBtn("var(--ios-tint)")} onClick={() => speak(`${t.title}. ${text}`)}>🔊 Read it to me</button>}
           <button type="button" style={bigBtn("#2ACF5F")} onClick={() => finish(t, 1)}>⭐ I did it!</button>
+          {/* Stuck is the moment help is wanted. Going Back, finding the owl and
+              starting over is three taps and a lost train of thought. */}
+          <button type="button" style={{ ...bigBtn("#FF8C42"), fontSize: 19 }} onClick={askBuddy}>🦉 Ask Buddy about this</button>
         </div>
         <Footer childId={childId} />
       </Shell>
@@ -388,10 +400,15 @@ function BackButton({ onClick }: { onClick: () => void }) {
   return <button type="button" onClick={onClick} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "10px 18px", fontSize: 18, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>← Back</button>;
 }
 
-function Footer({ childId }: { childId: string }) {
+function Footer({ childId, onVoice, voiceLabel }: { childId: string; onVoice?: () => void; voiceLabel?: string }) {
   return (
-    <div style={{ marginTop: 40, textAlign: "center" }}>
+    <div style={{ marginTop: 40, display: "flex", justifyContent: "center", gap: 18 }}>
       <Link href={`/children/${childId}`} style={{ fontSize: 13, color: "var(--ios-label-3)", textDecoration: "none" }}>Grown-ups</Link>
+      {onVoice && (
+        <button type="button" onClick={onVoice} style={{ background: "none", border: "none", padding: 0, fontSize: 13, color: "var(--ios-label-3)", cursor: "pointer" }}>
+          {voiceLabel}
+        </button>
+      )}
     </div>
   );
 }

@@ -5,20 +5,35 @@
 // A first grader's workspace, for the parents who run it.
 //
 // The school's week comes home on paper; this is where it lives once it has
-// been photographed. The screen answers, in order: what is this week about,
-// what is coming up, what should we practise tonight and why, how is it
-// going, and what did the school send. The child's routine and health notes
-// stay underneath, as before.
+// been photographed.
+//
+// The screen is in two halves. Above the line is this week: one checklist of
+// everything owed — words, scripture, the practice the graded papers argued
+// for, anything sent by hand — then the four places a parent goes over and
+// over, in a row that never changes order. Below the line is the record: the
+// dates, the scores, the newsletters, the tutor transcript. That half only
+// grows, so it stays folded.
+//
+// It used to be one flat stack of thirteen open sections in the order the
+// data arrived. That was fine for a week. By the third newsletter and the
+// tenth graded paper the record was most of the screen's height and none of
+// its purpose, and the two things asked for every single evening — the
+// spelling words and the memory verse — were the fourth section and a
+// subtitle line in the eighth.
 //
 // Every tap here can be taken back: a word tapped by mistake, a "Did it",
 // a dismissed exercise, a whole scanned document with everything it created.
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { LargeTitle, Group, Cell, IconBadge, Icons, Chip, GlanceGrid, GlanceTile, Sparkline } from "@/components/ios";
+import { LargeTitle, Group, Cell, IconBadge, Icons, Chip, Sparkline } from "@/components/ios";
 import type { ChildWorkspaceData, ChildActivity, ChildHealthNote } from "../_lib/children";
 import type { Exercise, SchoolDate, ChildTask } from "../_lib/learning";
+import { resourcesFor, STAPLES, KIND_LABEL } from "../_lib/resources";
+import { Fold } from "./Fold";
+import { WeekBoard, type WeekItem } from "./WeekBoard";
 import {
   logPractice, unlogPractice, setExerciseStatus, markWordPracticed, childDocumentUrls,
   deleteChildDocument, documentImpact, assignTask, deleteTask, reopenTask, rebuildFromDocument, resetWeekPractice,
@@ -117,21 +132,25 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   const [openExercise, setOpenExercise] = useState<string | null>(null);
   const [sent, setSent] = useState<Set<string>>(new Set());
   const [customTask, setCustomTask] = useState("");
-  const [notice, setNotice] = useState<{ text: string; undo?: () => void } | null>(null);
+  const [notice, setNotice] = useState<{ text: string; undo?: () => void; ms: number; at: number } | null>(null);
   const [viewer, setViewer] = useState<{ title: string; urls: string[] } | null>(null);
-  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pending, start] = useTransition();
   const db = createClient() as any;
   const L = data.learning;
   const week = L?.spellingWeek ?? null;
   const kid = firstName(data.name);
 
-  useEffect(() => () => { if (noticeTimer.current) clearTimeout(noticeTimer.current); }, []);
-  function say(text: string, undo?: () => void, ms = 8000) {
-    if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    setNotice({ text, undo });
-    noticeTimer.current = setTimeout(() => setNotice(null), ms);
-  }
+  // Each notice owns its own timeout: a new one replaces the old because the
+  // effect's cleanup runs first. `at` makes every call a distinct value, so
+  // saying the same thing twice still restarts the clock.
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), notice.ms);
+    return () => clearTimeout(t);
+  }, [notice]);
+  const say = useCallback((text: string, undo?: () => void, ms = 8000) => {
+    setNotice({ text, undo, ms, at: Date.now() });
+  }, []);
 
   async function complete(id: string) {
     setActivities((prev) => prev.map((a) => (a.id === id ? { ...a, completed: true } : a)));
@@ -276,20 +295,141 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   const done = activities.filter((a) => a.completed);
   const openNotes = healthNotes.filter((h) => !h.resolved);
   const openTasks = tasks.filter((t) => !t.completedAt);
-  const doneTasks = tasks.filter((t) => t.completedAt);
 
   const trends = trendsBySubject(L?.assessments ?? []);
   const watch = trends[0] ?? null;
   const wordsPracticed = week ? week.words.filter((w) => (practiced[w] ?? 0) > 0).length : 0;
+  const totalWords = week ? week.words.length + week.sightWords.length : 0;
+  const allWordsPractised = week ? [...week.words, ...week.sightWords].every((w) => (practiced[w] ?? 0) > 0) : false;
   const newsletter = L?.latestNewsletter;
   const nx = newsletter?.extracted;
   const isGuardian = data.viewerIsGuardian;
+
+  // ── The week's standing work ────────────────────────────────────────────
+  // Scripture and memory work come home every week in the same three shapes.
+  // They used to be three subtitle lines inside "This week at school", eight
+  // sections down; they are the most repeated thing the school asks for, so
+  // they get a section and a place in the checklist.
+  const scripture = [
+    nx?.memory_verse ? { key: "verse", label: "Memory verse", glyph: "\u{1F4D6}", text: nx.memory_verse } : null,
+    nx?.recitation ? { key: "recitation", label: "Recitation", glyph: "\u{1F5E3}️", text: nx.recitation } : null,
+    nx?.read_aloud ? { key: "readaloud", label: "Read aloud", glyph: "\u{1F4DA}", text: nx.read_aloud } : null,
+  ].filter(Boolean) as { key: string; label: string; glyph: string; text: string }[];
+
+  const requests = (nx?.parent_requests ?? []) as string[];
+
+  /** The task a titled item was sent as, if it was. Titles are fixed strings. */
+  const taskByTitle = (title: string) => tasks.find((t) => t.title === title) ?? null;
+
+  function sendTitled(title: string, text: string | null, kind: "reading" | "custom") {
+    start(async () => {
+      const r = await assignTask({ childId: data.childId, kind, title, instructions: text });
+      if (r.error) { say(`Couldn't send: ${r.error}`); return; }
+      if (r.id) {
+        setTasks((t) => [{ id: r.id!, kind, exerciseId: null, title, instructions: text, payload: {}, assignedOn: new Date().toISOString().slice(0, 10), dueOn: null, completedAt: null, stars: 0, childNote: null }, ...t]);
+        say(`Sent “${title}” to ${kid}'s screen.`);
+      }
+    });
+  }
+
+  // ── The checklist ───────────────────────────────────────────────────────
+  // Everything owed this week, from four tables, in the order a parent works
+  // through it: words, scripture, the practice the papers argued for, then
+  // whatever was sent by hand.
+  const weekItems: WeekItem[] = [];
+  const claimedTaskIds = new Set<string>();
+
+  if (week && totalWords > 0) {
+    const wordTask = tasks.find((t) => t.kind === "spelling");
+    if (wordTask) claimedTaskIds.add(wordTask.id);
+    weekItems.push({
+      key: "spelling",
+      glyph: "\u{1F524}",
+      label: "Spelling words",
+      detail: [week.pattern, week.testOn ? `test ${soon(week.testOn)}` : null].filter(Boolean).join(" · ") || null,
+      progress: { done: wordsPracticed + week.sightWords.filter((w) => (practiced[w] ?? 0) > 0).length, total: totalWords },
+      done: allWordsPractised,
+      href: "#spelling",
+      action: isGuardian ? { label: sent.has("words") || wordTask ? "Sent" : "Send", run: sendWords, disabled: sent.has("words") || !!wordTask, muted: sent.has("words") || !!wordTask } : null,
+    });
+  }
+
+  for (const sc of scripture) {
+    const t = taskByTitle(sc.label);
+    if (t) claimedTaskIds.add(t.id);
+    weekItems.push({
+      key: sc.key,
+      glyph: sc.glyph,
+      label: sc.label,
+      detail: sc.text,
+      done: !!t?.completedAt,
+      href: "#scripture",
+      action: isGuardian ? { label: t ? (t.completedAt ? "Done ✓" : "Sent") : "Send", run: () => sendTitled(sc.label, sc.text, "reading"), disabled: !!t, muted: !!t } : null,
+    });
+  }
+
+  for (const ex of exercises) {
+    const t = tasks.find((x) => x.exerciseId === ex.id);
+    if (t) claimedTaskIds.add(t.id);
+    weekItems.push({
+      key: `ex-${ex.id}`,
+      glyph: "✏️",
+      label: ex.title,
+      detail: [ex.minutes ? `${ex.minutes} min` : null, FREQ_LABEL[ex.frequency], ex.streak > 0 ? `${ex.streak}-day streak` : null].filter(Boolean).join(" · "),
+      done: ex.doneToday,
+      href: "#practice",
+      action: { label: ex.doneToday ? "Done ✓" : "Did it", run: () => toggleDone(ex), disabled: pending, muted: ex.doneToday },
+    });
+  }
+
+  for (const r of requests) {
+    const t = taskByTitle(r);
+    if (t) claimedTaskIds.add(t.id);
+    weekItems.push({
+      key: `req-${r}`,
+      glyph: "\u{1F514}",
+      label: r,
+      detail: "Asked for in the newsletter",
+      done: !!t?.completedAt,
+      action: isGuardian ? { label: t ? (t.completedAt ? "Done ✓" : "Sent") : "Send", run: () => sendTitled(r, null, "custom"), disabled: !!t, muted: !!t } : null,
+    });
+  }
+
+  // Anything a parent typed in by hand, and anything sent that the sections
+  // above did not already account for.
+  for (const t of tasks) {
+    if (claimedTaskIds.has(t.id)) continue;
+    weekItems.push({
+      key: `task-${t.id}`,
+      glyph: TASK_EMOJI[t.kind] ?? "⭐",
+      label: t.title,
+      detail: t.completedAt ? `Done · ${"⭐".repeat(Math.max(1, t.stars))}` : `On ${kid}'s screen`,
+      done: !!t.completedAt,
+      action: isGuardian
+        ? t.completedAt
+          ? { label: "Undo", run: () => reopen(t), muted: true }
+          : { label: "Remove", run: () => removeTask(t), muted: true }
+        : null,
+    });
+  }
+
+  // ── Resources ───────────────────────────────────────────────────────────
+  const resourceSections = resourcesFor([
+    ...exercises.map((e) => `${e.skill ?? ""} ${e.title}`),
+    ...trends.map((t) => t.subject),
+    week?.pattern,
+    week ? "spelling" : null,
+    scripture.length > 0 ? "scripture memory verse" : null,
+    ...(nx?.academics ?? []).map((a) => `${a.subject} ${a.topics.join(" ")}`),
+  ]);
+
+  const kidHref = `/children/${data.childId}/kid`;
 
   return (
     <>
       <LargeTitle
         title={data.name}
-        subtitle={[L?.gradeLabel, data.age != null ? `Age ${data.age}` : null, week?.weekStart ? `Week of ${fmtDate(week.weekStart, false)}` : null].filter(Boolean).join(" · ") || "Student Success"}
+        subtitle={[L?.gradeLabel, data.age != null ? `Age ${data.age}` : null].filter(Boolean).join(" · ") || "Student Success"}
       />
 
       {notice && (
@@ -310,31 +450,48 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         </div>
       )}
 
-      {/* ── The big actions, first ─────────────────────────────────────── */}
+      {/* ── The week, first and loudest ─────────────────────────────────── */}
+      <WeekBoard
+        items={weekItems}
+        weekLabel={week?.weekStart ? `Week of ${fmtDate(week.weekStart, false)}${week.testOn ? ` · spelling test ${soon(week.testOn)}` : ""}` : null}
+        emptyNote="Nothing set for this week yet. Photograph the newsletter or a graded paper and the week fills itself in."
+      />
+
+      {/* ── The four places, always in the same order ───────────────────── */}
+      {/* Muscle memory is the point: these do not move, whatever the week
+          holds, so a parent stops reading them after a fortnight. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, margin: "14px var(--ios-gutter) 0" }}>
+        {[
+          { href: "#spelling", glyph: "\u{1F524}", label: "Spelling", sub: week ? `${wordsPracticed + week.sightWords.filter((w) => (practiced[w] ?? 0) > 0).length}/${totalWords}` : "—" },
+          { href: "#scripture", glyph: "\u{1F4D6}", label: "Scripture", sub: scripture.length > 0 ? `${scripture.length}` : "—" },
+          { href: `${kidHref}?open=buddy`, glyph: "\u{1F989}", label: "Buddy", sub: "Ask" },
+          { href: `/children/${data.childId}/import`, glyph: "\u{1F4F7}", label: "Add", sub: "From school" },
+        ].map((t) => (
+          <Link
+            key={t.label}
+            href={t.href}
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+              padding: "12px 4px 10px", borderRadius: 14, background: "var(--ios-cell)",
+              border: "1px solid var(--ios-separator)", textDecoration: "none", color: "var(--ios-label)",
+            }}
+          >
+            <span aria-hidden style={{ fontSize: 24, lineHeight: 1 }}>{t.glyph}</span>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>{t.label}</span>
+            <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>{t.sub}</span>
+          </Link>
+        ))}
+      </div>
+
       {isGuardian && (
-        <Group footer="Photograph what came home as it comes out of the folder. Hand the phone over and the other screen is built for a six-year-old.">
-          <Cell href={`/children/${data.childId}/import`} lead={<IconBadge color="var(--ios-tint)"><Icons.ComposeIcon /></IconBadge>} title="Add what came home" subtitle="Camera or photos · read and turned into a plan" />
-          <Cell href={`/children/${data.childId}/kid`} lead={<IconBadge color="var(--ios-orange)"><Icons.SparkleIcon /></IconBadge>} title={`${kid}'s screen`} subtitle={`${openTasks.length} task${openTasks.length === 1 ? "" : "s"} waiting · ${L?.stars.week ?? 0} stars this week · tutor built in`} />
-        </Group>
-      )}
-
-      {/* ── Glance ─────────────────────────────────────────────────────── */}
-      {L && (L.spellingWeek || L.assessments.length > 0 || L.exercises.length > 0) && (
-        <GlanceGrid>
-          <GlanceTile href={`/children/${data.childId}#spelling`} label="Spelling test" icon={<Icons.CalendarIcon />} value={week?.testOn ? soon(week.testOn) : "—"} sub={week?.pattern ?? undefined} accent="var(--ios-tint)" />
-          <GlanceTile href={`/children/${data.childId}#spelling`} label="Words practised" icon={<Icons.ChecklistIcon />} value={week ? `${wordsPracticed}/${week.words.length}` : "—"} sub={week ? "tap a word below" : undefined} accent="var(--ios-green)" />
-          <GlanceTile href={`/children/${data.childId}#practice`} label="Practice days" icon={<Icons.SparkleIcon />} value={`${L.practiceDaysThisWeek}/7`} sub="this week" accent="var(--ios-orange)" />
-          <GlanceTile href={`/children/${data.childId}#progress`} label={watch ? "Watch" : "Scores"} icon={<Icons.ChartIcon />} value={watch ? `${watch.label} ${watch.latest}%` : "—"} sub={watch ? `${arrow(watch.delta).glyph ? `${arrow(watch.delta).glyph} ${Math.abs(watch.delta ?? 0)} pts · ` : ""}${trends.length} subject${trends.length === 1 ? "" : "s"} tracked` : "no graded work yet"} accent={watch ? pctColor(watch.latest) : "#B565A7"} />
-        </GlanceGrid>
-      )}
-
-      {/* ── Coming up ──────────────────────────────────────────────────── */}
-      {L && L.upcomingDates.length > 0 && (
-        <Group header="Coming up">
-          {L.upcomingDates.map((d, i) => (
-            <Cell key={i} chevron={false} lead={<IconBadge color={d.kind === "no_school" || d.kind === "early_dismissal" ? "var(--ios-orange)" : "var(--ios-tint)"}><Icons.CalendarIcon /></IconBadge>} title={d.title} subtitle={`${fmtDate(d.date)}${DATE_KIND_LABEL[d.kind] ? ` · ${DATE_KIND_LABEL[d.kind]}` : ""}${d.note ? ` · ${d.note}` : ""}`} trailing={<span className="ios-caption" style={{ color: daysUntil(d.date) <= 1 ? "var(--ios-orange)" : "var(--ios-label-3)" }}>{soon(d.date)}</span>} />
-          ))}
-        </Group>
+        <div style={{ margin: "10px var(--ios-gutter) 0" }}>
+          <Cell
+            href={kidHref}
+            lead={<IconBadge color="var(--ios-orange)"><Icons.SparkleIcon /></IconBadge>}
+            title={`${kid}'s screen`}
+            subtitle={`${openTasks.length} task${openTasks.length === 1 ? "" : "s"} waiting · ${L?.stars.week ?? 0} stars this week`}
+          />
+        </div>
       )}
 
       {/* ── This week's spelling ───────────────────────────────────────── */}
@@ -349,10 +506,35 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
             })}
             {week.sightWords.map((w) => <Chip key={`s-${w}`} small selected onClick={() => tapWord(w)}>{w}{(practiced[w] ?? 0) > 1 ? ` ×${practiced[w]}` : ""}</Chip>)}
           </div>
-          <div style={{ display: "flex", gap: 14, padding: "4px 16px 12px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 14, padding: "4px 16px 12px", alignItems: "center", flexWrap: "wrap" }}>
             {tapStack.length > 0 && <button type="button" className="ios-btn--plain" onClick={undoTap} style={{ color: "var(--ios-label-2)" }}>Undo last tap ({tapStack[tapStack.length - 1]})</button>}
             {isGuardian && <button type="button" className="ios-btn--plain" disabled={sent.has("words")} onClick={sendWords} style={{ color: sent.has("words") ? "var(--ios-green)" : "var(--ios-tint)", fontWeight: 600 }}>{sent.has("words") ? `Sent to ${kid}` : `Send the words to ${kid}'s screen`}</button>}
+            {isGuardian && <button type="button" className="ios-btn--plain" onClick={resetPractice} style={{ color: "var(--ios-label-3)", fontSize: 13 }}>Reset</button>}
           </div>
+        </Group>
+      )}
+
+      {/* ── Scripture and memory work ──────────────────────────────────── */}
+      <div id="scripture" />
+      {scripture.length > 0 && (
+        <Group header="Scripture this week" footer="The same three every week. Send one and it waits on the child's screen, which reads it aloud.">
+          {scripture.map((sc) => {
+            const t = taskByTitle(sc.label);
+            return (
+              <Cell
+                key={sc.key}
+                chevron={false}
+                lead={<span style={{ fontSize: 22, width: 30, textAlign: "center" }}>{sc.glyph}</span>}
+                title={sc.label}
+                subtitle={<span style={{ whiteSpace: "pre-wrap", lineHeight: 1.45 }}>{sc.text}</span>}
+                trailing={isGuardian ? (
+                  <button type="button" className="ios-btn--plain" disabled={!!t} onClick={() => sendTitled(sc.label, sc.text, "reading")} style={{ color: t?.completedAt ? "var(--ios-green)" : t ? "var(--ios-label-3)" : "var(--ios-tint)", fontWeight: 600, whiteSpace: "nowrap" }}>
+                    {t?.completedAt ? "Done ✓" : t ? "Sent" : "Send"}
+                  </button>
+                ) : undefined}
+              />
+            );
+          })}
         </Group>
       )}
 
@@ -360,11 +542,6 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       <div id="practice" />
       {L && (
         <Group header="Practice tonight" footer={exercises.length === 0 ? "Nothing planned yet. Photograph a graded paper or the newsletter and the plan is proposed from the teacher's marks." : "Each one traces to something the teacher wrote or the paper showed. Tap for the steps; tap Done again to take it back."}>
-          {isGuardian && exercises.length > 0 && (
-            <div style={{ padding: "8px 16px 0", textAlign: "right" }}>
-              <button type="button" className="ios-btn--plain" onClick={resetPractice} style={{ color: "var(--ios-label-3)", fontSize: 13 }}>Reset this week&rsquo;s practice</button>
-            </div>
-          )}
           {exercises.map((ex) => {
             const open = openExercise === ex.id;
             return (
@@ -399,141 +576,186 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         </Group>
       )}
 
-      {/* ── Tasks on the child's screen ───────────────────────────────── */}
-      {isGuardian && L && (
-        <Group header={`On ${kid}'s screen`} footer={`${kid} completes these on the other screen and earns stars. ${L.stars.total} stars so far.`}>
-          {openTasks.map((t) => (
-            <Cell key={t.id} chevron={false} lead={<span style={{ fontSize: 22, width: 30, textAlign: "center" }}>{TASK_EMOJI[t.kind]}</span>} title={t.title} subtitle={`Sent ${fmtDate(t.assignedOn, false)}${t.kind === "spelling" && t.payload.words ? ` · ${t.payload.words.length} words` : ""}`}
-              trailing={<button type="button" className="ios-btn--plain" onClick={() => removeTask(t)} style={{ color: "var(--ios-label-3)" }}>Remove</button>} />
+      {/* ── Where to go for more ───────────────────────────────────────── */}
+      <div id="resources" />
+      {resourceSections.length > 0 && (
+        <Fold
+          storageKey={`ch-fold-resources-${data.childId}`}
+          title="More practice"
+          count={resourceSections.reduce((n, s) => n + s.items.length, 0)}
+          summary={`Free sites for ${resourceSections.map((s) => s.label).join(", ")}, chosen for what ${kid} is working on now.`}
+          defaultOpen
+        >
+          {resourceSections.map((sec) => (
+            <div key={sec.label} className="ios-list" style={{ margin: "0 var(--ios-gutter) 10px" }}>
+              <div className="ios-caption" style={{ padding: "10px 16px 2px", color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700 }}>
+                For {sec.label}
+              </div>
+              {sec.items.map((r) => (
+                <Cell
+                  key={r.url}
+                  href={r.url}
+                  title={r.name}
+                  subtitle={r.note}
+                  trailing={<span className="ios-caption" style={{ color: "var(--ios-label-3)", border: "1px solid currentColor", borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap" }}>{KIND_LABEL[r.kind]}</span>}
+                />
+              ))}
+            </div>
           ))}
-          {doneTasks.map((t) => (
-            <Cell key={t.id} chevron={false} lead={<span style={{ fontSize: 22, width: 30, textAlign: "center" }}>{TASK_EMOJI[t.kind]}</span>} title={<span style={{ color: "var(--ios-label-2)" }}>{t.title}</span>} subtitle={`Done today · ${"⭐".repeat(Math.max(1, t.stars))}${t.childNote ? ` · “${t.childNote}”` : ""}`}
-              trailing={<button type="button" className="ios-btn--plain" onClick={() => reopen(t)} style={{ color: "var(--ios-label-3)" }}>Undo</button>} />
-          ))}
-          <div style={{ display: "flex", gap: 8, padding: "10px 16px 12px" }}>
-            <input value={customTask} onChange={(e) => setCustomTask(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendCustom(); }} placeholder={`Send ${kid} a task, e.g. “Read one page of Farmer Boy to Mom”`} style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: "none", background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 15 }} />
-            <button type="button" className="ios-btn ios-btn--primary" disabled={!customTask.trim() || pending} onClick={sendCustom}>Send</button>
+          <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
+            <div className="ios-caption" style={{ padding: "10px 16px 2px", color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700 }}>
+              Always worth a visit
+            </div>
+            {STAPLES.map((r) => (
+              <Cell key={r.url} href={r.url} title={r.name} subtitle={r.note} trailing={<span className="ios-caption" style={{ color: "var(--ios-label-3)", border: "1px solid currentColor", borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap" }}>{KIND_LABEL[r.kind]}</span>} />
+            ))}
           </div>
-        </Group>
+        </Fold>
       )}
 
-      {/* ── Buddy, for the parents ─────────────────────────────────────── */}
-      {isGuardian && L && (
-        <Group header={`What ${kid} asked Buddy`} footer={L.tutorRecent.length === 0 ? "Nothing yet. Everything Buddy and the child say to each other is kept here for you." : "The latest exchanges. Every conversation is kept."}>
-          {[...L.tutorRecent].reverse().slice(-6).map((m) => (
-            <Cell key={m.id} chevron={false} lead={<span style={{ fontSize: 20, width: 30, textAlign: "center" }}>{m.role === "assistant" ? "🦉" : "🧒"}</span>} title={<span style={{ fontWeight: 400, color: m.role === "assistant" ? "var(--ios-label-2)" : "var(--ios-label)" }}>{m.content.replace(/\[\[([^\]]+)\]\]/g, "$1")}</span>} subtitle={new Date(m.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} />
-          ))}
-          <Cell href={`/children/${data.childId}/buddy`} lead={<IconBadge color="var(--ios-orange)"><Icons.SparkleIcon /></IconBadge>} title="All conversations" subtitle="By day and sitting" />
-        </Group>
+      {/* ── Send something by hand ─────────────────────────────────────── */}
+      {isGuardian && (
+        <div style={{ display: "flex", gap: 8, margin: "14px var(--ios-gutter) 0" }}>
+          <input value={customTask} onChange={(e) => setCustomTask(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendCustom(); }} placeholder={`Send ${kid} a task, e.g. “Read one page of Farmer Boy to Mom”`} style={{ flex: 1, minWidth: 0, padding: "11px 12px", borderRadius: 10, border: "none", background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 15 }} />
+          <button type="button" className="ios-btn ios-btn--primary" disabled={!customTask.trim() || pending} onClick={sendCustom}>Send</button>
+        </div>
       )}
 
-      {/* ── This week at school ────────────────────────────────────────── */}
-      {nx && ((nx.academics?.length ?? 0) > 0 || nx.read_aloud || nx.memory_verse || nx.recitation || (nx.parent_requests?.length ?? 0) > 0) && (
-        <Group header="This week at school" footer={newsletter?.docDate ? `From the newsletter of ${fmtDate(newsletter.docDate, false)}.` : undefined}>
-          {(nx.academics ?? []).map((a, i) => <Cell key={i} chevron={false} title={a.subject} subtitle={a.topics.join(" · ")} />)}
-          {nx.read_aloud && <Cell chevron={false} lead={<IconBadge color="#5B6B9E"><Icons.BookIcon /></IconBadge>} title="Read aloud" subtitle={nx.read_aloud} />}
-          {nx.memory_verse && <Cell chevron={false} lead={<IconBadge color="#8FA3DC"><Icons.HeartIcon /></IconBadge>} title="Memory verse" subtitle={nx.memory_verse} />}
-          {nx.recitation && <Cell chevron={false} lead={<IconBadge color="#B565A7"><Icons.SparkleIcon /></IconBadge>} title="Recitation" subtitle={nx.recitation} />}
-          {(nx.parent_requests ?? []).map((r, i) => <Cell key={`p-${i}`} chevron={false} lead={<IconBadge color="var(--ios-orange)"><Icons.BellIcon /></IconBadge>} title={r} />)}
-        </Group>
+      {/* ══ The record ══════════════════════════════════════════════════
+          Everything below is what has already happened. It only grows, so it
+          stays folded until it is asked for. ══════════════════════════════ */}
+
+      {L && L.upcomingDates.length > 0 && (
+        <Fold
+          storageKey={`ch-fold-dates-${data.childId}`}
+          title="Coming up"
+          count={L.upcomingDates.length}
+          summary={`Next: ${L.upcomingDates[0].title} · ${soon(L.upcomingDates[0].date)}.`}
+        >
+          <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
+            {L.upcomingDates.map((d, i) => (
+              <Cell key={i} chevron={false} lead={<IconBadge color={d.kind === "no_school" || d.kind === "early_dismissal" ? "var(--ios-orange)" : "var(--ios-tint)"}><Icons.CalendarIcon /></IconBadge>} title={d.title} subtitle={`${fmtDate(d.date)}${DATE_KIND_LABEL[d.kind] ? ` · ${DATE_KIND_LABEL[d.kind]}` : ""}${d.note ? ` · ${d.note}` : ""}`} trailing={<span className="ios-caption" style={{ color: daysUntil(d.date) <= 1 ? "var(--ios-orange)" : "var(--ios-label-3)" }}>{soon(d.date)}</span>} />
+            ))}
+          </div>
+        </Fold>
       )}
 
-      {/* ── Progress ───────────────────────────────────────────────────── */}
       <div id="progress" />
       {L && L.assessments.length > 0 && (
-        <Group header="How it's going" footer="One line per subject across every graded paper, weakest first. The arrow compares the latest paper with the one before it.">
-          {trends.map((t) => {
-            const ar = arrow(t.delta);
+        <Fold
+          storageKey={`ch-fold-progress-${data.childId}`}
+          title="How it's going"
+          count={`${trends.length} subject${trends.length === 1 ? "" : "s"}`}
+          summary={watch ? `Weakest is ${watch.label} at ${watch.latest}%, across ${L.assessments.length} graded paper${L.assessments.length === 1 ? "" : "s"}.` : undefined}
+        >
+          <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
+            {trends.map((t) => {
+              const a = arrow(t.delta);
+              return (
+                <Cell key={t.subject} chevron={false}
+                  lead={<IconBadge color={SUBJECT_COLOR[t.subject] ?? SUBJECT_COLOR.other}><Icons.ChartIcon /></IconBadge>}
+                  title={t.label}
+                  subtitle={`${t.latestText} latest · ${t.count} paper${t.count === 1 ? "" : "s"}${t.lastOn ? ` · ${fmtDate(t.lastOn, false)}` : ""}`}
+                  trailing={
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      {t.series.length > 1 ? <Sparkline points={t.series} color={pctColor(t.latest)} width={72} height={26} /> : <span style={{ width: 72 }} />}
+                      <span style={{ fontWeight: 700, color: pctColor(t.latest), whiteSpace: "nowrap" }}>{t.latest}%</span>
+                      {a.glyph && <span style={{ color: a.color, fontSize: 12 }}>{a.glyph}</span>}
+                    </span>
+                  }
+                />
+              );
+            })}
+          </div>
+          <p className="ios-group-footer ios-footnote">One line per subject across every graded paper, weakest first. The arrow compares the latest paper with the one before it.</p>
+        </Fold>
+      )}
+
+      {nx && ((nx.academics?.length ?? 0) > 0) && (
+        <Fold
+          storageKey={`ch-fold-school-${data.childId}`}
+          title="This week at school"
+          count={nx.academics?.length ?? 0}
+          summary={`${(nx.academics ?? []).map((a) => a.subject).join(", ")}${newsletter?.docDate ? ` · newsletter of ${fmtDate(newsletter.docDate, false)}` : ""}.`}
+        >
+          <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
+            {(nx.academics ?? []).map((a, i) => <Cell key={i} chevron={false} title={a.subject} subtitle={a.topics.join(" · ")} />)}
+          </div>
+        </Fold>
+      )}
+
+      {isGuardian && L && (
+        <Fold
+          storageKey={`ch-fold-buddy-${data.childId}`}
+          title={`What ${kid} asked Buddy`}
+          count={L.tutorRecent.length}
+          summary={L.tutorRecent.length === 0 ? "Nothing yet. Everything Buddy and the child say to each other is kept here for you." : `Latest: “${L.tutorRecent[0].content.replace(/\[\[([^\]]+)\]\]/g, "$1").slice(0, 70)}…”`}
+        >
+          <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
+            {[...L.tutorRecent].reverse().slice(-6).map((m) => (
+              <Cell key={m.id} chevron={false} lead={<span style={{ fontSize: 20, width: 30, textAlign: "center" }}>{m.role === "assistant" ? "\u{1F989}" : "\u{1F9D2}"}</span>} title={<span style={{ fontWeight: 400, color: m.role === "assistant" ? "var(--ios-label-2)" : "var(--ios-label)" }}>{m.content.replace(/\[\[([^\]]+)\]\]/g, "$1")}</span>} subtitle={new Date(m.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} />
+            ))}
+            <Cell href={`/children/${data.childId}/buddy`} lead={<IconBadge color="var(--ios-orange)"><Icons.SparkleIcon /></IconBadge>} title="All conversations" subtitle="By day and sitting" />
+          </div>
+        </Fold>
+      )}
+
+      {L && L.documents.length > 0 && (
+        <Fold
+          storageKey={`ch-fold-docs-${data.childId}`}
+          title="From school"
+          count={L.documents.length}
+          summary={`${L.documents.length} scanned page${L.documents.length === 1 ? "" : "s"}, newest ${L.documents[0].docDate ? fmtDate(L.documents[0].docDate, false) : "recently"}.`}
+        >
+          <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
+            {L.documents.map((d) => (
+              <Cell key={d.id} chevron={false}
+                lead={<IconBadge color={d.kind === "newsletter" ? "var(--ios-tint)" : d.kind === "graded_work" ? "var(--ios-green)" : "#8E8E93"}><Icons.BookIcon /></IconBadge>}
+                title={d.title}
+                subtitle={`${d.docDate ? fmtDate(d.docDate, false) : new Date(d.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}${d.filePaths.length > 0 ? ` · ${d.filePaths.length} page${d.filePaths.length === 1 ? "" : "s"}` : ""}${d.summary ? ` · ${d.summary}` : ""}`}
+                trailing={
+                  <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                    {d.filePaths.length > 0 && <button type="button" className="ios-btn--plain" onClick={() => openDocument(d.id, d.title)} style={{ color: "var(--ios-tint)" }}>View</button>}
+                    {isGuardian && <button type="button" className="ios-btn--plain" onClick={() => rebuildDocument(d.id, d.title, d.kind)} style={{ color: "var(--ios-label-2)" }}>Rebuild</button>}
+                    {isGuardian && <button type="button" className="ios-btn--plain" onClick={() => removeDocument(d.id, d.title)} style={{ color: "var(--ios-red)" }}>Delete</button>}
+                  </span>
+                }
+              />
+            ))}
+          </div>
+          <p className="ios-group-footer ios-footnote">Rebuild remakes the plan from the stored read — no camera, no waiting — with every recommended exercise back. Delete removes the document and everything it created.</p>
+        </Fold>
+      )}
+
+      <Fold
+        storageKey={`ch-fold-routine-${data.childId}`}
+        title="Routine and health"
+        count={today.length + openNotes.length}
+        summary={today.length === 0 && openNotes.length === 0 ? "Nothing on the list, no notes for the next visit." : `${today.length} on the routine, ${openNotes.length} note${openNotes.length === 1 ? "" : "s"} for the next visit.`}
+      >
+        <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
+          {today.map((a) => {
+            const meta = CATEGORY_META[a.category] ?? CATEGORY_META.other;
             return (
-              <div key={t.subject} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", borderBottom: "1px solid var(--ios-separator)" }}>
-                <IconBadge color={SUBJECT_COLOR[t.subject] ?? SUBJECT_COLOR.other}><Icons.ChartIcon /></IconBadge>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="ios-subhead" style={{ fontWeight: 600 }}>{t.label}</div>
-                  <div className="ios-caption" style={{ color: "var(--ios-label-3)" }}>{t.count === 1 ? "first paper" : `${t.count} papers`}{t.lastOn ? ` · latest ${fmtDate(t.lastOn, false)}` : ""}</div>
-                </div>
-                {t.series.length > 1 ? <Sparkline points={t.series} color={pctColor(t.latest)} width={72} height={26} /> : <span style={{ width: 72 }} />}
-                <div style={{ textAlign: "right", minWidth: 64 }}>
-                  <div className="ios-num" style={{ fontWeight: 700, color: pctColor(t.latest) }}>{t.latestText}</div>
-                  <div className="ios-caption" style={{ color: ar.color }}>{t.delta == null ? `${t.latest}%` : `${ar.glyph} ${t.delta > 0 ? "+" : ""}${t.delta} pts`}</div>
-                </div>
-              </div>
+              <Cell key={a.id} onClick={() => complete(a.id)} chevron={false} lead={<IconBadge color={meta.color}>{meta.icon}</IconBadge>} title={a.title}
+                trailing={<span aria-hidden style={{ width: 26, height: 26, borderRadius: "50%", border: "2px solid var(--ios-separator)", flexShrink: 0 }} />} />
             );
           })}
-          <div className="ios-caption" style={{ color: "var(--ios-label-3)", padding: "10px 16px 4px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Each paper</div>
-          {L.assessments.map((a) => (
-            <Cell
-              key={a.id}
-              chevron={false}
-              lead={<IconBadge color={SUBJECT_COLOR[a.subject] ?? SUBJECT_COLOR.other}><Icons.ChartIcon /></IconBadge>}
-              title={a.title}
-              subtitle={<>
-                {a.assessedOn && <span>{fmtDate(a.assessedOn, false)}</span>}
-                {a.teacherFeedback && <span style={{ display: "block" }}>Teacher: “{a.teacherFeedback}”</span>}
-                {a.observations.slice(0, 2).map((o, i) => <span key={i} style={{ display: "block", color: "var(--ios-label-3)" }}>{o}</span>)}
-              </>}
-              trailing={a.score != null && a.outOf ? <span className="ios-num" style={{ fontWeight: 700, color: (a.score / a.outOf) >= 0.9 ? "var(--ios-green)" : (a.score / a.outOf) >= 0.7 ? "var(--ios-orange)" : "var(--ios-red)" }}>{a.score}/{a.outOf}</span> : undefined}
-            />
-          ))}
-        </Group>
-      )}
-
-      {/* ── Documents ──────────────────────────────────────────────────── */}
-      {L && L.documents.length > 0 && (
-        <Group header="From school" footer="Rebuild remakes the plan from the stored read — no camera, no waiting — with every recommended exercise back. Delete removes the document and everything it created.">
-          {L.documents.slice(0, 12).map((d) => (
-            <Cell
-              key={d.id}
-              chevron={false}
-              onClick={d.filePaths.length > 0 ? () => openDocument(d.id, d.title) : undefined}
-              lead={<IconBadge color={d.kind === "graded_work" ? "#B565A7" : "var(--ios-tint)"}><Icons.BookIcon /></IconBadge>}
-              title={d.title}
-              subtitle={`${d.docDate ? fmtDate(d.docDate, false) : fmtDate(d.createdAt.slice(0, 10), false)}${d.filePaths.length > 0 ? ` · ${d.filePaths.length} page${d.filePaths.length === 1 ? "" : "s"} · tap to view` : " · no pages attached"}`}
-              trailing={isGuardian ? (
-                <span style={{ display: "inline-flex", gap: 14 }}>
-                  <button type="button" className="ios-btn--plain" onClick={(e) => { e.stopPropagation(); rebuildDocument(d.id, d.title, d.kind); }} style={{ color: "var(--ios-tint)" }}>Rebuild</button>
-                  <button type="button" className="ios-btn--plain" onClick={(e) => { e.stopPropagation(); removeDocument(d.id, d.title); }} style={{ color: "var(--ios-red)" }}>Delete</button>
-                </span>
-              ) : undefined}
-            />
-          ))}
-        </Group>
-      )}
-
-      {/* ── Routine and health, as before ──────────────────────────────── */}
-      <Group header="Routine" footer={today.length === 0 ? "Nothing on the list right now." : undefined}>
-        {today.map((a) => {
-          const meta = CATEGORY_META[a.category] ?? CATEGORY_META.other;
-          return (
-            <Cell key={a.id} onClick={() => complete(a.id)} chevron={false} lead={<IconBadge color={meta.color}>{meta.icon}</IconBadge>} title={a.title}
-              trailing={<span aria-hidden style={{ width: 26, height: 26, borderRadius: "50%", border: "2px solid var(--ios-separator)", flexShrink: 0 }} />} />
-          );
-        })}
-      </Group>
-      <div style={{ margin: "12px var(--ios-gutter) 0" }}>
-        <AddActivityForm childId={data.childId} viewerUserId={viewerUserId} onAdded={(a) => setActivities((prev) => [...prev, a])} />
-      </div>
-
-      {done.length > 0 && (
-        <Group header="Achievements">
           {done.map((a) => (
             <Cell key={a.id} chevron={false} lead={<IconBadge color="var(--ios-green)"><Icons.ChecklistIcon /></IconBadge>} title={<span style={{ textDecoration: "line-through", color: "var(--ios-label-2)" }}>{a.title}</span>} />
           ))}
-        </Group>
-      )}
-
-      <Group header="Health notes for next visit">
-        {openNotes.length === 0 ? (
-          <Cell chevron={false} title={<span style={{ color: "var(--ios-label-2)" }}>No notes for the next visit.</span>} />
-        ) : (
-          openNotes.map((h) => (
-            <Cell key={h.id} chevron={false} title={h.note} subtitle={h.targetVisitDate ? fmtDate(h.targetVisitDate, false) : undefined}
+          {openNotes.map((h) => (
+            <Cell key={h.id} chevron={false} lead={<IconBadge color="#B565A7"><Icons.HeartIcon /></IconBadge>} title={h.note} subtitle={h.targetVisitDate ? `For the visit on ${fmtDate(h.targetVisitDate, false)}` : "For the next visit"}
               trailing={<button type="button" className="ios-btn--plain" onClick={() => resolveNote(h.id)} style={{ fontSize: 15 }}>Resolve</button>} />
-          ))
-        )}
-      </Group>
-      <div style={{ margin: "12px var(--ios-gutter) 0" }}>
-        <AddHealthNoteForm childId={data.childId} viewerUserId={viewerUserId} onAdded={(h) => setHealthNotes((prev) => [...prev, h])} />
-      </div>
+          ))}
+        </div>
+        <div style={{ margin: "12px var(--ios-gutter) 0" }}>
+          <AddActivityForm childId={data.childId} viewerUserId={viewerUserId} onAdded={(a) => setActivities((prev) => [...prev, a])} />
+        </div>
+        <div style={{ margin: "12px var(--ios-gutter) 0" }}>
+          <AddHealthNoteForm childId={data.childId} viewerUserId={viewerUserId} onAdded={(h) => setHealthNotes((prev) => [...prev, h])} />
+        </div>
+      </Fold>
 
       {viewer && (
         <div role="dialog" aria-label={viewer.title} onClick={() => setViewer(null)} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.92)", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
