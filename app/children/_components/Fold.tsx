@@ -40,7 +40,7 @@ export function Fold({
   arrange?: { up: (() => void) | null; down: (() => void) | null };
   children: React.ReactNode;
 }) {
-  const open = useLocalValue(storageKey, defaultOpen);
+  const open = useLocalValue<boolean>(storageKey, defaultOpen);
   const arranging = arrange != null;
 
   return (
@@ -103,7 +103,7 @@ export function Fold({
         )}
       </div>
       {accessory}
-      {!open && summary && (
+      {!open && summary != null && summary !== "" ? (
         <p
           className="ios-group-footer ios-footnote"
           style={{
@@ -113,8 +113,8 @@ export function Fold({
         >
           {summary}
         </p>
-      )}
-      {open && children}
+      ) : null}
+      {open ? children : null}
     </section>
   );
 }
