@@ -49,6 +49,8 @@ export interface TodayHubProps {
   quickActions?: React.ReactNode;
   /** Setup/activation checklist, shown near the top until setup is complete. */
   setupChecklist?: React.ReactNode;
+  /** The one child pinned to this user's Today, under the glance grid. */
+  pinnedChild?: React.ReactNode;
   /** Streamed server sections (markets, news) rendered under Ask Morris. */
   slot?: React.ReactNode;
 }
@@ -89,7 +91,7 @@ export default function TodayHubIOS({
   firstName, dateLabel, greeting, glance, attention, timeline, priorities, family,
   onOpenMoney, onOpenAsk, onToggleTodo,
   onCompleteItem, onDeleteItem, onSnoozeItem, onEditItem,
-  quickActions, setupChecklist, slot,
+  quickActions, setupChecklist, pinnedChild, slot,
 }: TodayHubProps) {
   // Scope lives in the shared nav context so toggling here also updates the
   // footer's Family/Me tab (and vice-versa), and persists across screens.
@@ -150,6 +152,8 @@ export default function TodayHubIOS({
           })}
         </GlanceGrid>
       )}
+
+      {pinnedChild}
 
       {nextUp && (() => {
         const c = cat(nextUp.category);

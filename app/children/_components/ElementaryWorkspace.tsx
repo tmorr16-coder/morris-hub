@@ -38,6 +38,7 @@ import { useSectionOrder } from "../_lib/ui-state";
 import {
   logPractice, unlogPractice, setExerciseStatus, markWordPracticed, childDocumentUrls,
   deleteChildDocument, documentImpact, assignTask, deleteTask, reopenTask, rebuildFromDocument, resetWeekPractice,
+  setPinnedChild,
 } from "../_lib/learning-actions";
 import AddActivityForm from "./AddActivityForm";
 import AddHealthNoteForm from "./AddHealthNoteForm";
@@ -136,6 +137,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   const [notice, setNotice] = useState<{ text: string; undo?: () => void; ms: number; at: number } | null>(null);
   const [viewer, setViewer] = useState<{ title: string; urls: string[] } | null>(null);
   const [arranging, setArranging] = useState(false);
+  const [pinned, setPinned] = useState(data.pinnedToToday);
   const [pending, start] = useTransition();
   const db = createClient() as any;
   const L = data.learning;
@@ -817,8 +819,30 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         </div>
       )}
 
-      {/* ── Arrange ────────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 16, margin: "12px var(--ios-gutter) 0" }}>
+      {/* ── Pin, and arrange ───────────────────────────────────────────── */}
+      {/* The pin is this parent's alone: it puts the child's week on their own
+          Today and does nothing to anyone else's. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, margin: "12px var(--ios-gutter) 0" }}>
+        {isGuardian ? (
+          <button
+            type="button"
+            className="ios-btn--plain"
+            onClick={() => {
+              const next = !pinned;
+              setPinned(next);
+              start(async () => {
+                const r = await setPinnedChild(data.childId, next);
+                if (r.error) { setPinned(!next); say(`Couldn't ${next ? "pin" : "unpin"}: ${r.error}`); return; }
+                say(next ? `${kid}'s week is on your Today screen.` : `Removed ${kid} from your Today screen.`);
+              });
+            }}
+            style={{ color: pinned ? "var(--ios-tint)" : "var(--ios-label-3)", fontWeight: pinned ? 700 : 500, fontSize: 14, display: "flex", alignItems: "center", gap: 5 }}
+          >
+            <span aria-hidden>{pinned ? "📌" : "📍"}</span>
+            {pinned ? "On your Today" : "Pin to Today"}
+          </button>
+        ) : <span />}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
         {arranging && customised && (
           <button type="button" className="ios-btn--plain" onClick={reset} style={{ color: "var(--ios-label-2)", fontSize: 14 }}>
             Reset order
@@ -832,6 +856,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         >
           {arranging ? "Done" : "Arrange"}
         </button>
+        </div>
       </div>
 
       {arranging && (

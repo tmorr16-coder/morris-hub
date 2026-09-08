@@ -572,3 +572,23 @@ export async function deleteChildDocument(childId: string, documentId: string): 
   revalidatePath("/home");
   return { removed: { exercises: impact.exercises ?? 0, assessments: impact.assessments ?? 0, todos: impact.todos ?? 0, reminders: impact.reminders ?? 0, spellingWeeks: impact.spellingWeeks ?? 0 } };
 }
+
+/**
+ * Pin this child to the caller's Today screen, or clear the pin.
+ *
+ * Stored on the caller's own preferences row, so pinning is something a parent
+ * does to their own home screen and not to the household's. One pin at a time:
+ * pinning a second child replaces the first rather than accumulating a list,
+ * because the point of the card is that it is the one child you are carrying
+ * this term.
+ */
+export async function setPinnedChild(childId: string, pinned: boolean): Promise<{ error?: string }> {
+  const g = await requireGuardian(childId);
+  if ("error" in g) return { error: g.error };
+  const { error } = await db().schema("hub").from("preferences")
+    .upsert({ user_id: g.userId, pinned_child_id: pinned ? childId : null }, { onConflict: "user_id" });
+  if (error) return { error: error.message };
+  revalidatePath("/home");
+  revalidatePath(`/children/${childId}`);
+  return {};
+}

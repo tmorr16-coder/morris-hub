@@ -17,6 +17,8 @@ import TodayMarkets from "./_components/TodayMarkets";
 import TodayNews from "./_components/TodayNews";
 import MoneyGlanceValue from "./_components/MoneyGlanceValue";
 import { TodayWeatherValue, TodayWeatherSub } from "./_components/TodayWeatherGlance";
+import { PinnedChildCard } from "./_components/PinnedChildCard";
+import { loadPinnedChild } from "@/app/children/_lib/pinned";
 import { unstable_cache } from "next/cache";
 
 /**
@@ -675,6 +677,13 @@ export default async function HomePage() {
       members={circleMembers.map((m) => ({ id: m.id, label: m.label }))}
       currentUserId={user.id}
       quickActions={<QuickActions />}
+      pinnedChild={
+        // Streamed. A pinned child costs a handful of queries against the
+        // learning tables, and Today should not wait on them to paint.
+        homePrefs?.pinned_child_id
+          ? <Suspense fallback={null}><PinnedChildSlot pinnedChildId={homePrefs.pinned_child_id} userId={user.id} /></Suspense>
+          : null
+      }
       slot={
         <>
           <Suspense fallback={null}><TodayMarkets ticker={homePrefs?.employer_ticker ?? null} /></Suspense>
@@ -684,6 +693,18 @@ export default async function HomePage() {
     />
   );
 
+}
+
+
+// ── Pinned child ─────────────────────────────────────────────────────────────
+// Resolves the pin and re-checks guardianship; renders nothing at all if the
+// pin no longer points at a child this viewer may act for.
+
+async function PinnedChildSlot({ pinnedChildId, userId }: { pinnedChildId: string; userId: string }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const svc = createServiceClient() as any;
+  const child = await loadPinnedChild(svc, pinnedChildId, userId, new Date());
+  return child ? <PinnedChildCard child={child} /> : null;
 }
 
 

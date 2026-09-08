@@ -54,6 +54,8 @@ export interface ChildWorkspaceData {
   learning: LearningData | null;
   /** Whether the viewer is a parent (owner or co-parent) rather than the child. */
   viewerIsGuardian: boolean;
+  /** Whether THIS viewer has this child pinned to their own Today screen. */
+  pinnedToToday: boolean;
 }
 
 /**
@@ -273,6 +275,18 @@ export async function getChildWorkspace(childId: string, viewerUserId: string, n
     academicsSummary = { courses: sharedCourses, upcomingAssignments };
   }
 
+  // The pin is the viewer's own preference, never the child's or the owner's.
+  //
+  // The error is deliberately ignored rather than surfaced: before
+  // 20260908_pinned_child.sql has been applied the column does not exist and
+  // PostgREST answers 400, which must degrade to "not pinned" rather than take
+  // the whole workspace down with it.
+  const { data: prefRow } = await db.schema("hub").from("preferences")
+    .select("pinned_child_id")
+    .eq("user_id", viewerUserId)
+    .maybeSingle();
+  const pinnedChildId = (prefRow as { pinned_child_id: string | null } | null)?.pinned_child_id ?? null;
+
   return {
     childId,
     memberUserId: row.member_user_id,
@@ -286,5 +300,6 @@ export async function getChildWorkspace(childId: string, viewerUserId: string, n
     academicsSummary,
     learning,
     viewerIsGuardian: isParent,
+    pinnedToToday: pinnedChildId === childId,
   };
 }

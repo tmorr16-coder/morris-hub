@@ -28,6 +28,9 @@ export interface Preferences {
   me_domain_order: string[];
   me_domains_disabled: string[];
   persona?: string | null;  // "parent" | "student" | "individual" — drives personal vs family UI
+  /** family_members.id of the child pinned to Today, or null. Per user: two
+      parents share a child but not a home screen. */
+  pinned_child_id?: string | null;
 }
 
 export async function getPreferences(userId: string): Promise<Preferences> {
