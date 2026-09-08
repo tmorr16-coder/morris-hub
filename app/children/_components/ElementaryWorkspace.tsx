@@ -28,13 +28,13 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { LargeTitle, Cell, IconBadge, Icons, Chip, Sparkline } from "@/components/ios";
+import { LargeTitle, Group, Cell, IconBadge, Icons, Chip, Sparkline } from "@/components/ios";
 import type { ChildWorkspaceData, ChildActivity, ChildHealthNote } from "../_lib/children";
 import type { Exercise, SchoolDate, ChildTask } from "../_lib/learning";
 import { resourcesFor, STAPLES, KIND_LABEL } from "../_lib/resources";
 import { Fold } from "./Fold";
 import { WeekProgress, WeekRows, type WeekItem } from "./WeekBoard";
-import { useSectionOrder } from "../_lib/ui-state";
+import { useSectionOrder, writeLocal } from "../_lib/ui-state";
 import {
   logPractice, unlogPractice, setExerciseStatus, markWordPracticed, childDocumentUrls,
   deleteChildDocument, documentImpact, assignTask, deleteTask, reopenTask, rebuildFromDocument, resetWeekPractice,
@@ -70,6 +70,34 @@ function soon(iso: string): string {
 }
 function firstName(name: string): string {
   return name.split(" ")[0] || name;
+}
+
+/**
+ * One findable thing. `text` is the haystack — everything worth matching on,
+ * including words that never appear on screen (a subject key, a document's
+ * summary), because a parent searching "math" should find the exercise whose
+ * title only says "Count on from a number".
+ */
+interface Hit {
+  key: string;
+  title: string;
+  sub?: string;
+  /** Where the answer is. Absent means "open the section it lives in". */
+  href?: string;
+  text: string;
+}
+
+function hit(key: string, title: string, sub?: string | null, extra?: string | null, href?: string): Hit {
+  return { key, title, sub: sub ?? undefined, href, text: [title, sub, extra].filter(Boolean).join(" ").toLowerCase() };
+}
+
+/**
+ * Every word of the query has to appear somewhere in the haystack, in any
+ * order. Substring rather than whole-word: a first grader's spelling list is
+ * full of stems, and "spell" should find "spelling".
+ */
+function matches(hay: string, terms: string[]): boolean {
+  return terms.every((t) => hay.includes(t));
 }
 
 const SUBJECT_LABEL: Record<string, string> = { spelling: "Spelling", handwriting: "Handwriting", reading: "Reading", decoding: "Decoding", math: "Math", science: "Science", bible: "Bible", other: "Other" };
@@ -137,12 +165,19 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   const [notice, setNotice] = useState<{ text: string; undo?: () => void; ms: number; at: number } | null>(null);
   const [viewer, setViewer] = useState<{ title: string; urls: string[] } | null>(null);
   const [arranging, setArranging] = useState(false);
+  const [query, setQuery] = useState("");
+  const [jump, setJump] = useState<{ id: string; n: number } | null>(null);
   const [pinned, setPinned] = useState(data.pinnedToToday);
   const [pending, start] = useTransition();
   const db = createClient() as any;
   const L = data.learning;
   const week = L?.spellingWeek ?? null;
   const kid = firstName(data.name);
+
+  useEffect(() => {
+    if (!jump) return;
+    document.getElementById(jump.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [jump]);
 
   // Each notice owns its own timeout: a new one replaces the old because the
   // effect's cleanup runs first. `at` makes every call a distinct value, so
@@ -348,6 +383,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     if (wordTask) claimedTaskIds.add(wordTask.id);
     weekItems.push({
       key: "spelling",
+      group: "Words",
       glyph: "\u{1F524}",
       label: "Spelling words",
       detail: [week.pattern, week.testOn ? `test ${soon(week.testOn)}` : null].filter(Boolean).join(" · ") || null,
@@ -363,6 +399,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     if (t) claimedTaskIds.add(t.id);
     weekItems.push({
       key: sc.key,
+      group: "Scripture and memory",
       glyph: sc.glyph,
       label: sc.label,
       detail: sc.text,
@@ -377,6 +414,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     if (t) claimedTaskIds.add(t.id);
     weekItems.push({
       key: `ex-${ex.id}`,
+      group: "Practice",
       glyph: "✏️",
       label: ex.title,
       detail: [ex.minutes ? `${ex.minutes} min` : null, FREQ_LABEL[ex.frequency], ex.streak > 0 ? `${ex.streak}-day streak` : null].filter(Boolean).join(" · "),
@@ -391,6 +429,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     if (t) claimedTaskIds.add(t.id);
     weekItems.push({
       key: `req-${r}`,
+      group: "Asked by the teacher",
       glyph: "\u{1F514}",
       label: r,
       detail: "Asked for in the newsletter",
@@ -405,6 +444,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     if (claimedTaskIds.has(t.id)) continue;
     weekItems.push({
       key: `task-${t.id}`,
+      group: "Sent by hand",
       glyph: TASK_EMOJI[t.kind] ?? "⭐",
       label: t.title,
       detail: t.completedAt ? `Done · ${"⭐".repeat(Math.max(1, t.stars))}` : `On ${kid}'s screen`,
@@ -416,6 +456,25 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         : null,
     });
   }
+
+  // ── Practice, by skill ──────────────────────────────────────────────────
+  // Undone first inside each group, so the evening's remaining work is at the
+  // top of every heading rather than hunted for among the ticks. Groups keep
+  // the order their first exercise arrived in, which is newest paper first.
+  const exerciseGroups: [string, Exercise[]][] = (() => {
+    const by = new Map<string, Exercise[]>();
+    for (const ex of exercises) {
+      const key = (ex.skill ?? "Practice").trim() || "Practice";
+      const label = key.charAt(0).toUpperCase() + key.slice(1);
+      const arr = by.get(label) ?? [];
+      arr.push(ex);
+      by.set(label, arr);
+    }
+    for (const arr of by.values()) {
+      arr.sort((a, b) => Number(a.doneToday) - Number(b.doneToday));
+    }
+    return [...by.entries()];
+  })();
 
   // ── Resources ───────────────────────────────────────────────────────────
   const resourceSections = resourcesFor([
@@ -442,6 +501,8 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     defaultOpen?: boolean;
     accessory?: React.ReactNode;
     body: React.ReactNode;
+    /** Plain text for Find. A section with none is simply never a result. */
+    search?: Hit[];
   }
   const sections: Section[] = [];
 
@@ -451,6 +512,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     defaultOpen: true,
     accessory: <WeekProgress items={weekItems} weekLabel={week?.weekStart ? `Week of ${fmtDate(week.weekStart, false)}${week.testOn ? ` · spelling test ${soon(week.testOn)}` : ""}` : "Everything owed this week"} />,
     summary: weekItems.length === 0 ? undefined : `${weekItems.filter((i) => !i.done).length} still to do.`,
+    search: weekItems.map((it) => hit(`w-${it.key}`, it.label, it.detail, `${it.group} ${it.done ? "done" : "to do"}`)),
     body: <WeekRows items={weekItems} emptyNote="Nothing set for this week yet. Photograph the newsletter or a graded paper and the week fills itself in." />,
   });
 
@@ -462,6 +524,11 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       count: `${practisedCount}/${totalWords}`,
       defaultOpen: true,
       summary: `${week.pattern ?? `${totalWords} words`}${week.testOn ? ` · test ${soon(week.testOn)}` : ""}.`,
+      search: [
+        ...(week.pattern ? [hit("sp-pattern", week.pattern, week.testOn ? `Test ${fmtDate(week.testOn)}` : null, "spelling pattern")] : []),
+        ...week.words.map((w) => hit(`sp-${w}`, w, (practiced[w] ?? 0) > 0 ? `Practised ${practiced[w]}×` : "Not practised yet", "spelling word")),
+        ...week.sightWords.map((w) => hit(`sw-${w}`, w, "Sight word", "spelling sight word")),
+      ],
       body: (
         <>
           <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
@@ -492,6 +559,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       count: scripture.length,
       defaultOpen: true,
       summary: scripture.map((sc) => sc.label).join(", ") + ".",
+      search: scripture.map((sc) => hit(`sc-${sc.key}`, sc.label, sc.text, "scripture memory verse recitation")),
       body: (
         <>
           <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
@@ -526,10 +594,28 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       count: exercises.length,
       defaultOpen: true,
       summary: exercises.length === 0 ? "Nothing planned yet." : `${exercises.filter((e) => !e.doneToday).length} left today.`,
+      search: exercises.map((ex) => hit(`ex-${ex.id}`, ex.title, ex.rationale, `${ex.skill ?? ""} ${ex.steps ?? ""} ${ex.materials ?? ""} ${FREQ_LABEL[ex.frequency]}`)),
       body: (
         <>
-          <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
-            {exercises.map((ex) => {
+          {/* Grouped by skill, not left in the order the papers were
+              photographed. Four exercises off two graded papers arrive
+              interleaved — a decoding drill, a math drill, another decoding
+              drill — and reading them that way makes the plan look like more
+              work than it is. Together, they read as "the reading work" and
+              "the math work", which is how an evening actually gets divided. */}
+          {exerciseGroups.map(([skill, list]) => (
+          <div key={skill} className="ios-list" style={{ margin: "0 var(--ios-gutter) 10px" }}>
+            {exerciseGroups.length > 1 && (
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, padding: "10px 16px 2px" }}>
+                <span className="ios-caption" style={{ color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700 }}>{skill}</span>
+                {list.length > 1 && (
+                  <span className="ios-caption ios-num" style={{ color: "var(--ios-label-3)", fontWeight: 700 }}>
+                    {list.filter((e) => e.doneToday).length}/{list.length}
+                  </span>
+                )}
+              </div>
+            )}
+            {list.map((ex) => {
               const openEx = openExercise === ex.id;
               return (
                 <div key={ex.id}>
@@ -561,6 +647,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
               );
             })}
           </div>
+          ))}
           <p className="ios-group-footer ios-footnote">{exercises.length === 0 ? "Nothing planned yet. Photograph a graded paper or the newsletter and the plan is proposed from the teacher's marks." : "Each one traces to something the teacher wrote or the paper showed. Tap for the steps; tap Done again to take it back."}</p>
         </>
       ),
@@ -574,6 +661,10 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       count: resourceSections.reduce((n, sec) => n + sec.items.length, 0) + STAPLES.length,
       defaultOpen: true,
       summary: `Free sites for ${resourceSections.map((sec) => sec.label).join(", ")}, chosen for what ${kid} is working on now.`,
+      search: [
+        ...resourceSections.flatMap((sec) => sec.items.map((r) => hit(`rs-${r.url}`, r.name, r.note, `${sec.label} ${KIND_LABEL[r.kind]}`, r.url))),
+        ...STAPLES.map((r) => hit(`st-${r.url}`, r.name, r.note, KIND_LABEL[r.kind], r.url)),
+      ],
       body: (
         <>
           {resourceSections.map((sec) => (
@@ -616,6 +707,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       title: "Coming up",
       count: L.upcomingDates.length,
       summary: `Next: ${L.upcomingDates[0].title} · ${soon(L.upcomingDates[0].date)}.`,
+      search: L.upcomingDates.map((d, i) => hit(`dt-${i}`, d.title, `${fmtDate(d.date)}${DATE_KIND_LABEL[d.kind] ? ` · ${DATE_KIND_LABEL[d.kind]}` : ""}`, `${d.note ?? ""} ${d.kind}`)),
       body: (
         <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
           {L.upcomingDates.map((d, i) => (
@@ -632,6 +724,10 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       title: "How it's going",
       count: `${trends.length} subject${trends.length === 1 ? "" : "s"}`,
       summary: watch ? `Weakest is ${watch.label} at ${watch.latest}%, across ${L.assessments.length} graded paper${L.assessments.length === 1 ? "" : "s"}.` : undefined,
+      search: [
+        ...trends.map((t) => hit(`tr-${t.subject}`, t.label, `${t.latestText} latest · ${t.latest}%`, `${t.subject} ${t.count} papers score grade`)),
+        ...L.assessments.map((a) => hit(`as-${a.id}`, a.title, `${a.subject}${a.score != null && a.outOf ? ` · ${a.score}/${a.outOf}` : ""}`, `${a.teacherFeedback ?? ""} ${a.observations.join(" ")}`)),
+      ],
       body: (
         <>
           <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
@@ -665,6 +761,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       title: "This week at school",
       count: nx.academics?.length ?? 0,
       summary: `${(nx.academics ?? []).map((a) => a.subject).join(", ")}${newsletter?.docDate ? ` · newsletter of ${fmtDate(newsletter.docDate, false)}` : ""}.`,
+      search: (nx.academics ?? []).map((a, i) => hit(`ac-${i}`, a.subject, a.topics.join(" · "), "this week at school")),
       body: (
         <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
           {(nx.academics ?? []).map((a, i) => <Cell key={i} chevron={false} title={a.subject} subtitle={a.topics.join(" · ")} />)}
@@ -679,6 +776,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       title: `What ${kid} asked Buddy`,
       count: L.tutorRecent.length,
       summary: L.tutorRecent.length === 0 ? "Nothing yet. Everything Buddy and the child say to each other is kept here for you." : `Latest: “${L.tutorRecent[0].content.replace(/\[\[([^\]]+)\]\]/g, "$1").slice(0, 70)}…”`,
+      search: L.tutorRecent.map((m) => hit(`tu-${m.id}`, m.content.replace(/\[\[([^\]]+)\]\]/g, "$1"), m.role === "assistant" ? "Buddy" : kid, "tutor conversation", `/children/${data.childId}/buddy`)),
       body: (
         <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
           {[...L.tutorRecent].reverse().slice(-6).map((m) => (
@@ -696,6 +794,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       title: "From school",
       count: L.documents.length,
       summary: `${L.documents.length} scanned page${L.documents.length === 1 ? "" : "s"}, newest ${L.documents[0].docDate ? fmtDate(L.documents[0].docDate, false) : "recently"}.`,
+      search: L.documents.map((d) => hit(`dc-${d.id}`, d.title, d.docDate ? fmtDate(d.docDate, false) : null, `${d.summary ?? ""} ${d.kind.replace("_", " ")}`)),
       body: (
         <>
           <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
@@ -725,6 +824,10 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     title: "Routine and health",
     count: today.length + openNotes.length,
     summary: today.length === 0 && openNotes.length === 0 ? "Nothing on the list, no notes for the next visit." : `${today.length} on the routine, ${openNotes.length} note${openNotes.length === 1 ? "" : "s"} for the next visit.`,
+    search: [
+      ...activities.map((a) => hit(`ac-${a.id}`, a.title, a.completed ? "Done" : "On the routine", `${a.category} ${a.notes ?? ""}`)),
+      ...healthNotes.map((h) => hit(`hn-${h.id}`, h.note, h.resolved ? "Resolved" : "For the next visit", "health note doctor visit")),
+    ],
     body: (
       <>
         <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
@@ -756,6 +859,24 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   const { order, move, reset, customised } = useSectionOrder(`ch-order-${data.childId}`, sections.map((sec) => sec.id));
   const byId = new Map(sections.map((sec) => [sec.id, sec]));
   const ordered = order.map((id) => byId.get(id)).filter(Boolean) as Section[];
+
+  // ── Find ────────────────────────────────────────────────────────────────
+  // Results follow the reader's own section order rather than a relevance
+  // score. There is no corpus here to rank against — forty rows across eleven
+  // sections — and a parent who has arranged the screen already knows where
+  // things sit, so honouring that beats guessing at importance.
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const results = terms.length === 0 ? [] : ordered
+    .map((sec) => ({ sec, hits: (sec.search ?? []).filter((h) => matches(h.text, terms)) }))
+    .filter((r) => r.hits.length > 0);
+  const resultCount = results.reduce((n, r) => n + r.hits.length, 0);
+
+  /** Open the section a result lives in, drop the query, and scroll to it. */
+  function reveal(sectionId: string) {
+    writeLocal(`ch-fold-${sectionId}-${data.childId}`, true);
+    setQuery("");
+    setJump((j) => ({ id: sectionId, n: (j?.n ?? 0) + 1 }));
+  }
 
   return (
     <>
@@ -808,7 +929,40 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         ))}
       </div>
 
-      {isGuardian && (
+      {/* ── Find ───────────────────────────────────────────────────────── */}
+      <div style={{ position: "relative", margin: "10px var(--ios-gutter) 0" }}>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          type="search"
+          enterKeyHint="search"
+          placeholder={`Find a word, an exercise, a date…`}
+          aria-label={`Find anything on ${kid}'s workspace`}
+          style={{
+            width: "100%", padding: "11px 34px 11px 34px", borderRadius: 10, border: "none",
+            background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 16,
+            boxSizing: "border-box",
+          }}
+        />
+        <span
+          aria-hidden
+          style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--ios-label-3)", fontSize: 15, pointerEvents: "none" }}
+        >
+          ⌕
+        </span>
+        {query !== "" && (
+          <button
+            type="button"
+            aria-label="Clear"
+            onClick={() => setQuery("")}
+            style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--ios-label-3)", fontSize: 17, cursor: "pointer", padding: "4px 8px" }}
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      {isGuardian && terms.length === 0 && (
         <div style={{ margin: "10px var(--ios-gutter) 0" }}>
           <Cell
             href={kidHref}
@@ -819,10 +973,33 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         </div>
       )}
 
+      {terms.length > 0 && (
+        <>
+          <p className="ios-group-footer ios-footnote" style={{ marginTop: 8 }}>
+            {resultCount === 0
+              ? `Nothing matches “${query.trim()}”.`
+              : `${resultCount} match${resultCount === 1 ? "" : "es"} for “${query.trim()}”.`}
+          </p>
+          {results.map(({ sec, hits }) => (
+            <Group key={sec.id} header={`${sec.title} · ${hits.length}`}>
+              {hits.map((h) => (
+                <Cell
+                  key={h.key}
+                  href={h.href}
+                  onClick={h.href ? undefined : () => reveal(sec.id)}
+                  title={h.title}
+                  subtitle={h.sub}
+                />
+              ))}
+            </Group>
+          ))}
+        </>
+      )}
+
       {/* ── Pin, and arrange ───────────────────────────────────────────── */}
       {/* The pin is this parent's alone: it puts the child's week on their own
           Today and does nothing to anyone else's. */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, margin: "12px var(--ios-gutter) 0" }}>
+      <div style={{ display: terms.length > 0 ? "none" : "flex", alignItems: "center", justifyContent: "space-between", gap: 16, margin: "12px var(--ios-gutter) 0" }}>
         {isGuardian ? (
           <button
             type="button"
@@ -866,7 +1043,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       )}
 
       {/* ── The sections, in this device's order ────────────────────────── */}
-      {ordered.map((sec, i) => (
+      {terms.length === 0 && ordered.map((sec, i) => (
         <Fold
           key={sec.id}
           id={sec.id}

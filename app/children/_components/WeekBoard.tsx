@@ -21,6 +21,8 @@ import Link from "next/link";
 
 export interface WeekItem {
   key: string;
+  /** Which run of rows this belongs to. Rows arrive already in group order. */
+  group: string;
   /** Emoji rather than an icon badge: this list is scanned, not read. */
   glyph: string;
   label: string;
@@ -77,7 +79,28 @@ export function WeekProgress({ items, weekLabel }: { items: WeekItem[]; weekLabe
   );
 }
 
+/**
+ * Rows in runs, each run under its own heading.
+ *
+ * Seven rows is a list; fifteen is a wall. Once a week carries spelling, three
+ * pieces of memory work, four exercises, a note from the teacher and whatever
+ * was typed in by hand, an undifferentiated column of them cannot be read at a
+ * glance — which is the only thing this card is for. The headings are the
+ * kinds of work, and each one carries its own count, so a parent with ten
+ * minutes can see that the words are done and the practice is not without
+ * reading a single row.
+ *
+ * Rows arrive in group order, so this walks them once and starts a new heading
+ * whenever the group changes; it never sorts, and a group cannot appear twice.
+ */
 export function WeekRows({ items, emptyNote }: { items: WeekItem[]; emptyNote: string }) {
+  const runs: { group: string; items: WeekItem[] }[] = [];
+  for (const it of items) {
+    const last = runs[runs.length - 1];
+    if (last && last.group === it.group) last.items.push(it);
+    else runs.push({ group: it.group, items: [it] });
+  }
+
   return (
     <div className="ios-list" style={{ margin: "8px var(--ios-gutter) 0", overflow: "hidden", padding: 0 }}>
       {items.length === 0 && (
@@ -86,6 +109,44 @@ export function WeekRows({ items, emptyNote }: { items: WeekItem[]; emptyNote: s
         </div>
       )}
 
+      {runs.map((run, ri) => (
+        <div key={run.group}>
+          {/* A single run needs no heading — the card's own title already says
+              what it is, and a lone header over a lone row is just noise. */}
+          {runs.length > 1 && (
+            <div
+              style={{
+                display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8,
+                padding: "10px 16px 4px", background: "var(--ios-fill-2)",
+                borderTop: ri === 0 ? "none" : "1px solid var(--ios-separator)",
+              }}
+            >
+              <span
+                className="ios-caption"
+                style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700 }}
+              >
+                {run.group}
+              </span>
+              {/* Only worth a tally when there is something to tally. Over a
+                  single row it said "0/1" beside that row's own "6/12", which
+                  is two different fractions of the same thing. */}
+              {run.items.length > 1 && (
+                <span className="ios-caption ios-num" style={{ color: "var(--ios-label-3)", fontWeight: 700 }}>
+                  {run.items.filter((x) => x.done).length}/{run.items.length}
+                </span>
+              )}
+            </div>
+          )}
+          <RunRows items={run.items} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RunRows({ items }: { items: WeekItem[] }) {
+  return (
+    <>
       {items.map((it, i) => {
           const body = (
             <>
@@ -174,6 +235,6 @@ export function WeekRows({ items, emptyNote }: { items: WeekItem[]; emptyNote: s
             </div>
           );
         })}
-    </div>
+    </>
   );
 }
