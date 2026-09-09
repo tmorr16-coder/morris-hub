@@ -14,6 +14,7 @@ import { redirect, notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { getChildWorkspace } from "../../_lib/children";
 import KidClient from "../../_components/KidClient";
+import { ttsConfigured } from "@/lib/openai-tts";
 
 export default async function KidScreenPage({
   params,
@@ -41,6 +42,7 @@ export default async function KidScreenPage({
         spelling={L?.spellingWeek ? { weekId: L.spellingWeek.id, words: L.spellingWeek.words, sightWords: L.spellingWeek.sightWords, pattern: L.spellingWeek.pattern } : null}
         stars={L?.stars ?? { total: 0, week: 0 }}
         openTo={open === "buddy" ? "buddy" : "home"}
+        cloudVoices={ttsConfigured()}
       />
     </div>
   );
