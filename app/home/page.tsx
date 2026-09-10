@@ -69,22 +69,10 @@ export default async function HomePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = createServiceClient() as any;
 
-  // Gate: redirect new users to onboarding.
-  // NOTE: redirect() throws NEXT_REDIRECT, so it must run OUTSIDE the try/catch —
-  // otherwise the catch swallows the redirect and it silently never happens.
-  let needsOnboarding = false;
-  try {
-    const { data: onboardingCheck } = await service
-      .schema("hub")
-      .from("preferences")
-      .select("onboarding_completed")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    needsOnboarding = onboardingCheck?.onboarding_completed === false;
-  } catch {
-    // Column doesn't exist yet — skip
-  }
-  if (needsOnboarding) redirect("/onboarding");
+  // The onboarding gate now sits below, folded into the preferences read it was
+  // duplicating. It was its own round trip to hub.preferences for one column,
+  // in front of every other query on the screen, on every single open, for
+  // every user who finished onboarding months ago.
 
   // Compute early so workouts query can filter by today's date
   const userTz = getUserTimezone(user.user_metadata);
@@ -132,7 +120,9 @@ export default async function HomePage() {
     })(),
   ]);
 
-  const [todoResult, reminders, workoutsResult, assignedReminders, circleResult] = await Promise.all([
+  // Started, not awaited. The onboarding gate below needs nothing from it, and
+  // gating before asking put the two in series for no reason.
+  const batchAP = Promise.all([
     service
       .schema("hub")
       .from("todos")
@@ -155,6 +145,16 @@ export default async function HomePage() {
       .select("member_user_id, display_name, nickname, role")
       .eq("user_id", user.id),
   ]);
+
+  // Gate: new users go to onboarding. The flag rides along on the preferences
+  // row getPreferences already fetches, so it costs no request of its own.
+  // redirect() throws NEXT_REDIRECT, so it stays outside any try/catch — a
+  // catch would swallow it and the redirect would silently never happen.
+  const [homePrefs, financeLocked] = await prefsPinP;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((homePrefs as any)?.onboarding_completed === false) redirect("/onboarding");
+
+  const [todoResult, reminders, workoutsResult, assignedReminders, circleResult] = await batchAP;
 
   const todos = (todoResult.data ?? []) as Todo[];
 
@@ -609,8 +609,6 @@ export default async function HomePage() {
   const netPrev: number | null = netSnaps.length > 1 ? (netSnaps[netSnaps.length - 1]?.net_position ?? null) : null;
   const netPct: number | null = netWorth != null && netPrev != null && netPrev !== 0
     ? ((netWorth - netPrev) / Math.abs(netPrev)) * 100 : null;
-
-  const [homePrefs, financeLocked] = await prefsPinP;
 
   // Weather leads the glance (replacing the calendar tile). The forecast is NOT
   // awaited here — it streams in via <Suspense> so two calls to api.weather.gov

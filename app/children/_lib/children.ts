@@ -226,7 +226,7 @@ export async function getChildWorkspace(childId: string, viewerUserId: string, n
   const ageTier = computeAgeTier(row.birth_year, row.life_stage_override, now);
   const age = computeAge(row.birth_year, now);
 
-  const [{ data: activityRows }, { data: healthRows }, learning] = await Promise.all([
+  const [{ data: activityRows }, { data: healthRows }, learning, { data: prefRow }] = await Promise.all([
     db.schema("hub").from("child_activities")
       .select("id, category, title, notes, due_at, completed")
       .eq("child_id", childId)
@@ -236,6 +236,15 @@ export async function getChildWorkspace(childId: string, viewerUserId: string, n
       .eq("child_id", childId)
       .order("created_at", { ascending: false }),
     ageTier === "elementary" ? loadLearning(db, childId, row.birth_year, now) : Promise.resolve(null),
+    // The viewer's own pin, never the child's or the owner's. A failure here is
+    // deliberately swallowed: before 20260908_pinned_child.sql is applied the
+    // column does not exist and PostgREST answers 400, which must degrade to
+    // "not pinned" rather than take the whole workspace down with it.
+    db.schema("hub").from("preferences")
+      .select("pinned_child_id")
+      .eq("user_id", viewerUserId)
+      .maybeSingle()
+      .then((r: { data: unknown }) => r, () => ({ data: null })),
   ]);
 
   const activities: ChildActivity[] = ((activityRows ?? []) as { id: string; category: string; title: string; notes: string | null; due_at: string | null; completed: boolean }[])
@@ -250,6 +259,8 @@ export async function getChildWorkspace(childId: string, viewerUserId: string, n
 
   const healthNotes: ChildHealthNote[] = ((healthRows ?? []) as { id: string; note: string; target_visit_date: string | null; resolved: boolean }[])
     .map((h) => ({ id: h.id, note: h.note, targetVisitDate: h.target_visit_date, resolved: h.resolved }));
+
+  const pinnedChildId = (prefRow as { pinned_child_id: string | null } | null)?.pinned_child_id ?? null;
 
   let academicsSummary: AcademicsSummary | null = null;
   if (ageTier === "college" && row.member_user_id) {
@@ -274,18 +285,6 @@ export async function getChildWorkspace(childId: string, viewerUserId: string, n
     }
     academicsSummary = { courses: sharedCourses, upcomingAssignments };
   }
-
-  // The pin is the viewer's own preference, never the child's or the owner's.
-  //
-  // The error is deliberately ignored rather than surfaced: before
-  // 20260908_pinned_child.sql has been applied the column does not exist and
-  // PostgREST answers 400, which must degrade to "not pinned" rather than take
-  // the whole workspace down with it.
-  const { data: prefRow } = await db.schema("hub").from("preferences")
-    .select("pinned_child_id")
-    .eq("user_id", viewerUserId)
-    .maybeSingle();
-  const pinnedChildId = (prefRow as { pinned_child_id: string | null } | null)?.pinned_child_id ?? null;
 
   return {
     childId,

@@ -25,7 +25,7 @@ function fmtDay(iso: string): string {
 }
 
 export function PinnedChildCard({ child }: { child: PinnedChildSummary }) {
-  const { first, gradeLabel, done, total, next, testOn, starsWeek, childId } = child;
+  const { first, gradeLabel, done, total, next, testOn, starsToday, childId } = child;
   const pct = total === 0 ? 0 : Math.round((done / total) * 100);
   const allDone = total > 0 && done === total;
 
@@ -48,7 +48,7 @@ export function PinnedChildCard({ child }: { child: PinnedChildSummary }) {
         </div>
 
         <div className="ios-caption" style={{ color: "var(--ios-label-3)", marginTop: 1 }}>
-          {[gradeLabel, testOn ? `spelling test ${fmtDay(testOn)}` : null, starsWeek > 0 ? `${starsWeek} ⭐ this week` : null]
+          {[gradeLabel, testOn ? `spelling test ${fmtDay(testOn)}` : null, starsToday > 0 ? `${starsToday} ⭐ today` : null]
             .filter(Boolean)
             .join(" · ")}
         </div>
