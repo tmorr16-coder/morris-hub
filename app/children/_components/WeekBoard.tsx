@@ -18,6 +18,7 @@
 // child yet. A row that is finished says so and stops asking.
 
 import Link from "next/link";
+import { TopicGroup } from "./TopicGroup";
 
 export interface WeekItem {
   key: string;
@@ -93,7 +94,7 @@ export function WeekProgress({ items, weekLabel }: { items: WeekItem[]; weekLabe
  * Rows arrive in group order, so this walks them once and starts a new heading
  * whenever the group changes; it never sorts, and a group cannot appear twice.
  */
-export function WeekRows({ items, emptyNote }: { items: WeekItem[]; emptyNote: string }) {
+export function WeekRows({ items, emptyNote, keyPrefix }: { items: WeekItem[]; emptyNote: string; keyPrefix: string }) {
   const runs: { group: string; items: WeekItem[] }[] = [];
   for (const it of items) {
     const last = runs[runs.length - 1];
@@ -109,36 +110,20 @@ export function WeekRows({ items, emptyNote }: { items: WeekItem[]; emptyNote: s
         </div>
       )}
 
-      {runs.map((run, ri) => (
-        <div key={run.group}>
-          {/* A single run needs no heading — the card's own title already says
-              what it is, and a lone header over a lone row is just noise. */}
-          {runs.length > 1 && (
-            <div
-              style={{
-                display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8,
-                padding: "10px 16px 4px", background: "var(--ios-fill-2)",
-                borderTop: ri === 0 ? "none" : "1px solid var(--ios-separator)",
-              }}
-            >
-              <span
-                className="ios-caption"
-                style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700 }}
-              >
-                {run.group}
-              </span>
-              {/* Only worth a tally when there is something to tally. Over a
-                  single row it said "0/1" beside that row's own "6/12", which
-                  is two different fractions of the same thing. */}
-              {run.items.length > 1 && (
-                <span className="ios-caption ios-num" style={{ color: "var(--ios-label-3)", fontWeight: 700 }}>
-                  {run.items.filter((x) => x.done).length}/{run.items.length}
-                </span>
-              )}
-            </div>
-          )}
+      {/* A single run needs no heading — the card's own title already says what
+          it is, and a lone header over a lone row is just noise. */}
+      {runs.length === 1 && <RunRows items={runs[0].items} />}
+      {runs.length > 1 && runs.map((run, ri) => (
+        <TopicGroup
+          key={run.group}
+          storageKey={`${keyPrefix}-${run.group}`}
+          title={run.group}
+          done={run.items.filter((x) => x.done).length}
+          total={run.items.length}
+          first={ri === 0}
+        >
           <RunRows items={run.items} />
-        </div>
+        </TopicGroup>
       ))}
     </div>
   );

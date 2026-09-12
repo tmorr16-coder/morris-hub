@@ -33,6 +33,7 @@ import type { ChildWorkspaceData, ChildActivity, ChildHealthNote } from "../_lib
 import type { Exercise, SchoolDate, ChildTask } from "../_lib/learning";
 import { resourcesFor, STAPLES, KIND_LABEL } from "../_lib/resources";
 import { Fold } from "./Fold";
+import { TopicGroup } from "./TopicGroup";
 import { WeekProgress, WeekRows, type WeekItem } from "./WeekBoard";
 import { useSectionOrder, writeLocal } from "../_lib/ui-state";
 import {
@@ -513,7 +514,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     accessory: <WeekProgress items={weekItems} weekLabel={week?.weekStart ? `Week of ${fmtDate(week.weekStart, false)}${week.testOn ? ` · spelling test ${soon(week.testOn)}` : ""}` : "Everything owed this week"} />,
     summary: weekItems.length === 0 ? undefined : `${weekItems.filter((i) => !i.done).length} still to do.`,
     search: weekItems.map((it) => hit(`w-${it.key}`, it.label, it.detail, `${it.group} ${it.done ? "done" : "to do"}`)),
-    body: <WeekRows items={weekItems} emptyNote="Nothing set for this week yet. Photograph the newsletter or a graded paper and the week fills itself in." />,
+    body: <WeekRows items={weekItems} keyPrefix={`ch-topic-week-${data.childId}`} emptyNote="Nothing set for this week yet. Photograph the newsletter or a graded paper and the week fills itself in." />,
   });
 
   if (week) {
@@ -603,18 +604,16 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
               drill — and reading them that way makes the plan look like more
               work than it is. Together, they read as "the reading work" and
               "the math work", which is how an evening actually gets divided. */}
-          {exerciseGroups.map(([skill, list]) => (
-          <div key={skill} className="ios-list" style={{ margin: "0 var(--ios-gutter) 10px" }}>
-            {exerciseGroups.length > 1 && (
-              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, padding: "10px 16px 2px" }}>
-                <span className="ios-caption" style={{ color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700 }}>{skill}</span>
-                {list.length > 1 && (
-                  <span className="ios-caption ios-num" style={{ color: "var(--ios-label-3)", fontWeight: 700 }}>
-                    {list.filter((e) => e.doneToday).length}/{list.length}
-                  </span>
-                )}
-              </div>
-            )}
+          <div className="ios-list" style={{ margin: "0 var(--ios-gutter)", overflow: "hidden", padding: 0 }}>
+          {exerciseGroups.map(([skill, list], gi) => (
+          <TopicGroup
+            key={skill}
+            storageKey={`ch-topic-prac-${data.childId}-${skill}`}
+            title={skill}
+            done={list.filter((e) => e.doneToday).length}
+            total={list.length}
+            first={gi === 0}
+          >
             {list.map((ex) => {
               const openEx = openExercise === ex.id;
               return (
@@ -646,8 +645,9 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
                 </div>
               );
             })}
-          </div>
+          </TopicGroup>
           ))}
+          </div>
           <p className="ios-group-footer ios-footnote">{exercises.length === 0 ? "Nothing planned yet. Photograph a graded paper or the newsletter and the plan is proposed from the teacher's marks." : "Each one traces to something the teacher wrote or the paper showed. Tap for the steps; tap Done again to take it back."}</p>
         </>
       ),
