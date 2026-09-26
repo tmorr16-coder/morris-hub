@@ -48,7 +48,12 @@ const cachedMemberNames = unstable_cache(
 );
 
 export default async function HomePage() {
+  // TEMPORARY phase timing for the iOS slow-open investigation. Remove once found.
+  const t0 = Date.now();
+  const marks: Record<string, number> = {};
+  const mark = (k: string) => { marks[k] = Date.now() - t0; };
   const { user, error } = await getCurrentUserResult();
+  mark("auth");
   if (!user) {
     // Supabase could not be asked — do not guess. Bouncing to "/" here, where
     // the token is checked locally and passes, is the loop; an error boundary
@@ -151,10 +156,12 @@ export default async function HomePage() {
   // redirect() throws NEXT_REDIRECT, so it stays outside any try/catch — a
   // catch would swallow it and the redirect would silently never happen.
   const [homePrefs, financeLocked] = await prefsPinP;
+  mark("prefs");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if ((homePrefs as any)?.onboarding_completed === false) redirect("/onboarding");
 
   const [todoResult, reminders, workoutsResult, assignedReminders, circleResult] = await batchAP;
+  mark("batchA");
 
   const todos = (todoResult.data ?? []) as Todo[];
 
@@ -660,6 +667,9 @@ export default async function HomePage() {
     { key: "family", label: "Invite your family", href: "/home/settings/family", done: familyDone },
     { key: "data", label: "Add a task or connect an account", href: "/home/tasks", done: dataDone },
   ];
+
+  mark("ready");
+  console.log(JSON.stringify({ perf: "home", ...marks }));
 
   return (
     <HomeClient

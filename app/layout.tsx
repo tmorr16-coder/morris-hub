@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, JetBrains_Mono, Instrument_Serif } from "next/font/google";
 import { RateLimitErrorBoundary } from "@/components/RateLimitErrorBoundary";
+import PerfBeacon from "@/components/PerfBeacon";
 import ThemeApplier from "@/components/ThemeApplier";
 import GlobalBackButton from "@/components/GlobalBackButton";
 import PullToRefresh from "@/components/PullToRefresh";
@@ -145,6 +146,7 @@ export default async function RootLayout({
       {/* The platform skin, applied once for every screen. See app/platform.css. */}
       <body className="pf">
         <ThemeApplier />
+        <PerfBeacon />
         <GlobalBackButton />
         <PullToRefresh />
         <NavModeProvider personal={personal}>

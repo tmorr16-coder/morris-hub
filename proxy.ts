@@ -5,6 +5,8 @@ import { withAuthRetry } from "@/lib/supabase/auth-retry";
 const COOKIE_DOMAIN = process.env.NEXT_PUBLIC_COOKIE_DOMAIN;
 
 export async function proxy(request: NextRequest) {
+  const t0 = Date.now();
+  let refreshed = false;
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -16,6 +18,7 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
+          refreshed = true;
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
@@ -54,6 +57,15 @@ export async function proxy(request: NextRequest) {
     { maxAttempts: 3, initialDelayMs: 100 }
   ).catch(() => null);
   const user = claims?.sub ? claims : null;
+
+  // TEMPORARY — diagnosing a 10-15s open on iPhone/iPad that the Mac does not
+  // see. Durations and flags only; no identity. Remove once found.
+  const ua = request.headers.get("user-agent") ?? "";
+  console.log(JSON.stringify({
+    perf: "proxy", path: request.nextUrl.pathname, ms: Date.now() - t0,
+    refreshed, signedIn: !!user, ios: /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && /Mobile/.test(ua)),
+    prefetch: request.headers.get("next-router-prefetch") === "1" || request.headers.get("purpose") === "prefetch",
+  }));
 
   // This used to set x-user-id / x-user-email on the response, described as a
   // way to avoid redundant getUser() calls downstream. It never could: response
