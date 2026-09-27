@@ -210,7 +210,7 @@ export default function AppleHealthCard({ configured, lastSyncAt, syncsLast7d = 
       )}
 
       <p className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "8px 16px 0" }}>
-        Seeing a <b style={{ fontWeight: 600 }}>413 (payload too large)</b>? In Health Auto Export turn <b style={{ fontWeight: 600 }}>Batch Requests ON</b> (splits the export into smaller requests) and set <b style={{ fontWeight: 600 }}>Time Grouping</b> to <b style={{ fontWeight: 600 }}>1 hour</b> or coarser (raw heart-rate samples are what blow past the limit). Keep <b style={{ fontWeight: 600 }}>Summarize Data</b> on and Date Range at Today.
+        Seeing a <b style={{ fontWeight: 600 }}>413 (payload too large)</b>? In Health Auto Export turn <b style={{ fontWeight: 600 }}>Batch Requests ON</b> (splits the export into smaller requests) and set <b style={{ fontWeight: 600 }}>Time Grouping</b> to <b style={{ fontWeight: 600 }}>1 hour</b> or coarser (raw heart-rate samples are what blow past the limit). Keep <b style={{ fontWeight: 600 }}>Summarize Data</b> on and Date Range at <b style={{ fontWeight: 600 }}>Since Last Sync</b>, so each run sends only what is new.
       </p>
     </div>
   );
