@@ -26,13 +26,13 @@ moments of the next unlock, which in practice is minutes, not days.
 
 ## Build it
 
-1. On the Mac, in this folder:
+This has to happen on a Mac. Xcode does not run in a Codespace or on Linux.
 
-   ```
-   brew install xcodegen
-   xcodegen generate
-   open MorrisHealthSync.xcodeproj
-   ```
+1. Get the code onto the Mac. In Xcode: **Integrate → Clone…** (called
+   **Source Control → Clone…** in older versions), sign in to GitHub when
+   asked, and choose `tmorr16-coder/morris-hub`. Then open
+   `ios/MorrisHealthSync/MorrisHealthSync.xcodeproj` from the folder it
+   saved. The project file is committed; nothing needs installing first.
 
 2. In Xcode select the **MorrisHealthSync** target → **Signing & Capabilities**.
    - Choose your **Team**.
@@ -43,13 +43,17 @@ moments of the next unlock, which in practice is minutes, not days.
 3. Plug in the iPhone, pick it as the run destination, press **Run**.
    HealthKit does not work in the Simulator for real data; use the phone.
 
-### Without XcodeGen
+### After adding or removing a source file
 
-File → New → Project → iOS App (SwiftUI, Swift), name it MorrisHealthSync.
-Delete the generated `ContentView.swift` and `…App.swift`, drag in everything
-from `Sources/`, replace the target's Info.plist keys with those in
-`Config/Info.plist`, and add the HealthKit capability with Background
-Delivery.
+The project lists its files by name, so regenerate it:
+
+```
+gem install xcodeproj
+ruby generate-project.rb
+```
+
+That script runs on Linux too. `project.yml` describes the same project for
+anyone who prefers XcodeGen.
 
 ## First run
 

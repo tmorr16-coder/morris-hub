@@ -1,5 +1,5 @@
-# XcodeGen spec. On the Mac:  brew install xcodegen && xcodegen generate
-# then open MorrisHealthSync.xcodeproj, pick your Team under Signing, and run.
+# XcodeGen spec, kept as an alternative. The committed MorrisHealthSync.xcodeproj
+# is written by generate-project.rb, so nothing here needs running to build.
 name: MorrisHealthSync
 options:
   bundleIdPrefix: family.morrisai

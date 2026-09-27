@@ -70,9 +70,9 @@ enum Uploader {
                 "end": iso.string(from: w.end),
                 "duration": w.duration,
             ]
-            if let d = w.distanceMiles { row["distance"] = ["qty": d, "units": "mi"] }
-            if let e = w.activeKcal { row["activeEnergyBurned"] = ["qty": e, "units": "kcal"] }
-            if let h = w.avgHeartRate { row["avgHeartRate"] = ["qty": h, "units": "count/min"] }
+            if let d = w.distanceMiles { row["distance"] = ["qty": d, "units": "mi"] as [String: Any] }
+            if let e = w.activeKcal { row["activeEnergyBurned"] = ["qty": e, "units": "kcal"] as [String: Any] }
+            if let h = w.avgHeartRate { row["avgHeartRate"] = ["qty": h, "units": "count/min"] as [String: Any] }
             return row
         }
         let body: [String: Any] = [

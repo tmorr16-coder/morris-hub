@@ -15,7 +15,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         // Both registrations must happen on every launch, including the silent
         // ones iOS performs to hand over a HealthKit update.
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: SyncEngine.refreshTaskId, using: nil) { task in
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: SyncEngine.refreshTaskId, using: nil) { @Sendable task in
             guard let refresh = task as? BGAppRefreshTask else {
                 task.setTaskCompleted(success: false)
                 return

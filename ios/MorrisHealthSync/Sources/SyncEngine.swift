@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import HealthKit
 import BackgroundTasks
 import UIKit
@@ -96,7 +97,8 @@ final class SyncEngine: ObservableObject {
         guard !observing, reader.available else { return }
         observing = true
         for type in reader.observedTypes {
-            let query = HKObserverQuery(sampleType: type, predicate: nil) { _, completion, error in
+            // HealthKit calls this on its own queue, not the main one.
+            let query = HKObserverQuery(sampleType: type, predicate: nil) { @Sendable _, completion, error in
                 guard error == nil else {
                     completion()
                     return
@@ -251,6 +253,6 @@ final class SyncEngine: ObservableObject {
             await self.sync(reason: "background refresh")
             task.setTaskCompleted(success: true)
         }
-        task.expirationHandler = { work.cancel() }
+        task.expirationHandler = { @Sendable in work.cancel() }
     }
 }
