@@ -41,6 +41,7 @@ export default async function IntegrationsPage({
     { data: appleLastRow },
     { count: appleMetricsCount },
     { count: appleWorkoutsCount },
+    { data: appleRecentRows },
   ] = await Promise.all([
     db.from("withings_tokens").select("updated_at").eq("user_id", userId).maybeSingle() as Promise<{ data: TokenRow | null }>,
     db.from("apple_health_metrics").select("created_at").eq("user_id", userId).eq("source", "withings").order("created_at", { ascending: false }).limit(1).maybeSingle() as Promise<{ data: { created_at: string } | null }>,
@@ -48,7 +49,13 @@ export default async function IntegrationsPage({
     db.from("apple_health_metrics").select("created_at").eq("user_id", userId).eq("source", "apple_health").order("created_at", { ascending: false }).limit(1).maybeSingle() as Promise<{ data: { created_at: string } | null }>,
     db.from("apple_health_metrics").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("source", "apple_health") as Promise<{ count: number | null }>,
     db.from("apple_health_workouts").select("id", { count: "exact", head: true }).eq("user_id", userId) as Promise<{ count: number | null }>,
+    // Every row that arrived in the last seven days, to count how many times
+    // the export actually ran — "Active" with a two-day-old sync is not active.
+    db.from("apple_health_metrics").select("created_at").eq("user_id", userId).eq("source", "apple_health")
+      .gte("created_at", new Date(Date.now() - 7 * 86_400_000).toISOString()).order("created_at", { ascending: false }).limit(5000) as Promise<{ data: { created_at: string }[] | null }>,
   ]);
+  // Rows land in bursts; one burst is one export. Count bursts a minute apart.
+  const appleSyncsLast7d = new Set(((appleRecentRows ?? []) as { created_at: string }[]).map((r) => r.created_at.slice(0, 16))).size;
 
   const connected       = tokenRow !== null;
   const connectedAt     = (tokenRow as TokenRow | null)?.updated_at ?? null;
@@ -107,6 +114,7 @@ export default async function IntegrationsPage({
         <AppleHealthCard
           configured={appleMetricsCount !== null && appleMetricsCount > 0}
           lastSyncAt={appleLastSyncAt}
+          syncsLast7d={appleSyncsLast7d}
           metricsCount={appleMetricsCount ?? 0}
           workoutsCount={appleWorkoutsCount ?? 0}
           webhookUrl={webhookUrl}

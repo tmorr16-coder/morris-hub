@@ -6,6 +6,8 @@ import { Cell, IconBadge } from "@/components/ios";
 interface Props {
   configured: boolean;
   lastSyncAt: string | null;
+  /** How many separate exports arrived in the last seven days. */
+  syncsLast7d?: number;
   metricsCount: number;
   workoutsCount: number;
   webhookUrl: string;
@@ -29,16 +31,18 @@ const WatchGlyph = () => (
   </svg>
 );
 
-function StatusPill({ on }: { on: boolean }) {
+function StatusPill({ state }: { state: "fresh" | "stale" | "off" }) {
+  const color = state === "fresh" ? "var(--ios-green)" : state === "stale" ? "var(--ios-orange)" : "var(--ios-label-2)";
+  const dot = state === "fresh" ? "var(--ios-green)" : state === "stale" ? "var(--ios-orange)" : "var(--ios-label-3)";
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 15, color: on ? "var(--ios-green)" : "var(--ios-label-2)" }}>
-      <span style={{ width: 8, height: 8, borderRadius: "50%", background: on ? "var(--ios-green)" : "var(--ios-label-3)" }} />
-      {on ? "Active" : "Not connected"}
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 15, color }}>
+      <span style={{ width: 8, height: 8, borderRadius: "50%", background: dot }} />
+      {state === "fresh" ? "Active" : state === "stale" ? "Not syncing" : "Not connected"}
     </span>
   );
 }
 
-export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, workoutsCount, webhookUrl, apiKey }: Props) {
+export default function AppleHealthCard({ configured, lastSyncAt, syncsLast7d = 0, metricsCount, workoutsCount, webhookUrl, apiKey }: Props) {
   const [copied, setCopied] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
   const [keyShown, setKeyShown] = useState(false);
@@ -73,6 +77,10 @@ export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, 
 
   void configured; // available for future gating; connection state derives from hasData
   const hasData = metricsCount > 0 || workoutsCount > 0;
+  // "Active" used to mean "has ever received anything". A watch that last
+  // reported three days ago is not active; say so, and say why below.
+  const hoursSince = lastSyncAt ? (Date.now() - new Date(lastSyncAt).getTime()) / 3_600_000 : Infinity;
+  const state: "fresh" | "stale" | "off" = !hasData ? "off" : hoursSince <= 24 ? "fresh" : "stale";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -82,14 +90,15 @@ export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, 
           lead={<IconBadge color="#1C1C1E"><WatchGlyph /></IconBadge>}
           title="Apple Watch"
           subtitle="Steps · workouts · heart rate · HRV"
-          trailing={<StatusPill on={hasData} />}
+          trailing={<StatusPill state={state} />}
         />
 
         {hasData && (
           <>
             <Cell chevron={false} title="Metrics synced" trailing={<span className="ios-num">{metricsCount.toLocaleString()}</span>} />
             <Cell chevron={false} title="Workouts" trailing={<span className="ios-num">{workoutsCount.toLocaleString()}</span>} />
-            <Cell chevron={false} title="Last sync" trailing={<span className="ios-num">{lastSyncAt ? relativeTime(lastSyncAt) : "Never"}</span>} />
+            <Cell chevron={false} title="Last sync" trailing={<span className="ios-num" style={{ color: state === "stale" ? "var(--ios-orange)" : undefined }}>{lastSyncAt ? relativeTime(lastSyncAt) : "Never"}</span>} />
+            <Cell chevron={false} title="Exports in the last 7 days" subtitle={syncsLast7d <= 7 ? "A working automation sends several a day" : undefined} trailing={<span className="ios-num" style={{ color: syncsLast7d <= 7 ? "var(--ios-orange)" : undefined }}>{syncsLast7d}</span>} />
             <Cell href="/health" title={<span style={{ color: "var(--ios-tint)" }}>View health dashboard</span>} />
           </>
         )}
@@ -159,11 +168,30 @@ export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, 
         </div>
       </div>
 
-      <p className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "2px 16px 0" }}>
+      <p className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "2px 16px 0", lineHeight: 1.5 }}>
         {hasData
-          ? "Data syncs automatically via the Health Auto Export app — your Apple Watch sends metrics as they arrive."
+          ? "Data arrives when the Health Auto Export app runs its automation. Apple lets it run only while the phone is unlocked and only when iOS grants it background time, so on its own it is irregular; the schedule below makes it predictable."
           : "Install Health Auto Export on your iPhone and point it at your personal URL above."}
       </p>
+
+      {hasData && (
+        <div className="ios-list" style={{ margin: "8px 0 0", padding: "12px 16px" }}>
+          <div className="ios-subhead" style={{ fontWeight: 600, marginBottom: 6 }}>Make it run on a schedule</div>
+          <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: "0 0 8px", lineHeight: 1.5 }}>
+            iOS will not run an app at a set time, but it will run a Shortcut at one. Once, on the iPhone:
+          </p>
+          <ol className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "0 0 0 18px", margin: 0, lineHeight: 1.7 }}>
+            <li>In Health Auto Export: Settings → Automation → open your REST automation. Set <b style={{ fontWeight: 600 }}>Date Range: Since Last Sync</b>, <b style={{ fontWeight: 600 }}>Batch Requests: ON</b>. Under Sync Cadence, pick the shortest interval offered.</li>
+            <li>Shortcuts app → Shortcuts tab → <b style={{ fontWeight: 600 }}>+</b> → search &ldquo;Auto Export&rdquo; → add <b style={{ fontWeight: 600 }}>Run Automation</b> → choose that automation → name it <i>Sync Watch</i>.</li>
+            <li>Shortcuts → Automation tab → <b style={{ fontWeight: 600 }}>+</b> → <b style={{ fontWeight: 600 }}>Time of Day</b> → a time the phone is normally unlocked (say 7:30 am) → Daily → <b style={{ fontWeight: 600 }}>Run Immediately</b> → add the action <b style={{ fontWeight: 600 }}>Run Shortcut</b> → <i>Sync Watch</i>.</li>
+            <li>Repeat step 3 for noon, 5 pm and 9 pm. Four scheduled runs a day is what &ldquo;near real time&rdquo; can mean without a native app.</li>
+            <li>iPhone Settings → General → Background App Refresh: on for Health Auto Export. Don&rsquo;t swipe the app closed. Add its Automations widget to a Home Screen page; the app says this helps its own background runs.</li>
+          </ol>
+          <p className="ios-footnote" style={{ color: "var(--ios-label-3)", margin: "8px 0 0", lineHeight: 1.5 }}>
+            A run at a scheduled time while the phone is locked fails, because Apple blocks Health access on a locked phone. That is the one limit no setting removes. True real time — the watch pushing each workout as it ends — needs a small native app using HealthKit background delivery, which is a separate build.
+          </p>
+        </div>
+      )}
 
       {!hasData && (
         <ol className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "0 16px 0 34px", margin: 0, lineHeight: 1.7 }}>

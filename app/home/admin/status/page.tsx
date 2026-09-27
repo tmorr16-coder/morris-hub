@@ -96,6 +96,40 @@ export default async function StatusPage() {
       };
     });
 
+  // ── Apple Watch, per person ───────────────────────────────────────────────
+  // Health Auto Export pushes to us; nothing here can fail loudly when it
+  // simply stops. So the silence is the signal: a person whose watch data
+  // once arrived and has not in STALE_DAYS is listed like a stale bank.
+  try {
+    const { data: appleRows } = await db
+      .from("apple_health_metrics")
+      .select("user_id, created_at")
+      .eq("source", "apple_health")
+      .order("created_at", { ascending: false })
+      .limit(3000);
+    const latestByUser = new Map<string, string>();
+    for (const r of (appleRows ?? []) as { user_id: string; created_at: string }[]) {
+      if (!latestByUser.has(r.user_id)) latestByUser.set(r.user_id, r.created_at);
+    }
+    for (const [userId, lastAt] of latestByUser) {
+      const days = (Date.now() - new Date(lastAt).getTime()) / 86_400_000;
+      if (days <= STALE_DAYS) continue;
+      brokenConnections.push({
+        id: `apple-health-${userId}`,
+        institution: "Apple Watch · Health Auto Export",
+        userId,
+        status: "stale",
+        lastSyncedAt: lastAt,
+        lastErrorAt: null,
+        rawError: null,
+        kind: "stale",
+        headline: "Apple Watch data hasn't arrived recently",
+        detail: "The export app only runs while the phone is unlocked and when iOS gives it background time. Open Health Auto Export and tap Export Now, or set the Shortcuts schedule under Health → Settings → Integrations.",
+        canReconnect: false,
+      });
+    }
+  } catch { /* the table is per-deployment; a missing one is not a broken watch */ }
+
   // ── The shared failure log ────────────────────────────────────────────────
   // Grouped by source+subject: fifty identical nightly failures are one problem,
   // and listing them fifty times buries everything else.

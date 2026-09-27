@@ -146,11 +146,72 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
       totalAdded = txRows.length;
     }
 
+    // ── Hold a balance the provider has plainly got wrong ──────────────────
+    // For ten days in September the E*TRADE brokerage came through as $5,939
+    // where it had been $110k the day before and was $115k the day after,
+    // with no transaction anywhere near it. The figure was written nightly
+    // into the dashboard, the net-position trend and the retirement plan. An
+    // investment balance that loses more than three quarters overnight, with
+    // nothing on the account to explain it, is held: the previous figure
+    // stands, a warning goes to the status page, and the next honest read
+    // clears it.
+    const internalIds = [...accountMap.values()];
+    const { data: prevRows } = await supabase
+      .schema('finance')
+      .from('accounts')
+      .select('id, current_balance, type')
+      .in('id', internalIds);
+    const prevById = new Map(
+      ((prevRows ?? []) as { id: string; current_balance: number | null; type: string }[]).map((r) => [r.id, r])
+    );
+    const { data: openHolds } = await supabase
+      .schema('hub')
+      .from('system_events')
+      .select('subject')
+      .eq('source', 'simplefin')
+      .in('subject', internalIds)
+      .is('resolved_at', null);
+    const previouslyHeld = new Set(((openHolds ?? []) as { subject: string }[]).map((r) => r.subject));
+    const held = new Set<string>();
+    const usd = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+    for (const a of accounts) {
+      const internalId = accountMap.get(a.id);
+      if (!internalId) continue;
+      const mapped = mapSimpleFinAccount(a);
+      const prev = prevById.get(internalId);
+      if (!prev || mapped.type !== 'investment' || prev.current_balance == null) continue;
+      const before = Number(prev.current_balance);
+      const after = mapped.current_balance;
+      if (!(before > 5000) || Number.isNaN(after) || after >= before * 0.25) continue;
+      // A genuine transfer out would show as transactions; a feed hiccup does not.
+      const since = new Date(Date.now() - 10 * 86_400_000).toISOString().slice(0, 10);
+      const { data: tx } = await supabase
+        .schema('finance')
+        .from('transactions')
+        .select('amount')
+        .eq('account_id', internalId)
+        .gte('date', since);
+      const moved = ((tx ?? []) as { amount: number }[]).reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0);
+      if (moved >= (before - after) * 0.5) continue;
+      held.add(internalId);
+      await recordFailure({
+        source: 'simplefin',
+        subject: internalId,
+        userId: item.user_id ?? null,
+        severity: 'warning',
+        message: `${a.org?.name ?? 'Provider'} · ${a.name}: reported ${usd(after)} where it was ${usd(before)} yesterday and nothing moved on the account — held at the previous balance`,
+        detail: { before, after, movedInTenDays: moved },
+      });
+    }
+    for (const id of previouslyHeld) {
+      if (!held.has(id)) await clearFailures('simplefin', id);
+    }
+
     // Refresh balances + daily snapshot.
     const today = new Date().toISOString().slice(0, 10);
     for (const a of accounts) {
       const internalId = accountMap.get(a.id);
-      if (!internalId) continue;
+      if (!internalId || held.has(internalId)) continue;
       const mapped = mapSimpleFinAccount(a);
 
       await supabase
@@ -186,7 +247,7 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
     // the item being synced.
     for (const a of accounts) {
       const internalId = accountMap.get(a.id);
-      if (!internalId) continue;
+      if (!internalId || held.has(internalId)) continue;
       const { current_balance } = mapSimpleFinAccount(a);
       if (current_balance == null || Number.isNaN(current_balance)) continue;
       // scoping-ok: keyed on this item's own account ids

@@ -122,6 +122,14 @@ export default async function PortfolioPage() {
       .filter(Boolean)
   );
 
+  // Accounts that ARE linked to the retirement plan are counted there. They
+  // used to vanish from this page entirely, leaving "Connect a brokerage" on
+  // a household with four brokerage accounts connected.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const linkedInvestmentAccounts: PlaidInvestmentAccount[] = ((plaidResult.data ?? []) as any[])
+    .filter((a) => linkedPlaidIds.has(a.id))
+    .map((a) => ({ id: a.id, name: a.name, subtype: a.subtype, balance: a.current_balance ?? 0, mask: a.mask }));
+
   const plaidInvestmentAccounts: PlaidInvestmentAccount[] = [
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ...((plaidResult.data ?? []) as any[]).filter((a) => !linkedPlaidIds.has(a.id)).map((a) => ({
@@ -196,6 +204,7 @@ export default async function PortfolioPage() {
           hasProfile={!!plan.profile}
           manualItems={allManualItems}
           plaidInvestmentAccounts={plaidInvestmentAccounts}
+          linkedInvestmentAccounts={linkedInvestmentAccounts}
           hasAlpaca={hasAlpaca}
         />
       </div>

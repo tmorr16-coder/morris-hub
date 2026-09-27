@@ -165,6 +165,8 @@ interface Props {
   hasProfile: boolean;
   manualItems: ManualItem[];
   plaidInvestmentAccounts: PlaidInvestmentAccount[];
+  /** Linked to a retirement account and counted there; listed here so the connection is visible. */
+  linkedInvestmentAccounts?: PlaidInvestmentAccount[];
   hasAlpaca: boolean;
 }
 
@@ -174,6 +176,7 @@ export default function PortfolioClient({
   hasProfile,
   manualItems: initialManualItems,
   plaidInvestmentAccounts,
+  linkedInvestmentAccounts = [],
   hasAlpaca,
 }: Props) {
   const [manualItems, setManualItems] = useState(initialManualItems);
@@ -272,8 +275,25 @@ export default function PortfolioClient({
       </SectionCard>
 
       {/* ── Alpaca + Plaid investments ──────────────────────────────────── */}
-      {(hasAlpaca || plaidInvestmentAccounts.length > 0) ? (
-        <SectionCard label="Investment Accounts" subtotal={plaidInvestTotal + alpacaTotal}>
+      {(hasAlpaca || plaidInvestmentAccounts.length > 0 || linkedInvestmentAccounts.length > 0) ? (
+        <SectionCard
+          label="Investment Accounts"
+          subtotal={plaidInvestTotal + alpacaTotal}
+          footer={linkedInvestmentAccounts.length > 0 ? (
+            <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>
+              {linkedInvestmentAccounts.length === 1 ? "One linked account is" : `${linkedInvestmentAccounts.length} linked accounts are`} counted in Retirement above, not in this subtotal.
+            </span>
+          ) : undefined}
+        >
+          {linkedInvestmentAccounts.map(a => (
+            <AccountRow
+              key={a.id}
+              label={a.name}
+              sublabel={`Linked · counted in Retirement${a.mask ? ` ···${a.mask}` : ""}`}
+              balance={a.balance}
+              accent="var(--ios-label-3)"
+            />
+          ))}
           {plaidInvestmentAccounts.map(a => (
             <AccountRow
               key={a.id}
