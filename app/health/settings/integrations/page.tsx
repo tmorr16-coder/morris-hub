@@ -8,6 +8,7 @@ import { LargeTitle } from "@/components/ios";
 import WithingsCard from "./_components/WithingsCard";
 import OuraCard from "./_components/OuraCard";
 import AppleHealthCard from "./_components/AppleHealthCard";
+import NativeSyncCard, { type PairedDevice } from "./_components/NativeSyncCard";
 import RequestIntegrationCard from "./_components/RequestIntegrationCard";
 
 interface TokenRow {
@@ -61,6 +62,22 @@ export default async function IntegrationsPage({
   ]);
   // Rows land in bursts; one burst is one export. Count bursts a minute apart.
   const appleSyncsLast7d = new Set(((appleRecentRows ?? []) as { created_at: string }[]).map((r) => r.created_at.slice(0, 16))).size;
+
+  // Phones running the native app. The table arrives with a migration, so a
+  // failed read means "not set up yet", not an error worth a broken page.
+  let nativeAvailable = true;
+  let pairedDevices: PairedDevice[] = [];
+  {
+    const { data: deviceRows, error: deviceErr } = await db.from("health_devices")
+      .select("id, label, paired_at, last_seen_at")
+      .eq("user_id", userId)
+      .is("revoked_at", null)
+      .not("token_hash", "is", null)
+      .order("paired_at", { ascending: false });
+    if (deviceErr) nativeAvailable = false;
+    pairedDevices = ((deviceRows ?? []) as { id: string; label: string | null; paired_at: string | null; last_seen_at: string | null }[])
+      .map((d) => ({ id: d.id, label: d.label, pairedAt: d.paired_at, lastSeenAt: d.last_seen_at }));
+  }
 
   const connected       = tokenRow !== null;
   const connectedAt     = (tokenRow as TokenRow | null)?.updated_at ?? null;
@@ -116,6 +133,7 @@ export default async function IntegrationsPage({
 
         {/* Cards */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <NativeSyncCard available={nativeAvailable} devices={pairedDevices} />
         <AppleHealthCard
           configured={appleMetricsCount !== null && appleMetricsCount > 0}
           lastSyncAt={appleLastSyncAt}

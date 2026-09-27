@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleDisplayName</key><string>Morris Health</string>
+  <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
+  <key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
+  <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
+  <key>LSRequiresIPhoneOS</key><true/>
+  <key>UILaunchScreen</key><dict/>
+  <key>UISupportedInterfaceOrientations</key>
+  <array><string>UIInterfaceOrientationPortrait</string></array>
+  <key>NSHealthShareUsageDescription</key>
+  <string>Morris Health reads your activity, heart and workout data and sends it to your own morrisai.family account, so your dashboard stays current without exporting by hand.</string>
+  <key>NSHealthUpdateUsageDescription</key>
+  <string>Morris Health does not write to Apple Health.</string>
+  <key>UIBackgroundModes</key>
+  <array><string>fetch</string></array>
+  <key>BGTaskSchedulerPermittedIdentifiers</key>
+  <array><string>family.morrisai.healthsync.refresh</string></array>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key><string>family.morrisai.healthsync</string>
+      <key>CFBundleURLSchemes</key><array><string>morrishealthsync</string></array>
+    </dict>
+  </array>
+</dict>
+</plist>

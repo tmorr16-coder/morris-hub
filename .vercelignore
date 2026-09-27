@@ -1,1 +1,4 @@
 // Force redeploy
+
+# The native iPhone app is built in Xcode, not by Vercel.
+ios
