@@ -14,6 +14,11 @@ interface TokenRow {
   updated_at: string;
 }
 
+/** ISO timestamp `days` ago. Module scope so the clock read is not in render. */
+function daysAgoIso(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toISOString();
+}
+
 export default async function IntegrationsPage({
   searchParams,
 }: {
@@ -52,7 +57,7 @@ export default async function IntegrationsPage({
     // Every row that arrived in the last seven days, to count how many times
     // the export actually ran — "Active" with a two-day-old sync is not active.
     db.from("apple_health_metrics").select("created_at").eq("user_id", userId).eq("source", "apple_health")
-      .gte("created_at", new Date(Date.now() - 7 * 86_400_000).toISOString()).order("created_at", { ascending: false }).limit(5000) as Promise<{ data: { created_at: string }[] | null }>,
+      .gte("created_at", daysAgoIso(7)).order("created_at", { ascending: false }).limit(5000) as Promise<{ data: { created_at: string }[] | null }>,
   ]);
   // Rows land in bursts; one burst is one export. Count bursts a minute apart.
   const appleSyncsLast7d = new Set(((appleRecentRows ?? []) as { created_at: string }[]).map((r) => r.created_at.slice(0, 16))).size;

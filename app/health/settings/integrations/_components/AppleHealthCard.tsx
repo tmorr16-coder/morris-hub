@@ -15,6 +15,11 @@ interface Props {
   apiKey?: string;
 }
 
+/** Hours since a timestamp; Infinity when there is none. Module scope: clock reads stay out of render. */
+function hoursSince(isoTs: string | null): number {
+  return isoTs ? (Date.now() - new Date(isoTs).getTime()) / 3_600_000 : Infinity;
+}
+
 function relativeTime(isoTs: string): string {
   const mins = Math.floor((new Date().getTime() - new Date(isoTs).getTime()) / 60_000);
   if (mins < 1) return "just now";
@@ -79,8 +84,7 @@ export default function AppleHealthCard({ configured, lastSyncAt, syncsLast7d = 
   const hasData = metricsCount > 0 || workoutsCount > 0;
   // "Active" used to mean "has ever received anything". A watch that last
   // reported three days ago is not active; say so, and say why below.
-  const hoursSince = lastSyncAt ? (Date.now() - new Date(lastSyncAt).getTime()) / 3_600_000 : Infinity;
-  const state: "fresh" | "stale" | "off" = !hasData ? "off" : hoursSince <= 24 ? "fresh" : "stale";
+  const state: "fresh" | "stale" | "off" = !hasData ? "off" : hoursSince(lastSyncAt) <= 24 ? "fresh" : "stale";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

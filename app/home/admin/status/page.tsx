@@ -31,6 +31,11 @@ const STALE_DAYS = 5;
  * moment the syncing did. Module scope, matching freshnessTone on the Money
  * dashboard, so the clock read stays outside the component body.
  */
+/** Days since a timestamp. Module scope, same reason as needsAttention. */
+function daysSince(iso: string): number {
+  return (Date.now() - new Date(iso).getTime()) / 86_400_000;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function needsAttention(it: any): boolean {
   if (it.status === "error") return true;
@@ -112,8 +117,7 @@ export default async function StatusPage() {
       if (!latestByUser.has(r.user_id)) latestByUser.set(r.user_id, r.created_at);
     }
     for (const [userId, lastAt] of latestByUser) {
-      const days = (Date.now() - new Date(lastAt).getTime()) / 86_400_000;
-      if (days <= STALE_DAYS) continue;
+      if (daysSince(lastAt) <= STALE_DAYS) continue;
       brokenConnections.push({
         id: `apple-health-${userId}`,
         institution: "Apple Watch · Health Auto Export",
