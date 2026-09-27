@@ -1,4 +1,5 @@
 // Force redeploy
 
-# The native iPhone app is built in Xcode, not by Vercel.
-ios
+# The native iPhone app is built in Xcode, not by Vercel. Anchored to the
+# root: a bare "ios" also matches components/ios, which is the UI library.
+/ios
