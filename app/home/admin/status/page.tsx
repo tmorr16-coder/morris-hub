@@ -134,6 +134,34 @@ export default async function StatusPage() {
     }
   } catch { /* the table is per-deployment; a missing one is not a broken watch */ }
 
+  // A phone running the native app reports on its own. One that has been
+  // paired and then falls silent is the app force-quit, signed out of, or
+  // expired on the device — none of which can announce themselves.
+  try {
+    const { data: deviceRows } = await db
+      .from("health_devices")
+      .select("id, user_id, label, paired_at, last_seen_at")
+      .is("revoked_at", null)
+      .not("token_hash", "is", null);
+    for (const d of (deviceRows ?? []) as { id: string; user_id: string; label: string | null; paired_at: string | null; last_seen_at: string | null }[]) {
+      const last = d.last_seen_at ?? d.paired_at;
+      if (!last || daysSince(last) <= STALE_DAYS) continue;
+      brokenConnections.push({
+        id: `health-device-${d.id}`,
+        institution: `${d.label ?? "iPhone"} · Morris Health app`,
+        userId: d.user_id,
+        status: "stale",
+        lastSyncedAt: d.last_seen_at,
+        lastErrorAt: null,
+        rawError: null,
+        kind: d.last_seen_at ? "stale" : "never",
+        headline: d.last_seen_at ? "This phone has stopped reporting" : "Paired, but has never reported",
+        detail: "Open the Morris Health app on that phone. If it was swiped away in the app switcher iOS stops waking it; an app installed from Xcode also expires after a year and needs installing again.",
+        canReconnect: false,
+      });
+    }
+  } catch { /* health_devices arrives with a migration */ }
+
   // ── The shared failure log ────────────────────────────────────────────────
   // Grouped by source+subject: fifty identical nightly failures are one problem,
   // and listing them fifty times buries everything else.
