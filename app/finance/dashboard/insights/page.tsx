@@ -13,7 +13,8 @@ import MonthlyTrendChart, { type MonthPoint } from "./_components/MonthlyTrendCh
 import CategoryBreakdown, { type CategoryRow } from "./_components/CategoryBreakdown";
 import RecurringCharges, { type RecurringRow } from "./_components/RecurringCharges";
 import TopMerchants, { type MerchantRow } from "./_components/TopMerchants";
-import InsightCards from "./_components/InsightCards";
+import InsightCards, { type EvidenceTx } from "./_components/InsightCards";
+import { evaluateBudgets, budgetInsights } from "@/lib/finance/budgets";
 import InsightNarrative from "./_components/InsightNarrative";
 
 // Insights.
@@ -92,6 +93,25 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
   const report = computeInsights(transactions, { cashBalance });
   const { today, last30, prior30, pace, recurring } = report;
   const posted = transactions.filter((t) => !t.pending);
+
+  // Budgets stand alongside the computed insights, ranked with them, so the
+  // narrative sees them too. Opening Spending also raises the month's alerts.
+  const budgets = await evaluateBudgets(service, user.id, today, { txns: transactions }).catch(() => null);
+  if (budgets && budgets.statuses.length > 0) {
+    const order = { alert: 0, watch: 1, good: 2, info: 3 } as const;
+    report.insights = [...budgetInsights(budgets.statuses), ...report.insights]
+      .sort((a, b) => order[a.level] - order[b.level] || Math.abs(b.delta ?? b.amount ?? 0) - Math.abs(a.delta ?? a.amount ?? 0));
+  }
+
+  // The transactions behind each insight, for the row's analysis panel.
+  const txById = new Map(posted.map((t) => [t.id, t]));
+  const evidence: Record<string, EvidenceTx[]> = {};
+  for (const i of report.insights) {
+    const rows = i.txnIds.map((id) => txById.get(id)).filter((t): t is InsightTx => !!t)
+      .map((t) => ({ id: t.id, date: t.date, merchant: prettyMerchant(t.merchant_name ?? t.name), amount: t.amount, category: categoryLabel(t), account: accountLabel(t.account_id, accounts) }))
+      .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+    if (rows.length) evidence[i.id] = rows;
+  }
 
   // ── Monthly trend: spend out, income in, by calendar month ────────────────
   const byMonth = new Map<string, { outflow: number; inflow: number; txns: InsightTx[] }>();
@@ -208,7 +228,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
           </div>
 
           <div style={{ padding: "0 16px" }}>
-            <InsightCards insights={report.insights} />
+            <InsightCards insights={report.insights} evidence={evidence} />
           </div>
 
           <div style={{ padding: "0 16px" }}>
@@ -230,6 +250,18 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
             <RecurringCharges rows={recurringRows.slice(0, topN)} />
             <TopMerchants rows={topMerchants} />
           </div>
+
+          {budgets && budgets.statuses.length > 0 && (
+            <div id="budgets" style={{ padding: "0 16px" }}>
+              <Group header="Budgets" footer="Set and edit limits on the Budgets tab. Each alert fires once a month and lands on Today.">
+                {budgets.statuses.map((s) => (
+                  <Cell key={s.budget.id} href="/finance/dashboard/budgets" title={s.label}
+                    subtitle={`${fmtMoney(s.spent)} of ${fmtMoney(s.limit)} · ${s.daysLeft} days left${s.projected != null ? ` · pace ${fmtMoney(s.projected)}` : ""}`}
+                    trailing={<span className="ios-caption" style={{ color: s.state === "over" ? "var(--ios-red)" : s.state === "ok" ? "var(--ios-green)" : "var(--ios-orange)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.state === "over" ? "Over" : s.state === "ok" ? "On track" : s.state === "warn" ? "Close" : "On pace to go over"}</span>} />
+                ))}
+              </Group>
+            </div>
+          )}
 
           {last30.transfers > 0 && (
             <p className="ios-caption" style={{ color: "var(--ios-label-3)", padding: "0 16px", margin: 0, lineHeight: 1.5 }}>

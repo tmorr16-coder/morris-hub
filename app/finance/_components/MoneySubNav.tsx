@@ -10,6 +10,7 @@ const TABS = [
   { href: "/finance/dashboard", label: "Overview" },
   { href: "/finance/dashboard/settings", label: "Accounts" },
   { href: "/finance/dashboard/insights", label: "Spending" },
+  { href: "/finance/dashboard/budgets", label: "Budgets" },
   { href: "/finance/portfolio", label: "Portfolio" },
   { href: "/finance/retirement", label: "Retirement" },
   { href: "/finance/dashboard/import", label: "Add / import" },

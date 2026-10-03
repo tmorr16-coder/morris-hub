@@ -66,11 +66,16 @@ export function flowOf(t: InsightTx): Flow {
   return "spend";
 }
 
-/** "Food And Drink" from FOOD_AND_DRINK, or the legacy array's first entry. */
-export function categoryLabel(t: InsightTx): string {
-  const p = primaryOf(t);
+/** "Food and Drink" from FOOD_AND_DRINK. */
+export function labelForPrimary(p: string | null | undefined): string {
   if (!p) return "Uncategorized";
-  return p.toLowerCase().split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  if (p === "*") return "All spending";
+  return p.toLowerCase().split("_").map((w, i) => (i > 0 && (w === "and" || w === "or" || w === "of") ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
+}
+
+/** The category a transaction belongs to, for display. */
+export function categoryLabel(t: InsightTx): string {
+  return labelForPrimary(primaryOf(t));
 }
 
 // ── Merchant normalisation ──────────────────────────────────────────────────
@@ -347,7 +352,8 @@ export type InsightKind =
   | "category-up" | "category-down"
   | "merchant-spike" | "merchant-new"
   | "recurring-new" | "recurring-price" | "recurring-lapsed" | "recurring-overdue"
-  | "large" | "duplicate";
+  | "large" | "duplicate"
+  | "budget-over" | "budget-warn" | "budget-projected" | "budget-ok";
 
 /** alert: act on it. watch: worth a look. good: a thing going right. info: context. */
 export type InsightLevel = "alert" | "watch" | "good" | "info";
@@ -362,7 +368,9 @@ export interface Insight {
   /** Change against the comparison, in dollars, where there is one. */
   delta: number | null;
   /** Where on the screen the evidence lives. */
-  anchor: "recurring" | "categories" | "merchants" | "trend" | null;
+  anchor: "recurring" | "categories" | "merchants" | "trend" | "budgets" | null;
+  /** How it was worked out, in one sentence, for the row's analysis panel. */
+  method: string;
   txnIds: string[];
 }
 
@@ -434,6 +442,7 @@ export function computeInsights(
     const level: InsightLevel = rel >= 0.15 && delta >= 200 ? "alert" : rel >= 0.05 ? "watch" : rel <= -0.05 ? "good" : "info";
     push({
       kind: "pace", level,
+      method: `This month so far, plus what the last ${pace.baselineMonths} full month${pace.baselineMonths === 1 ? "" : "s"} spent after day ${pace.dayOfMonth}. Not scaled by the calendar, so a bill on the 1st is not multiplied.`,
       title: `On pace for ${fmt(pace.projected)} this month`,
       detail: `${fmt(pace.spentSoFar)} spent through day ${pace.dayOfMonth}. ${delta >= 0 ? "Above" : "Below"} your ${pace.baselineMonths}-month average of ${fmt(pace.baseline)} by ${fmt(Math.abs(delta))}.`,
       amount: pace.projected, delta: round2(delta), anchor: "trend", txnIds: [],
@@ -445,6 +454,7 @@ export function computeInsights(
     const rate = last30.savingsRate ?? 0;
     push({
       kind: "cashflow",
+      method: `Income is money arriving that the bank labels as income; spending is money leaving, less transfers between your own accounts and card payments. ${last30.from} to ${last30.to}.`,
       level: last30.net < 0 ? "alert" : rate >= 0.2 ? "good" : "info",
       title: last30.net < 0 ? `Spent ${fmt(-last30.net)} more than came in` : `Kept ${Math.round(rate * 100)}% of what came in`,
       detail: `Last 30 days: ${fmt(last30.income)} in, ${fmt(last30.spend)} out${last30.transfers > 0 ? `, ${fmt(last30.transfers)} in transfers and card payments set aside` : ""}.`,
@@ -453,6 +463,7 @@ export function computeInsights(
   } else if (last30.count > 0 && prior30.income > 0) {
     push({
       kind: "cashflow", level: "watch",
+      method: `Looks for money arriving that the bank labelled as income between ${last30.from} and ${last30.to}.`,
       title: "No income recorded in the last 30 days",
       detail: `The 30 days before had ${fmt(prior30.income)} in. If pay is late or lands elsewhere, the savings figures below are off.`,
       amount: null, delta: null, anchor: "trend", txnIds: [],
@@ -465,6 +476,7 @@ export function computeInsights(
     const months = opts.cashBalance / monthlySpend;
     push({
       kind: "runway",
+      method: `Balance of every visible checking and savings account, divided by a month of spending (three parts your 3-month average, one part the last 30 days).`,
       level: months < 1 ? "alert" : months < 3 ? "watch" : months >= 6 ? "good" : "info",
       title: `${months < 1 ? "Under a month" : `${months.toFixed(1)} months`} of spending in cash`,
       detail: `${fmt(opts.cashBalance)} across cash accounts against about ${fmt(monthlySpend)} a month out.`,
@@ -495,6 +507,7 @@ export function computeInsights(
     const ups = movers.filter((m) => m.then > 0 && m.now >= m.then * 1.3 && m.now - m.then >= 75).sort((a, b) => (b.now - b.then) - (a.now - a.then)).slice(0, 3);
     for (const m of ups) push({
       kind: "category-up", level: m.now - m.then >= 300 ? "alert" : "watch",
+      method: `${last30.from} to ${last30.to}, against ${compareLabel} (${compare.from} to ${compare.to}${baseline30 ? ", per 30 days" : ""}). Flagged at 30% and $75 or more above it.`,
       title: `${m.c} up ${pct(m.then, m.now)}`,
       detail: `${fmt(m.now)} in the last 30 days against ${fmt(m.then)} for ${compareLabel}.`,
       amount: round2(m.now), delta: round2(m.now - m.then), anchor: "categories", txnIds: curIds.get(m.c) ?? [],
@@ -504,6 +517,7 @@ export function computeInsights(
     const downs = movers.filter((m) => m.then > 0 && m.now > 0 && m.now <= m.then * 0.6 && m.then - m.now >= 75).sort((a, b) => (b.then - b.now) - (a.then - a.now)).slice(0, 2);
     for (const m of downs) push({
       kind: "category-down", level: "good",
+      method: `${last30.from} to ${last30.to}, against ${compareLabel} (${compare.from} to ${compare.to}${baseline30 ? ", per 30 days" : ""}). Flagged at 40% and $75 or more below it, and not at zero.`,
       title: `${m.c} down ${pct(m.then, m.now)}`,
       detail: `${fmt(m.now)} in the last 30 days against ${fmt(m.then)} for ${compareLabel}.`,
       amount: round2(m.now), delta: round2(m.now - m.then), anchor: "categories", txnIds: curIds.get(m.c) ?? [],
@@ -541,12 +555,14 @@ export function computeInsights(
     }
     for (const s of spikes.sort((a, b) => (b.now - b.then) - (a.now - a.then)).slice(0, 3)) push({
       kind: "merchant-spike", level: s.now - s.then >= 250 ? "alert" : "watch",
+      method: `This merchant's last 30 days against its own monthly average over the ${Math.round(histDays / 30)} months before. Flagged at twice the norm and $60 or more extra. Recurring charges are handled separately.`,
       title: `${s.name}: ${fmt(s.now)} this month`,
       detail: `Usually about ${fmt(s.then)} a month — ${Math.round(s.now / s.then * 10) / 10}× the norm.`,
       amount: round2(s.now), delta: round2(s.now - s.then), anchor: "merchants", txnIds: s.ids,
     });
     for (const n of newcomers.sort((a, b) => b.now - a.now).slice(0, 2)) push({
       kind: "merchant-new", level: "info",
+      method: `Two or more charges in the last 30 days, $200 or more together, at a merchant with no earlier history on file.`,
       title: `New: ${n.name}, ${fmt(n.now)}`,
       detail: `First seen in the last 30 days, with nothing in the ${Math.round(histDays / 30)} months before.`,
       amount: round2(n.now), delta: null, anchor: "merchants", txnIds: n.ids,
@@ -557,24 +573,28 @@ export function computeInsights(
   for (const r of recurring) {
     if (r.isNew) push({
       kind: "recurring-new", level: r.monthlyCost >= 50 ? "watch" : "info",
+      method: `A ${r.cadence.toLowerCase()} pattern whose first charge is within the last 45 days. Charges are matched on a cleaned merchant name, so order codes and store numbers do not split a series.`,
       title: `New ${r.cadence.toLowerCase()} charge: ${r.merchant}`,
       detail: `${fmt(r.amount)} each time, ${r.occurrences}× since ${r.firstCharged}. About ${fmt(r.monthlyCost)} a month if it keeps going.`,
       amount: r.monthlyCost, delta: null, anchor: "recurring", txnIds: r.txnIds,
     });
     if (r.priceChange != null) push({
       kind: "recurring-price", level: r.priceChange > 0 ? "watch" : "good",
+      method: `The last charge against the typical earlier one. Only counted when the earlier charges held still to within 3%, so a usage-priced bill moving is not called a price change.`,
       title: `${r.merchant} ${r.priceChange > 0 ? "went up" : "went down"} ${fmt(Math.abs(r.priceChange))}`,
       detail: `Last charge ${fmt(r.lastAmount)} against the usual ${fmt(r.amount)}${r.cadence === "Monthly" ? ` — ${fmt(Math.abs(r.priceChange) * 12)} a year` : ""}.`,
       amount: r.lastAmount, delta: r.priceChange, anchor: "recurring", txnIds: r.txnIds,
     });
     if (r.status === "lapsed" && r.monthlyCost >= 5) push({
       kind: "recurring-lapsed", level: "info",
+      method: `Expected every ${gapDays(r.cadence)} days or so; the next charge is more than two cycles late.`,
       title: `${r.merchant} stopped charging`,
       detail: `Was ${fmt(r.amount)} ${r.cadence.toLowerCase()}; last seen ${r.lastCharged}. If that was a cancellation, it saves ${fmt(r.monthlyCost)} a month.`,
       amount: r.monthlyCost, delta: null, anchor: "recurring", txnIds: r.txnIds,
     });
     else if (r.status === "overdue" && r.monthlyCost >= 20 && !r.variable) push({
       kind: "recurring-overdue", level: "info",
+      method: `Expected every ${gapDays(r.cadence)} days or so; the next charge is more than half a cycle late. Often a billing date that moved.`,
       title: `${r.merchant} is late`,
       detail: `Expected around ${r.nextExpected}; the last ${fmt(r.amount)} was ${r.lastCharged}.`,
       amount: r.amount, delta: null, anchor: "recurring", txnIds: r.txnIds,
@@ -593,6 +613,7 @@ export function computeInsights(
         flagged.add(prev.id); flagged.add(t.id);
         if (t.date >= shiftDays(today, -59)) push({
           kind: "duplicate", level: "alert",
+          method: `Same merchant, same amount to the cent, within two days, both posted, $20 or more, not a recurring charge, within the last 60 days.`,
           title: `${prettyMerchant(t.merchant_name ?? t.name)} charged ${fmt(t.amount)} twice`,
           detail: `${prev.date} and ${t.date}. Worth checking it was not a double charge.`,
           amount: round2(t.amount), delta: null, anchor: "merchants", txnIds: [prev.id, t.id],
@@ -612,6 +633,7 @@ export function computeInsights(
         .sort((a, b) => b.amount - a.amount).slice(0, 3);
       for (const t of big) push({
         kind: "large", level: "info",
+        method: `A single charge in the last 30 days of at least ${fmt(threshold)} — the larger of $250 and four times your median charge over 90 days — at a merchant that is not recurring.`,
         title: `${fmt(t.amount)} at ${prettyMerchant(t.merchant_name ?? t.name)}`,
         detail: `${t.date} · ${categoryLabel(t)}. Larger than ${Math.round(threshold / median(spends))}× your typical charge.`,
         amount: round2(t.amount), delta: null, anchor: "merchants", txnIds: [t.id],

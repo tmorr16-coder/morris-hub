@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { syncAllItems, syncItem } from '@/lib/finance/sync';
+import { createServiceClient } from '@/lib/supabase/server';
+import { evaluateBudgets, usersWithBudgets } from '@/lib/finance/budgets';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -14,7 +16,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
   const results = await syncAllItems();
-  return NextResponse.json({ synced: results });
+  // Fresh transactions are the moment a budget can be crossed. Each alert is
+  // keyed per month, so this pass raises only what is new, and a failure here
+  // must not turn a successful sync into a failed cron.
+  const budgets: Record<string, number> = {};
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const svc = createServiceClient() as any;
+    const today = new Date().toISOString().slice(0, 10);
+    for (const userId of await usersWithBudgets(svc)) {
+      const r = await evaluateBudgets(svc, userId, today).catch(() => null);
+      if (r) budgets[userId] = r.fired.length;
+    }
+  } catch { /* reported in the body below as empty */ }
+  return NextResponse.json({ synced: results, budgetAlerts: budgets });
 }
 
 /**
