@@ -10,7 +10,7 @@ import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 import { childForGuardian, guardianUserIds } from "./children";
-import type { DocumentExtraction, SchoolDate } from "./learning";
+import { mergeExtractions, type DocumentExtraction, type SchoolDate } from "./learning";
 
 const BUCKET = "child-documents";
 
@@ -283,6 +283,67 @@ export async function saveChildDocument(input: {
   revalidatePath("/children");
   revalidatePath("/home");
   return { documentId, reminders, todos };
+}
+
+/**
+ * Another page of a document already kept.
+ *
+ * The batch importer reads each file on its own. Page two of a newsletter
+ * reads as "a newsletter for the same week", which the duplicate check is
+ * right to notice and was wrong to throw away. This folds the new page's read
+ * into the stored one — anything it adds is kept, anything the first page
+ * already said stands — and runs the derived data for what is new, so a verse
+ * on page two or a date on page three reaches the workspace. The image itself
+ * is appended by the upload route with append=1.
+ */
+export async function addDocumentPage(input: {
+  childId: string;
+  documentId: string;
+  extraction: DocumentExtraction;
+  pageHash?: string | null;
+}): Promise<{ error?: string; pageCount?: number; reminders?: number; todos?: number }> {
+  const g = await requireGuardian(input.childId);
+  if ("error" in g) return { error: g.error };
+  const { userId, child } = g;
+  const svc = db();
+  const { data: doc } = await svc.schema("hub").from("child_documents")
+    .select("id, extracted, page_hashes, file_paths, doc_date, week_start, week_end, summary")
+    .eq("id", input.documentId).eq("child_id", input.childId).maybeSingle();
+  if (!doc) return { error: "Document not found" };
+
+  const base = (doc.extracted ?? {}) as Partial<DocumentExtraction>;
+  const merged = mergeExtractions(base, input.extraction);
+  const hashes = [...((doc.page_hashes as string[] | null) ?? [])];
+  if (input.pageHash && /^[0-9a-f]{64}$/i.test(input.pageHash) && !hashes.includes(input.pageHash)) hashes.push(input.pageHash);
+
+  const patch: Record<string, unknown> = {
+    extracted: merged,
+    summary: merged.summary || doc.summary,
+    doc_date: doc.doc_date ?? merged.doc_date,
+    week_start: doc.week_start ?? merged.week_start,
+    week_end: doc.week_end ?? merged.week_end,
+  };
+  let upd = await svc.schema("hub").from("child_documents").update({ ...patch, page_hashes: hashes }).eq("id", input.documentId);
+  if (upd.error && /page_hashes/.test(upd.error.message)) upd = await svc.schema("hub").from("child_documents").update(patch).eq("id", input.documentId);
+  if (upd.error) return { error: upd.error.message };
+
+  // Only what this page adds goes through the derived-data writer: its own
+  // exercises and assessments, its dates (the writer deduplicates reminders),
+  // and the spelling list only if the first page had none.
+  const x = input.extraction;
+  const delta: DocumentExtraction = {
+    ...x,
+    spelling: base.spelling?.words?.length ? null : x.spelling,
+    exercises: x.exercises.filter((e) => !(base.exercises ?? []).some((b) => b.title.trim().toLowerCase() === e.title.trim().toLowerCase())),
+    assessments: x.assessments.filter((a) => !(base.assessments ?? []).some((b) => `${b.subject}|${b.title}`.toLowerCase() === `${a.subject}|${a.title}`.toLowerCase())),
+  };
+  const m = await materialise(svc, userId, child, {
+    childId: input.childId, extraction: delta, exerciseIndexes: delta.exercises.map((_, k) => k), addDateReminders: true, addPracticeTodos: true,
+  }, input.documentId);
+  if (m.error) return { error: m.error };
+  revalidatePath(`/children/${input.childId}`);
+  revalidatePath("/home");
+  return { pageCount: ((doc.file_paths as string[] | null) ?? []).length + 1, reminders: m.reminders, todos: m.todos };
 }
 
 // Page uploads go through app/api/children/documents/upload, a route handler:

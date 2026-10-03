@@ -41,22 +41,28 @@ export async function POST(req: NextRequest) {
   const svc = createServiceClient() as any;
   const child = await childForGuardian(svc, childId, user.id);
   if (!child) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const { data: doc } = await svc.schema("hub").from("child_documents").select("id").eq("id", documentId).eq("child_id", childId).maybeSingle();
+  const { data: doc } = await svc.schema("hub").from("child_documents").select("id, file_paths").eq("id", documentId).eq("child_id", childId).maybeSingle();
   if (!doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
+
+  // append=1: these files are further pages of a document that already has
+  // some, so they go after the existing ones rather than replacing them.
+  const append = String(formData.get("append") ?? "") === "1";
+  const existing: string[] = append ? ((doc.file_paths as string[] | null) ?? []) : [];
+  const offset = existing.length;
 
   let total = 0;
   const paths: string[] = [];
   for (const [i, file] of files.entries()) {
     total += file.size;
     if (total > MAX_TOTAL) break;
-    const safe = file.name.replace(/[^\w.\-]+/g, "_").slice(-80) || `page-${i + 1}.jpg`;
-    const path = `${user.id}/${childId}/${documentId}/${i + 1}-${safe}`;
+    const safe = file.name.replace(/[^\w.\-]+/g, "_").slice(-80) || `page-${offset + i + 1}.jpg`;
+    const path = `${user.id}/${childId}/${documentId}/${offset + i + 1}-${safe}`;
     const { error } = await svc.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: true });
     if (!error) paths.push(path);
     else await recordFailure({ source: "children", subject: "document-pages", userId: user.id, severity: "warning", message: `Page upload failed: ${error.message}`, detail: { documentId, index: i } });
   }
   if (paths.length > 0) {
-    await svc.schema("hub").from("child_documents").update({ file_paths: paths }).eq("id", documentId).eq("child_id", childId);
+    await svc.schema("hub").from("child_documents").update({ file_paths: [...existing, ...paths] }).eq("id", documentId).eq("child_id", childId);
   }
-  return NextResponse.json({ paths, skipped: files.length - paths.length });
+  return NextResponse.json({ paths, pageCount: existing.length + paths.length, skipped: files.length - paths.length });
 }

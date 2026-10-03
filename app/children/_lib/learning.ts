@@ -60,6 +60,59 @@ export interface DocumentExtraction {
   }[];
 }
 
+/**
+ * Fold a second page's read into the first's.
+ *
+ * A newsletter is three photos. Each is read on its own, and the second and
+ * third used to be thrown away as "another newsletter for the same week". The
+ * read of page one is the base; anything page two adds is kept — a verse, a
+ * date, the rest of the word list — and anything page one already had wins
+ * where they disagree, since page one was read first and in full.
+ */
+export function mergeExtractions(base: Partial<DocumentExtraction>, extra: DocumentExtraction): DocumentExtraction {
+  const text = (a?: string | null, b?: string | null) => (a && a.trim() ? a : b ?? null);
+  const union = <T,>(a: T[] | undefined, b: T[] | undefined, key: (t: T) => string): T[] => {
+    const seen = new Set<string>();
+    const out: T[] = [];
+    for (const t of [...(a ?? []), ...(b ?? [])]) {
+      const k = key(t).toLowerCase().replace(/\s+/g, " ").trim();
+      if (!k || seen.has(k)) continue;
+      seen.add(k); out.push(t);
+    }
+    return out;
+  };
+  const baseWords = base.spelling?.words?.length ? base.spelling : null;
+  const spelling = baseWords
+    ? {
+        ...baseWords,
+        words: union(baseWords.words, extra.spelling?.words, (w) => w),
+        sight_words: union(baseWords.sight_words, extra.spelling?.sight_words, (w) => w),
+        pattern: text(baseWords.pattern, extra.spelling?.pattern),
+        test_on: baseWords.test_on ?? extra.spelling?.test_on ?? null,
+        week_start: baseWords.week_start ?? extra.spelling?.week_start ?? null,
+        week_end: baseWords.week_end ?? extra.spelling?.week_end ?? null,
+      }
+    : (extra.spelling ?? base.spelling ?? null);
+  return {
+    kind: base.kind ?? extra.kind,
+    title: text(base.title, extra.title) ?? "School document",
+    doc_date: base.doc_date ?? extra.doc_date ?? null,
+    week_start: base.week_start ?? extra.week_start ?? null,
+    week_end: base.week_end ?? extra.week_end ?? null,
+    summary: [base.summary, extra.summary].filter((x) => x && x.trim()).join(" ") || "",
+    dates: union(base.dates as SchoolDate[] | undefined, extra.dates, (d) => `${d.date}|${d.title}`),
+    spelling,
+    academics: union(base.academics, extra.academics, (a) => a.subject),
+    read_aloud: text(base.read_aloud, extra.read_aloud),
+    memory_verse: text(base.memory_verse, extra.memory_verse),
+    recitation: text(base.recitation, extra.recitation),
+    parent_requests: union(base.parent_requests, extra.parent_requests, (r) => r),
+    birthdays: union(base.birthdays, extra.birthdays, (b) => b.name),
+    assessments: union(base.assessments, extra.assessments, (a) => `${a.subject}|${a.title}`),
+    exercises: union(base.exercises, extra.exercises, (e) => e.title),
+  };
+}
+
 export interface ChildDocument {
   id: string;
   kind: DocumentKind;
@@ -75,6 +128,7 @@ export interface ChildDocument {
 
 export interface SpellingWeek {
   id: string;
+  documentId: string | null;
   weekStart: string;
   weekEnd: string | null;
   pattern: string | null;
@@ -86,6 +140,7 @@ export interface SpellingWeek {
 
 export interface Assessment {
   id: string;
+  documentId: string | null;
   subject: string;
   title: string;
   score: number | null;
@@ -98,6 +153,7 @@ export interface Assessment {
 
 export interface Exercise {
   id: string;
+  documentId: string | null;
   title: string;
   skill: string | null;
   rationale: string | null;
@@ -146,6 +202,8 @@ export interface LearningData {
   /** Stars earned in total, and this week. */
   stars: { total: number; week: number };
   spellingWeek: SpellingWeek | null;
+  /** Every week on file, newest first, for looking back. */
+  spellingWeeks: SpellingWeek[];
   latestNewsletter: ChildDocument | null;
   upcomingDates: SchoolDate[];
   assessments: Assessment[];
@@ -196,17 +254,17 @@ export async function loadLearning(db: any, childId: string, birthYear: number |
       .order("created_at", { ascending: false })
       .limit(40),
     db.schema("hub").from("child_spelling_weeks")
-      .select("id, week_start, week_end, pattern, words, sight_words, test_on, practiced")
+      .select("id, document_id, week_start, week_end, pattern, words, sight_words, test_on, practiced")
       .eq("child_id", childId)
       .order("week_start", { ascending: false })
-      .limit(1),
+      .limit(16),
     db.schema("hub").from("child_assessments")
-      .select("id, subject, title, score, out_of, assessed_on, teacher_feedback, observations, items")
+      .select("id, document_id, subject, title, score, out_of, assessed_on, teacher_feedback, observations, items")
       .eq("child_id", childId)
       .order("assessed_on", { ascending: false, nullsFirst: false })
       .limit(30),
     db.schema("hub").from("child_exercises")
-      .select("id, title, skill, rationale, steps, minutes, frequency, materials, status, due_on, created_at")
+      .select("id, document_id, title, skill, rationale, steps, minutes, frequency, materials, status, due_on, created_at")
       .eq("child_id", childId)
       .in("status", ["suggested", "active"])
       .order("created_at", { ascending: false }),
@@ -267,19 +325,18 @@ export async function loadLearning(db: any, childId: string, birthYear: number |
 
   const latestNewsletter = documents.find((d) => d.kind === "newsletter") ?? null;
 
-  const week = (weekRows ?? [])[0] as any | undefined;
-  const spellingWeek: SpellingWeek | null = week
-    ? {
-        id: week.id,
-        weekStart: week.week_start,
-        weekEnd: week.week_end,
-        pattern: week.pattern,
-        words: week.words ?? [],
-        sightWords: week.sight_words ?? [],
-        testOn: week.test_on,
-        practiced: (week.practiced ?? {}) as Record<string, number>,
-      }
-    : null;
+  const spellingWeeks: SpellingWeek[] = ((weekRows ?? []) as any[]).map((week) => ({
+    id: week.id,
+    documentId: week.document_id ?? null,
+    weekStart: week.week_start,
+    weekEnd: week.week_end,
+    pattern: week.pattern,
+    words: week.words ?? [],
+    sightWords: week.sight_words ?? [],
+    testOn: week.test_on,
+    practiced: (week.practiced ?? {}) as Record<string, number>,
+  }));
+  const spellingWeek: SpellingWeek | null = spellingWeeks[0] ?? null;
 
   // Dates come from every newsletter on file, deduplicated, future only.
   const seen = new Set<string>();
@@ -297,6 +354,7 @@ export async function loadLearning(db: any, childId: string, birthYear: number |
 
   const assessments: Assessment[] = ((assessRows ?? []) as any[]).map((a) => ({
     id: a.id,
+    documentId: a.document_id ?? null,
     subject: a.subject,
     title: a.title,
     score: a.score != null ? Number(a.score) : null,
@@ -318,6 +376,7 @@ export async function loadLearning(db: any, childId: string, birthYear: number |
     const doneDates = logByExercise.get(e.id) ?? [];
     return {
       id: e.id,
+      documentId: e.document_id ?? null,
       title: e.title,
       skill: e.skill,
       rationale: e.rationale,
@@ -343,6 +402,7 @@ export async function loadLearning(db: any, childId: string, birthYear: number |
     tasks,
     stars,
     spellingWeek,
+    spellingWeeks,
     latestNewsletter,
     upcomingDates: upcomingDates.slice(0, 8),
     assessments,

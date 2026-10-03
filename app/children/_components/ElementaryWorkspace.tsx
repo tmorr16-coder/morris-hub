@@ -43,6 +43,9 @@ import {
 } from "../_lib/learning-actions";
 import AddActivityForm from "./AddActivityForm";
 import AddHealthNoteForm from "./AddHealthNoteForm";
+import DocumentViewer from "./DocumentViewer";
+import WeekLookback, { SourceChip } from "./WeekLookback";
+import type { ChildDocument } from "../_lib/learning";
 
 const CATEGORY_META: Record<string, { color: string; icon: React.ReactNode }> = {
   school: { color: "var(--ios-tint)", icon: <Icons.BookIcon /> },
@@ -164,7 +167,9 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   const [sent, setSent] = useState<Set<string>>(new Set());
   const [customTask, setCustomTask] = useState("");
   const [notice, setNotice] = useState<{ text: string; undo?: () => void; ms: number; at: number } | null>(null);
-  const [viewer, setViewer] = useState<{ title: string; urls: string[] } | null>(null);
+  const [viewer, setViewer] = useState<{ title: string; urls: string[]; page?: number } | null>(null);
+  // "current", or the Monday of a past week being read back.
+  const [weekView, setWeekView] = useState<string>("current");
   const [arranging, setArranging] = useState(false);
   const [query, setQuery] = useState("");
   const [jump, setJump] = useState<{ id: string; n: number } | null>(null);
@@ -290,12 +295,13 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   // ── Documents ───────────────────────────────────────────────────────────
   // Every page, stacked, in the app. The first version opened only the first
   // page's link in a new tab.
-  async function openDocument(id: string, title: string) {
+  async function openDocument(id: string, title: string, page?: number) {
     const r = await childDocumentUrls(data.childId, id);
     if (r.error) { say(r.error); return; }
-    if (!r.urls || r.urls.length === 0) { say("No pages are attached to this document."); return; }
-    setViewer({ title, urls: r.urls });
+    if (!r.urls || r.urls.length === 0) { say("No pages were stored for this document. Scan it again from the camera and they will be kept."); return; }
+    setViewer({ title, urls: r.urls, page });
   }
+  const openDoc = (doc: ChildDocument, page?: number) => openDocument(doc.id, doc.title, page);
   async function rebuildDocument(id: string, title: string, kind: string) {
     const ok = window.confirm(`Rebuild the plan from “${title}” without re-reading it?\n\nEverything it created is removed and made again from the stored read, with every recommended exercise back in${kind === "newsletter" ? ", and its dates and the spelling test back on Today" : ""}. Practice taps and “Did it” logs for its exercises start over.`);
     if (!ok) return;
@@ -343,6 +349,41 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   const allWordsPractised = week ? [...week.words, ...week.sightWords].every((w) => (practiced[w] ?? 0) > 0) : false;
   const newsletter = L?.latestNewsletter;
   const nx = newsletter?.extracted;
+
+  // ── Weeks on file ───────────────────────────────────────────────────────
+  // Every week anything was sent home, Monday-keyed, newest first. The strip
+  // above the sections lets a parent read a past week back: the verse two
+  // weeks ago, the paper that came home then, and the page it came from.
+  const mondayOf = (iso: string) => {
+    const d = new Date(`${iso}T12:00:00Z`);
+    const shift = (d.getUTCDay() + 6) % 7;
+    d.setUTCDate(d.getUTCDate() - shift);
+    return d.toISOString().slice(0, 10);
+  };
+  const addDays = (iso: string, n: number) => new Date(new Date(`${iso}T12:00:00Z`).getTime() + n * 86_400_000).toISOString().slice(0, 10);
+  const thisMonday = mondayOf(new Date().toISOString().slice(0, 10));
+  const docById = new Map<string, ChildDocument>((L?.documents ?? []).map((d) => [d.id, d]));
+  const docWeek = (d: ChildDocument) => mondayOf(d.weekStart ?? d.docDate ?? d.createdAt.slice(0, 10));
+  const weekSet = new Set<string>();
+  for (const d of L?.documents ?? []) weekSet.add(docWeek(d));
+  for (const w of L?.spellingWeeks ?? []) weekSet.add(mondayOf(w.weekStart));
+  for (const a of L?.assessments ?? []) if (a.assessedOn) weekSet.add(mondayOf(a.assessedOn));
+  weekSet.delete(thisMonday);
+  const pastWeeks = [...weekSet].filter((w) => w < thisMonday).sort((a, b) => b.localeCompare(a)).slice(0, 12);
+  const lookback = weekView !== "current" ? (() => {
+    const ws = weekView, we = addDays(ws, 6);
+    const docsIn = (L?.documents ?? []).filter((d) => docWeek(d) === ws);
+    const docIds = new Set(docsIn.map((d) => d.id));
+    return {
+      weekStart: ws, weekEnd: we,
+      spelling: (L?.spellingWeeks ?? []).find((w) => mondayOf(w.weekStart) === ws) ?? null,
+      newsletter: docsIn.find((d) => d.kind === "newsletter") ?? null,
+      docs: docsIn,
+      assessments: (L?.assessments ?? []).filter((a) => (a.assessedOn ? mondayOf(a.assessedOn) === ws : a.documentId != null && docIds.has(a.documentId))),
+      exercises: (L?.exercises ?? []).filter((e) => e.documentId != null && docIds.has(e.documentId)),
+    };
+  })() : null;
+  const sourceOf = (id: string | null | undefined) => (id ? docById.get(id) ?? null : null);
   const isGuardian = data.viewerIsGuardian;
 
   // ── The week's standing work ────────────────────────────────────────────
@@ -524,6 +565,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       title: "Spelling this week",
       count: `${practisedCount}/${totalWords}`,
       defaultOpen: true,
+      accessory: <div style={{ padding: "0 var(--ios-gutter) 6px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>Week of {fmtDate(week.weekStart, false)}</span><SourceChip doc={sourceOf(week.documentId)} onOpen={openDoc} /></div>,
       summary: `${week.pattern ?? `${totalWords} words`}${week.testOn ? ` · test ${soon(week.testOn)}` : ""}.`,
       search: [
         ...(week.pattern ? [hit("sp-pattern", week.pattern, week.testOn ? `Test ${fmtDate(week.testOn)}` : null, "spelling pattern")] : []),
@@ -559,6 +601,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       title: "Scripture this week",
       count: scripture.length,
       defaultOpen: true,
+      accessory: <div style={{ padding: "0 var(--ios-gutter) 6px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>{newsletter?.weekStart && <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>Week of {fmtDate(newsletter.weekStart, false)}</span>}<SourceChip doc={newsletter} onOpen={openDoc} /></div>,
       summary: scripture.map((sc) => sc.label).join(", ") + ".",
       search: scripture.map((sc) => hit(`sc-${sc.key}`, sc.label, sc.text, "scripture memory verse recitation")),
       body: (
@@ -635,6 +678,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
                       {ex.skill && <div className="ios-caption" style={{ color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "8px 0 4px" }}>{ex.skill}</div>}
                       {ex.steps && <div className="ios-subhead" style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{ex.steps}</div>}
                       {ex.materials && <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 8 }}>Have ready: {ex.materials}</div>}
+                      {sourceOf(ex.documentId) && <div style={{ marginTop: 8 }}><SourceChip doc={sourceOf(ex.documentId)} onOpen={openDoc} /></div>}
                       <div style={{ display: "flex", gap: 14, marginTop: 10, flexWrap: "wrap" }}>
                         {isGuardian && <button type="button" className="ios-btn--plain" disabled={sent.has(ex.id)} onClick={() => sendExercise(ex)} style={{ color: sent.has(ex.id) ? "var(--ios-green)" : "var(--ios-tint)", fontWeight: 700 }}>{sent.has(ex.id) ? `Sent to ${kid} ✓` : `Send to ${kid}'s screen`}</button>}
                         <button type="button" className="ios-btn--plain" onClick={() => dismiss(ex, "done")} style={{ color: "var(--ios-label-2)" }}>Mastered — retire it</button>
@@ -760,6 +804,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       id: "school",
       title: "This week at school",
       count: nx.academics?.length ?? 0,
+      accessory: <div style={{ padding: "0 var(--ios-gutter) 6px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>{newsletter?.weekStart && <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>Week of {fmtDate(newsletter.weekStart, false)}</span>}<SourceChip doc={newsletter} onOpen={openDoc} /></div>,
       summary: `${(nx.academics ?? []).map((a) => a.subject).join(", ")}${newsletter?.docDate ? ` · newsletter of ${fmtDate(newsletter.docDate, false)}` : ""}.`,
       search: (nx.academics ?? []).map((a, i) => hit(`ac-${i}`, a.subject, a.topics.join(" · "), "this week at school")),
       body: (
@@ -802,7 +847,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
               <Cell key={d.id} chevron={false}
                 lead={<IconBadge color={d.kind === "newsletter" ? "var(--ios-tint)" : d.kind === "graded_work" ? "var(--ios-green)" : "#8E8E93"}><Icons.BookIcon /></IconBadge>}
                 title={d.title}
-                subtitle={`${d.docDate ? fmtDate(d.docDate, false) : new Date(d.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}${d.filePaths.length > 0 ? ` · ${d.filePaths.length} page${d.filePaths.length === 1 ? "" : "s"}` : ""}${d.summary ? ` · ${d.summary}` : ""}`}
+                subtitle={`Week of ${fmtDate(docWeek(d), false)} · ${d.docDate ? fmtDate(d.docDate, false) : `added ${new Date(d.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}${d.filePaths.length > 0 ? ` · ${d.filePaths.length} page${d.filePaths.length === 1 ? "" : "s"}` : " · no scan kept"}${d.summary ? ` · ${d.summary}` : ""}`}
                 trailing={
                   <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
                     {d.filePaths.length > 0 && <button type="button" className="ios-btn--plain" onClick={() => openDocument(d.id, d.title)} style={{ color: "var(--ios-tint)" }}>View</button>}
@@ -996,10 +1041,24 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         </>
       )}
 
+      {/* ── Which week ─────────────────────────────────────────────────── */}
+      {pastWeeks.length > 0 && terms.length === 0 && (
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", padding: "12px var(--ios-gutter) 0", scrollbarWidth: "none" }}>
+          <Chip small selected={weekView === "current"} onClick={() => setWeekView("current")}>This week</Chip>
+          {pastWeeks.map((w) => (
+            <Chip key={w} small selected={weekView === w} onClick={() => setWeekView(w)}>{fmtDate(w, false)}</Chip>
+          ))}
+        </div>
+      )}
+
+      {lookback && terms.length === 0 && (
+        <WeekLookback {...lookback} docById={docById} onOpen={openDoc} />
+      )}
+
       {/* ── Pin, and arrange ───────────────────────────────────────────── */}
       {/* The pin is this parent's alone: it puts the child's week on their own
           Today and does nothing to anyone else's. */}
-      <div style={{ display: terms.length > 0 ? "none" : "flex", alignItems: "center", justifyContent: "space-between", gap: 16, margin: "12px var(--ios-gutter) 0" }}>
+      <div style={{ display: terms.length > 0 || lookback ? "none" : "flex", alignItems: "center", justifyContent: "space-between", gap: 16, margin: "12px var(--ios-gutter) 0" }}>
         {isGuardian ? (
           <button
             type="button"
@@ -1036,14 +1095,14 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         </div>
       </div>
 
-      {arranging && (
+      {arranging && !lookback && (
         <p className="ios-group-footer ios-footnote" style={{ marginTop: 4 }}>
           Move a section with the arrows, or tap its name to fold it away. This is kept on this device only, so each of you can keep the arrangement you want.
         </p>
       )}
 
       {/* ── The sections, in this device's order ────────────────────────── */}
-      {terms.length === 0 && ordered.map((sec, i) => (
+      {terms.length === 0 && !lookback && ordered.map((sec, i) => (
         <Fold
           key={sec.id}
           id={sec.id}
@@ -1062,20 +1121,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         </Fold>
       ))}
 
-      {viewer && (
-        <div role="dialog" aria-label={viewer.title} onClick={() => setViewer(null)} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.92)", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
-          <div style={{ position: "sticky", top: 0, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "max(12px, env(safe-area-inset-top)) 16px 12px", background: "rgba(0,0,0,0.7)", color: "#fff", backdropFilter: "blur(10px)" }}>
-            <span style={{ fontWeight: 600, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{viewer.title} · {viewer.urls.length} page{viewer.urls.length === 1 ? "" : "s"}</span>
-            <button type="button" onClick={() => setViewer(null)} style={{ background: "rgba(255,255,255,0.15)", color: "#fff", border: "none", borderRadius: 999, padding: "8px 14px", fontWeight: 700 }}>Close</button>
-          </div>
-          <div onClick={(e) => e.stopPropagation()} style={{ display: "grid", gap: 12, padding: "12px 12px 40px", maxWidth: 820, margin: "0 auto" }}>
-            {viewer.urls.map((u, i) => (
-              // eslint-disable-next-line @next/next/no-img-element -- signed, short-lived storage URLs; next/image cannot proxy them
-              <img key={i} src={u} alt={`${viewer.title}, page ${i + 1}`} style={{ width: "100%", height: "auto", borderRadius: 8, background: "#fff" }} />
-            ))}
-          </div>
-        </div>
-      )}
+      {viewer && <DocumentViewer title={viewer.title} urls={viewer.urls} initialPage={viewer.page ?? 0} onClose={() => setViewer(null)} />}
       {pending && <span className="ios-caption" style={{ position: "fixed", bottom: 90, right: 16, color: "var(--ios-label-3)" }}>Saving…</span>}
     </>
   );

@@ -11,7 +11,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Group, Cell, Chip, IconBadge, Icons } from "@/components/ios";
 import type { DocumentExtraction } from "../_lib/learning";
-import { saveChildDocument, findSimilarDocument, deleteChildDocument, type SimilarDocument } from "../_lib/learning-actions";
+import { saveChildDocument, findSimilarDocument, deleteChildDocument, type SimilarDocument, addDocumentPage } from "../_lib/learning-actions";
 
 type Phase = "pick" | "reading" | "review" | "saving" | "batch";
 
@@ -134,7 +134,22 @@ export default function LearningImportClient({ childId, childName }: { childId: 
         if (!res.ok || !data?.extraction) throw new Error(data?.error ?? (res.status === 504 ? "Timed out" : `Reader error ${res.status}`));
         const ex = data.extraction;
         const sim = await findSimilarDocument(childId, ex, it.hash ? [it.hash] : []);
-        if (sim.match) { setItem(i, { status: "duplicate", note: `Already kept: ${sim.match.title}` }); continue; }
+        if (sim.match && sim.match.reason === "same file already read") {
+          setItem(i, { status: "duplicate", note: `Already kept: ${sim.match.title}` }); continue;
+        }
+        if (sim.match) {
+          // Same week, same date or same title, but not the same file: this is
+          // another page of a document already kept. Fold it in rather than
+          // dropping it — which is what happened to pages two and three of
+          // every newsletter until now.
+          const added = await addDocumentPage({ childId, documentId: sim.match.id, extraction: ex, pageHash: it.hash });
+          if (added.error) throw new Error(added.error);
+          const fd = new FormData();
+          fd.append("childId", childId); fd.append("documentId", sim.match.id); fd.append("append", "1"); fd.append("files", it.file);
+          await fetch("/api/children/documents/upload", { method: "POST", body: fd }).catch(() => {});
+          setItem(i, { status: "kept", note: `Page ${added.pageCount ?? "?"} of ${sim.match.title}${added.todos ? ` · ${added.todos} to-dos` : ""}${added.reminders ? ` · ${added.reminders} reminders` : ""}` });
+          continue;
+        }
         const r = await saveChildDocument({ childId, extraction: ex, exerciseIndexes: ex.exercises.map((_, k) => k), addDateReminders: true, addPracticeTodos: true, pageHashes: it.hash ? [it.hash] : [] });
         if (r.error || !r.documentId) throw new Error(r.error ?? "Could not save");
         const fd = new FormData();
