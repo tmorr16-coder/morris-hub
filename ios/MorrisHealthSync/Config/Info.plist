@@ -19,6 +19,9 @@
   <string>Morris Health reads your activity, heart and workout data and sends it to your own morrisai.family account, so your dashboard stays current without exporting by hand.</string>
   <key>NSHealthUpdateUsageDescription</key>
   <string>Morris Health does not write to Apple Health.</string>
+  <!-- Only HTTPS to morrisai.family: standard, exempt encryption. Declared here
+       so App Store Connect stops asking on every TestFlight build. -->
+  <key>ITSAppUsesNonExemptEncryption</key><false/>
   <key>UIBackgroundModes</key>
   <array><string>fetch</string></array>
   <key>BGTaskSchedulerPermittedIdentifiers</key>
