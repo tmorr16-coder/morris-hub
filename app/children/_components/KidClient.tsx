@@ -119,8 +119,9 @@ function readLocal(key: string): string | null {
 // long gone by the time the audio arrives.
 const SILENCE = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=";
 
-/** A cloud voice is stored with a prefix so it can never collide with a device voice name. */
+/** Voices are stored with a prefix saying which kind they are; a bare name is a legacy device choice. */
 const CLOUD_PREFIX = "openai:";
+const DEVICE_PREFIX = "device:";
 
 // The saved voice, read through an external store. It was an effect that
 // copied localStorage into state on mount, which is a second render of the
@@ -156,11 +157,16 @@ function useSpeech(childId: string, cloudAvailable: boolean) {
   // voice, so it is what you get when it is available and nothing was chosen;
   // picking a device voice sticks.
   const pref = useSyncExternalStore(subscribeVoicePref, readVoicePref, () => null);
+  //
+  // A device voice only wins when it was chosen from the picker that also
+  // offered the cloud voices — stored with the "device:" prefix. A bare name
+  // is a choice made before the cloud voices existed, and it was keeping the
+  // better voice off every iPad that had ever tried Fred.
   const cloudVoice = !cloudAvailable
     ? null
     : pref?.startsWith(CLOUD_PREFIX)
       ? pref.slice(CLOUD_PREFIX.length)
-      : pref
+      : pref?.startsWith(DEVICE_PREFIX)
         ? null
         : DEFAULT_CLOUD_VOICE;
 
@@ -186,7 +192,8 @@ function useSpeech(childId: string, cloudAvailable: boolean) {
       // it is chosen for reading Scripture to an adult, not for a tutor
       // talking to a six-year-old.
       const chosen = readLocal(BUDDY_VOICE_KEY);
-      const deviceChoice = chosen && !chosen.startsWith(CLOUD_PREFIX) ? chosen : null;
+      const deviceChoice = chosen?.startsWith(DEVICE_PREFIX) ? chosen.slice(DEVICE_PREFIX.length)
+        : chosen && !chosen.startsWith(CLOUD_PREFIX) ? chosen : null;
       const picked = (deviceChoice ? all.find((v) => v.name === deviceChoice) : null) ?? pickKidVoice(all);
       voiceRef.current = picked;
       setVoiceName(picked?.name ?? null);
@@ -204,7 +211,7 @@ function useSpeech(childId: string, cloudAvailable: boolean) {
     if (!v) return;
     voiceRef.current = v;
     setVoiceName(v.name);
-    writeVoicePref(name);
+    writeVoicePref(DEVICE_PREFIX + name);
   }, []);
   // The utterance being spoken is held here so it is not collected mid-sentence,
   // which silences Chrome; and speak() is never called in the same tick as

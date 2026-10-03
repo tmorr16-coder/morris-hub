@@ -34,7 +34,6 @@ export const CLOUD_VOICES: CloudVoice[] = [
   { id: "coral", label: "Coral", note: "Warm and bright. The closest to a favourite teacher." },
   { id: "nova", label: "Nova", note: "Friendly and lively. Good for a child who tunes out." },
   { id: "shimmer", label: "Shimmer", note: "Gentle and soft-spoken. Good at bedtime." },
-  { id: "fable", label: "Fable", note: "A storyteller, lightly British. Suits the owl." },
   { id: "sage", label: "Sage", note: "Calm and even. Easiest to follow letter by letter." },
   { id: "alloy", label: "Alloy", note: "Neutral and clear. The plainest of them." },
   { id: "ballad", label: "Ballad", note: "Slower and expressive. Good for reading aloud." },
@@ -42,6 +41,7 @@ export const CLOUD_VOICES: CloudVoice[] = [
   { id: "echo", label: "Echo", note: "A steady male voice." },
   { id: "onyx", label: "Onyx", note: "A deep male voice." },
   { id: "verse", label: "Verse", note: "Animated and playful." },
+  { id: "fable", label: "Fable", note: "A British storyteller — charming, but not the accent a first grader hears at school." },
 ];
 
 export const DEFAULT_CLOUD_VOICE = "coral";
@@ -58,9 +58,10 @@ export function isCloudVoice(id: string | null | undefined): boolean {
  * down for spelling without changing pitch the way a speed multiplier does.
  */
 const INSTRUCTIONS = [
-  "You are reading aloud to a six-year-old child who is learning to read.",
-  "Warm, patient and encouraging, like a favourite teacher. Never stern, never rushed, never syrupy.",
-  "Speak clearly and a little slowly, with real pauses at full stops.",
+  "You are reading aloud to a six-year-old American child who is learning to read.",
+  "Standard American English, the way a first-grade teacher in Georgia speaks: every word fully and clearly pronounced, no British vowels, no mumbled endings.",
+  "Warm, patient and encouraging. Never stern, never rushed, never syrupy.",
+  "Speak slowly — noticeably slower than you would to an adult — with real pauses at full stops.",
   "When letters are separated by dashes, say each letter on its own with a short gap — do not run them together into a word.",
 ].join(" ");
 
