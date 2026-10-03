@@ -722,6 +722,7 @@ export default async function DashboardPage() {
           <Cell lead={<IconBadge color="var(--ios-green)"><Icons.ChartIcon /></IconBadge>} title="Retirement" subtitle="Model income, drawdown & scenarios" href="/finance/retirement" />
           <Cell lead={<IconBadge color="#8E5A3A"><Icons.SparkleIcon /></IconBadge>} title="Tax" subtitle="Your tax picture & AI tax advisor" href="/finance/tax" />
           <Cell lead={<IconBadge color="var(--ios-tint)"><Icons.SparkleIcon /></IconBadge>} title="Spending insights" subtitle="Where the money went, and what repeats" href="/finance/dashboard/insights" />
+          <Cell lead={<IconBadge color="var(--ios-orange)"><Icons.BellIcon /></IconBadge>} title="Budgets" subtitle="Monthly limits, with alerts on Today" href="/finance/dashboard/budgets" />
         </Group>
       )}
 

@@ -251,14 +251,22 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
             <TopMerchants rows={topMerchants} />
           </div>
 
+          {budgets && budgets.tables.ok && budgets.statuses.length === 0 && (
+            <div id="budgets" style={{ padding: "0 16px" }}>
+              <Group footer="A monthly limit per category, suggested from what it has actually cost. Alerts land on Today, and by text if you ask.">
+                <Cell lead={<IconBadge color="var(--ios-orange)"><Icons.BellIcon /></IconBadge>} title="Set a budget" subtitle="No budgets yet" href="/finance/dashboard/budgets" />
+              </Group>
+            </div>
+          )}
           {budgets && budgets.statuses.length > 0 && (
             <div id="budgets" style={{ padding: "0 16px" }}>
-              <Group header="Budgets" footer="Set and edit limits on the Budgets tab. Each alert fires once a month and lands on Today.">
+              <Group header="Budgets" footer="Each alert fires once a month and lands on Today.">
                 {budgets.statuses.map((s) => (
                   <Cell key={s.budget.id} href="/finance/dashboard/budgets" title={s.label}
                     subtitle={`${fmtMoney(s.spent)} of ${fmtMoney(s.limit)} · ${s.daysLeft} days left${s.projected != null ? ` · pace ${fmtMoney(s.projected)}` : ""}`}
                     trailing={<span className="ios-caption" style={{ color: s.state === "over" ? "var(--ios-red)" : s.state === "ok" ? "var(--ios-green)" : "var(--ios-orange)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.state === "over" ? "Over" : s.state === "ok" ? "On track" : s.state === "warn" ? "Close" : "On pace to go over"}</span>} />
                 ))}
+                <Cell lead={<IconBadge color="var(--ios-orange)"><Icons.BellIcon /></IconBadge>} title="All budgets" subtitle="Add, edit, and see the alerts raised" href="/finance/dashboard/budgets" />
               </Group>
             </div>
           )}
