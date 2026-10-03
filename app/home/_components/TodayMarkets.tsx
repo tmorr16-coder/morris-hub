@@ -1,5 +1,6 @@
 import { fetchQuotes } from "@/lib/stocks";
 import { fetchTickerNews } from "@/lib/news";
+import { withDeadline, TODAY_SECTION_MS } from "@/lib/deadline";
 import { Group, Cell, IconBadge, Icons } from "@/components/ios";
 
 // Company watch — the employer ticker's price + latest headlines, streamed.
@@ -8,8 +9,8 @@ export default async function TodayMarkets({ ticker }: { ticker: string | null |
   const t = (ticker ?? "").trim().toUpperCase();
   if (!t) return null;
   const [quote, news] = await Promise.all([
-    fetchQuotes([t]).then((q) => q[0] ?? null).catch(() => null),
-    fetchTickerNews(t, t).then((n) => n.slice(0, 2)).catch(() => []),
+    withDeadline(fetchQuotes([t]).then((q) => q[0] ?? null), TODAY_SECTION_MS, null, "markets-quote"),
+    withDeadline(fetchTickerNews(t, t).then((n) => n.slice(0, 2)), TODAY_SECTION_MS, [], "markets-news"),
   ]);
   if (!quote && news.length === 0) return null;
 

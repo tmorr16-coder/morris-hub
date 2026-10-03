@@ -19,6 +19,7 @@ import MoneyGlanceValue from "./_components/MoneyGlanceValue";
 import { TodayWeatherValue, TodayWeatherSub } from "./_components/TodayWeatherGlance";
 import { PinnedChildCard } from "./_components/PinnedChildCard";
 import { loadPinnedChild } from "@/app/children/_lib/pinned";
+import { withDeadline, TODAY_SECTION_MS } from "@/lib/deadline";
 import { unstable_cache } from "next/cache";
 
 /**
@@ -711,7 +712,7 @@ export default async function HomePage() {
 async function PinnedChildSlot({ pinnedChildId, userId }: { pinnedChildId: string; userId: string }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const svc = createServiceClient() as any;
-  const child = await loadPinnedChild(svc, pinnedChildId, userId, new Date());
+  const child = await withDeadline(loadPinnedChild(svc, pinnedChildId, userId, new Date()), TODAY_SECTION_MS, null, "pinned-child");
   return child ? <PinnedChildCard child={child} /> : null;
 }
 

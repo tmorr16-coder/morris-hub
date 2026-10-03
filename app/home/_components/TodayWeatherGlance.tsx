@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { fetchWeather } from "@/lib/weather";
+import { withDeadline, TODAY_SECTION_MS } from "@/lib/deadline";
 
 /**
  * Today's weather glance, split into the two slots the tile renders.
@@ -17,7 +18,7 @@ import { fetchWeather } from "@/lib/weather";
  * loads are served from Next's fetch cache without leaving the box.
  */
 const getWeather = cache(async (lat: number, lon: number) =>
-  fetchWeather(lat, lon).catch(() => null)
+  withDeadline(fetchWeather(lat, lon), TODAY_SECTION_MS, null, "weather")
 );
 
 export async function TodayWeatherValue({ lat, lon }: { lat: number; lon: number }) {

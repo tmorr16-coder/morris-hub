@@ -1,5 +1,6 @@
 import { fetchSubscriptionFeeds, fetchNews } from "@/lib/news";
 import { Group, Cell, IconBadge, Icons } from "@/components/ios";
+import { withDeadline, TODAY_SECTION_MS } from "@/lib/deadline";
 
 type Source = { id: string; name: string; rss: string; enabled: boolean };
 
@@ -13,10 +14,10 @@ export default async function TodayNews({ sources, topics }: { sources: Source[]
 
   const [subs, topical] = await Promise.all([
     enabled.length > 0
-      ? fetchSubscriptionFeeds(enabled).then((x) => x.slice(0, 4)).catch(() => [])
+      ? withDeadline(fetchSubscriptionFeeds(enabled).then((x) => x.slice(0, 4)), TODAY_SECTION_MS, [], "news-subscriptions")
       : Promise.resolve([]),
     topicList.length > 0
-      ? fetchNews(topicList).then((x) => x.slice(0, 4)).catch(() => [])
+      ? withDeadline(fetchNews(topicList).then((x) => x.slice(0, 4)), TODAY_SECTION_MS, [], "news-topics")
       : Promise.resolve([]),
   ]);
 
