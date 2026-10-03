@@ -18,7 +18,9 @@ struct ContentView: View {
             .navigationTitle("Morris Health")
             .alert("Pair this iPhone?", isPresented: Binding(
                 get: { engine.pendingCode != nil },
-                set: { if !$0 { engine.pendingCode = nil } }
+                // Same deferral as handleDeepLink: the alert's dismissal sets
+                // this during the view update that removes the alert.
+                set: { if !$0 { Task { @MainActor in engine.pendingCode = nil } } }
             )) {
                 Button("Pair") {
                     if let c = engine.pendingCode { Task { await engine.pair(code: c) } }

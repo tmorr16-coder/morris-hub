@@ -123,7 +123,13 @@ final class SyncEngine: ObservableObject {
         let code = URLComponents(url: url, resolvingAgainstBaseURL: false)?
             .queryItems?.first(where: { $0.name == "code" })?.value
         // Never paired silently from a link: the code is shown and confirmed.
-        if let code, !code.isEmpty { pendingCode = code }
+        //
+        // Deferred by a turn of the run loop. onOpenURL delivers the link in the
+        // middle of a view update, and publishing from there is what SwiftUI's
+        // "Publishing changes from within view updates" warning is about.
+        if let code, !code.isEmpty {
+            Task { @MainActor in self.pendingCode = code }
+        }
     }
 
     func pair(code: String) async {
