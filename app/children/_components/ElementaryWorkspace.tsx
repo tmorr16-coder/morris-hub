@@ -595,7 +595,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       tab: "week",
       title: "Spelling this week",
       count: `${practisedCount}/${totalWords}`,
-      defaultOpen: true,
+      defaultOpen: false,
       accessory: <div style={{ padding: "0 var(--ios-gutter) 6px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>Week of {fmtDate(week.weekStart, false)}</span><SourceChip doc={sourceOf(week.documentId)} onOpen={openDoc} /></div>,
       summary: `${week.pattern ?? `${totalWords} words`}${week.testOn ? ` · test ${soon(week.testOn)}` : ""}.`,
       search: [
@@ -632,7 +632,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       tab: "week",
       title: "Scripture this week",
       count: scripture.length,
-      defaultOpen: true,
+      defaultOpen: false,
       accessory: <div style={{ padding: "0 var(--ios-gutter) 6px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>{newsletter?.weekStart && <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>Week of {fmtDate(newsletter.weekStart, false)}</span>}<SourceChip doc={newsletter} onOpen={openDoc} /></div>,
       summary: scripture.map((sc) => sc.label).join(", ") + ".",
       search: scripture.map((sc) => hit(`sc-${sc.key}`, sc.label, sc.text, "scripture memory verse recitation")),
@@ -706,7 +706,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       tab: "week",
       title: "Practice tonight",
       count: plan.tonight.length ? `${plan.doneTonight}/${plan.tonight.length}` : undefined,
-      defaultOpen: true,
+      defaultOpen: false,
       summary: exercises.length === 0 ? "Nothing planned yet." : plan.tonight.length === 0 ? "Nothing owed tonight." : left === 0 ? "Tonight is done." : `${left} to do · about ${plan.minutes} min · ${exercises.length} on file.`,
       search: exercises.map((ex) => hit(`ex-${ex.id}`, ex.title, ex.rationale, `${subjectOf(ex.skill, ex.title)} ${ex.skill ?? ""} ${ex.steps ?? ""} ${ex.materials ?? ""} ${FREQ_LABEL[ex.frequency]}`)),
       body: (
@@ -807,17 +807,42 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   }
 
   if (isGuardian) {
+    const handSent = tasks.filter((t) => t.kind === "custom");
+    const onScreen = handSent.filter((t) => !t.completedAt);
     sections.push({
       id: "send",
       tab: "week",
-      title: `Send ${kid} something`,
-      defaultOpen: true,
-      summary: "Anything at all, in your own words.",
+      title: `Send ${kid} a job`,
+      count: onScreen.length || undefined,
+      defaultOpen: false,
+      summary: onScreen.length
+        ? `${onScreen.length} waiting on ${kid}'s screen: ${onScreen.map((t) => t.title).join(" · ")}`
+        : `Type a job in your own words and it appears on ${kid}'s screen as a card he can tap, hear read aloud, and finish for a star.`,
+      search: handSent.map((t) => hit(`hs-${t.id}`, t.title, t.completedAt ? "Done" : `On ${kid}'s screen`, "sent by hand job task")),
       body: (
-        <div style={{ display: "flex", gap: 8, margin: "0 var(--ios-gutter)" }}>
-          <input value={customTask} onChange={(e) => setCustomTask(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendCustom(); }} placeholder={`e.g. “Read one page of Farmer Boy to Mom”`} style={{ flex: 1, minWidth: 0, padding: "11px 12px", borderRadius: 10, border: "none", background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 15 }} />
-          <button type="button" className="ios-btn ios-btn--primary" disabled={!customTask.trim() || pending} onClick={sendCustom}>Send</button>
-        </div>
+        <>
+          <div className="ios-list" style={{ margin: "0 var(--ios-gutter)", padding: "12px 16px 14px" }}>
+            <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: "0 0 10px", lineHeight: 1.45 }}>
+              A job in your own words. It appears on {kid}&rsquo;s screen as a card: he taps it, Buddy reads it to him, and he gets a star when he marks it done. It shows up in the week&rsquo;s checklist under <em>Sent by hand</em>.
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={customTask} onChange={(e) => setCustomTask(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendCustom(); }} placeholder={`e.g. Read one page of Farmer Boy to Mom`} aria-label={`A job for ${kid}`} style={{ flex: 1, minWidth: 0, padding: "11px 12px", borderRadius: 10, border: "none", background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 16 }} />
+              <button type="button" className="ios-btn ios-btn--primary" disabled={!customTask.trim() || pending} onClick={sendCustom}>Send</button>
+            </div>
+          </div>
+          {handSent.length > 0 && (
+            <div className="ios-list" style={{ margin: "10px var(--ios-gutter) 0" }}>
+              {onScreen.map((t) => (
+                <Cell key={t.id} chevron={false} lead={<span style={{ fontSize: 22, width: 30, textAlign: "center" }}>⭐</span>} title={t.title} subtitle={`On ${kid}'s screen · sent ${fmtDate(t.assignedOn, false)}`}
+                  trailing={<button type="button" className="ios-btn--plain" onClick={() => removeTask(t)} style={{ color: "var(--ios-label-3)" }}>Take back</button>} />
+              ))}
+              {handSent.filter((t) => t.completedAt).map((t) => (
+                <Cell key={t.id} chevron={false} lead={<span style={{ fontSize: 22, width: 30, textAlign: "center", opacity: 0.5 }}>✅</span>} title={<span style={{ color: "var(--ios-label-2)", textDecoration: "line-through" }}>{t.title}</span>} subtitle={`Done today · ${"⭐".repeat(Math.max(1, t.stars))}${t.childNote ? ` · “${t.childNote}”` : ""}`}
+                  trailing={<button type="button" className="ios-btn--plain" onClick={() => reopen(t)} style={{ color: "var(--ios-label-3)" }}>Undo</button>} />
+              ))}
+            </div>
+          )}
+        </>
       ),
     });
   }

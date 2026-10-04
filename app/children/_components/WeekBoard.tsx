@@ -121,6 +121,7 @@ export function WeekRows({ items, emptyNote, keyPrefix }: { items: WeekItem[]; e
           done={run.items.filter((x) => x.done).length}
           total={run.items.length}
           first={ri === 0}
+          defaultOpen={false}
         >
           <RunRows items={run.items} />
         </TopicGroup>
