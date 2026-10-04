@@ -28,14 +28,14 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { LargeTitle, Group, Cell, IconBadge, Icons, Chip, Sparkline } from "@/components/ios";
+import { LargeTitle, Group, Cell, IconBadge, Icons, Chip, Sparkline, Segmented } from "@/components/ios";
 import type { ChildWorkspaceData, ChildActivity, ChildHealthNote } from "../_lib/children";
 import type { Exercise, SchoolDate, ChildTask } from "../_lib/learning";
 import { resourcesFor, STAPLES, KIND_LABEL } from "../_lib/resources";
 import { Fold } from "./Fold";
 import { TopicGroup } from "./TopicGroup";
 import { WeekProgress, WeekRows, type WeekItem } from "./WeekBoard";
-import { useSectionOrder, writeLocal } from "../_lib/ui-state";
+import { useSectionOrder, useLocalValue, writeLocal } from "../_lib/ui-state";
 import {
   logPractice, unlogPractice, setExerciseStatus, markWordPracticed, childDocumentUrls,
   deleteChildDocument, documentImpact, assignTask, deleteTask, reopenTask, rebuildFromDocument, resetWeekPractice,
@@ -170,6 +170,10 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   const [viewer, setViewer] = useState<{ title: string; urls: string[]; page?: number } | null>(null);
   // "current", or the Monday of a past week being read back.
   const [weekView, setWeekView] = useState<string>("current");
+  const [openPaper, setOpenPaper] = useState<string | null>(null);
+  type Tab = "week" | "progress" | "records";
+  const tab = useLocalValue<string>(`ch-tab-${data.childId}`, "week") as Tab;
+  const setTab = (t: Tab) => { writeLocal(`ch-tab-${data.childId}`, t); setOpenExercise(null); setOpenPaper(null); };
   const [arranging, setArranging] = useState(false);
   const [query, setQuery] = useState("");
   const [jump, setJump] = useState<{ id: string; n: number } | null>(null);
@@ -545,11 +549,14 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     body: React.ReactNode;
     /** Plain text for Find. A section with none is simply never a result. */
     search?: Hit[];
+    /** Which of the three screens the section lives on. */
+    tab: "week" | "progress" | "records";
   }
   const sections: Section[] = [];
 
   sections.push({
     id: "week",
+    tab: "week",
     title: "This week",
     defaultOpen: true,
     accessory: <WeekProgress items={weekItems} weekLabel={week?.weekStart ? `Week of ${fmtDate(week.weekStart, false)}${week.testOn ? ` · spelling test ${soon(week.testOn)}` : ""}` : "Everything owed this week"} />,
@@ -562,6 +569,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     const practisedCount = wordsPracticed + week.sightWords.filter((w) => (practiced[w] ?? 0) > 0).length;
     sections.push({
       id: "spelling",
+      tab: "week",
       title: "Spelling this week",
       count: `${practisedCount}/${totalWords}`,
       defaultOpen: true,
@@ -598,6 +606,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   if (scripture.length > 0) {
     sections.push({
       id: "scripture",
+      tab: "week",
       title: "Scripture this week",
       count: scripture.length,
       defaultOpen: true,
@@ -634,6 +643,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   if (L) {
     sections.push({
       id: "practice",
+      tab: "week",
       title: "Practice tonight",
       count: exercises.length,
       defaultOpen: true,
@@ -701,6 +711,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   if (resourceSections.length > 0) {
     sections.push({
       id: "resources",
+      tab: "records",
       title: "More practice",
       count: resourceSections.reduce((n, sec) => n + sec.items.length, 0) + STAPLES.length,
       defaultOpen: true,
@@ -733,6 +744,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   if (isGuardian) {
     sections.push({
       id: "send",
+      tab: "week",
       title: `Send ${kid} something`,
       defaultOpen: true,
       summary: "Anything at all, in your own words.",
@@ -748,6 +760,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   if (L && L.upcomingDates.length > 0) {
     sections.push({
       id: "dates",
+      tab: "week",
       title: "Coming up",
       count: L.upcomingDates.length,
       summary: `Next: ${L.upcomingDates[0].title} · ${soon(L.upcomingDates[0].date)}.`,
@@ -765,6 +778,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   if (L && L.assessments.length > 0) {
     sections.push({
       id: "progress",
+      tab: "progress",
       title: "How it's going",
       count: `${trends.length} subject${trends.length === 1 ? "" : "s"}`,
       summary: watch ? `Weakest is ${watch.label} at ${watch.latest}%, across ${L.assessments.length} graded paper${L.assessments.length === 1 ? "" : "s"}.` : undefined,
@@ -799,9 +813,86 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     });
   }
 
+  if (L && L.assessments.length > 0) {
+    const papers = [...L.assessments].sort((a, b) => (b.assessedOn ?? "").localeCompare(a.assessedOn ?? "")).slice(0, 30);
+    sections.push({
+      id: "papers",
+      tab: "progress",
+      title: "Graded papers",
+      count: papers.length,
+      defaultOpen: true,
+      summary: `${papers.length} paper${papers.length === 1 ? "" : "s"} on file. Tap one for the teacher's note and what went wrong.`,
+      search: papers.map((a) => hit(`pp-${a.id}`, a.title, `${SUBJECT_LABEL[a.subject] ?? a.subject}${a.score != null && a.outOf ? ` · ${a.score}/${a.outOf}` : ""}`, `${a.teacherFeedback ?? ""} ${a.observations.join(" ")} ${a.items.map((i) => i.prompt).join(" ")}`)),
+      body: (
+        <>
+          <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
+            {papers.map((a) => {
+              const open = openPaper === a.id;
+              const pctScore = a.score != null && a.outOf ? Math.round((a.score / a.outOf) * 100) : null;
+              const wrong = a.items.filter((i) => i.correct === false);
+              const doc = sourceOf(a.documentId);
+              return (
+                <div key={a.id}>
+                  <Cell
+                    chevron={false}
+                    onClick={() => setOpenPaper(open ? null : a.id)}
+                    lead={<IconBadge color={SUBJECT_COLOR[a.subject] ?? SUBJECT_COLOR.other}><Icons.ChartIcon /></IconBadge>}
+                    title={a.title}
+                    subtitle={`${SUBJECT_LABEL[a.subject] ?? a.subject}${a.assessedOn ? ` · ${fmtDate(a.assessedOn, false)}` : doc ? ` · scanned ${fmtDate(doc.createdAt.slice(0, 10), false)}` : ""}${wrong.length ? ` · ${wrong.length} to go over` : a.items.length ? " · all correct" : ""}`}
+                    trailing={pctScore != null ? <span className="ios-num" style={{ fontWeight: 700, color: pctColor(pctScore), whiteSpace: "nowrap" }}>{a.score}/{a.outOf}</span> : undefined}
+                  />
+                  {open && (
+                    <div style={{ padding: "4px 16px 14px", borderTop: "1px solid var(--ios-separator)" }}>
+                      {a.teacherFeedback && (
+                        <div style={{ margin: "8px 0" }}>
+                          <div className="ios-caption" style={{ color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700, marginBottom: 2 }}>Teacher&rsquo;s note</div>
+                          <div className="ios-subhead" style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>“{a.teacherFeedback}”</div>
+                        </div>
+                      )}
+                      {a.observations.length > 0 && (
+                        <div style={{ margin: "8px 0" }}>
+                          <div className="ios-caption" style={{ color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700, marginBottom: 2 }}>What the paper shows</div>
+                          <ul className="ios-subhead" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.5 }}>{a.observations.map((o, i) => <li key={i}>{o}</li>)}</ul>
+                        </div>
+                      )}
+                      {a.items.length > 0 && (
+                        <div style={{ margin: "8px 0" }}>
+                          <div className="ios-caption" style={{ color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700, marginBottom: 4 }}>
+                            {wrong.length ? `To go over · ${wrong.length} of ${a.items.length}` : `Every item · ${a.items.length}`}
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            {[...wrong, ...a.items.filter((i) => i.correct !== false)].map((it, i) => (
+                              <div key={i} style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 8, alignItems: "baseline", opacity: it.correct === false ? 1 : 0.6 }}>
+                                <span aria-hidden style={{ color: it.correct === false ? "var(--ios-red)" : it.correct ? "var(--ios-green)" : "var(--ios-label-3)", fontWeight: 700 }}>{it.correct === false ? "✗" : it.correct ? "✓" : "·"}</span>
+                                <span className="ios-subhead">
+                                  {it.prompt}
+                                  {it.correct === false && it.written ? <span style={{ color: "var(--ios-label-2)" }}> — wrote “{it.written}”</span> : null}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+                        {doc && <SourceChip doc={doc} onOpen={openDoc} />}
+                        {doc && <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>Week of {fmtDate(docWeek(doc), false)}</span>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p className="ios-group-footer ios-footnote">Each paper as the reader saw it. The red items are the ones to practise; Practice tonight was built from them.</p>
+        </>
+      ),
+    });
+  }
+
   if (nx && (nx.academics?.length ?? 0) > 0) {
     sections.push({
       id: "school",
+      tab: "week",
       title: "This week at school",
       count: nx.academics?.length ?? 0,
       accessory: <div style={{ padding: "0 var(--ios-gutter) 6px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>{newsletter?.weekStart && <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>Week of {fmtDate(newsletter.weekStart, false)}</span>}<SourceChip doc={newsletter} onOpen={openDoc} /></div>,
@@ -818,6 +909,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   if (isGuardian && L) {
     sections.push({
       id: "buddy",
+      tab: "records",
       title: `What ${kid} asked Buddy`,
       count: L.tutorRecent.length,
       summary: L.tutorRecent.length === 0 ? "Nothing yet. Everything Buddy and the child say to each other is kept here for you." : `Latest: “${L.tutorRecent[0].content.replace(/\[\[([^\]]+)\]\]/g, "$1").slice(0, 70)}…”`,
@@ -836,6 +928,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   if (L && L.documents.length > 0) {
     sections.push({
       id: "docs",
+      tab: "records",
       title: "From school",
       count: L.documents.length,
       summary: `${L.documents.length} scanned page${L.documents.length === 1 ? "" : "s"}, newest ${L.documents[0].docDate ? fmtDate(L.documents[0].docDate, false) : "recently"}.`,
@@ -866,6 +959,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
 
   sections.push({
     id: "routine",
+    tab: "records",
     title: "Routine and health",
     count: today.length + openNotes.length,
     summary: today.length === 0 && openNotes.length === 0 ? "Nothing on the list, no notes for the next visit." : `${today.length} on the routine, ${openNotes.length} note${openNotes.length === 1 ? "" : "s"} for the next visit.`,
@@ -904,6 +998,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   const { order, move, reset, customised } = useSectionOrder(`ch-order-${data.childId}`, sections.map((sec) => sec.id));
   const byId = new Map(sections.map((sec) => [sec.id, sec]));
   const ordered = order.map((id) => byId.get(id)).filter(Boolean) as Section[];
+  const onTab = ordered.filter((sec) => sec.tab === tab);
 
   // ── Find ────────────────────────────────────────────────────────────────
   // Results follow the reader's own section order rather than a relevance
@@ -918,6 +1013,8 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
 
   /** Open the section a result lives in, drop the query, and scroll to it. */
   function reveal(sectionId: string) {
+    const sec = byId.get(sectionId);
+    if (sec && sec.tab !== tab) setTab(sec.tab);
     writeLocal(`ch-fold-${sectionId}-${data.childId}`, true);
     setQuery("");
     setJump((j) => ({ id: sectionId, n: (j?.n ?? 0) + 1 }));
@@ -961,6 +1058,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
           <Link
             key={t.label}
             href={t.href}
+            onClick={() => { if (t.href.startsWith("#")) { if (tab !== "week") setTab("week"); setWeekView("current"); } }}
             style={{
               display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
               padding: "12px 4px 10px", borderRadius: 14, background: "var(--ios-cell)",
@@ -1041,8 +1139,24 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         </>
       )}
 
+      {/* ── Which screen ───────────────────────────────────────────────── */}
+      {terms.length === 0 && (
+        <div style={{ margin: "12px var(--ios-gutter) 0" }}>
+          <Segmented<Tab>
+            ariaLabel="Section"
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: "week", label: "This week" },
+              { value: "progress", label: "Progress" },
+              { value: "records", label: "Records" },
+            ]}
+          />
+        </div>
+      )}
+
       {/* ── Which week ─────────────────────────────────────────────────── */}
-      {pastWeeks.length > 0 && terms.length === 0 && (
+      {tab === "week" && pastWeeks.length > 0 && terms.length === 0 && (
         <div style={{ display: "flex", gap: 6, overflowX: "auto", padding: "12px var(--ios-gutter) 0", scrollbarWidth: "none" }}>
           <Chip small selected={weekView === "current"} onClick={() => setWeekView("current")}>This week</Chip>
           {pastWeeks.map((w) => (
@@ -1051,14 +1165,14 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         </div>
       )}
 
-      {lookback && terms.length === 0 && (
+      {tab === "week" && lookback && terms.length === 0 && (
         <WeekLookback {...lookback} docById={docById} onOpen={openDoc} />
       )}
 
       {/* ── Pin, and arrange ───────────────────────────────────────────── */}
       {/* The pin is this parent's alone: it puts the child's week on their own
           Today and does nothing to anyone else's. */}
-      <div style={{ display: terms.length > 0 || lookback ? "none" : "flex", alignItems: "center", justifyContent: "space-between", gap: 16, margin: "12px var(--ios-gutter) 0" }}>
+      <div style={{ display: terms.length > 0 || (tab === "week" && lookback) ? "none" : "flex", alignItems: "center", justifyContent: "space-between", gap: 16, margin: "12px var(--ios-gutter) 0" }}>
         {isGuardian ? (
           <button
             type="button"
@@ -1095,14 +1209,14 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         </div>
       </div>
 
-      {arranging && !lookback && (
+      {arranging && !(tab === "week" && lookback) && (
         <p className="ios-group-footer ios-footnote" style={{ marginTop: 4 }}>
           Move a section with the arrows, or tap its name to fold it away. This is kept on this device only, so each of you can keep the arrangement you want.
         </p>
       )}
 
       {/* ── The sections, in this device's order ────────────────────────── */}
-      {terms.length === 0 && !lookback && ordered.map((sec, i) => (
+      {terms.length === 0 && !(tab === "week" && lookback) && onTab.map((sec, i) => (
         <Fold
           key={sec.id}
           id={sec.id}
@@ -1114,7 +1228,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
           defaultOpen={sec.defaultOpen}
           arrange={arranging ? {
             up: i === 0 ? null : () => move(sec.id, -1),
-            down: i === ordered.length - 1 ? null : () => move(sec.id, 1),
+            down: i === onTab.length - 1 ? null : () => move(sec.id, 1),
           } : undefined}
         >
           {sec.body}
