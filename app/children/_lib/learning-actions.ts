@@ -286,6 +286,26 @@ export async function saveChildDocument(input: {
 }
 
 /**
+ * Archive or restore several exercises at once.
+ *
+ * One paper proposes four or five exercises and a batch of fifteen papers
+ * adopted every one of them — 76 in a day. Archiving is how a plan becomes a
+ * plan again; it is a status, not a delete, so Undo is the same call back.
+ */
+export async function setExercisesStatus(childId: string, ids: string[], status: "active" | "dismissed" | "done"): Promise<{ error?: string; count?: number }> {
+  const g = await requireGuardian(childId);
+  if ("error" in g) return { error: g.error };
+  const clean = ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200);
+  if (clean.length === 0) return { count: 0 };
+  const { error } = await db().schema("hub").from("child_exercises").update({ status }).eq("child_id", childId).in("id", clean);
+  if (error) return { error: error.message };
+  revalidatePath(`/children/${childId}`);
+  revalidatePath(`/children/${childId}/kid`);
+  revalidatePath("/home");
+  return { count: clean.length };
+}
+
+/**
  * Another page of a document already kept.
  *
  * The batch importer reads each file on its own. Page two of a newsletter

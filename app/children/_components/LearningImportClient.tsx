@@ -150,7 +150,9 @@ export default function LearningImportClient({ childId, childName }: { childId: 
           setItem(i, { status: "kept", note: `Page ${added.pageCount ?? "?"} of ${sim.match.title}${added.todos ? ` · ${added.todos} to-dos` : ""}${added.reminders ? ` · ${added.reminders} reminders` : ""}` });
           continue;
         }
-        const r = await saveChildDocument({ childId, extraction: ex, exerciseIndexes: ex.exercises.map((_, k) => k), addDateReminders: true, addPracticeTodos: true, pageHashes: it.hash ? [it.hash] : [] });
+        // The reader's first three suggestions, not all of them: a batch of
+        // fifteen papers once adopted every exercise and left a plan of 76.
+        const r = await saveChildDocument({ childId, extraction: ex, exerciseIndexes: ex.exercises.map((_, k) => k).slice(0, 3), addDateReminders: true, addPracticeTodos: true, pageHashes: it.hash ? [it.hash] : [] });
         if (r.error || !r.documentId) throw new Error(r.error ?? "Could not save");
         const fd = new FormData();
         fd.append("childId", childId); fd.append("documentId", r.documentId); fd.append("files", it.file);

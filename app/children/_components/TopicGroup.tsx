@@ -20,6 +20,7 @@ export function TopicGroup({
   done,
   total,
   first = false,
+  defaultOpen,
   children,
 }: {
   /** Per child, per topic. A topic deliberately reopened stays open. */
@@ -29,12 +30,14 @@ export function TopicGroup({
   total: number;
   /** The first topic in a section carries no rule above it. */
   first?: boolean;
+  /** Overrides the "shut when finished" default — a browse list starts shut. */
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
   const allDone = total > 0 && done === total;
   // The default is recomputed each visit, so a topic finished today is shut
   // tomorrow without anyone being asked. An explicit tap outranks it.
-  const open = useLocalValue<boolean>(storageKey, !allDone);
+  const open = useLocalValue<boolean>(storageKey, defaultOpen ?? !allDone);
 
   return (
     <div>

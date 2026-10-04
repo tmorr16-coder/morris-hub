@@ -154,6 +154,7 @@ export interface Assessment {
 export interface Exercise {
   id: string;
   documentId: string | null;
+  createdAt: string;
   title: string;
   skill: string | null;
   rationale: string | null;
@@ -377,6 +378,7 @@ export async function loadLearning(db: any, childId: string, birthYear: number |
     return {
       id: e.id,
       documentId: e.document_id ?? null,
+      createdAt: e.created_at,
       title: e.title,
       skill: e.skill,
       rationale: e.rationale,

@@ -14,6 +14,7 @@
 
 import { childForGuardian } from "./children";
 import { gradeLabelFor } from "./learning";
+import { planTonight } from "./practice";
 
 export interface PinnedChildSummary {
   childId: string;
@@ -80,10 +81,10 @@ export async function loadPinnedChild(
       .order("week_start", { ascending: false })
       .limit(1),
     db.schema("hub").from("child_exercises")
-      .select("id, title")
+      .select("id, title, skill, frequency, minutes, created_at")
       .eq("child_id", pinnedChildId)
       .in("status", ["suggested", "active"])
-      .limit(20),
+      .limit(120),
     db.schema("hub").from("child_documents")
       .select("extracted")
       .eq("child_id", pinnedChildId)
@@ -92,16 +93,24 @@ export async function loadPinnedChild(
       .limit(1),
   ]);
 
-  // Only today's practice matters for "done", so only today is asked for.
-  const exercises = ((exRows ?? []) as { id: string; title: string }[]);
-  let doneToday = new Set<string>();
-  if (exercises.length > 0) {
+  // A week of the practice log, so tonight's pick can see what is owed —
+  // the same planner the workspace uses, so the card and the screen agree.
+  const exRaw = ((exRows ?? []) as { id: string; title: string; skill: string | null; frequency: "daily" | "three_a_week" | "weekly" | "once"; minutes: number | null; created_at: string }[]);
+  const doneBy = new Map<string, string[]>();
+  if (exRaw.length > 0) {
+    const weekAgo = new Date(new Date(`${today}T12:00:00Z`).getTime() - 6 * 86_400_000).toISOString().slice(0, 10);
     const { data: logRows } = await db.schema("hub").from("child_practice_log")
-      .select("exercise_id")
+      .select("exercise_id, done_on")
       .eq("child_id", pinnedChildId)
-      .eq("done_on", today);
-    doneToday = new Set(((logRows ?? []) as { exercise_id: string }[]).map((l) => l.exercise_id));
+      .gte("done_on", weekAgo);
+    for (const l of (logRows ?? []) as { exercise_id: string; done_on: string }[]) doneBy.set(l.exercise_id, [...(doneBy.get(l.exercise_id) ?? []), l.done_on]);
   }
+  const plan = planTonight(exRaw.map((e) => ({
+    id: e.id, title: e.title, skill: e.skill, frequency: e.frequency, minutes: e.minutes, createdAt: e.created_at,
+    doneDates: (doneBy.get(e.id) ?? []).sort().reverse(), doneToday: (doneBy.get(e.id) ?? []).includes(today),
+  })), today, 4);
+  const exercises = plan.tonight;
+  const doneToday = new Set(plan.tonight.filter((e) => e.doneToday).map((e) => e.id));
 
   const tasks = ((taskRows ?? []) as { title: string; completed_at: string | null; kind: string; exercise_id: string | null; stars: number | null }[]);
   const w = (weekRows ?? [])[0] as { words: string[] | null; sight_words: string[] | null; test_on: string | null; practiced: Record<string, number> | null } | undefined;

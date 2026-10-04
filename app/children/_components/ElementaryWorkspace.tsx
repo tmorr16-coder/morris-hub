@@ -39,8 +39,9 @@ import { useSectionOrder, useLocalValue, writeLocal } from "../_lib/ui-state";
 import {
   logPractice, unlogPractice, setExerciseStatus, markWordPracticed, childDocumentUrls,
   deleteChildDocument, documentImpact, assignTask, deleteTask, reopenTask, rebuildFromDocument, resetWeekPractice,
-  setPinnedChild,
+  setPinnedChild, setExercisesStatus,
 } from "../_lib/learning-actions";
+import { planTonight, subjectOf, stale, SUBJECT_ORDER, type Subject } from "../_lib/practice";
 import AddActivityForm from "./AddActivityForm";
 import AddHealthNoteForm from "./AddHealthNoteForm";
 import DocumentViewer from "./DocumentViewer";
@@ -179,8 +180,15 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   const tab = useLocalValue<string>(`ch-tab-${data.childId}`, "week") as Tab;
   const setTab = (t: Tab) => { writeLocal(`ch-tab-${data.childId}`, t); setOpenExercise(null); setOpenPaper(null); };
   const [arranging, setArranging] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState("");          // what Find runs on
+  const [liveQuery, setLiveQuery] = useState("");  // what is in the box
   const [finding, setFinding] = useState(false);
+  // The first letter used to replace the whole screen with results. Find now
+  // waits for two characters and a quarter-second pause.
+  useEffect(() => {
+    const t = setTimeout(() => setQuery(liveQuery), 250);
+    return () => clearTimeout(t);
+  }, [liveQuery]);
   const [jump, setJump] = useState<{ id: string; n: number } | null>(null);
   const [pinned, setPinned] = useState(data.pinnedToToday);
   const [pending, start] = useTransition();
@@ -422,6 +430,35 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     });
   }
 
+  // ── Practice: tonight, and the rest by subject ──────────────────────────
+  // 81 exercises under 78 free-text skills was a backlog, not a plan. The
+  // planner in ../_lib/practice.ts picks tonight — a few things, dealt across
+  // subjects, about twenty minutes — and everything else is browsable by
+  // subject, shut, with a way to archive what has sat unpractised.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const plan = planTonight(exercises, todayIso, 4);
+  const tonightIds = new Set(plan.tonight.map((e) => e.id));
+  const bySubject = new Map<Subject, Exercise[]>();
+  for (const ex of exercises) {
+    const sub = subjectOf(ex.skill, ex.title);
+    bySubject.set(sub, [...(bySubject.get(sub) ?? []), ex]);
+  }
+  const staleOnes = stale(exercises, todayIso);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  function archive(ids: string[], what: string) {
+    const removed = exercises.filter((e) => ids.includes(e.id));
+    setExercises((prev) => prev.filter((e) => !ids.includes(e.id)));
+    setConfirmArchive(false);
+    start(async () => {
+      const r = await setExercisesStatus(data.childId, ids, "dismissed");
+      if (r.error) { setExercises((prev) => [...removed, ...prev]); say(`Couldn't archive: ${r.error}`); return; }
+      say(`Archived ${what}.`, () => {
+        setExercises((prev) => [...removed, ...prev]);
+        start(async () => { await setExercisesStatus(data.childId, ids, "active"); });
+      }, 12_000);
+    });
+  }
+
   // ── The checklist ───────────────────────────────────────────────────────
   // Everything owed this week, from four tables, in the order a parent works
   // through it: words, scripture, the practice the papers argued for, then
@@ -460,7 +497,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     });
   }
 
-  for (const ex of exercises) {
+  for (const ex of plan.tonight) {
     const t = tasks.find((x) => x.exerciseId === ex.id);
     if (t) claimedTaskIds.add(t.id);
     weekItems.push({
@@ -507,25 +544,6 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         : null,
     });
   }
-
-  // ── Practice, by skill ──────────────────────────────────────────────────
-  // Undone first inside each group, so the evening's remaining work is at the
-  // top of every heading rather than hunted for among the ticks. Groups keep
-  // the order their first exercise arrived in, which is newest paper first.
-  const exerciseGroups: [string, Exercise[]][] = (() => {
-    const by = new Map<string, Exercise[]>();
-    for (const ex of exercises) {
-      const key = (ex.skill ?? "Practice").trim() || "Practice";
-      const label = key.charAt(0).toUpperCase() + key.slice(1);
-      const arr = by.get(label) ?? [];
-      arr.push(ex);
-      by.set(label, arr);
-    }
-    for (const arr of by.values()) {
-      arr.sort((a, b) => Number(a.doneToday) - Number(b.doneToday));
-    }
-    return [...by.entries()];
-  })();
 
   // ── Resources ───────────────────────────────────────────────────────────
   const resourceSections = resourcesFor([
@@ -646,68 +664,110 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   }
 
   if (L) {
+    const renderExercise = (ex: Exercise, i: number, compact = false) => {
+      const openEx = openExercise === ex.id;
+      const sub = subjectOf(ex.skill, ex.title);
+      return (
+        <div key={ex.id} style={{ borderTop: i === 0 ? undefined : "1px solid var(--ios-separator)" }}>
+          <Cell
+            chevron={false}
+            onClick={() => setOpenExercise(openEx ? null : ex.id)}
+            lead={<IconBadge color={ex.doneToday ? "var(--ios-green)" : "var(--ios-orange)"}>{ex.doneToday ? <Icons.ChecklistIcon /> : <Icons.SparkleIcon />}</IconBadge>}
+            title={ex.title}
+            subtitle={compact
+              ? `${sub} · ${ex.minutes ? `${ex.minutes} min · ` : ""}${FREQ_LABEL[ex.frequency]}`
+              : <><span>{ex.rationale}</span><span style={{ display: "block", color: "var(--ios-label-3)" }}>{sub} · {ex.minutes ? `${ex.minutes} min · ` : ""}{FREQ_LABEL[ex.frequency]}{ex.streak > 0 ? ` · ${ex.streak}-day streak` : ""}</span></>}
+            trailing={
+              <button type="button" className="ios-btn--plain" disabled={pending} onClick={(e) => { e.stopPropagation(); toggleDone(ex); }} style={{ color: ex.doneToday ? "var(--ios-green)" : "var(--ios-tint)", fontWeight: 600, whiteSpace: "nowrap" }}>
+                {ex.doneToday ? "Done ✓" : "Did it"}
+              </button>
+            }
+          />
+          {openEx && (
+            <div style={{ padding: "4px 16px 14px 16px", borderTop: "1px solid var(--ios-separator)" }}>
+              {compact && ex.rationale && <div className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: "8px 0 4px" }}>{ex.rationale}</div>}
+              {ex.skill && <div className="ios-caption" style={{ color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "8px 0 4px" }}>{ex.skill}</div>}
+              {ex.steps && <div className="ios-subhead" style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{ex.steps}</div>}
+              {ex.materials && <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 8 }}>Have ready: {ex.materials}</div>}
+              {sourceOf(ex.documentId) && <div style={{ marginTop: 8 }}><SourceChip doc={sourceOf(ex.documentId)} onOpen={openDoc} /></div>}
+              <div style={{ display: "flex", gap: 14, marginTop: 10, flexWrap: "wrap" }}>
+                {isGuardian && <button type="button" className="ios-btn--plain" disabled={sent.has(ex.id)} onClick={() => sendExercise(ex)} style={{ color: sent.has(ex.id) ? "var(--ios-green)" : "var(--ios-tint)", fontWeight: 700 }}>{sent.has(ex.id) ? `Sent to ${kid} ✓` : `Send to ${kid}'s screen`}</button>}
+                <button type="button" className="ios-btn--plain" onClick={() => dismiss(ex, "done")} style={{ color: "var(--ios-label-2)" }}>Mastered — retire it</button>
+                <button type="button" className="ios-btn--plain" onClick={() => dismiss(ex, "dismissed")} style={{ color: "var(--ios-label-3)" }}>Archive</button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+    const left = plan.tonight.length - plan.doneTonight;
     sections.push({
       id: "practice",
       tab: "week",
       title: "Practice tonight",
-      count: exercises.length,
+      count: plan.tonight.length ? `${plan.doneTonight}/${plan.tonight.length}` : undefined,
       defaultOpen: true,
-      summary: exercises.length === 0 ? "Nothing planned yet." : `${exercises.filter((e) => !e.doneToday).length} left today.`,
-      search: exercises.map((ex) => hit(`ex-${ex.id}`, ex.title, ex.rationale, `${ex.skill ?? ""} ${ex.steps ?? ""} ${ex.materials ?? ""} ${FREQ_LABEL[ex.frequency]}`)),
+      summary: exercises.length === 0 ? "Nothing planned yet." : plan.tonight.length === 0 ? "Nothing owed tonight." : left === 0 ? "Tonight is done." : `${left} to do · about ${plan.minutes} min · ${exercises.length} on file.`,
+      search: exercises.map((ex) => hit(`ex-${ex.id}`, ex.title, ex.rationale, `${subjectOf(ex.skill, ex.title)} ${ex.skill ?? ""} ${ex.steps ?? ""} ${ex.materials ?? ""} ${FREQ_LABEL[ex.frequency]}`)),
       body: (
         <>
-          {/* Grouped by skill, not left in the order the papers were
-              photographed. Four exercises off two graded papers arrive
-              interleaved — a decoding drill, a math drill, another decoding
-              drill — and reading them that way makes the plan look like more
-              work than it is. Together, they read as "the reading work" and
-              "the math work", which is how an evening actually gets divided. */}
-          <div className="ios-list" style={{ margin: "0 var(--ios-gutter)", overflow: "hidden", padding: 0 }}>
-          {exerciseGroups.map(([skill, list], gi) => (
-          <TopicGroup
-            key={skill}
-            storageKey={`ch-topic-prac-${data.childId}-${skill}`}
-            title={skill}
-            done={list.filter((e) => e.doneToday).length}
-            total={list.length}
-            first={gi === 0}
-          >
-            {list.map((ex) => {
-              const openEx = openExercise === ex.id;
-              return (
-                <div key={ex.id}>
-                  <Cell
-                    chevron={false}
-                    onClick={() => setOpenExercise(openEx ? null : ex.id)}
-                    lead={<IconBadge color={ex.doneToday ? "var(--ios-green)" : "var(--ios-orange)"}>{ex.doneToday ? <Icons.ChecklistIcon /> : <Icons.SparkleIcon />}</IconBadge>}
-                    title={ex.title}
-                    subtitle={<><span>{ex.rationale}</span><span style={{ display: "block", color: "var(--ios-label-3)" }}>{ex.minutes ? `${ex.minutes} min · ` : ""}{FREQ_LABEL[ex.frequency]}{ex.streak > 0 ? ` · ${ex.streak}-day streak` : ""}</span></>}
-                    trailing={
-                      <button type="button" className="ios-btn--plain" disabled={pending} onClick={(e) => { e.stopPropagation(); toggleDone(ex); }} style={{ color: ex.doneToday ? "var(--ios-green)" : "var(--ios-tint)", fontWeight: 600, whiteSpace: "nowrap" }}>
-                        {ex.doneToday ? "Done ✓" : "Did it"}
-                      </button>
-                    }
-                  />
-                  {openEx && (
-                    <div style={{ padding: "4px 16px 14px 16px", borderTop: "1px solid var(--ios-separator)" }}>
-                      {ex.skill && <div className="ios-caption" style={{ color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.06em", margin: "8px 0 4px" }}>{ex.skill}</div>}
-                      {ex.steps && <div className="ios-subhead" style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{ex.steps}</div>}
-                      {ex.materials && <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 8 }}>Have ready: {ex.materials}</div>}
-                      {sourceOf(ex.documentId) && <div style={{ marginTop: 8 }}><SourceChip doc={sourceOf(ex.documentId)} onOpen={openDoc} /></div>}
-                      <div style={{ display: "flex", gap: 14, marginTop: 10, flexWrap: "wrap" }}>
-                        {isGuardian && <button type="button" className="ios-btn--plain" disabled={sent.has(ex.id)} onClick={() => sendExercise(ex)} style={{ color: sent.has(ex.id) ? "var(--ios-green)" : "var(--ios-tint)", fontWeight: 700 }}>{sent.has(ex.id) ? `Sent to ${kid} ✓` : `Send to ${kid}'s screen`}</button>}
-                        <button type="button" className="ios-btn--plain" onClick={() => dismiss(ex, "done")} style={{ color: "var(--ios-label-2)" }}>Mastered — retire it</button>
-                        <button type="button" className="ios-btn--plain" onClick={() => dismiss(ex, "dismissed")} style={{ color: "var(--ios-label-3)" }}>Not for us</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </TopicGroup>
-          ))}
+          {/* Tonight */}
+          <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, padding: "10px 16px 4px" }}>
+              <span className="ios-caption" style={{ color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700 }}>Tonight</span>
+              <span className="ios-caption ios-num" style={{ color: "var(--ios-label-3)", fontWeight: 700 }}>{plan.tonight.length ? `${plan.tonight.length} · about ${plan.minutes} min` : "—"}</span>
+            </div>
+            {plan.tonight.length === 0 ? (
+              <div className="ios-footnote" style={{ color: "var(--ios-label-2)", padding: "6px 16px 14px" }}>
+                {exercises.length === 0 ? "Nothing planned yet. Photograph a graded paper and the plan is proposed from the teacher's marks." : "Nothing is owed tonight. Everything on file is below, by subject."}
+              </div>
+            ) : plan.tonight.map((ex, i) => renderExercise(ex, i))}
           </div>
-          <p className="ios-group-footer ios-footnote">{exercises.length === 0 ? "Nothing planned yet. Photograph a graded paper or the newsletter and the plan is proposed from the teacher's marks." : "Each one traces to something the teacher wrote or the paper showed. Tap for the steps; tap Done again to take it back."}</p>
+
+          {/* Also due */}
+          {plan.alsoDue.length > 0 && (
+            <div className="ios-list" style={{ margin: "10px var(--ios-gutter) 0", overflow: "hidden", padding: 0 }}>
+              <TopicGroup storageKey={`ch-topic-prac-${data.childId}-also`} title="Also due, not picked tonight" done={0} total={plan.alsoDue.length} first defaultOpen={false}>
+                {plan.alsoDue.slice(0, 12).map((ex, i) => renderExercise(ex, i, true))}
+                {plan.alsoDue.length > 12 && <div className="ios-caption" style={{ color: "var(--ios-label-3)", padding: "8px 16px 12px" }}>and {plan.alsoDue.length - 12} more under their subjects below</div>}
+              </TopicGroup>
+            </div>
+          )}
+
+          {/* Everything, by subject */}
+          {exercises.length > plan.tonight.length && (
+            <>
+              <div className="ios-caption" style={{ color: "var(--ios-label-3)", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700, margin: "16px var(--ios-gutter) 4px" }}>Everything on file, by subject</div>
+              <div className="ios-list" style={{ margin: "0 var(--ios-gutter)", overflow: "hidden", padding: 0 }}>
+                {SUBJECT_ORDER.filter((sub) => bySubject.has(sub)).map((sub, gi) => {
+                  const list = bySubject.get(sub)!;
+                  return (
+                    <TopicGroup key={sub} storageKey={`ch-topic-prac-${data.childId}-${sub}`} title={sub} done={list.filter((e) => e.doneToday).length} total={list.length} first={gi === 0} defaultOpen={false}>
+                      {[...list].sort((x, y) => Number(tonightIds.has(y.id)) - Number(tonightIds.has(x.id)) || Number(y.doneToday) - Number(x.doneToday) || y.createdAt.localeCompare(x.createdAt)).map((ex, i) => renderExercise(ex, i, true))}
+                    </TopicGroup>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* Tidy up */}
+          {isGuardian && staleOnes.length >= 5 && (
+            <div style={{ margin: "12px var(--ios-gutter) 0", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              {!confirmArchive ? (
+                <button type="button" className="ios-btn--plain" onClick={() => setConfirmArchive(true)} style={{ color: "var(--ios-label-2)", fontSize: 13 }}>
+                  Tidy up: archive {staleOnes.length} exercises older than three weeks that were never practised
+                </button>
+              ) : (
+                <>
+                  <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>Archive {staleOnes.length}? They go, not get deleted — Undo is offered after.</span>
+                  <button type="button" className="ios-btn ios-btn--primary" onClick={() => archive(staleOnes.map((e) => e.id), `${staleOnes.length} unpractised exercises`)} style={{ fontSize: 14 }}>Yes, archive</button>
+                  <button type="button" className="ios-btn--plain" onClick={() => setConfirmArchive(false)} style={{ color: "var(--ios-label-3)", fontSize: 14 }}>Keep them</button>
+                </>
+              )}
+            </div>
+          )}
+          <p className="ios-group-footer ios-footnote">Tonight is picked by how often each exercise is owed — daily, three times a week, weekly, once — and dealt across subjects so four maths drills never make an evening. Tap one for the steps; tap Done again to take it back.</p>
         </>
       ),
     });
@@ -1016,7 +1076,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   // score. There is no corpus here to rank against — forty rows across eleven
   // sections — and a parent who has arranged the screen already knows where
   // things sit, so honouring that beats guessing at importance.
-  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const terms = query.trim().length >= 2 ? query.trim().toLowerCase().split(/\s+/).filter(Boolean) : [];
   const results = terms.length === 0 ? [] : ordered
     .map((sec) => ({ sec, hits: (sec.search ?? []).filter((h) => matches(h.text, terms)) }))
     .filter((r) => r.hits.length > 0);
@@ -1027,7 +1087,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     const sec = byId.get(sectionId);
     if (sec && sec.tab !== tab) setTab(sec.tab);
     writeLocal(`ch-fold-${sectionId}-${data.childId}`, true);
-    setQuery("");
+    setQuery(""); setLiveQuery(""); setFinding(false);
     setJump((j) => ({ id: sectionId, n: (j?.n ?? 0) + 1 }));
   }
 
@@ -1132,7 +1192,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
           type="button"
           aria-label={finding ? "Close find" : `Find anything on ${kid}'s workspace`}
           aria-expanded={finding}
-          onClick={() => { if (finding) { setQuery(""); } setFinding((v) => !v); }}
+          onClick={() => { if (finding) { setQuery(""); setLiveQuery(""); } setFinding((v) => !v); }}
           style={{ width: 40, borderRadius: 10, border: "none", background: finding || terms.length > 0 ? "var(--ios-tint)" : "var(--ios-fill)", color: finding || terms.length > 0 ? "var(--ios-on-tint, #fff)" : "var(--ios-label-2)", fontSize: 17, cursor: "pointer", flexShrink: 0 }}
         >
           {finding ? "✕" : "⌕"}
@@ -1142,8 +1202,8 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         <div style={{ margin: "8px var(--ios-gutter) 0" }}>
           <input
             autoFocus
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={liveQuery}
+            onChange={(e) => setLiveQuery(e.target.value)}
             type="search"
             enterKeyHint="search"
             placeholder="A word, an exercise, a date, a paper…"
