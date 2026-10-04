@@ -176,6 +176,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   const setTab = (t: Tab) => { writeLocal(`ch-tab-${data.childId}`, t); setOpenExercise(null); setOpenPaper(null); };
   const [arranging, setArranging] = useState(false);
   const [query, setQuery] = useState("");
+  const [finding, setFinding] = useState(false);
   const [jump, setJump] = useState<{ id: string; n: number } | null>(null);
   const [pinned, setPinned] = useState(data.pinnedToToday);
   const [pending, start] = useTransition();
@@ -1072,48 +1073,12 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         ))}
       </div>
 
-      {/* ── Find ───────────────────────────────────────────────────────── */}
-      <div style={{ position: "relative", margin: "10px var(--ios-gutter) 0" }}>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          type="search"
-          enterKeyHint="search"
-          placeholder={`Find a word, an exercise, a date…`}
-          aria-label={`Find anything on ${kid}'s workspace`}
-          style={{
-            width: "100%", padding: "11px 34px 11px 34px", borderRadius: 10, border: "none",
-            background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 16,
-            boxSizing: "border-box",
-          }}
-        />
-        <span
-          aria-hidden
-          style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--ios-label-3)", fontSize: 15, pointerEvents: "none" }}
-        >
-          ⌕
-        </span>
-        {query !== "" && (
-          <button
-            type="button"
-            aria-label="Clear"
-            onClick={() => setQuery("")}
-            style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "var(--ios-label-3)", fontSize: 17, cursor: "pointer", padding: "4px 8px" }}
-          >
-            ✕
-          </button>
-        )}
-      </div>
-
+      {/* ── The child's screen, in one line ─────────────────────────────── */}
       {isGuardian && terms.length === 0 && (
-        <div style={{ margin: "10px var(--ios-gutter) 0" }}>
-          <Cell
-            href={kidHref}
-            lead={<IconBadge color="var(--ios-orange)"><Icons.SparkleIcon /></IconBadge>}
-            title={`${kid}'s screen`}
-            subtitle={`${openTasks.length} task${openTasks.length === 1 ? "" : "s"} waiting · ${L?.stars.week ?? 0} stars this week`}
-          />
-        </div>
+        <Link href={kidHref} className="ios-footnote" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, margin: "10px var(--ios-gutter) 0", padding: "8px 12px", borderRadius: 10, background: "var(--ios-fill)", color: "var(--ios-label)", textDecoration: "none" }}>
+          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><span aria-hidden>✨ </span><strong>{kid}&rsquo;s screen</strong> · {openTasks.length} waiting · {L?.stars.week ?? 0} ⭐ this week</span>
+          <span aria-hidden style={{ color: "var(--ios-label-3)" }}>›</span>
+        </Link>
       )}
 
       {terms.length > 0 && (
@@ -1139,9 +1104,9 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         </>
       )}
 
-      {/* ── Which screen ───────────────────────────────────────────────── */}
-      {terms.length === 0 && (
-        <div style={{ margin: "12px var(--ios-gutter) 0" }}>
+      {/* ── Which screen, and Find ─────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "stretch", gap: 8, margin: "12px var(--ios-gutter) 0" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <Segmented<Tab>
             ariaLabel="Section"
             value={tab}
@@ -1153,59 +1118,83 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
             ]}
           />
         </div>
+        <button
+          type="button"
+          aria-label={finding ? "Close find" : `Find anything on ${kid}'s workspace`}
+          aria-expanded={finding}
+          onClick={() => { if (finding) { setQuery(""); } setFinding((v) => !v); }}
+          style={{ width: 40, borderRadius: 10, border: "none", background: finding || terms.length > 0 ? "var(--ios-tint)" : "var(--ios-fill)", color: finding || terms.length > 0 ? "var(--ios-on-tint, #fff)" : "var(--ios-label-2)", fontSize: 17, cursor: "pointer", flexShrink: 0 }}
+        >
+          {finding ? "✕" : "⌕"}
+        </button>
+      </div>
+      {finding && (
+        <div style={{ margin: "8px var(--ios-gutter) 0" }}>
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            type="search"
+            enterKeyHint="search"
+            placeholder="A word, an exercise, a date, a paper…"
+            aria-label={`Find anything on ${kid}'s workspace`}
+            style={{ width: "100%", padding: "11px 12px", borderRadius: 10, border: "none", background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 16, boxSizing: "border-box" }}
+          />
+        </div>
       )}
 
       {/* ── Which week ─────────────────────────────────────────────────── */}
-      {tab === "week" && pastWeeks.length > 0 && terms.length === 0 && (
-        <div style={{ display: "flex", gap: 6, overflowX: "auto", padding: "12px var(--ios-gutter) 0", scrollbarWidth: "none" }}>
-          <Chip small selected={weekView === "current"} onClick={() => setWeekView("current")}>This week</Chip>
-          {pastWeeks.map((w) => (
-            <Chip key={w} small selected={weekView === w} onClick={() => setWeekView(w)}>{fmtDate(w, false)}</Chip>
-          ))}
-        </div>
-      )}
 
       {tab === "week" && lookback && terms.length === 0 && (
         <WeekLookback {...lookback} docById={docById} onOpen={openDoc} />
       )}
 
-      {/* ── Pin, and arrange ───────────────────────────────────────────── */}
+      {/* ── Weeks on the left, the screen's own controls on the right ──── */}
       {/* The pin is this parent's alone: it puts the child's week on their own
           Today and does nothing to anyone else's. */}
-      <div style={{ display: terms.length > 0 || (tab === "week" && lookback) ? "none" : "flex", alignItems: "center", justifyContent: "space-between", gap: 16, margin: "12px var(--ios-gutter) 0" }}>
-        {isGuardian ? (
+      <div style={{ display: terms.length > 0 ? "none" : "flex", alignItems: "center", justifyContent: "space-between", gap: 12, margin: "12px var(--ios-gutter) 0" }}>
+        {tab === "week" && pastWeeks.length > 0 ? (
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", flex: 1, minWidth: 0, scrollbarWidth: "none", paddingBottom: 2 }}>
+            <Chip small selected={weekView === "current"} onClick={() => setWeekView("current")}>This week</Chip>
+            {pastWeeks.map((w) => (
+              <Chip key={w} small selected={weekView === w} onClick={() => setWeekView(w)}>{fmtDate(w, false)}</Chip>
+            ))}
+          </div>
+        ) : <span style={{ flex: 1 }} />}
+        <div style={{ display: tab === "week" && lookback ? "none" : "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
+          {isGuardian && (
+            <button
+              type="button"
+              className="ios-btn--plain"
+              title={pinned ? `${kid}'s week is on your Today screen` : `Put ${kid}'s week on your Today screen`}
+              onClick={() => {
+                const next = !pinned;
+                setPinned(next);
+                start(async () => {
+                  const r = await setPinnedChild(data.childId, next);
+                  if (r.error) { setPinned(!next); say(`Couldn't ${next ? "pin" : "unpin"}: ${r.error}`); return; }
+                  say(next ? `${kid}'s week is on your Today screen.` : `Removed ${kid} from your Today screen.`);
+                });
+              }}
+              style={{ color: pinned ? "var(--ios-tint)" : "var(--ios-label-3)", fontWeight: pinned ? 700 : 500, fontSize: 14, display: "flex", alignItems: "center", gap: 4 }}
+            >
+              <span aria-hidden>{pinned ? "📌" : "📍"}</span>
+              {pinned ? "Pinned" : "Pin"}
+            </button>
+          )}
+          {arranging && customised && (
+            <button type="button" className="ios-btn--plain" onClick={reset} style={{ color: "var(--ios-label-2)", fontSize: 14 }}>
+              Reset order
+            </button>
+          )}
           <button
             type="button"
             className="ios-btn--plain"
-            onClick={() => {
-              const next = !pinned;
-              setPinned(next);
-              start(async () => {
-                const r = await setPinnedChild(data.childId, next);
-                if (r.error) { setPinned(!next); say(`Couldn't ${next ? "pin" : "unpin"}: ${r.error}`); return; }
-                say(next ? `${kid}'s week is on your Today screen.` : `Removed ${kid} from your Today screen.`);
-              });
-            }}
-            style={{ color: pinned ? "var(--ios-tint)" : "var(--ios-label-3)", fontWeight: pinned ? 700 : 500, fontSize: 14, display: "flex", alignItems: "center", gap: 5 }}
+            onClick={() => setArranging((v) => !v)}
+            style={{ color: arranging ? "var(--ios-tint)" : "var(--ios-label-3)", fontWeight: arranging ? 700 : 500, fontSize: 14 }}
           >
-            <span aria-hidden>{pinned ? "📌" : "📍"}</span>
-            {pinned ? "On your Today" : "Pin to Today"}
+            {arranging ? "Done" : "Arrange"}
           </button>
-        ) : <span />}
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-        {arranging && customised && (
-          <button type="button" className="ios-btn--plain" onClick={reset} style={{ color: "var(--ios-label-2)", fontSize: 14 }}>
-            Reset order
-          </button>
-        )}
-        <button
-          type="button"
-          className="ios-btn--plain"
-          onClick={() => setArranging((v) => !v)}
-          style={{ color: arranging ? "var(--ios-tint)" : "var(--ios-label-3)", fontWeight: arranging ? 700 : 500, fontSize: 14 }}
-        >
-          {arranging ? "Done" : "Arrange"}
-        </button>
         </div>
       </div>
 
