@@ -87,13 +87,19 @@ export async function synthesise(text: string, voice: string, speed = 1): Promis
       voice: isCloudVoice(voice) ? voice : DEFAULT_CLOUD_VOICE,
       instructions: INSTRUCTIONS,
       response_format: "mp3",
-      // The API clamps to 0.25–4; Buddy never wants either end of that.
-      speed: Math.max(0.5, Math.min(1.5, speed)),
+      // `speed` is a tts-1 parameter; gpt-4o-mini-tts does not take it and
+      // paces itself from the instructions instead. Sent only to the older
+      // models, so a 400 is not the price of asking for the better one.
+      ...(TTS_MODEL.startsWith("gpt-4o-mini-tts") ? {} : { speed: Math.max(0.5, Math.min(1.5, speed)) }),
     }),
   });
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
+    // Loud on purpose: the route turns this into a 502 and the child's screen
+    // falls back to the device voice without a word, so this line is the only
+    // place a broken key or a retired model id ever shows.
+    console.error(JSON.stringify({ tts: "openai-failed", status: res.status, model: TTS_MODEL, voice, detail: detail.slice(0, 400) }));
     throw new Error(`OpenAI TTS ${res.status}: ${detail.slice(0, 300)}`);
   }
   return { audio: new Uint8Array(await res.arrayBuffer()), contentType: "audio/mpeg" };
