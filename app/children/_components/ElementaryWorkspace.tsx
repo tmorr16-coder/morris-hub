@@ -825,10 +825,21 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
             <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: "0 0 10px", lineHeight: 1.45 }}>
               A job in your own words. It appears on {kid}&rsquo;s screen as a card: he taps it, Buddy reads it to him, and he gets a star when he marks it done. It shows up in the week&rsquo;s checklist under <em>Sent by hand</em>.
             </p>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input value={customTask} onChange={(e) => setCustomTask(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendCustom(); }} placeholder={`e.g. Read one page of Farmer Boy to Mom`} aria-label={`A job for ${kid}`} style={{ flex: 1, minWidth: 0, padding: "11px 12px", borderRadius: 10, border: "none", background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 16 }} />
-              <button type="button" className="ios-btn ios-btn--primary" disabled={!customTask.trim() || pending} onClick={sendCustom}>Send</button>
-            </div>
+            {/* A column, not a row: .ios-btn--primary is full-width by design, and
+                beside the box in a row it took the whole width and left the box
+                with none. A two-line area also fits a job as people write them. */}
+            <textarea
+              value={customTask}
+              onChange={(e) => setCustomTask(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendCustom(); } }}
+              rows={2}
+              placeholder={`e.g. Read one page of Farmer Boy to Mom`}
+              aria-label={`A job for ${kid}`}
+              style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 12, border: "1px solid var(--ios-separator)", background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 17, lineHeight: 1.4, fontFamily: "inherit", resize: "none" }}
+            />
+            <button type="button" className="ios-btn ios-btn--primary" disabled={!customTask.trim() || pending} onClick={sendCustom} style={{ marginTop: 10, opacity: !customTask.trim() || pending ? 0.5 : 1 }}>
+              {pending ? "Sending…" : `Send to ${kid}'s screen`}
+            </button>
           </div>
           {handSent.length > 0 && (
             <div className="ios-list" style={{ margin: "10px var(--ios-gutter) 0" }}>
