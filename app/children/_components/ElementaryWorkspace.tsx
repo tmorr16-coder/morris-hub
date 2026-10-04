@@ -171,6 +171,10 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   // "current", or the Monday of a past week being read back.
   const [weekView, setWeekView] = useState<string>("current");
   const [openPaper, setOpenPaper] = useState<string | null>(null);
+  // Sections whose full list has been asked for; the rest show their first few.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const showAll = (id: string) => setExpanded((e) => new Set(e).add(id));
+  const LIST_CAP = 6;
   type Tab = "week" | "progress" | "records";
   const tab = useLocalValue<string>(`ch-tab-${data.childId}`, "week") as Tab;
   const setTab = (t: Tab) => { writeLocal(`ch-tab-${data.childId}`, t); setOpenExercise(null); setOpenPaper(null); };
@@ -715,7 +719,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       tab: "records",
       title: "More practice",
       count: resourceSections.reduce((n, sec) => n + sec.items.length, 0) + STAPLES.length,
-      defaultOpen: true,
+      defaultOpen: false,
       summary: `Free sites for ${resourceSections.map((sec) => sec.label).join(", ")}, chosen for what ${kid} is working on now.`,
       search: [
         ...resourceSections.flatMap((sec) => sec.items.map((r) => hit(`rs-${r.url}`, r.name, r.note, `${sec.label} ${KIND_LABEL[r.kind]}`, r.url))),
@@ -827,7 +831,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       body: (
         <>
           <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
-            {papers.map((a) => {
+            {(expanded.has("papers") ? papers : papers.slice(0, LIST_CAP)).map((a) => {
               const open = openPaper === a.id;
               const pctScore = a.score != null && a.outOf ? Math.round((a.score / a.outOf) * 100) : null;
               const wrong = a.items.filter((i) => i.correct === false);
@@ -884,6 +888,9 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
               );
             })}
           </div>
+          {papers.length > LIST_CAP && !expanded.has("papers") && (
+            <button type="button" className="ios-btn--plain" onClick={() => showAll("papers")} style={{ margin: "8px var(--ios-gutter) 0", color: "var(--ios-tint)", fontWeight: 600, fontSize: 14 }}>Show all {papers.length} papers</button>
+          )}
           <p className="ios-group-footer ios-footnote">Each paper as the reader saw it. The red items are the ones to practise; Practice tonight was built from them.</p>
         </>
       ),
@@ -937,7 +944,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       body: (
         <>
           <div className="ios-list" style={{ margin: "0 var(--ios-gutter)" }}>
-            {L.documents.map((d) => (
+            {(expanded.has("docs") ? L.documents : L.documents.slice(0, LIST_CAP)).map((d) => (
               <Cell key={d.id} chevron={false}
                 lead={<IconBadge color={d.kind === "newsletter" ? "var(--ios-tint)" : d.kind === "graded_work" ? "var(--ios-green)" : "#8E8E93"}><Icons.BookIcon /></IconBadge>}
                 title={d.title}
@@ -952,6 +959,9 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
               />
             ))}
           </div>
+          {L.documents.length > LIST_CAP && !expanded.has("docs") && (
+            <button type="button" className="ios-btn--plain" onClick={() => showAll("docs")} style={{ margin: "8px var(--ios-gutter) 0", color: "var(--ios-tint)", fontWeight: 600, fontSize: 14 }}>Show all {L.documents.length} documents</button>
+          )}
           <p className="ios-group-footer ios-footnote">Rebuild remakes the plan from the stored read — no camera, no waiting — with every recommended exercise back. Delete removes the document and everything it created.</p>
         </>
       ),
@@ -1145,9 +1155,20 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
 
       {/* ── Which week ─────────────────────────────────────────────────── */}
 
-      {tab === "week" && lookback && terms.length === 0 && (
-        <WeekLookback {...lookback} docById={docById} onOpen={openDoc} />
-      )}
+      {tab === "week" && lookback && terms.length === 0 && (() => {
+        const i = pastWeeks.indexOf(weekView);
+        return (
+          <WeekLookback
+            {...lookback}
+            childId={data.childId}
+            docById={docById}
+            onOpen={openDoc}
+            onOlder={i >= 0 && i < pastWeeks.length - 1 ? () => setWeekView(pastWeeks[i + 1]) : null}
+            onNewer={i > 0 ? () => setWeekView(pastWeeks[i - 1]) : i === 0 ? () => setWeekView("current") : null}
+            onCurrent={() => setWeekView("current")}
+          />
+        );
+      })()}
 
       {/* ── Weeks on the left, the screen's own controls on the right ──── */}
       {/* The pin is this parent's alone: it puts the child's week on their own
