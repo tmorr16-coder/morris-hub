@@ -113,11 +113,34 @@ function readLocal(key: string): string | null {
   try { return localStorage.getItem(key); } catch { return null; }
 }
 
-// A valid, empty WAV. Played once inside a real tap so iOS marks the element
-// as user-activated; after that Buddy may speak without one, which he must,
-// because most of what he says follows a network round trip and the gesture is
-// long gone by the time the audio arrives.
-const SILENCE = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=";
+// A tenth of a second of silence, as a WAV. Played once inside a real tap so
+// iOS marks the element as user-activated; after that Buddy may speak without
+// one, which he must, because most of what he says follows a network round
+// trip and the gesture is long gone by the time the audio arrives. It carries
+// real samples: an empty data chunk is a decode error on some iOS versions,
+// and an element that errored is not an element that played.
+let silence: string | null = null;
+function silentWav(): string {
+  if (silence) return silence;
+  const rate = 8000, samples = rate / 10, bytes = 44 + samples * 2;
+  const b = new DataView(new ArrayBuffer(bytes));
+  const str = (o: number, t: string) => { for (let i = 0; i < t.length; i++) b.setUint8(o + i, t.charCodeAt(i)); };
+  str(0, "RIFF"); b.setUint32(4, bytes - 8, true); str(8, "WAVE");
+  str(12, "fmt "); b.setUint32(16, 16, true); b.setUint16(20, 1, true); b.setUint16(22, 1, true);
+  b.setUint32(24, rate, true); b.setUint32(28, rate * 2, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true);
+  str(36, "data"); b.setUint32(40, samples * 2, true);
+  let bin = "";
+  for (let i = 0; i < bytes; i++) bin += String.fromCharCode(b.getUint8(i));
+  silence = `data:audio/wav;base64,${btoa(bin)}`;
+  return silence;
+}
+
+/** What the grown-up is told when Buddy's own voice cannot be had. */
+const CLOUD_TROUBLE: Record<string, string> = {
+  billing: "Buddy\u2019s own voices are paused: the OpenAI account is out of credits. Until a grown-up tops it up at platform.openai.com, Buddy uses the device voice below.",
+  rate: "Buddy\u2019s own voices are catching their breath (too many requests). Buddy is using the device voice for a few minutes.",
+  provider: "Buddy\u2019s own voices can\u2019t be reached right now. Buddy is using the device voice below.",
+};
 
 /** Voices are stored with a prefix saying which kind they are; a bare name is a legacy device choice. */
 const CLOUD_PREFIX = "openai:";
@@ -174,6 +197,15 @@ function useSpeech(childId: string, cloudAvailable: boolean) {
   // need unlocking per phrase, which iOS will not grant.
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const unlockedRef = useRef(false);
+  // After the route fails, Buddy goes straight to the device voice for a while
+  // rather than paying a round trip to be told no on every sentence. The code
+  // is shown to the grown-up, who is the only one who can do anything about it.
+  const cloudDownRef = useRef<{ until: number; code: string } | null>(null);
+  const [cloudTrouble, setCloudTrouble] = useState<string | null>(null);
+  // iOS will not start speech synthesis outside a tap until it has started it
+  // inside one. The first phrase after a cloud failure arrives outside a tap,
+  // so the tap that asked for it also speaks nothing, once, to open the door.
+  const primedRef = useRef(false);
   // Clips already fetched this sitting, by cache key. Buddy repeats himself.
   const clipsRef = useRef<Map<string, string>>(new Map());
   // Bumped on every stop() and every new phrase, so a fetch that lands late
@@ -231,6 +263,7 @@ function useSpeech(childId: string, cloudAvailable: boolean) {
     u.onend = () => { if (currentRef.current === u) setSpeaking(false); };
     u.onerror = () => { if (currentRef.current === u) setSpeaking(false); };
     currentRef.current = u;
+    primedRef.current = true;
     const wasBusy = synth.speaking || synth.pending;
     if (wasBusy) synth.cancel();
     // Safari leaves synthesis paused after a cancel or a backgrounded tab;
@@ -246,14 +279,26 @@ function useSpeech(childId: string, cloudAvailable: boolean) {
     const gen = ++genRef.current;
 
     if (!cloudAvailable || !cloudVoice) { deviceSpeak(said, pace); return; }
+    const down = cloudDownRef.current;
+    if (down && down.until > Date.now()) { deviceSpeak(said, pace); return; }
+    if (down) cloudDownRef.current = null;
     const voice = cloudVoice;
 
     // Unlock inside the tap. Everything after this point may happen a second
     // later, off the back of a fetch, with no gesture in sight.
     const el = audioRef.current ?? (audioRef.current = new Audio());
     if (!unlockedRef.current) {
-      el.src = SILENCE;
+      el.src = silentWav();
       el.play().then(() => { unlockedRef.current = true; }).catch(() => { /* the next tap will do */ });
+    }
+    // And the fallback's door too, while there is still a tap to open it with.
+    if (!primedRef.current && typeof window !== "undefined" && "speechSynthesis" in window) {
+      try {
+        const u = new SpeechSynthesisUtterance(" ");
+        u.volume = 0;
+        window.speechSynthesis.speak(u);
+        primedRef.current = true;
+      } catch { /* then the device voice was never going to work here either */ }
     }
 
     const speed = Math.max(0.5, Math.min(1.5, rateRef.current * pace));
@@ -277,7 +322,19 @@ function useSpeech(childId: string, cloudAvailable: boolean) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ childId, text: said, voice, speed }),
     })
-      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+      .then(async (r) => {
+        if (r.ok) {
+          if (genRef.current === gen) setCloudTrouble(null);
+          return r.blob();
+        }
+        // Remember why, and for how long. Out of credits is not going to fix
+        // itself in the next sentence; a 429 might in a minute.
+        const code = (await r.json().catch(() => null))?.code as string | undefined;
+        const kind = code && code in CLOUD_TROUBLE ? code : r.status === 429 ? "rate" : "provider";
+        cloudDownRef.current = { until: Date.now() + (kind === "billing" ? 30 : 3) * 60_000, code: kind };
+        setCloudTrouble(CLOUD_TROUBLE[kind]);
+        throw new Error(String(r.status));
+      })
       .then((blob) => {
         const url = URL.createObjectURL(blob);
         // A sitting is short and the clips are seconds long; a cap keeps a very
@@ -311,11 +368,13 @@ function useSpeech(childId: string, cloudAvailable: boolean) {
     return () => { for (const u of clips.values()) URL.revokeObjectURL(u); clips.clear(); };
   }, []);
 
-  const label = cloudVoice
+  // The footer names the voice that is actually talking. While the cloud is
+  // down that is the device voice, whatever was picked.
+  const label = cloudVoice && !cloudTrouble
     ? (CLOUD_VOICES.find((v) => v.id === cloudVoice)?.label ?? cloudVoice)
     : voiceName;
 
-  return { speak, stop, speaking, loading, voiceName, voiceLabel: label, cloudVoice, choices, choose };
+  return { speak, stop, speaking, loading, voiceName, voiceLabel: label, cloudVoice, cloudTrouble, choices, choose };
 }
 
 /**
@@ -369,7 +428,7 @@ const cardStyle: React.CSSProperties = { background: "var(--ios-cell)", borderRa
 const bigBtn = (bg: string): React.CSSProperties => ({ width: "100%", padding: "18px 20px", borderRadius: 18, border: "none", background: bg, color: "#fff", fontSize: 22, fontWeight: 800, cursor: "pointer", boxShadow: "0 6px 0 rgba(0,0,0,0.15)" });
 
 export default function KidClient({ childId, name, gradeLabel, tasks: initialTasks, exercises, spelling, stars: initialStars, openTo = "home", cloudVoices = false }: Props) {
-  const { speak, stop, speaking, loading, voiceLabel, cloudVoice, choices, choose } = useSpeech(childId, cloudVoices);
+  const { speak, stop, speaking, loading, voiceLabel, cloudVoice, cloudTrouble, choices, choose } = useSpeech(childId, cloudVoices);
   const [pickingVoice, setPickingVoice] = useState(false);
   const first = name.split(" ")[0] || name;
   const [tasks, setTasks] = useState<ChildTask[]>(initialTasks);
@@ -448,6 +507,11 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
             {cloudVoices && (
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--ios-label-3)", margin: "10px 0 4px" }}>Buddy&rsquo;s own voices</div>
+                {cloudTrouble && (
+                  <div role="status" style={{ fontSize: 14, lineHeight: "19px", color: "var(--ios-orange, #ff9500)", background: "var(--ios-fill)", borderRadius: 10, padding: "8px 10px", margin: "4px 0 8px" }}>
+                    {cloudTrouble}
+                  </div>
+                )}
                 {CLOUD_VOICES.map((v) => {
                   const on = cloudVoice === v.id;
                   return (
