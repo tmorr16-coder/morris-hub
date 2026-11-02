@@ -59,6 +59,17 @@ export default function LoginPage() {
     if (!loading && user) router.replace("/home");
   }, [user, loading, router]);
 
+  // A failed Google sign-in lands back here with the reason in the query
+  // string (see app/auth/callback). Read once, after mount, so the card still
+  // renders instantly and the message does not survive a reload.
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get("error");
+    if (reason) {
+      setError(reason === "auth_failed" ? "Sign-in did not complete. Try again." : `Sign-in did not complete: ${reason}`);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
+
   async function handleTestLogin(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
@@ -97,6 +108,7 @@ export default function LoginPage() {
           <h1 className="lp-auth-title">Welcome back</h1>
           <p className="lp-auth-sub">Sign in to the Morris family platform.</p>
 
+          {error && !showTestForm && <div className="lp-err" role="alert">{error}</div>}
           <button onClick={signInWithGoogle} className="lp-oauth">
             <GoogleIcon />
             Continue with Google

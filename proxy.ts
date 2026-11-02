@@ -49,9 +49,14 @@ export async function proxy(request: NextRequest) {
   //
   // The retry wrapper stays for the cold-start fetch of the signing key, which
   // is the only part that can still be rate limited.
+  let deadSession = false;
   const claims = await withAuthRetry(
     async () => {
-      const { data } = await supabase.auth.getClaims();
+      const { data, error } = await supabase.auth.getClaims();
+      // The access token had expired, the refresh was attempted, and Supabase
+      // no longer has the refresh token: the session was ended elsewhere or
+      // rotated away from this browser. The cookies are a corpse.
+      if (error && /refresh.?token/i.test(`${(error as { code?: string }).code ?? ""} ${error.message}`)) deadSession = true;
       return data?.claims ?? null;
     },
     { maxAttempts: 3, initialDelayMs: 100 }
@@ -89,7 +94,17 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/children");
 
   if (!user && isProtected) {
-    return NextResponse.redirect(new URL("/", request.url));
+    const redirect = NextResponse.redirect(new URL("/", request.url));
+    if (deadSession) {
+      // Clear the dead cookies here, or every visit repeats the failed refresh
+      // and the sign-in page keeps finding a token it cannot use.
+      for (const { name } of request.cookies.getAll()) {
+        if (!name.startsWith("sb-")) continue;
+        redirect.cookies.set(name, "", { maxAge: 0, path: "/" });
+        if (COOKIE_DOMAIN) redirect.cookies.set(name, "", { maxAge: 0, path: "/", domain: COOKIE_DOMAIN });
+      }
+    }
+    return redirect;
   }
   return response;
 }
