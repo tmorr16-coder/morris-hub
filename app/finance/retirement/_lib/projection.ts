@@ -9,10 +9,11 @@ import type {
 } from "../types";
 import {
   baseAnnualSpend as scenarioBaseAnnualSpend,
-  streamGrowth, expenseAnnualAt, debtAnnualAt, wageIncomeAt, employerMatchAnnual,
-  titheAndOfferingAt, estimatedTaxAt, autoTaxRate, titheGrossBaseAt,
+  expenseAnnualAt, debtAnnualAt, grossPayAt, pretaxDeferralsAt, employerMatchAnnual,
+  titheAndOfferingAt, estimatedTaxAt,
   retirementIncomeAt, incomeAnnualAt,
-  bucketOf, rmdAmount, irmaaAnnual, retirementIncomeTax, healthcareCostAt, bracketCeiling,
+  bucketOf, rmdAmount, rmdAge, irmaaAnnual, retirementIncomeTax, healthcareCostAt, bracketCeiling,
+  seniorDeductionAt, ssTaxablePortion, FED_BRACKETS, STD_DEDUCTION,
 } from "./cashflow";
 
 export interface Buckets { pretax: number; roth: number; taxable: number; hsa: number; }
@@ -166,12 +167,23 @@ function spendingSmile(age: number, profile: RetirementProfile): number {
   const yearsIn = age - profile.retirement_age;
   if (yearsIn <= 0) return 1;
   const yearsLeft = profile.life_expectancy - age;
+  const mid = Math.max(0.8, 1 - 0.01 * yearsIn);
   if (yearsLeft <= 10) {
-    // Late years: drift back up toward the original level.
+    // Late years: drift back up from wherever the middle years left off.
     const backUp = (10 - Math.max(0, yearsLeft)) / 10;
-    return Math.min(1, 0.85 + 0.15 * backUp);
+    return Math.min(1, mid + (1 - mid) * backUp);
   }
-  return Math.max(0.8, 1 - 0.01 * yearsIn);
+  return mid;
+}
+
+/** Combined federal + state marginal rate on the next dollar of ordinary income. */
+function marginalRateAt(taxableWages: number, ctx: StepCtx, age: number, inflFactor: number): number {
+  const taxable = Math.max(0, taxableWages - STD_DEDUCTION[ctx.filing] * inflFactor);
+  let fed = FED_BRACKETS[ctx.filing][0][1];
+  for (const [lo, r] of FED_BRACKETS[ctx.filing]) if (taxable > lo * inflFactor) fed = r;
+  const medicare = ctx.filing === "mfj" ? (taxableWages > 250000 ? 0.009 : 0) : (taxableWages > 200000 ? 0.009 : 0);
+  void age;
+  return Math.min(0.6, fed + ctx.state + medicare);
 }
 
 /** Advance the bucket portfolio one year. Returns the new buckets + a full detail. */
@@ -192,24 +204,38 @@ export function stepYear(ctx: StepCtx, start: Buckets, age: number, yearReturn: 
   };
 
   if (!isRetired) {
-    const taxRate = autoTaxRate(titheGrossBaseAt(incomes, age, profile), age, profile, ctx.scenario);
-    const contrib = accounts.reduce((s, a) => s + a.monthly_contribution * 12, 0);
+    // Each account's contribution lands in its own tax bucket — a Roth IRA or
+    // brokerage contribution is not pre-tax money. The employer match is.
+    let contrib = 0;
+    for (const a of accounts) {
+      const c = (a.monthly_contribution ?? 0) * 12;
+      if (c <= 0) continue;
+      b[bucketOf(a)] += c;
+      contrib += c;
+    }
     const match = employerMatchAnnual(accounts, incomes, age, profile);
-    b.pretax += contrib + match;
+    b.pretax += match;
+
+    // One tax bill for the year's pay (wages, bonus, vesting stock, less
+    // pre-tax deferrals). The bonus and stock are banked after tax at the
+    // marginal rate, since they sit on top of the salary; what remains of the
+    // after-tax pay — after the contributions that came out of it — is what
+    // can be spent on the entered outflows.
+    const gross = grossPayAt(incomes, age, profile);
+    detail.tax = estimatedTaxAt(ctx, age, ctx.nowMs); // wage tax (paid from paycheck)
+    const taxableWages = Math.max(0, gross - pretaxDeferralsAt(accounts, age, profile));
+    const marginal = marginalRateAt(taxableWages, ctx, age, inflFactor);
     let bonusStock = 0;
     for (const inc of incomes) {
       if (inc.type !== "bonus" && inc.type !== "stock_award") continue;
-      const startAge = inc.start_age ?? profile.current_age;
-      const endAge = inc.end_age ?? (inc.type === "stock_award" && inc.vest_years != null ? startAge + inc.vest_years : profile.retirement_age - 1);
-      if (age < startAge || age > endAge) continue;
-      bonusStock += inc.monthly_amount * streamGrowth(inc, age - startAge) * (1 - taxRate);
+      bonusStock += incomeAnnualAt(inc, age, profile) * (1 - marginal);
     }
     b.taxable += bonusStock;
     detail.savedToPortfolio = contrib + match + bonusStock;
-    detail.tax = estimatedTaxAt(ctx, age, ctx.nowMs); // wage tax (paid from paycheck)
     detail.enteredOutflow = outflowAt(ctx, age);
     detail.tithe = titheAndOfferingAt(ctx, age, ctx.nowMs);
-    const takeHome = wageIncomeAt(incomes, age, profile) * (1 - taxRate);
+    const afterTaxPay = gross - detail.tax - contrib;
+    const takeHome = Math.max(0, afterTaxPay - bonusStock);
     const deficit = detail.enteredOutflow + detail.tithe - takeHome;
     if (deficit > 0) {
       const res = sequenceWithdraw(b, deficit);
@@ -268,11 +294,15 @@ export function stepYear(ctx: StepCtx, start: Buckets, age: number, yearReturn: 
 
     // Roth conversion (in the low-income window): move pre-tax → Roth. It's taxed
     // as ordinary income; the tax is funded from the withdrawal (taxable-first).
+    // RMD comes first: the year's required distribution cannot be converted.
+    const rmd = rmdAmount(b.pretax, age, profile);
+    b.pretax -= rmd;
+
     const sc = sc0;
     let conv = 0;
     if (sc.roth_convert_enabled && (sc.roth_convert_annual ?? 0) > 0) {
       const cs = sc.roth_convert_start_age ?? profile.retirement_age;
-      const ce = sc.roth_convert_end_age ?? 72;
+      const ce = sc.roth_convert_end_age ?? rmdAge(profile) - 1;
       if (age >= cs && age <= ce) {
         // Fill to the top of the chosen bracket when one is set, so a lean year
         // converts more and a fat year converts less — which is the entire
@@ -280,12 +310,12 @@ export function stepYear(ctx: StepCtx, start: Buckets, age: number, yearReturn: 
         let room = sc.roth_convert_annual ?? 0;
         const target = sc.roth_convert_to_bracket ?? null;
         if (target != null) {
-          const ceiling = bracketCeiling(target, ctx.filing, inflFactor);
+          const ceiling = bracketCeiling(target, filing, inflFactor);
           if (ceiling != null) {
-            let ssSoFar = 0;
-            for (const inc of incomes) if (inc.type === "social_security") ssSoFar += incomeAnnualAt(inc, age, profile);
-            const ordinarySoFar = Math.max(0, retirementIncomeAt(incomes, age, profile) - ssSoFar) + rmdAmount(b.pretax, age);
-            // Never convert less than the stated amount, never spill past the ceiling.
+            // Ordinary income already in the bracket: pension and the like,
+            // the distribution, and the taxable share of Social Security.
+            const ordinarySoFar = otherOrdinaryInc + rmd + ssTaxablePortion(ss, otherOrdinaryInc + rmd, filing, inflFactor);
+            // The stated amount is the floor; the bracket sets how much more.
             room = Math.max(room, Math.max(0, ceiling - ordinarySoFar));
           }
         }
@@ -294,10 +324,6 @@ export function stepYear(ctx: StepCtx, start: Buckets, age: number, yearReturn: 
         b.roth += conv;
       }
     }
-
-    // RMD forced out of pre-tax (provides cash; excess reinvested after tax).
-    const rmd = rmdAmount(b.pretax, age);
-    b.pretax -= rmd;
 
     // Iterate: tax & IRMAA depend on the withdrawal composition, which depends on
     // the total need (which includes tax & IRMAA). Converges in a couple passes.
@@ -313,7 +339,7 @@ export function stepYear(ctx: StepCtx, start: Buckets, age: number, yearReturn: 
       w = res.w; shortfall = res.shortfall;
       const pretaxW = rmd + w.pretax + conv; // conversion is ordinary income too
       const taxableGain = w.taxable * ctx.taxableGainFraction;
-      const t = retirementIncomeTax(otherOrdinaryInc, ss, pretaxW, taxableGain, filing, inflFactor, ctx.state);
+      const t = retirementIncomeTax(otherOrdinaryInc, ss, pretaxW, taxableGain, filing, inflFactor, ctx.state, seniorDeductionAt(age, profile, filing, inflFactor));
       tax = t.tax;
       irmaa = irmaaAnnual(t.magi, age, filing, inflFactor);
     }

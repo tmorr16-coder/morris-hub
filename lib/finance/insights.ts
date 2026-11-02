@@ -15,7 +15,7 @@
 // leaving the account, a negative one is money arriving. Pending rows are
 // skipped throughout — the posted copy that follows would double-count them.
 
-import { primaryOf } from "./spending";
+import { primaryOf, isTransferName } from "./spending";
 
 export interface InsightTx {
   id: string;
@@ -62,7 +62,8 @@ export function flowOf(t: InsightTx): Flow {
   const detailed = detailedOf(t);
   if (detailed === "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT") return "transfer";
   if (detailed === "TRANSFER_OUT_ACCOUNT_TRANSFER") return "transfer";
-  if ((primary === "LOAN_PAYMENTS" || primary === "TRANSFER_OUT" || primary == null) && CARD_PAYMENT_NAME.test(`${t.merchant_name ?? ""} ${t.name}`)) return "transfer";
+  const text = `${t.merchant_name ?? ""} ${t.name}`;
+  if ((primary === "LOAN_PAYMENTS" || primary === "TRANSFER_OUT" || primary == null) && (CARD_PAYMENT_NAME.test(text) || isTransferName(text))) return "transfer";
   return "spend";
 }
 
@@ -499,7 +500,10 @@ export function computeInsights(
         base.set(c, (base.get(c) ?? 0) + t.amount);
       }
     }
-    const k = baseline30 ? (daysBetween(compare.from, compare.to) + 1) / 30 : 1;
+    // Per 30 days of history actually covered — with 76 days of data the
+    // comparison window holds 46 days, not 90, and dividing by 3 understated
+    // every baseline and flagged ordinary months as spikes.
+    const k = baseline30 && span ? Math.min(90, Math.max(1, daysBetween(span.from, compare.to) + 1)) / 30 : 1;
     const movers: { c: string; now: number; then: number }[] = [];
     for (const c of new Set([...cur.keys(), ...base.keys()])) {
       movers.push({ c, now: cur.get(c) ?? 0, then: (base.get(c) ?? 0) / k });

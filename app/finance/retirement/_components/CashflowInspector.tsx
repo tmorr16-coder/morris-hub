@@ -55,7 +55,7 @@ export default function CashflowInspector({ profile, accounts, incomes, expenses
 
   const cf = useMemo(
     () => yearCashflow({ profile, accounts, incomes, expenses, debts, scenario }, selectedAge, nowMs, currentYear,
-      detail ? { tax: detail.tax, irmaa: detail.irmaa, rmd: detail.rmd } : undefined),
+      detail ? { tax: detail.tax, irmaa: detail.irmaa, rmd: detail.rmd, scenarioSpend: detail.scenarioSpend } : undefined),
     [profile, accounts, incomes, expenses, debts, scenario, selectedAge, nowMs, currentYear, detail]
   );
 

@@ -116,7 +116,7 @@ export default function TaxEstimatorClient({
           return {
             ...cur,
             w2s,
-            iraDeduction: cur.iraDeduction, // 401k already excluded from projected box-1 wages
+            iraDeduction: cur.iraDeduction, // the projection already removed pre-tax deferrals from wages
           };
         });
         setUpload({
@@ -181,8 +181,8 @@ export default function TaxEstimatorClient({
         </div>
         <div style={{ display: "flex", gap: 20, marginTop: 14, flexWrap: "wrap" }}>
           <Stat label="Total tax" value={money(result.totalTax)} />
-          <Stat label="Effective rate" value={pct(result.effectiveRate * 100)} />
-          <Stat label="Marginal rate" value={pct(result.marginalRate * 100)} />
+          <Stat label="Effective rate (fed + state, on AGI)" value={pct(result.effectiveRate * 100)} />
+          <Stat label="Federal marginal rate" value={pct(result.marginalRate * 100)} />
           <Stat label="AGI" value={money(result.agi)} />
         </div>
       </div>
@@ -309,7 +309,7 @@ export default function TaxEstimatorClient({
           <NumField value={input.stateRate} onChange={(v) => patch({ stateRate: v })} money={false} suffix="%" width={90} />
         </Row>
         <div className="ios-caption" style={{ color: "var(--ios-label-3)", padding: "2px 0 0", lineHeight: 1.4 }}>
-          Combined state income + county/local rate applied to AGI. Indiana is ~3.05% state + your county rate.
+          Combined state income + county/local rate applied to AGI. Indiana is 3.0% for 2025 and 2.95% for 2026, plus your county rate (Hamilton 1.1%, Marion 2.02%).
         </div>
       </Section>
 

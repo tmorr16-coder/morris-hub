@@ -106,7 +106,7 @@ function buildRetirementContext(snap: PlanSnapshot): string {
             ageInfo = ` (claim age ${i.ss_claim_age})`;
           else if (i.start_age != null || i.end_age != null)
             ageInfo = ` (age ${i.start_age ?? "?"} – ${i.end_age ?? "∞"})`;
-          return `- ${i.name}: ${fmt(i.monthly_amount)}/mo [${i.type}${profile.spouse_enabled ? `, ${i.owner}` : ""}]${ageInfo}`;
+          return `- ${i.name}: ${fmt(i.monthly_amount)}${i.type === "bonus" || i.type === "stock_award" || i.frequency === "annual" ? "/yr" : "/mo"} [${i.type}${profile.spouse_enabled ? `, ${i.owner}` : ""}]${ageInfo}`;
         })
         .join("\n")
     : "(none)";

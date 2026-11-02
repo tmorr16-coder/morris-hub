@@ -101,7 +101,12 @@ export default async function PortfolioPage() {
       .from("account_shares")
       .select("account:accounts(id, name, subtype, current_balance, mask)")
       .eq("grantee_user_id", user.id)
-      .eq("include_in_portfolio", true),
+      .eq("include_in_portfolio", true)
+      // A shared checking account or credit card is not a holding; a card's
+      // balance is stored as a positive number and was being added as one.
+      .eq("account.type", "investment")
+      .eq("account.is_hidden", false)
+      .is("account.deleted_at", null),
   ]);
 
   // Own manual + imported accounts

@@ -150,9 +150,14 @@ export async function fetchSimpleFinAccounts(
  * credit-card-like names or a negative balance → "credit", else "depository".
  */
 export function inferType(a: SimpleFinAccount): string {
-  const hay = `${a.name ?? ""} ${a.org?.name ?? ""}`.toLowerCase();
-  if (/mortgage|\bloan\b|auto|heloc|line of credit/.test(hay)) return "loan";
-  if (/credit|card/.test(hay)) return "credit";
+  const name = (a.name ?? "").toLowerCase();
+  const hay = `${name} ${a.org?.name ?? ""}`.toLowerCase();
+  // Liability words are matched in the account name only: an institution
+  // called "… Credit Union" made every checking account there a credit card,
+  // and "auto" caught "Auto-Save". A card is subtracted from net worth, so a
+  // wrong guess here doubled the error on every sync.
+  if (/mortgage|\bloans?\b|\bauto (loan|finance|financing)\b|\bheloc\b|line of credit/.test(name)) return "loan";
+  if (/\bcredit card\b|\bcard\b|\bvisa\b|\bmastercard\b|\bamex\b/.test(name)) return "credit";
   // Employer stock-plan accounts are investments, not cash. The brokerage names
   // them after the grant ("Restricted Stock - LLY", "Performance Grants - LLY"),
   // and none of those matched "stock plan" — so tens of thousands of dollars of

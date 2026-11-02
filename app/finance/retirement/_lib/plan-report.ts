@@ -8,7 +8,7 @@ import type {
 } from "../types";
 import { buildCtx, project, projectForScenario, runProjection, returnForAge, type ProjectionResult } from "./projection";
 import { runMonteCarlo, type MonteCarloResult } from "./montecarlo";
-import { accountTaxMix, bucketOf, selectedMonthlySpend, retirementIncomeAt, RMD_AGE, type TaxBucket } from "./cashflow";
+import { accountTaxMix, bucketOf, selectedMonthlySpend, retirementIncomeAt, rmdAge, type TaxBucket } from "./cashflow";
 
 export interface PlanInputs {
   profile: RetirementProfile;
@@ -181,7 +181,7 @@ export function buildPlanReport(inputs: PlanInputs): PlanReport {
   const ssAge = firstSsClaimAge(incomes, profile);
   if (incomes.some((i) => i.type === "social_security")) special.set(ssAge, "Social Security begins");
   if (profile.retirement_age < 65 && 65 <= profile.life_expectancy) special.set(65, "Medicare");
-  if (RMD_AGE <= profile.life_expectancy) special.set(RMD_AGE, "Required distributions");
+  if (rmdAge(profile) <= profile.life_expectancy) special.set(rmdAge(profile), "Required distributions");
   if (projection.depletionAge != null) special.set(projection.depletionAge, "Portfolio depleted");
   special.set(profile.life_expectancy, "End of plan");
 

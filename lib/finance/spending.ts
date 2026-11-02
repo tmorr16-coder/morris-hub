@@ -17,12 +17,24 @@ const EXCLUDED_PRIMARIES_UPPER = new Set(["TRANSFER_IN", "INCOME", "BALANCE"]);
 const INCOME_PRIMARIES_UPPER = new Set(["INCOME"]);
 
 export interface TxnLike {
+  name?: string | null;
+  merchant_name?: string | null;
   date: string;
   amount: number;
   pending?: boolean | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   personal_finance_category?: any;
   category?: string[] | null;
+}
+
+/**
+ * Money moved to the household's own savings, brokerage or retirement account,
+ * or a card payment phrased as "payment to …". SimpleFIN carries no category
+ * for these, so without the name check they counted as spending.
+ */
+export const TRANSFER_NAME = /^(online |internet |mobile |recurring )?(transfer|xfer)\b|\b(transfer|xfer) (to|from)\b|\bto (savings|brokerage|investment|checking)\b|\b(vanguard|fidelity|schwab|e\*?trade|robinhood|betterment|wealthfront|m1 finance|acorns)\b.*\b(buy|purchase|contribution|investment|transfer|ach)\b|\bpayment to\b.*\b(card|visa|mastercard|amex)\b|\b(card|visa|mastercard|amex)\b.*\bpayment to\b/i;
+export function isTransferName(name: string): boolean {
+  return TRANSFER_NAME.test(name);
 }
 
 /** The primary category as an upper-case token, or null when unreadable. */
@@ -66,14 +78,18 @@ export interface CashflowSummary {
  * copy that follows.
  */
 export function summariseCashflow(txns: TxnLike[], months = 3, now = new Date()): CashflowSummary {
+  // Whole months only. Including the current partial month and still
+  // dividing by `months` made "spending per month" climb through the month —
+  // a third higher on the 30th than on the 1st, with the runway shrinking to match.
   const cutoff = new Date(now.getFullYear(), now.getMonth() - months, 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), 1);
   let income = 0;
   let spending = 0;
 
   for (const t of txns) {
     if (t.pending) continue;
     const d = new Date(`${t.date}T12:00:00`);
-    if (Number.isNaN(d.getTime()) || d < cutoff) continue;
+    if (Number.isNaN(d.getTime()) || d < cutoff || d >= end) continue;
 
     const primary = primaryOf(t);
     if (t.amount < 0) {
@@ -84,6 +100,9 @@ export function summariseCashflow(txns: TxnLike[], months = 3, now = new Date())
       continue;
     }
     if (primary && EXCLUDED_PRIMARIES_UPPER.has(primary)) continue;
+    // Moving money to a savings or brokerage account, or paying the card whose
+    // purchases are already counted, is not spending.
+    if (isTransferName(`${t.merchant_name ?? ""} ${t.name ?? ""}`)) continue;
     spending += t.amount;
   }
 

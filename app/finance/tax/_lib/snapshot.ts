@@ -3,7 +3,7 @@
 
 import type { RetirementProfile, RetirementAccount, RetirementIncome, RetirementExpense, RetirementDebt, RetirementScenario } from "../../retirement/types";
 import {
-  titheGrossBaseAt, estimatedTaxAt, accountTaxMix, itemizedDeductionAt, type CashflowInputs,
+  grossPayAt, estimatedTaxAt, accountTaxMix, itemizedDeductionAt, rmdAge, type CashflowInputs,
 } from "../../retirement/_lib/cashflow";
 
 export interface TaxOpportunity {
@@ -27,7 +27,6 @@ export interface TaxSnapshot {
   opportunities: TaxOpportunity[];
 }
 
-const RMD_AGE = 73;
 
 export function buildTaxSnapshot(
   profile: RetirementProfile,
@@ -42,7 +41,8 @@ export function buildTaxSnapshot(
   const now = Date.now();
   const filingMFJ = !!profile.spouse_enabled;
 
-  const grossIncome = titheGrossBaseAt(incomes, age, profile);
+  // Everything on the W-2, including stock that vests this year.
+  const grossIncome = grossPayAt(incomes, age, profile);
   const estimatedTax = estimatedTaxAt(inp, age, now);
   const effectiveRate = grossIncome > 0 ? estimatedTax / grossIncome : 0;
   // Empirical marginal rate: tax on the next $10k of ordinary income.
@@ -85,6 +85,7 @@ export function buildTaxSnapshot(
   const opportunities: TaxOpportunity[] = [];
 
   // 1. Roth-conversion window: early retirement before SS/RMDs, pre-tax heavy.
+  const RMD_AGE = rmdAge(profile);
   const rothWindow = RMD_AGE - profile.retirement_age;
   if (profile.retirement_age < RMD_AGE && mix.pretax > 0.4 && rothWindow >= 3) {
     opportunities.push({

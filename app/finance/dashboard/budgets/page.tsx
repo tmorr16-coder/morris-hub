@@ -56,8 +56,12 @@ export default async function BudgetsPage() {
     id: s.budget.id, category: s.budget.category, label: s.label, limit: s.limit, spent: s.spent, pct: s.pct, projected: s.projected,
     remaining: s.remaining, daysLeft: s.daysLeft, perDayLeft: s.perDayLeft, state: s.state, warnAtPct: s.budget.warn_at_pct, notifySms: s.budget.notify_sms, count: s.txnIds.length,
   }));
-  const totalLimit = rows.reduce((a, r) => a + r.limit, 0);
-  const totalSpent = rows.reduce((a, r) => a + r.spent, 0);
+  // "All spending" already contains the category budgets; adding it on top
+  // showed a household with a $5,000 envelope and an $800 food budget as
+  // "$5,800 budgeted".
+  const totalRows = rows.some((r) => r.category === "*") ? rows.filter((r) => r.category === "*") : rows;
+  const totalLimit = totalRows.reduce((a, r) => a + r.limit, 0);
+  const totalSpent = totalRows.reduce((a, r) => a + r.spent, 0);
   const daysLeft = rows[0]?.daysLeft ?? 0;
   const over = rows.filter((r) => r.state === "over").length;
   const close = rows.filter((r) => r.state === "warn" || r.state === "projected").length;

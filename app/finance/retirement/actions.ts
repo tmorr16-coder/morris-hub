@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { requireFinanceAccess } from "@/lib/finance/access";
 import { createServiceClient } from "@/lib/supabase/server";
 import { syncAll } from "@/app/finance/dashboard/actions";
@@ -222,51 +223,40 @@ export async function savePlan(data: {
   }
   const profileId = profileRow.id as string;
 
-  // Delete and re-insert child tables atomically
-  const [delAcct, delIncome, delExpense, delDebt] = await Promise.all([
-    schema.from("retirement_accounts").delete().eq("profile_id", profileId),
-    schema.from("retirement_incomes").delete().eq("profile_id", profileId),
-    schema.from("retirement_expenses").delete().eq("profile_id", profileId),
-    schema.from("retirement_debts").delete().eq("profile_id", profileId),
-  ]);
-
-  for (const r of [delAcct, delIncome, delExpense, delDebt]) {
+  // Child tables: write the plan's rows by id, then remove whatever the plan
+  // no longer contains. This used to delete everything and re-insert, in
+  // separate requests with no transaction — one failed insert (a missing
+  // column, a constraint, a dropped connection) and the next reload showed an
+  // empty plan. Now a failed write leaves the previous rows in place.
+  const tables: [string, Record<string, any>[]][] = [
+    ["retirement_accounts", data.accounts],
+    ["retirement_incomes", data.incomes],
+    ["retirement_expenses", data.expenses],
+    ["retirement_debts", data.debts],
+  ];
+  const writes = tables.map(([table, rows]) => {
+    const payload = rows.map((r, i) => ({
+      ...stripId(r),
+      id: typeof r.id === "string" && UUID_RE.test(r.id) ? r.id : randomUUID(),
+      profile_id: profileId,
+      sort_order: i,
+    }));
+    return {
+      table,
+      ids: payload.map((r) => r.id as string),
+      write: payload.length > 0 ? schema.from(table).upsert(payload, { onConflict: "id" }) : Promise.resolve({ error: null }),
+    };
+  });
+  const writeResults = await Promise.all(writes.map((w) => w.write));
+  for (const r of writeResults) {
     if (r.error) return { error: r.error.message };
   }
-
-  const inserts: Promise<{ error: any }>[] = [];
-
-  if (data.accounts.length > 0) {
-    inserts.push(
-      schema.from("retirement_accounts").insert(
-        data.accounts.map((a, i) => ({ ...stripId(a), profile_id: profileId, sort_order: i }))
-      )
-    );
-  }
-  if (data.incomes.length > 0) {
-    inserts.push(
-      schema.from("retirement_incomes").insert(
-        data.incomes.map((a, i) => ({ ...stripId(a), profile_id: profileId, sort_order: i }))
-      )
-    );
-  }
-  if (data.expenses.length > 0) {
-    inserts.push(
-      schema.from("retirement_expenses").insert(
-        data.expenses.map((a, i) => ({ ...stripId(a), profile_id: profileId, sort_order: i }))
-      )
-    );
-  }
-  if (data.debts.length > 0) {
-    inserts.push(
-      schema.from("retirement_debts").insert(
-        data.debts.map((a, i) => ({ ...stripId(a), profile_id: profileId, sort_order: i }))
-      )
-    );
-  }
-
-  const insertResults = await Promise.all(inserts);
-  for (const r of insertResults) {
+  const pruneResults = await Promise.all(writes.map(({ table, ids }) => {
+    let q = schema.from(table).delete().eq("profile_id", profileId);
+    if (ids.length > 0) q = q.not("id", "in", `(${ids.join(",")})`);
+    return q;
+  }));
+  for (const r of pruneResults) {
     if (r.error) return { error: r.error.message };
   }
 
@@ -285,6 +275,8 @@ export async function savePlan(data: {
 
   return { ok: true };
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function stripId(obj: Record<string, any>): Record<string, any> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

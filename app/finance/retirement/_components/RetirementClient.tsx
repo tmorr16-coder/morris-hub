@@ -117,7 +117,14 @@ export default function RetirementClient({
       setRefreshState("error");
       setRefreshMsg(result.error);
     } else {
-      setAccounts(result.accounts);
+      // Merge the fresh balances into the rows on screen rather than replacing
+      // the list: a replace discarded any edit still waiting in the autosave
+      // debounce, and could land an empty list if a save was mid-flight.
+      const fresh = new Map(result.accounts.map((a) => [a.id, a]));
+      setAccounts((prev) => prev.map((a) => {
+        const f = fresh.get(a.id);
+        return f ? { ...a, balance: f.balance, plaid_account_id: f.plaid_account_id } : a;
+      }));
       setRefreshState(result.unresolved.length > 0 ? "error" : "done");
       // "up to date" was also what a broken link produced — nothing copied,
       // nothing said. Say what happened to each linked account instead.

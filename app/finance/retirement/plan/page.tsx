@@ -9,7 +9,7 @@ import Link from "next/link";
 import { requireFinanceAccess } from "@/lib/finance/access";
 import { loadPlan } from "../actions";
 import { buildPlanReport, bucketLabel, fmtUSD, fmtCompact, fmtPct, type PlanReport } from "../_lib/plan-report";
-import { bucketOf, SS_DEFAULT_CUT_YEAR, type TaxBucket } from "../_lib/cashflow";
+import { bucketOf, SS_DEFAULT_CUT_YEAR, type TaxBucket , rmdAge } from "../_lib/cashflow";
 import { PlanToolbar, PlanNarrative } from "./PlanActions";
 import styles from "./plan.module.css";
 
@@ -277,7 +277,7 @@ export default async function PlanDocumentPage() {
               {scenario.survivor_enabled && <tr><td>Survivor transition</td><td className={styles.num}>At age {scenario.survivor_age ?? "—"}, spending {scenario.survivor_spend_pct ?? 75}%</td></tr>}
               {scenario.spending_smile_enabled && <tr><td>Spending curve</td><td className={styles.num}>Drifts down mid-retirement, back up late</td></tr>}
               {scenario.housing_windfall > 0 && <tr><td>Housing windfall at retirement</td><td className={styles.num}>{fmtUSD(scenario.housing_windfall)}</td></tr>}
-              {r.roth && <tr><td>Roth conversions</td><td className={styles.num}>{fmtUSD(scenario.roth_convert_annual ?? 0)}/yr, ages {scenario.roth_convert_start_age ?? profile.retirement_age}–{scenario.roth_convert_end_age ?? 72}</td></tr>}
+              {r.roth && <tr><td>Roth conversions</td><td className={styles.num}>{fmtUSD(scenario.roth_convert_annual ?? 0)}/yr, ages {scenario.roth_convert_start_age ?? profile.retirement_age}–{scenario.roth_convert_end_age ?? rmdAge(profile) - 1}</td></tr>}
               {r.legacy && <tr><td>Legacy goal</td><td className={`${styles.num} ${r.legacy.met ? styles.good : styles.bad}`}>{fmtUSD(r.legacy.goal)} today&rsquo;s dollars · {r.legacy.met ? "met" : "not met"} ({fmtCompact(r.legacy.finalBalance)} vs {fmtCompact(r.legacy.goalNominal)} needed)</td></tr>}
             </tbody>
           </table>

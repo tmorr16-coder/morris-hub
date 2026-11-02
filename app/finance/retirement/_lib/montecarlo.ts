@@ -23,6 +23,21 @@ export const MC_STDEV = 0.12;
 export const MC_CRASH_PROB = 0.10;
 export const MC_CRASH_SHIFT = 2.0;   // in standard deviations, downward
 export const MC_CRASH_WIDEN = 1.5;
+/**
+ * The mixture above pulls the mean down by p·shift·σ and the extra variance
+ * drags the compound growth further. Left alone, a 7% plan simulated at a
+ * 3.5% compound rate: the deterministic line said the money lasted to 100
+ * with $50M to spare while the same inputs produced a 44% success rate, and a
+ * reader had no way to know which to believe. The draw is re-centred so the
+ * plan's return is the median simulated outcome and the band shows the spread
+ * around the expected path rather than a hidden haircut.
+ */
+export const MC_MEAN_SHIFT = MC_CRASH_PROB * MC_CRASH_SHIFT * MC_STDEV;
+export const MC_MIX_VARIANCE =
+  (1 - MC_CRASH_PROB) * MC_STDEV ** 2
+  + MC_CRASH_PROB * (MC_CRASH_WIDEN * MC_STDEV) ** 2
+  + MC_CRASH_PROB * (1 - MC_CRASH_PROB) * (MC_CRASH_SHIFT * MC_STDEV) ** 2;
+export const MC_CENTRE = MC_MEAN_SHIFT + MC_MIX_VARIANCE / 2;
 /** Inflation is a forecast, not a constant. Drawn per simulation. */
 export const MC_INFLATION_STDEV = 0.01;
 export const MC_SEED = 0x9e3779b9;
@@ -94,7 +109,7 @@ export function runMonteCarlo(ctx: StepCtx, ages: number[]): MonteCarloResult {
       },
     };
     const draw = (age: number) => {
-      const base = returnForAge(simCtx, age);
+      const base = returnForAge(simCtx, age) + MC_CENTRE;
       const crash = rng() < MC_CRASH_PROB;
       return crash
         ? base - MC_CRASH_SHIFT * MC_STDEV + nextNormal(rng) * MC_STDEV * MC_CRASH_WIDEN

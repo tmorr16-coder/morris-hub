@@ -93,7 +93,9 @@ export default function SSOptimizer({ profile, onAddIncome }: Props) {
       name: "Social Security — Self",
       type: "social_security",
       owner: "self",
-      monthly_amount: Math.round(opt.selfMonthly),
+      // The plan stores the full-retirement-age benefit; the engine applies the
+      // claim-age factor itself. Storing the adjusted figure applied it twice.
+      monthly_amount: Math.round(selfFRANum),
       frequency: "monthly",
       annual_growth_pct: null,
       vest_years: null,
@@ -118,7 +120,7 @@ export default function SSOptimizer({ profile, onAddIncome }: Props) {
       name: `Social Security — ${profile.spouse_name ?? "Spouse"}`,
       type: "social_security",
       owner: "spouse",
-      monthly_amount: Math.round(opt.selfMonthly),
+      monthly_amount: Math.round(spouseFRANum),
       frequency: "monthly",
       annual_growth_pct: null,
       vest_years: null,

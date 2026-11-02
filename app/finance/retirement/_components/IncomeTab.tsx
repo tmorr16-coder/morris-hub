@@ -224,7 +224,7 @@ export default function IncomeTab({ incomes, setIncomes, profile, unvestedTotal 
     const endAge = isRecurring
       ? (form.end_age !== "" ? parseInt(form.end_age) : profile.retirement_age)
       : form.type === "stock_award" && vestYears != null && startAge != null
-        ? startAge + vestYears             // single grant: start + vest period
+        ? startAge + vestYears - 1         // single grant: N vest years = ages start … start+N−1
         : form.end_age !== "" ? parseInt(form.end_age) : null;
 
     const incomeFields = {
@@ -678,7 +678,7 @@ export default function IncomeTab({ incomes, setIncomes, profile, unvestedTotal 
                     <div className="ios-caption ios-num" style={{ color: "var(--ios-finance)", padding: "8px 12px", background: "var(--ios-fill-2)", borderRadius: 8 }}>
                       Total grant value: {fmtMoney(parseFloat(form.monthly_amount) * parseInt(form.vest_years))} ·
                       vests {fmtMoney(parseFloat(form.monthly_amount))}/yr over {form.vest_years} years
-                      {form.start_age && ` (age ${form.start_age}–${parseInt(form.start_age) + parseInt(form.vest_years)})`}
+                      {form.start_age && ` (age ${form.start_age}–${parseInt(form.start_age) + parseInt(form.vest_years) - 1})`}
                     </div>
                   )}
                 </div>

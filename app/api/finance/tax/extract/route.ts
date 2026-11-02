@@ -40,6 +40,7 @@ export interface PaystubExtract {
   ytd_federal_wh: number | null;       // YTD federal income tax withheld
   ytd_state_wh: number | null;         // YTD state income tax withheld
   ytd_pretax_retirement: number | null; // YTD 401k/403b/pre-tax deferrals, if shown
+  ytd_pretax_other: number | null;      // YTD HSA, medical/dental premiums and other Section 125 pre-tax deductions
 }
 
 export interface TaxDocExtract {
@@ -86,7 +87,8 @@ Return JSON in exactly this shape:
     "ytd_gross": number or null — year-to-date gross wages,
     "ytd_federal_wh": number or null — YTD federal income tax withheld,
     "ytd_state_wh": number or null — YTD state income tax withheld,
-    "ytd_pretax_retirement": number or null — YTD 401(k)/403(b)/pre-tax deferrals if shown
+    "ytd_pretax_retirement": number or null — YTD 401(k)/403(b)/pre-tax deferrals if shown,
+    "ytd_pretax_other": number or null — YTD HSA contributions plus medical/dental/vision premiums and other pre-tax (Section 125) deductions, if shown
   } or null
 }
 

@@ -106,20 +106,51 @@ export function debtAnnualAt(debt: RetirementDebt, age: number, profile: Retirem
   return yearsFromNow < payoffYears ? pay * 12 : 0;
 }
 
+/** Balance still owed on an amortising loan after `years` of payments. */
+export function mortgageBalanceAt(debt: RetirementDebt, years: number): number {
+  const bal = debt.balance ?? 0;
+  const pay = debt.monthly_payment ?? 0;
+  const r = (debt.rate_pct ?? 0) / 100 / 12;
+  const n = Math.max(0, years) * 12;
+  if (bal <= 0 || pay <= 0) return Math.max(0, bal);
+  if (r <= 0) return Math.max(0, bal - pay * n);
+  const g = Math.pow(1 + r, n);
+  return Math.max(0, bal * g - pay * (g - 1) / r);
+}
+
 // ── Income ──────────────────────────────────────────────────────────────────
 
 /** Recurring wage income (salary/part_time/other) available to cover living costs
  *  during the working years. Bonuses & stock awards are excluded — those are
  *  saved into the portfolio, not spent. Used by the portfolio deficit math. */
 export function wageIncomeAt(incomes: RetirementIncome[], age: number, profile: RetirementProfile): number {
+  // Delegates to incomeAnnualAt so the deficit math, the chart, the tithe base
+  // and the tax all see the same window for a stream with blank dates.
   let sum = 0;
   for (const inc of incomes) {
     if (inc.type !== "salary" && inc.type !== "part_time" && inc.type !== "other") continue;
-    const start = inc.start_age ?? profile.current_age;
-    const end = inc.end_age ?? (profile.retirement_age - 1);
-    if (age < start || age > end) continue;
-    const annual = inc.frequency === "annual" ? inc.monthly_amount : inc.monthly_amount * 12;
-    sum += annual * streamGrowth(inc, age - start);
+    sum += incomeAnnualAt(inc, age, profile);
+  }
+  return sum;
+}
+
+/** All W-2 style pay this year: wages, bonus and vesting stock. */
+export function grossPayAt(incomes: RetirementIncome[], age: number, profile: RetirementProfile): number {
+  let sum = 0;
+  for (const inc of incomes) {
+    if (["salary", "part_time", "other", "bonus", "stock_award"].includes(inc.type)) sum += incomeAnnualAt(inc, age, profile);
+  }
+  return sum;
+}
+
+/** Employee pay deferred before tax this year: contributions to pre-tax and
+ *  HSA accounts. Roth and brokerage contributions come out of taxed pay. */
+export function pretaxDeferralsAt(accounts: RetirementAccount[], age: number, profile: RetirementProfile): number {
+  if (age >= profile.retirement_age) return 0;
+  let sum = 0;
+  for (const a of accounts) {
+    const b = bucketOf(a);
+    if (b === "pretax" || b === "hsa") sum += (a.monthly_contribution ?? 0) * 12;
   }
   return sum;
 }
@@ -176,9 +207,25 @@ export function ssBenefitFactor(claimAge: number, fraAge: number = SS_FRA_AGE): 
   return Math.max(0, 1 - first36 - beyond36);
 }
 
+/**
+ * The age of a stream's owner when the plan owner is `age`. A spouse's Social
+ * Security claim age, pension start and salary end are the spouse's ages; the
+ * projection runs on the owner's age axis, so every spouse stream has to be
+ * shifted by the age gap or a younger spouse's benefits start years early.
+ */
+export function ownerAgeAt(inc: Pick<RetirementIncome, "owner">, age: number, profile: RetirementProfile): number {
+  if (inc.owner === "spouse" && profile.spouse_enabled && profile.spouse_age != null) {
+    return age - (profile.current_age - profile.spouse_age);
+  }
+  return age;
+}
+
 /** Annual amount of a single income stream at a given age (0 outside window).
  *  Mirrors the projection's chart series exactly. */
-export function incomeAnnualAt(inc: RetirementIncome, age: number, profile: RetirementProfile): number {
+export function incomeAnnualAt(inc: RetirementIncome, ownerAge: number, profile: RetirementProfile): number {
+  // `ownerAge` is the plan owner's age; windows below compare the stream
+  // owner's own age against it (identical unless the stream is the spouse's).
+  const age = ownerAgeAt(inc, ownerAge, profile);
   if (inc.type === "social_security") {
     const claim = inc.ss_claim_age ?? SS_FRA_AGE;
     if (age < claim) return 0;
@@ -193,11 +240,11 @@ export function incomeAnnualAt(inc: RetirementIncome, age: number, profile: Reti
     // until claiming (historically a little above inflation), so growing at a
     // COLA over that stretch is already the conservative reading.
     const cola = profile.ss_cola_rate ?? profile.inflation_rate;
-    const colaFactor = Math.pow(1 + cola, age - profile.current_age);
-    return inc.monthly_amount * ssBenefitFactor(claim) * 12 * colaFactor * ssPayableFraction(age, profile);
+    const colaFactor = Math.pow(1 + cola, ownerAge - profile.current_age);
+    return inc.monthly_amount * ssBenefitFactor(claim) * 12 * colaFactor * ssPayableFraction(ownerAge, profile);
   }
   if (inc.type === "pension") {
-    const start = inc.start_age ?? profile.retirement_age;
+    const start = inc.start_age ?? (inc.owner === "spouse" ? profile.spouse_retirement_age ?? profile.retirement_age : profile.retirement_age);
     if (age < start) return 0;
     // Pensions are FLAT nominal by default — most private pensions have no COLA,
     // so the benefit erodes in real terms. If the user sets an annual growth %,
@@ -206,16 +253,20 @@ export function incomeAnnualAt(inc: RetirementIncome, age: number, profile: Reti
     return inc.monthly_amount * 12 * cola;
   }
   if (["salary", "part_time", "other", "bonus", "stock_award"].includes(inc.type)) {
+    const spouse = inc.owner === "spouse" && profile.spouse_enabled && profile.spouse_age != null;
+    const nowAge = spouse ? (profile.spouse_age as number) : profile.current_age;
+    const retireAge = spouse ? (profile.spouse_retirement_age ?? profile.retirement_age) : profile.retirement_age;
     const start = inc.start_age ?? (
       inc.type === "salary" || inc.type === "bonus" || inc.type === "stock_award"
-        ? profile.current_age
-        : profile.retirement_age
+        ? nowAge
+        : retireAge
     );
+    // A grant that vests over N years pays in N years: start … start+N−1.
     const end = inc.end_age ?? (
       inc.type === "stock_award" && inc.vest_years != null
-        ? start + inc.vest_years
+        ? start + inc.vest_years - 1
         : inc.type === "salary" || inc.type === "bonus"
-          ? profile.retirement_age - 1
+          ? retireAge - 1
           : 999
     );
     if (age < start || age > end) return 0;
@@ -284,13 +335,96 @@ export function contributionsAnnual(accounts: RetirementAccount[], age: number, 
 // climbs toward as income rises above today's level (manual mode).
 const TITHE_MARGINAL_TAX = 0.40;
 
-// Federal ordinary-income brackets (2025 base; inflated forward in the model).
-// Each entry is [lower bound in today's dollars, marginal rate].
-export const FED_BRACKETS: Record<"mfj" | "single", [number, number][]> = {
-  mfj: [[0, 0.10], [23850, 0.12], [96950, 0.22], [206700, 0.24], [394600, 0.32], [501050, 0.35], [751600, 0.37]],
-  single: [[0, 0.10], [11925, 0.12], [48475, 0.22], [103350, 0.24], [197300, 0.32], [250525, 0.35], [626350, 0.37]],
+export type Filing = "mfj" | "single";
+
+/**
+ * Federal tables by tax year. Brackets are [lower bound, marginal rate].
+ * 2025 reflects the July 2025 law (P.L. 119-21): the standard deduction rose
+ * to $31,500 / $15,750 and the SALT cap to $40,000. 2026 is from Rev. Proc.
+ * 2025-32. Add a year here when the IRS publishes it; the model inflates the
+ * latest year it has for every year after that.
+ */
+export interface TaxTables {
+  brackets: Record<Filing, [number, number][]>;
+  stdDeduction: Record<Filing, number>;
+  /** Additional standard deduction per person aged 65+. */
+  stdDeduction65: Record<Filing, number>;
+  /** Taxable-income tops of the 0% and 15% long-term capital-gains brackets. */
+  ltcg: Record<Filing, [number, number]>;
+  saltCap: number;
+}
+export const TAX_TABLES: Record<number, TaxTables> = {
+  2025: {
+    brackets: {
+      mfj: [[0, 0.10], [23850, 0.12], [96950, 0.22], [206700, 0.24], [394600, 0.32], [501050, 0.35], [751600, 0.37]],
+      single: [[0, 0.10], [11925, 0.12], [48475, 0.22], [103350, 0.24], [197300, 0.32], [250525, 0.35], [626350, 0.37]],
+    },
+    stdDeduction: { mfj: 31500, single: 15750 },
+    stdDeduction65: { mfj: 1600, single: 2000 },
+    ltcg: { mfj: [96700, 600050], single: [48350, 533400] },
+    saltCap: 40000,
+  },
+  2026: {
+    brackets: {
+      mfj: [[0, 0.10], [24800, 0.12], [100800, 0.22], [211400, 0.24], [403550, 0.32], [512450, 0.35], [768700, 0.37]],
+      single: [[0, 0.10], [12400, 0.12], [50400, 0.22], [105700, 0.24], [201775, 0.32], [256225, 0.35], [640600, 0.37]],
+    },
+    stdDeduction: { mfj: 32200, single: 16100 },
+    stdDeduction65: { mfj: 1650, single: 2050 },
+    ltcg: { mfj: [98900, 613700], single: [49450, 545500] },
+    saltCap: 40400,
+  },
 };
-export const STD_DEDUCTION: Record<"mfj" | "single", number> = { mfj: 30000, single: 15000 };
+/** The tables for a year: the latest year published at or before it. */
+export function taxTables(year: number): TaxTables {
+  const years = Object.keys(TAX_TABLES).map(Number).sort((a, b) => a - b);
+  let pick = years[0];
+  for (const y of years) if (y <= year) pick = y;
+  return TAX_TABLES[pick];
+}
+/** The year the planner's "today's dollars" tables are from. */
+export const TAX_TABLE_YEAR = (() => {
+  const years = Object.keys(TAX_TABLES).map(Number);
+  const now = new Date().getFullYear();
+  return Math.max(...years.filter((y) => y <= now), Math.min(...years));
+})();
+const CURRENT = taxTables(TAX_TABLE_YEAR);
+export const FED_BRACKETS: Record<Filing, [number, number][]> = CURRENT.brackets;
+export const STD_DEDUCTION: Record<Filing, number> = CURRENT.stdDeduction;
+
+/** Extra standard deduction for people 65 and over (each spouse counts). */
+export function seniorDeductionAt(age: number, profile: RetirementProfile, filing: Filing, inflFactor: number): number {
+  let people = age >= 65 ? 1 : 0;
+  if (filing === "mfj" && profile.spouse_enabled && profile.spouse_age != null) {
+    if (age - (profile.current_age - profile.spouse_age) >= 65) people++;
+  }
+  return people * CURRENT.stdDeduction65[filing] * inflFactor;
+}
+
+/**
+ * Federal tax on long-term gains, stacked on top of ordinary taxable income.
+ * The 0% bracket covers gains only up to its top less the ordinary income
+ * already sitting in it; the rest is taxed at 15% and then 20%. A single rate
+ * chosen from ordinary income alone taxed a $300,000 gain on top of $50,000 of
+ * pension at 0%, which the law does not do.
+ */
+export function capitalGainsTax(taxableOrdinary: number, gain: number, filing: Filing, inflFactor: number): { tax: number; rate: number } {
+  if (gain <= 0) return { tax: 0, rate: 0 };
+  const [top0, top15] = CURRENT.ltcg[filing].map((v) => v * inflFactor);
+  const ord = Math.max(0, taxableOrdinary);
+  const at0 = Math.max(0, Math.min(gain, top0 - ord));
+  const at15 = Math.max(0, Math.min(gain - at0, top15 - Math.max(ord, top0)));
+  const at20 = Math.max(0, gain - at0 - at15);
+  const tax = at15 * 0.15 + at20 * 0.20;
+  return { tax, rate: tax / gain };
+}
+
+/** Net investment income tax: 3.8% on the lesser of investment income and the
+ *  excess of MAGI over a threshold that Congress never indexed. */
+export function niitTax(investmentIncome: number, magi: number, filing: Filing): number {
+  const thr = filing === "mfj" ? 250000 : 200000;
+  return 0.038 * Math.max(0, Math.min(investmentIncome, magi - thr));
+}
 
 /**
  * Gross income at which the given marginal rate stops applying — i.e. the most
@@ -301,7 +435,7 @@ export const STD_DEDUCTION: Record<"mfj" | "single", number> = { mfj: 30000, sin
  * lean years or spills into a higher rate in fat ones; the whole point of
  * converting in the low-income window is to use exactly the room available.
  */
-export function bracketCeiling(rate: number, filing: "mfj" | "single", inflFactor: number): number | null {
+export function bracketCeiling(rate: number, filing: Filing, inflFactor: number): number | null {
   const brackets = FED_BRACKETS[filing];
   const idx = brackets.findIndex((b) => Math.abs(b[1] - rate) < 1e-9);
   if (idx < 0 || idx + 1 >= brackets.length) return null; // top bracket has no ceiling
@@ -310,7 +444,7 @@ export function bracketCeiling(rate: number, filing: "mfj" | "single", inflFacto
 
 /** Federal income tax on gross income for a filing status. `deduction` overrides
  *  the standard deduction (for itemizers); otherwise the standard is used. */
-export function federalTax(income: number, filing: "mfj" | "single", inflFactor: number, deduction?: number): number {
+export function federalTax(income: number, filing: Filing, inflFactor: number, deduction?: number): number {
   const ded = deduction != null ? deduction : STD_DEDUCTION[filing] * inflFactor;
   const taxable = Math.max(0, income - ded);
   const brackets = FED_BRACKETS[filing];
@@ -323,8 +457,21 @@ export function federalTax(income: number, filing: "mfj" | "single", inflFactor:
   return tax;
 }
 
+/**
+ * The SALT deduction cap for a plan year. $40,000 for 2025 rising 1% a year
+ * through 2029, reduced by 30% of income over $500,000 but never below
+ * $10,000; back to a flat $10,000 from 2030 under current law.
+ */
+export function saltCapAt(year: number, magi: number): number {
+  if (year >= 2030) return 10000;
+  const n = Math.max(0, Math.min(4, year - 2025));
+  const cap = 40000 * Math.pow(1.01, n);
+  const phase = 500000 * Math.pow(1.01, n);
+  return Math.max(10000, cap - 0.3 * Math.max(0, magi - phase));
+}
+
 /** Itemized deductions for a year: charitable gifts (tithe + offerings) +
- *  mortgage interest + SALT (state income + property tax, capped at $10k). */
+ *  mortgage interest + SALT (state income + property tax, capped) + other. */
 export function itemizedDeductionAt(inp: CashflowInputs, age: number, nowMs: number, incomeForState: number): {
   total: number; charitable: number; mortgageInterest: number; salt: number;
 } {
@@ -333,20 +480,25 @@ export function itemizedDeductionAt(inp: CashflowInputs, age: number, nowMs: num
   const charitable = titheAndOfferingAt(inp, age, nowMs);
   let mortgageInterest = 0;
   for (const d of debts) {
-    if (d.subtype === "loan" && d.type === "mortgage" && d.balance && d.rate_pct) {
-      mortgageInterest += d.balance * (d.rate_pct / 100);
+    if (d.subtype === "loan" && d.type === "mortgage" && d.balance && d.rate_pct && debtAnnualAt(d, age, profile) > 0) {
+      // Interest on the balance still owed this year (the loan amortises), and
+      // only on the first $750,000 of acquisition debt.
+      const bal = Math.min(750000, mortgageBalanceAt(d, age - profile.current_age));
+      mortgageInterest += bal * (d.rate_pct / 100);
     }
   }
   const stateIncomeTax = ((scenario.state_tax_rate ?? 5) / 100) * incomeForState;
   const propertyTax = (scenario.property_tax_annual ?? 0) * inflFactor;
-  const salt = Math.min(stateIncomeTax + propertyTax, 10000 * inflFactor);
+  const year = new Date().getFullYear() + (age - profile.current_age);
+  const salt = Math.min(stateIncomeTax + propertyTax, saltCapAt(year, incomeForState) * inflFactor);
   const other = (scenario.other_itemized ?? 0) * inflFactor;
   return { total: charitable + mortgageInterest + salt + other, charitable, mortgageInterest, salt: salt + other };
 }
 
 /** The deduction to use — greater of standard and itemized. */
-export function deductionAt(inp: CashflowInputs, age: number, nowMs: number, income: number, filing: "mfj" | "single", inflFactor: number): number {
-  return Math.max(STD_DEDUCTION[filing] * inflFactor, itemizedDeductionAt(inp, age, nowMs, income).total);
+export function deductionAt(inp: CashflowInputs, age: number, nowMs: number, income: number, filing: Filing, inflFactor: number): number {
+  const senior = seniorDeductionAt(age, inp.profile, filing, inflFactor);
+  return Math.max(STD_DEDUCTION[filing] * inflFactor + senior, itemizedDeductionAt(inp, age, nowMs, income).total);
 }
 
 /** Automatic effective tax rate for a year: federal (brackets + standard
@@ -354,7 +506,7 @@ export function deductionAt(inp: CashflowInputs, age: number, nowMs: number, inc
 export function autoTaxRate(income: number, age: number, profile: RetirementProfile, scenario: RetirementScenario): number {
   if (income <= 0) return 0;
   const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
-  const filing: "mfj" | "single" = profile.spouse_enabled ? "mfj" : "single";
+  const filing: Filing = profile.spouse_enabled ? "mfj" : "single";
   const fed = federalTax(income, filing, inflFactor);
   const state = (scenario.state_tax_rate ?? 5) / 100;
   return Math.min(0.6, fed / income + state);
@@ -382,7 +534,17 @@ export function retirementIncomeAt(incomes: RetirementIncome[], age: number, pro
 
 // ── RMDs · IRMAA · bucket-aware retirement tax (for the stateful engine) ──────
 
-export const RMD_AGE = 73;
+/**
+ * The age required minimum distributions begin. SECURE 2.0 set it at 73 for
+ * people born 1951–1959 and 75 for anyone born in 1960 or later. A planner
+ * who is 47 today was born in 1979, so a fixed 73 forced two years of
+ * distributions — and the tax and Medicare surcharges on them — that the law
+ * does not require.
+ */
+export function rmdAge(profile: Pick<RetirementProfile, "current_age">): number {
+  const birthYear = new Date().getFullYear() - profile.current_age;
+  return birthYear >= 1960 ? 75 : 73;
+}
 // IRS Uniform Lifetime Table divisors, age 73+.
 const RMD_DIVISORS: Record<number, number> = {
   73: 26.5, 74: 25.5, 75: 24.6, 76: 23.7, 77: 22.9, 78: 22.0, 79: 21.1, 80: 20.2, 81: 19.4, 82: 18.5,
@@ -392,8 +554,8 @@ const RMD_DIVISORS: Record<number, number> = {
   114: 3.0, 115: 2.9, 116: 2.8, 117: 2.7, 118: 2.5, 119: 2.3,
 };
 /** Required minimum distribution from a pre-tax balance at a given age (0 if none). */
-export function rmdAmount(pretaxBalance: number, age: number): number {
-  if (age < RMD_AGE || pretaxBalance <= 0) return 0;
+export function rmdAmount(pretaxBalance: number, age: number, profile: Pick<RetirementProfile, "current_age">): number {
+  if (age < rmdAge(profile) || pretaxBalance <= 0) return 0;
   const divisor = RMD_DIVISORS[age] ?? 2.0;
   return pretaxBalance / divisor;
 }
@@ -420,16 +582,21 @@ export function irmaaAnnual(magi: number, age: number, filing: "mfj" | "single",
  *  tax-free, and only ≤85% of Social Security is taxable. Returns tax + MAGI. */
 export function retirementIncomeTax(
   otherOrdinaryIncome: number, ss: number, pretaxWithdrawn: number, taxableGain: number,
-  filing: "mfj" | "single", inflFactor: number, state: number,
+  filing: Filing, inflFactor: number, state: number, extraDeduction = 0,
 ): { tax: number; magi: number } {
-  const taxableSS = ssTaxablePortion(ss, otherOrdinaryIncome + pretaxWithdrawn, filing, inflFactor);
+  // Capital gains count in the provisional-income test for Social Security.
+  const taxableSS = ssTaxablePortion(ss, otherOrdinaryIncome + pretaxWithdrawn + taxableGain, filing, inflFactor);
   const ordinary = otherOrdinaryIncome + taxableSS + pretaxWithdrawn;
-  const fed = federalTax(ordinary, filing, inflFactor);
-  const capGains = taxableGain * ltcgRate(ordinary, filing, inflFactor);
-  const niitThreshold = (filing === "mfj" ? 250000 : 200000) * inflFactor;
-  const niit = ordinary + taxableGain > niitThreshold ? 0.038 * taxableGain : 0;
+  const deduction = STD_DEDUCTION[filing] * inflFactor + extraDeduction;
+  const fed = federalTax(ordinary, filing, inflFactor, deduction);
+  // Whatever deduction ordinary income did not use shelters gains first.
+  const taxableOrdinary = Math.max(0, ordinary - deduction);
+  const gainAfterDeduction = Math.max(0, taxableGain - Math.max(0, deduction - ordinary));
+  const capGains = capitalGainsTax(taxableOrdinary, gainAfterDeduction, filing, inflFactor).tax;
+  const magi = ordinary + taxableGain;
+  const niit = niitTax(taxableGain, magi, filing);
   const stateTax = state * (ordinary + taxableGain);
-  return { tax: fed + capGains + niit + stateTax, magi: ordinary + taxableGain };
+  return { tax: fed + capGains + niit + stateTax, magi };
 }
 
 /** Annual tithe + assumed offering for a year, if enabled.
@@ -517,9 +684,8 @@ export function accountTaxMix(accounts: RetirementAccount[]): Record<TaxBucket, 
 const TAXABLE_GAIN_FRACTION = 0.5;
 
 /** Long-term capital-gains rate by ordinary-income level (2025 brackets, inflated). */
-export function ltcgRate(ordinary: number, filing: "mfj" | "single", inflFactor: number): number {
-  const top = (filing === "mfj" ? 600050 : 533400) * inflFactor;
-  const bottom = (filing === "mfj" ? 96700 : 48350) * inflFactor;
+export function ltcgRate(ordinary: number, filing: Filing, inflFactor: number): number {
+  const [bottom, top] = CURRENT.ltcg[filing].map((v) => v * inflFactor);
   if (ordinary >= top) return 0.20;
   if (ordinary >= bottom) return 0.15;
   return 0;
@@ -536,7 +702,7 @@ export function ltcgRate(ordinary: number, filing: "mfj" | "single", inflFactor:
  * year of a thirty-year plan.
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function ssTaxablePortion(ss: number, otherIncome: number, filing: "mfj" | "single", _inflFactor: number): number {
+export function ssTaxablePortion(ss: number, otherIncome: number, filing: Filing, _inflFactor: number): number {
   if (ss <= 0) return 0;
   const [t1, t2] = filing === "mfj" ? [32000, 44000] : [25000, 34000];
   const b1 = t1, b2 = t2;
@@ -553,7 +719,7 @@ function ssTaxablePortion(ss: number, otherIncome: number, filing: "mfj" | "sing
  * nominal dollars and are not indexed — so they are not inflated here.
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function additionalMedicareTax(wages: number, filing: "mfj" | "single", _inflFactor: number): number {
+export function additionalMedicareTax(wages: number, filing: Filing, _inflFactor: number): number {
   const thr = filing === "mfj" ? 250000 : 200000;
   return Math.max(0, wages - thr) * 0.009;
 }
@@ -565,15 +731,18 @@ export function estimatedTaxAt(inp: CashflowInputs, age: number, nowMs: number):
   const { profile, accounts, incomes, expenses, debts, scenario } = inp;
   const isRetired = age >= profile.retirement_age;
   const inflFactor = Math.pow(1 + profile.inflation_rate, age - profile.current_age);
-  const filing: "mfj" | "single" = profile.spouse_enabled ? "mfj" : "single";
+  const filing: Filing = profile.spouse_enabled ? "mfj" : "single";
   const state = (scenario.state_tax_rate ?? 5) / 100;
 
   if (!isRetired) {
-    const wages = titheGrossBaseAt(incomes, age, profile);
-    if (wages <= 0) return 0;
+    // Everything on the W-2 — salary, bonus and stock that vests — less what
+    // is deferred before tax into 401(k)/403(b)/HSA accounts.
+    const gross = grossPayAt(incomes, age, profile);
+    if (gross <= 0) return 0;
+    const wages = Math.max(0, gross - pretaxDeferralsAt(accounts, age, profile));
     const deduction = deductionAt(inp, age, nowMs, wages, filing, inflFactor); // greater of standard / itemized
-    const tax = federalTax(wages, filing, inflFactor, deduction) + additionalMedicareTax(wages, filing, inflFactor) + state * wages;
-    return Math.min(0.6 * wages, tax);
+    const tax = federalTax(wages, filing, inflFactor, deduction) + additionalMedicareTax(gross, filing, inflFactor) + state * wages;
+    return Math.min(0.6 * gross, tax);
   }
 
   // Retirement income (SS only partially taxable) + a portfolio withdrawal taxed
@@ -593,18 +762,8 @@ export function estimatedTaxAt(inp: CashflowInputs, age: number, nowMs: number):
   const pretaxW = withdrawal * mix.pretax;                    // ordinary
   const ltcgIncome = withdrawal * mix.taxable * TAXABLE_GAIN_FRACTION; // capital gains
   // Roth + HSA withdrawals are tax-free.
-
-  const taxableSS = ssTaxablePortion(ss, otherOrdinaryIncome + pretaxW, filing, inflFactor);
-  const ordinary = otherOrdinaryIncome + taxableSS + pretaxW;
-
-  const fed = federalTax(ordinary, filing, inflFactor);
-  const capGains = ltcgIncome * ltcgRate(ordinary, filing, inflFactor);
-  // Net investment income tax (3.8%) on capital gains once MAGI clears the threshold.
-  const niitThreshold = (filing === "mfj" ? 250000 : 200000) * inflFactor;
-  const niit = ordinary + ltcgIncome > niitThreshold ? 0.038 * ltcgIncome : 0;
-  const stateTax = state * (ordinary + ltcgIncome);
-
-  const tax = fed + capGains + niit + stateTax;
+  const senior = seniorDeductionAt(age, profile, filing, inflFactor);
+  const { tax } = retirementIncomeTax(otherOrdinaryIncome, ss, pretaxW, ltcgIncome, filing, inflFactor, state, senior);
   return Math.min(0.6 * (retIncome + withdrawal), tax);
 }
 
@@ -655,7 +814,7 @@ export interface CashflowInputs {
  *  the age axis to calendar years for display. */
 export function yearCashflow(
   inp: CashflowInputs, age: number, nowMs: number, currentYear: number,
-  override?: { tax?: number; irmaa?: number; rmd?: number },
+  override?: { tax?: number; irmaa?: number; rmd?: number; scenarioSpend?: number },
 ): YearCashflow {
   const { profile, accounts, incomes, expenses, debts, scenario } = inp;
   const isRetired = age >= profile.retirement_age;
@@ -681,7 +840,9 @@ export function yearCashflow(
     const amt = debtAnnualAt(d, age, profile);
     if (amt > 0.5) outflows.push({ label: d.name || (d.subtype === "lease" ? "Lease" : "Loan"), amount: amt, kind: d.subtype === "lease" ? "lease" : "loan" });
   }
-  const scenarioSpend = isRetired ? baseAnnualSpend(scenario) * inflFactor : 0;
+  // The engine supplies the lifestyle figure when it has applied the spending
+  // smile or the survivor multiplier; otherwise it is the plain inflated spend.
+  const scenarioSpend = isRetired ? (override?.scenarioSpend ?? baseAnnualSpend(scenario) * inflFactor) : 0;
   if (scenarioSpend > 0.5) {
     outflows.push({ label: `Retirement lifestyle · ${scenario.selected_scenario}`, amount: scenarioSpend, kind: "scenario" });
   }
@@ -691,9 +852,6 @@ export function yearCashflow(
       age >= (scenario.ltc_start_age ?? Math.max(profile.retirement_age, profile.life_expectancy - (scenario.ltc_years ?? 3))) &&
       age < (scenario.ltc_start_age ?? Math.max(profile.retirement_age, profile.life_expectancy - (scenario.ltc_years ?? 3))) + (scenario.ltc_years ?? 3);
     outflows.push({ label: age < 65 ? "Healthcare (pre-Medicare)" : ltcActive ? "Healthcare + long-term care" : "Healthcare (Medicare)", amount: healthcare, kind: "healthcare" });
-  }
-  if (override?.irmaa && override.irmaa > 0.5) {
-    outflows.push({ label: "Medicare surcharge (IRMAA)", amount: override.irmaa, kind: "healthcare" });
   }
   const tithe = titheAndOfferingAt(inp, age, nowMs);
   if (tithe > 0.5) {

@@ -1,9 +1,7 @@
 import {
-  federalTax,
-  ltcgRate,
   additionalMedicareTax,
-  FED_BRACKETS,
-  STD_DEDUCTION,
+  niitTax,
+  taxTables,
 } from "@/app/finance/retirement/_lib/cashflow";
 
 export type Filing = "mfj" | "single";
@@ -37,7 +35,7 @@ export interface EstimateInput {
   itemize: boolean;
   itemizedTotal: number;
   // Credits & estimated payments
-  credits: number;                 // nonrefundable credits (CTC, etc.)
+  credits: number;                 // nonrefundable credits (CTC, etc.) — reduce income tax only
   federalEstPayments: number;      // quarterly federal payments already made
   // State / local
   stateRate: number;               // effective state + local income-tax rate (%)
@@ -78,16 +76,30 @@ export interface EstimateResult {
 }
 
 /** Top marginal federal ordinary rate reached at a taxable-income level. */
-function marginalRateFor(taxable: number, filing: Filing): number {
-  const brackets = FED_BRACKETS[filing];
+function marginalRateFor(taxable: number, filing: Filing, year: number): number {
+  const brackets = taxTables(year).brackets[filing];
   let rate = brackets[0][1];
   for (const [lo, r] of brackets) if (taxable > lo) rate = r;
   return rate;
 }
 
+/** Indiana's flat rate for a year (HB 1001 schedule). */
+export function indianaStateRate(year: number): number {
+  if (year <= 2024) return 3.05;
+  if (year === 2025) return 3.0;
+  return 2.95;
+}
+
+/** Net capital losses offset up to $3,000 of ordinary income; the rest carries forward. */
+const CAPITAL_LOSS_LIMIT = 3000;
+
 export function computeEstimate(inp: EstimateInput): EstimateResult {
   const f = inp.filing;
-  const infl = 1; // current-year estimate — brackets already 2025-based
+  const tables = taxTables(inp.taxYear);
+  // The tables are for the chosen year, so no inflation scaling: the shared
+  // surtax helper takes the planner's inflation factor, and 1 means "this
+  // year's dollars".
+  const infl = 1;
 
   const wages = inp.w2s.reduce((s, w) => s + (w.wages || 0), 0);
   const federalWithheld =
@@ -97,48 +109,51 @@ export function computeEstimate(inp: EstimateInput): EstimateResult {
     0,
   );
 
-  const ltcgIncome = Math.max(0, inp.capitalGains) + Math.max(0, inp.qualifiedDividends);
+  // A net capital loss offsets up to $3,000 of ordinary income this year.
+  const capitalLossOffset = inp.capitalGains < 0 ? Math.min(CAPITAL_LOSS_LIMIT, -inp.capitalGains) : 0;
+  const qualified = Math.max(0, Math.min(inp.qualifiedDividends, inp.ordinaryDividends));
+  const ltcgIncome = Math.max(0, inp.capitalGains) + qualified;
   const investmentIncome =
-    inp.interestIncome + inp.ordinaryDividends + Math.max(0, inp.capitalGains);
+    inp.interestIncome + inp.ordinaryDividends + Math.max(0, inp.capitalGains) + Math.max(0, inp.otherIncome) - capitalLossOffset;
 
   // Ordinary income excludes the qualified-dividend slice (taxed at LTCG rate).
-  const ordinaryDivNonQualified = Math.max(0, inp.ordinaryDividends - inp.qualifiedDividends);
+  const ordinaryDivNonQualified = Math.max(0, inp.ordinaryDividends - qualified);
   const ordinaryIncome =
     wages +
     inp.interestIncome +
     ordinaryDivNonQualified +
     inp.businessIncome +
-    inp.otherIncome;
+    inp.otherIncome -
+    capitalLossOffset;
 
   const adjustments = inp.iraDeduction + inp.hsaDeduction + inp.otherAdjustments;
   const totalIncome = ordinaryIncome + ltcgIncome;
   const agi = Math.max(0, totalIncome - adjustments);
 
-  const stdDed = STD_DEDUCTION[f];
+  const stdDed = tables.stdDeduction[f];
   const useItemized = inp.itemize && inp.itemizedTotal > stdDed;
   const deduction = useItemized ? inp.itemizedTotal : stdDed;
 
   // Ordinary-bracket tax. AGI here is ordinary AGI (LTCG stacked on top separately).
   const ordinaryAgi = Math.max(0, ordinaryIncome - adjustments);
   const taxableOrdinary = Math.max(0, ordinaryAgi - deduction);
-  const ordinaryTax = federalTax(ordinaryAgi, f, infl, deduction);
+  const ordinaryTax = federalTaxWithTables(ordinaryAgi, f, deduction, tables);
 
-  // LTCG rate keys off total taxable income (ordinary stacks under the gains).
-  const rate = ltcgRate(taxableOrdinary, f, infl);
-  const ltcgTax = ltcgIncome * rate;
+  // Long-term gains and qualified dividends stack on top of ordinary taxable
+  // income: 0% up to the bracket top, then 15%, then 20%. Any deduction the
+  // ordinary income did not use shelters gains first.
+  const gainAfterDeduction = Math.max(0, ltcgIncome - Math.max(0, deduction - ordinaryAgi));
+  const { tax: ltcgTax, rate } = capitalGainsTaxWithTables(taxableOrdinary, gainAfterDeduction, f, tables);
 
   const federalIncomeTax = ordinaryTax + ltcgTax;
 
   const additionalMedicare = additionalMedicareTax(wages, f, infl);
 
   // NIIT: 3.8% on the lesser of net investment income and (MAGI − threshold).
-  const niitThreshold = f === "mfj" ? 250000 : 200000;
-  const niit = 0.038 * Math.max(0, Math.min(investmentIncome, agi - niitThreshold));
+  const niit = niitTax(investmentIncome, agi, f);
 
-  const federalTotal = Math.max(
-    0,
-    federalIncomeTax + additionalMedicare + niit - inp.credits,
-  );
+  // Nonrefundable credits reduce income tax only; the surtaxes are added after.
+  const federalTotal = Math.max(0, federalIncomeTax - inp.credits) + additionalMedicare + niit;
   const federalPaid = federalWithheld + inp.federalEstPayments;
   const federalRefundOrOwe = federalPaid - federalTotal;
 
@@ -183,8 +198,32 @@ export function computeEstimate(inp: EstimateInput): EstimateResult {
     totalPaid,
     totalRefundOrOwe,
     effectiveRate: agi > 0 ? totalTax / agi : 0,
-    marginalRate: marginalRateFor(taxableOrdinary, f),
+    marginalRate: marginalRateFor(taxableOrdinary, f, inp.taxYear),
   };
+}
+
+// The shared helpers read the planner's current-year tables. The estimator lets
+// the year be chosen, so these two evaluate the same formulas against the
+// chosen year's tables.
+function federalTaxWithTables(income: number, filing: Filing, deduction: number, t: ReturnType<typeof taxTables>): number {
+  const taxable = Math.max(0, income - deduction);
+  const brackets = t.brackets[filing];
+  let tax = 0;
+  for (let i = 0; i < brackets.length; i++) {
+    const lo = brackets[i][0];
+    const hi = i + 1 < brackets.length ? brackets[i + 1][0] : Infinity;
+    if (taxable > lo) tax += (Math.min(taxable, hi) - lo) * brackets[i][1];
+  }
+  return tax;
+}
+function capitalGainsTaxWithTables(taxableOrdinary: number, gain: number, filing: Filing, t: ReturnType<typeof taxTables>): { tax: number; rate: number } {
+  if (gain <= 0) return { tax: 0, rate: 0 };
+  const [top0, top15] = t.ltcg[filing];
+  const at0 = Math.max(0, Math.min(gain, top0 - taxableOrdinary));
+  const at15 = Math.max(0, Math.min(gain - at0, top15 - Math.max(taxableOrdinary, top0)));
+  const at20 = Math.max(0, gain - at0 - at15);
+  const tax = at15 * 0.15 + at20 * 0.2;
+  return { tax, rate: tax / gain };
 }
 
 /** Project a mid-year paystub's YTD figures to a full-year estimate.
@@ -200,6 +239,7 @@ export function annualizePaystub(ps: {
   ytd_federal_wh?: number | null;
   ytd_state_wh?: number | null;
   ytd_pretax_retirement?: number | null;
+  ytd_pretax_other?: number | null;
 }): { wages: number; federalWithholding: number; stateWithholding: number; pretaxRetirement: number; basis: string } {
   const periodsPerYear: Record<string, number> = { weekly: 52, biweekly: 26, semimonthly: 24, monthly: 12 };
   const total = ps.pay_frequency ? periodsPerYear[ps.pay_frequency] ?? 24 : 24;
@@ -226,8 +266,12 @@ export function annualizePaystub(ps: {
   }
 
   const scale = (n: number | null | undefined) => (fraction > 0 ? Math.round(((n ?? 0) / fraction)) : (n ?? 0));
+  // Box 1 is gross pay less what was deferred before tax: 401(k)/403(b), HSA,
+  // and Section 125 premiums. Projecting gross overstated the year's tax by
+  // the marginal rate on every dollar deferred.
+  const box1 = Math.max(0, ytdGross - (ps.ytd_pretax_retirement ?? 0) - (ps.ytd_pretax_other ?? 0));
   return {
-    wages: scale(ytdGross),
+    wages: scale(box1),
     federalWithholding: scale(ps.ytd_federal_wh),
     stateWithholding: scale(ps.ytd_state_wh),
     pretaxRetirement: scale(ps.ytd_pretax_retirement),
@@ -255,7 +299,7 @@ export function emptyInput(taxYear: number): EstimateInput {
     itemizedTotal: 0,
     credits: 0,
     federalEstPayments: 0,
-    stateRate: 3.15, // Indiana state (3.05%) + a typical county rate
+    stateRate: Math.round((indianaStateRate(taxYear) + 1.1) * 100) / 100, // Indiana state rate for the year + Hamilton County (1.1%)
     stateEstPayments: 0,
   };
 }

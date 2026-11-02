@@ -338,7 +338,7 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
               value={survivalRatio}
               color={healthColor}
               size={72}
-              label="Plan confidence"
+              label="Years funded"
               center={
                 <span className="ios-num" style={{ fontSize: 17, fontWeight: 700 }}>
                   {Math.round(survivalRatio * 100)}%
@@ -415,10 +415,16 @@ export default function ProjectionTab({ profile, accounts, incomes, scenario, ex
                 pension and bridge income, your projected safe withdrawal still falls short and the plan depletes at{" "}
                 {depletionAge}. Consider extending contributions, reducing scenario spend, or delaying retirement.
               </>
+            ) : depletionAge != null ? (
+              <>
+                <strong style={{ color: "var(--ios-orange)" }}>Runs out at {depletionAge}</strong> — the first-year withdrawal looks
+                affordable, but the year-by-year model (taxes, healthcare, required distributions, entered outflows) depletes the
+                portfolio before {profile.life_expectancy}. Use the inspector to see which year turns.
+              </>
             ) : (
               <>
                 <strong style={{ color: "var(--ios-green)" }}>On track</strong> — after Social Security, pension and bridge
-                income, your portfolio {depletionAge != null ? "covers your plan" : "outlives your plan"} at this spending level.
+                income, your portfolio outlives your plan at this spending level.
               </>
             )}
           </div>
