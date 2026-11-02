@@ -26,6 +26,7 @@ export default function QuickEntryForm() {
     { value: "brokerage", label: "Brokerage" },
     { value: "pension", label: "Pension" },
     { value: "other_investment", label: "Other investment" },
+    { value: "real_estate", label: "Real estate" },
   ];
 
   function handleSubmit() {

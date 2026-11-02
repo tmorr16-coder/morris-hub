@@ -90,7 +90,15 @@ export function debtAnnualAt(debt: RetirementDebt, age: number, profile: Retirem
   if (debt.subtype === "lease") {
     const pay = debt.lease_monthly_payment ?? 0;
     const months = debt.lease_months_remaining ?? debt.lease_term_months ?? 0;
-    return pay > 0 && yearsFromNow < months / 12 ? pay * 12 : 0;
+    let annual = pay > 0 && yearsFromNow < months / 12 ? pay * 12 : 0;
+    // The lease-end decision is a real cash event in the year the lease ends:
+    // the residual if the car is bought, the disposition fee if it goes back.
+    // The plan held both figures and paid neither.
+    if (months > 0 && yearsFromNow === Math.floor(months / 12)) {
+      if (debt.lease_end_decision === "buy") annual += debt.lease_residual ?? 0;
+      else if (debt.lease_end_decision === "return") annual += debt.lease_disposition_fee ?? 0;
+    }
+    return annual;
   }
   const pay = debt.monthly_payment ?? 0;
   if (pay <= 0) return 0;
