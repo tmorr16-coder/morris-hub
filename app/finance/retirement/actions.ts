@@ -350,7 +350,15 @@ export async function refreshAccountBalances(): Promise<
         .in("item_id", itemIds)
         .is("deleted_at", null)
     : { data: [] };
-  const live = (liveRows ?? []) as { id: string; name: string; mask: string | null; current_balance: number | null }[];
+  // Accounts a family member shares with this user can be linked into the
+  // plan too (a spouse's 401(k) is part of the same retirement), so they
+  // count as live for refreshing balances.
+  const { data: shareRows } = await schema.from("account_shares").select("account_id").eq("grantee_user_id", user.id);
+  const sharedIds = ((shareRows ?? []) as { account_id: string }[]).map((r) => r.account_id);
+  const { data: sharedLiveRows } = sharedIds.length > 0
+    ? await schema.from("accounts").select("id, name, mask, current_balance").in("id", sharedIds).is("deleted_at", null)
+    : { data: [] };
+  const live = [...(liveRows ?? []), ...(sharedLiveRows ?? [])] as { id: string; name: string; mask: string | null; current_balance: number | null }[];
   const liveById = new Map(live.map((a) => [a.id, a]));
 
   let updated = 0;

@@ -348,14 +348,37 @@ export default async function DashboardPage() {
   // Employer stock is the concentration that matters here: the plan already
   // tracks vested and unvested grants, so salary and portfolio ride on one
   // company. Vested value sits in the imported stock-plan accounts.
-  const stockPlanAccounts = ownManualAccounts.filter(
-    (a) => (a.unvested_value ?? 0) > 0 || /stock|espp|rsu|equity/i.test(`${a.name} ${a.account_type ?? ""}`)
-  );
-  const employerVested = stockPlanAccounts.reduce((sum, a) => sum + (a.balance ?? 0), 0);
-  const investableTotal =
-    accountsByBucket.investment.reduce((sum, a) => sum + (a.current_balance ?? 0), 0)
-    + ownManualAccounts.reduce((sum, a) => sum + (a.balance ?? 0), 0);
-  const concentrationPct = investableTotal > 0 ? employerVested / investableTotal : 0;
+  // ── Household investments ─────────────────────────────────────────────────
+  // Two 401(k)s and two stock-plan accounts in one household are one
+  // retirement balance and one employer-stock position. Every investment
+  // account counted in the net position — your own and the family accounts
+  // you have switched on — is rolled up here by what it is, not whose it is.
+  const STOCK_PLAN_RE = /restricted stock|performance grant|stock plan|stock award|equity award|\bespp\b|\brsus?\b/i;
+  const RETIREMENT_PLAN_RE = /401\s?\(?k\)?|403\s?\(?b\)?|\b457\b|\bira\b|retirement|tax deferred|pension|\bhsa\b/i;
+  type HouseholdAccount = { name: string; owner: string; balance: number };
+  const householdInvestments: HouseholdAccount[] = [
+    ...accountsByBucket.investment.map((a) => ({ name: a.name, owner: "you", balance: a.current_balance ?? 0 })),
+    ...sharedWithMe
+      .filter((s) => s.include_in_portfolio && s.account && bucket(s.account.type) === "investment")
+      .map((s) => ({ name: s.account!.name, owner: s.owner?.full_name?.split(" ")[0] ?? "family", balance: s.account!.current_balance ?? 0 })),
+    ...ownManualAccounts
+      .filter((a) => !LIABILITY_ACCOUNT_TYPES.has(a.account_type) && /401k|roth_ira|traditional_ira|hsa|brokerage|pension|other_investment|stock/i.test(a.account_type ?? ""))
+      .map((a) => ({ name: a.name, owner: "you", balance: a.balance ?? 0 })),
+  ];
+  const kindOf = (a: HouseholdAccount) => STOCK_PLAN_RE.test(a.name) ? "stock" : RETIREMENT_PLAN_RE.test(a.name) ? "retirement" : "other";
+  const householdGroups = (["retirement", "stock", "other"] as const).map((kind) => {
+    const list = householdInvestments.filter((a) => kindOf(a) === kind);
+    return { kind, list, total: list.reduce((s, a) => s + a.balance, 0) };
+  }).filter((g) => g.list.length > 0);
+  const householdInvestTotal = householdInvestments.reduce((s, a) => s + a.balance, 0);
+  const householdHasFamily = householdInvestments.some((a) => a.owner !== "you");
+
+  // Employer stock as a share of everything invested: the stock-plan accounts
+  // (yours and the family's that are counted) over the household total. The
+  // old figure looked only at imported statements, so a linked E*TRADE stock
+  // plan never counted and the warning never appeared.
+  const employerVested = householdInvestments.filter((a) => kindOf(a) === "stock").reduce((s, a) => s + a.balance, 0);
+  const concentrationPct = householdInvestTotal > 0 ? employerVested / householdInvestTotal : 0;
 
   // Debt rates by lowercased name, for matching against liability accounts.
   const rateByName = new Map<string, number>();
@@ -726,6 +749,26 @@ export default async function DashboardPage() {
         </Group>
       )}
 
+      {householdGroups.length > 0 && (
+        <Group
+          header={`Household investments · ${fmtMoney(householdInvestTotal)}`}
+          footer={householdHasFamily
+            ? "Your accounts plus the family accounts switched on under Shared with me, added by what they are."
+            : "Switch a family member's shared account on below to count it here."}
+        >
+          {householdGroups.map((g) => (
+            <Cell
+              key={g.kind}
+              chevron={false}
+              lead={<IconBadge color={g.kind === "stock" ? "#B5651D" : g.kind === "retirement" ? "var(--ios-green)" : "#C97A3A"}><Icons.TrendUpIcon /></IconBadge>}
+              title={g.kind === "retirement" ? "Retirement plans" : g.kind === "stock" ? "Employer stock plans" : "Brokerage & other"}
+              subtitle={g.list.map((a) => `${a.name}${a.owner !== "you" ? ` (${a.owner})` : ""} ${fmtMoney(a.balance)}`).join(" · ")}
+              trailing={<span className="ios-num">{fmtMoney(g.total)}</span>}
+            />
+          ))}
+        </Group>
+      )}
+
       {BUCKETS.map((b) => {
         const list = accountsByBucket[b.key];
         if (!list.length) return null;
@@ -795,7 +838,7 @@ export default async function DashboardPage() {
               chevron={false}
               lead={<IconBadge color="#B565A7"><Icons.PeopleIcon /></IconBadge>}
               title={s.account?.name ?? "Account"}
-              subtitle={s.owner?.full_name ? `from ${s.owner.full_name}` : undefined}
+              subtitle={[s.owner?.full_name ? `from ${s.owner.full_name}` : null, s.include_in_portfolio ? "counted in net position" : "not counted"].filter(Boolean).join(" · ")}
               trailing={<span className="ios-num">{fmtMoney(s.account?.current_balance ?? null)}</span>}
             />
           ))}
