@@ -82,6 +82,10 @@ jobs:
           npm run test:voice
           npm run test:workout
           npm run build
+      - name: Confirm tested patch changes only the lockfile
+        if: steps.changed.outputs.yes == 'true'
+        run: |
+          node -e "const cp=require('node:child_process');const paths=cp.execFileSync('git',['diff','--name-only'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);if(paths.length!==1||paths[0]!=='package-lock.json')throw Error('Candidate exceeds lockfile-only scope')"
       - name: Open or update validated fix PR
         if: steps.changed.outputs.yes == 'true'
         uses: peter-evans/create-pull-request@v7
