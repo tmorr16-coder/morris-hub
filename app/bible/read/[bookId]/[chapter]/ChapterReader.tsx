@@ -96,7 +96,7 @@ export default function ChapterReader({
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
 
-  // Buddy's cloud voice, with exact scripture text and cancellable playback.
+  // MAI cloud voice, with exact scripture text and cancellable playback.
   const audio = useReadAloud();
   const { paused, rate: speechRate, setRate: setSpeechRate } = audio;
   const [advancing, setAdvancing] = useState(false);
@@ -302,7 +302,7 @@ export default function ChapterReader({
         marginBottom: 22,
       }}>
         {/* Speed */}
-        <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>AI narration · Buddy’s voice</span>
+        <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>AI narration · MAI voice</span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span className="ios-footnote" style={{ color: "var(--ios-label-2)", fontWeight: 600 }}>Speed</span>
           <input
@@ -315,11 +315,14 @@ export default function ChapterReader({
           <span className="ios-footnote ios-num" style={{ color: "var(--ios-label-2)", minWidth: 34 }}>{speechRate.toFixed(2)}×</span>
         </div>
 
+        <span className="ios-footnote" style={{ fontWeight: 600 }} aria-live="polite" aria-atomic="true">
+          {book.name} {chapterNum}{readingVerseIdx !== null && chapterData.verses[readingVerseIdx] ? `:${chapterData.verses[readingVerseIdx].number}` : ""}
+        </span>
         {/* Reading indicator */}
         {speaking && (
           <div className="ios-footnote" style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ios-tint)", fontWeight: 600 }}>
             <Icons.SparkleIcon style={{ fontSize: 15, animation: "pulse 1s infinite" }} />
-            {advancing ? "Loading next chapter…" : audio.loading ? "Preparing voice…" : paused ? "Paused" : "Reading with Buddy’s voice…"}
+            {advancing ? "Loading next chapter…" : audio.loading ? "Preparing voice…" : paused ? "Paused" : "Reading with MAI voice…"}
           </div>
         )}
       </div>

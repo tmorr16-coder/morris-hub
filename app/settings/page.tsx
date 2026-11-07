@@ -104,7 +104,7 @@ export default async function SettingsHubPage() {
       )}
 
       <Group header="Voice">
-        <Cell lead={<IconBadge color="var(--ios-morris)"><Icons.SparkleIcon /></IconBadge>} title="Read-aloud voice" subtitle="Buddy’s natural voice · Bible & study" href="/home/settings/voice" />
+        <Cell lead={<IconBadge color="var(--ios-morris)"><Icons.SparkleIcon /></IconBadge>} title="Read-aloud voice" subtitle="MAI voice · Bible & study" href="/home/settings/voice" />
       </Group>
 
       <GeneralSettings

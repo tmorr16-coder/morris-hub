@@ -1,4 +1,4 @@
-// Buddy's voice: text to speech for the child's screen.
+// MAI voice: text to speech for the child's screen.
 //
 // The browser's own speechSynthesis is still there and still the fallback: it
 // is free, instant and works on a plane. But on an iPad that has not had the
@@ -396,7 +396,7 @@ export async function synthesise(text: string, voiceId: string, speed = 1, style
       source: style === "buddy" ? "children" : "app",
       subject: `${style}-voice-${voice.provider}`,
       severity: "warning",
-      message: `Buddy's voice (${voice.provider}) failed: ${msg.slice(0, 300)}`,
+      message: `MAI voice (${voice.provider}) failed: ${msg.slice(0, 300)}`,
       detail: { voice: voice.id, chars: text.length },
     }).catch(() => undefined);
     throw e;

@@ -185,6 +185,12 @@ export default async function AdminPage() {
 
       <Group header="Platform">
         <Cell
+          lead={<IconBadge color="#2563eb"><Icons.BellIcon /></IconBadge>}
+          title="Security & vulnerabilities"
+          subtitle="Daily GitHub reviews, fixes and email alerts"
+          href="/home/admin/security"
+        />
+        <Cell
           lead={<IconBadge color="var(--ios-alert, #E5484D)"><Icons.BellIcon /></IconBadge>}
           title="Platform status"
           subtitle="What's failing right now, across every integration"

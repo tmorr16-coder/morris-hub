@@ -599,7 +599,7 @@ function AudioControls({ audio, onPlay, colorTag }: { audio: ReturnType<typeof u
                   onChange={(e) => audio.setVoice(e.target.value)}
                   style={{ ...inputStyle, cursor: "pointer" }}
                 >
-                  <option value="buddy">Buddy’s voice · recommended</option>
+                  <option value="buddy">MAI voice · recommended</option>
                   {audio.voices.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
                 </select>
               </div>

@@ -502,7 +502,7 @@ export default function SettingsForm({ initialPrefs, only }: { initialPrefs: Pre
         <Label>Voice name</Label>
         <TtsVoicePicker value={ttsVoice} onChange={setTtsVoice} />
         <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 6 }}>
-          Uses Buddy’s natural voice engine across Bible and study reading, with a device voice available during an outage.
+          Uses MAI voice engine across Bible and study reading, with a device voice available during an outage.
         </p>
         <div style={{ marginTop: 14 }}>
           <Label>Speed <span style={{ fontWeight: 400, color: "var(--color-ink-4)" }}>({ttsSpeed.toFixed(1)}×)</span></Label>
@@ -885,7 +885,7 @@ function TtsVoicePicker({ value, onChange }: { value: string; onChange: (v: stri
     return () => { active = false; };
   }, []);
   return <select aria-label="Read-aloud voice" value={voices.some((v) => v.id === value) ? value : "buddy"} onChange={(e) => onChange(e.target.value)} style={inputBase}>
-    <option value="buddy">Buddy’s voice · recommended</option>
+    <option value="buddy">MAI voice · recommended</option>
     {voices.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
   </select>;
 }
