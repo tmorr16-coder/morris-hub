@@ -6,6 +6,7 @@ import { recordFailure, clearFailures } from "@/lib/system-events";
 import { childForGuardian, listChildrenForParent } from "@/app/children/_lib/children";
 import { readSchoolDocument, MAX_PAGES, MAX_TOTAL, type DocumentPart } from "@/app/children/_lib/read-document";
 import { createDocumentFor } from "@/app/children/_lib/learning-core";
+import { receivingDomain, intendedInboundDomain } from "@/lib/inbound-email";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -29,11 +30,24 @@ export const maxDuration = 300;
 // status page and dropped — an inbound address is public the moment it is
 // used, and this one creates reminders and to-dos in a family's home.
 //
-// Needs: RESEND_API_KEY (already used for sending), RESEND_WEBHOOK_SECRET
-// (from the webhook's page in Resend), INBOUND_EMAIL_DOMAIN (the subdomain
-// with the MX record, e.g. in.morrisai.family).
+// Needs only RESEND_API_KEY, which the platform already holds for sending;
+// the domain and the webhook are created from Home → Admin → Email door.
+// RESEND_WEBHOOK_SECRET is optional: with it, every event's signature is
+// checked; without it, an event is still only a pointer to an email in our
+// own Resend inbox — the body and attachments are fetched back from Resend
+// by id, so a forged event can at most make us re-read our own mail, which
+// the duplicate checks below make a no-op.
 
-const DOMAIN = (process.env.INBOUND_EMAIL_DOMAIN ?? "").toLowerCase();
+/** Unsigned events are throttled per source address so a flood costs nothing. */
+const unsignedHits = new Map<string, number[]>();
+function allowUnsigned(ip: string, limit = 30, windowMs = 60_000): boolean {
+  const now = Date.now();
+  const arr = (unsignedHits.get(ip) ?? []).filter((t) => now - t < windowMs);
+  if (arr.length >= limit) return false;
+  arr.push(now);
+  unsignedHits.set(ip, arr);
+  return true;
+}
 /** Gmail sends a confirmation email before it will forward anywhere. The code in it is what the parent needs. */
 const GMAIL_FORWARDING = /forwarding-noreply@google\.com/i;
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
@@ -60,23 +74,29 @@ const sha = (b: Buffer | string) => createHash("sha256").update(b).digest("hex")
 export async function POST(req: NextRequest) {
   const secret = process.env.RESEND_WEBHOOK_SECRET;
   const apiKey = process.env.RESEND_API_KEY;
-  if (!secret || !apiKey || !DOMAIN) return NextResponse.json({ error: "Not configured" }, { status: 503 });
+  if (!apiKey) return NextResponse.json({ error: "Not configured" }, { status: 503 });
 
   const resend = new Resend(apiKey);
   const payload = await req.text();
   let event: any;
-  try {
-    event = resend.webhooks.verify({
-      payload,
-      headers: {
-        id: req.headers.get("svix-id") ?? "",
-        timestamp: req.headers.get("svix-timestamp") ?? "",
-        signature: req.headers.get("svix-signature") ?? "",
-      },
-      webhookSecret: secret,
-    });
-  } catch {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+  if (secret) {
+    try {
+      event = resend.webhooks.verify({
+        payload,
+        headers: {
+          id: req.headers.get("svix-id") ?? "",
+          timestamp: req.headers.get("svix-timestamp") ?? "",
+          signature: req.headers.get("svix-signature") ?? "",
+        },
+        webhookSecret: secret,
+      });
+    } catch {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+    }
+  } else {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    if (!allowUnsigned(ip)) return NextResponse.json({ error: "Slow down" }, { status: 429 });
+    try { event = JSON.parse(payload); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   }
   if (event?.type !== "email.received") return NextResponse.json({ ok: true, ignored: event?.type ?? "unknown" });
 
@@ -97,6 +117,8 @@ async function processEmail(resend: Resend, emailId: string) {
 
   const { data: mail, error } = await resend.emails.receiving.get(emailId);
   if (error || !mail) { await note(`Forwarded email could not be fetched: ${error?.message ?? "no data"}`); return; }
+  // The door's domain, as Resend has it; the intended name if the cache is cold.
+  const DOMAIN = ((await receivingDomain()) ?? intendedInboundDomain()).toLowerCase();
 
   const from = addressOf(mail.from ?? "");
   const subject = (mail.subject ?? "").trim();

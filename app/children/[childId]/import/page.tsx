@@ -5,6 +5,7 @@ import { createServiceClient, getCurrentUser } from "@/lib/supabase/server";
 import { LargeTitle, TabBar } from "@/components/ios";
 import { childForGuardian, listChildrenForParent } from "../../_lib/children";
 import { inboundAddressFor } from "../../_lib/inbound-address";
+import { receivingDomain } from "@/lib/inbound-email";
 import LearningImportClient from "../../_components/LearningImportClient";
 
 export default async function ImportSchoolDocumentPage({ params }: { params: Promise<{ childId: string }> }) {
@@ -17,8 +18,9 @@ export default async function ImportSchoolDocumentPage({ params }: { params: Pro
   const name = child.display_name ?? "your child";
   // The child's email address for forwarded newsletters, when the email door
   // is set up. Siblings who share a first name get the id-tagged form.
-  const inboundAddress = process.env.INBOUND_EMAIL_DOMAIN && process.env.RESEND_WEBHOOK_SECRET
-    ? inboundAddressFor(childId, name, await listChildrenForParent(user.id, new Date()), process.env.INBOUND_EMAIL_DOMAIN)
+  const domain = await receivingDomain();
+  const inboundAddress = domain
+    ? inboundAddressFor(childId, name, await listChildrenForParent(user.id, new Date()), domain)
     : null;
 
   return (

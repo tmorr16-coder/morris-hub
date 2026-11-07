@@ -196,6 +196,12 @@ export default async function AdminPage() {
           subtitle="Daily activity trends & cost breakdown"
           href="/home/admin/analytics"
         />
+        <Cell
+          lead={<IconBadge color="#5856D6"><Icons.ComposeIcon /></IconBadge>}
+          title="Email door"
+          subtitle="Forward a teacher's email and the platform reads it"
+          href="/home/admin/email"
+        />
       </Group>
 
       <div style={{ padding: "8px 16px 0" }}>
