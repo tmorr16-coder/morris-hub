@@ -7,7 +7,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { BibleChapter, BibleVerse, BibleVersion } from "@/lib/bible-api";
 import { bookById } from "@/lib/bible-api";
-import { rankVoices, pickBestVoice } from "@/lib/tts-voices";
+import { useReadAloud } from "@/hooks/useReadAloud";
 import { setActiveReadingSession, clearActiveReadingSession } from "@/lib/active-reading-session";
 import { Icons } from "@/components/ios";
 
@@ -69,8 +69,7 @@ export default function ChapterReader({
   const db = createClient() as any;
 
   // ── Displayed chapter is STATE so read-aloud can advance it in place ──
-  // (auto-continue swaps the shown chapter without any navigation/remount, so
-  // the speechSynthesis session survives — required for iOS to keep playing).
+  // Auto-continue swaps the chapter without remounting the audio player.
   const [book, setBook] = useState(bookProp);
   const [chapterNum, setChapterNum] = useState(chapterNumProp);
   const [chapterData, setChapterData] = useState(chapterDataProp);
@@ -80,9 +79,6 @@ export default function ChapterReader({
   const bookRef = useRef(book);
   const chapterNumRef = useRef(chapterNum);
   const chapterDataRef = useRef(chapterData);
-
-  // Pointer into upcomingReadings: the NEXT reading to auto-play after the
-  // currently displayed chapter finishes.
   const queueIdxRef = useRef(0);
 
   // Latest speakFrom, so the recursive auto-continue call isn't a stale closure.
@@ -100,160 +96,63 @@ export default function ChapterReader({
   const [noteText, setNoteText] = useState("");
   const [savingNote, setSavingNote] = useState(false);
 
-  // ── TTS state ─────────────────────────────────────────────
-  const [speaking, setSpeaking] = useState(false);
-  const [paused, setPaused] = useState(false);
+  // Buddy's cloud voice, with exact scripture text and cancellable playback.
+  const audio = useReadAloud();
+  const { paused, rate: speechRate, setRate: setSpeechRate } = audio;
+  const [advancing, setAdvancing] = useState(false);
+  const speaking = audio.speaking || advancing;
   const [readingVerseIdx, setReadingVerseIdx] = useState<number | null>(null);
-  const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
-  const [speechRate, setSpeechRate] = useState(0.88);
-  const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [continuationError, setContinuationError] = useState<string | null>(null);
+  const readingGeneration = useRef(0);
 
-  // Load available English voices and honor the voice/speed saved in
-  // Bible → Settings (the single source of truth), falling back to the
-  // best-ranked voice when none is saved.
-  useEffect(() => {
-    let savedVoiceName: string | null = null;
-    function apply() {
-      const all = window.speechSynthesis.getVoices();
-      if (all.length === 0) return;
-      const ranked = rankVoices(all);
-      if (ranked.length === 0) return;
-      const fromSaved = savedVoiceName ? ranked.find((v) => v.name === savedVoiceName) : null;
-      // The Settings voice is authoritative — switch to it as soon as it's
-      // known, even if a default was picked first (the /api/tts-prefs fetch
-      // resolves after voices load). Otherwise keep/pick the best default.
-      if (fromSaved) setSelectedVoice(fromSaved);
-      else setSelectedVoice((prev) => prev ?? pickBestVoice(ranked));
-    }
-    fetch("/api/tts-prefs").then((r) => (r.ok ? r.json() : null)).then((d) => {
-      if (d?.tts_voice) savedVoiceName = d.tts_voice;
-      if (typeof d?.tts_speed === "number") setSpeechRate(d.tts_speed);
-      apply();
-    }).catch(() => {});
-    apply();
-    window.speechSynthesis.onvoiceschanged = apply;
-    return () => { window.speechSynthesis.onvoiceschanged = null; };
-  }, []);
+  useEffect(() => () => { readingGeneration.current++; }, []);
 
-  // ── TTS ── speak from a specific verse index ──────────────
   const speakFrom = useCallback((startIdx: number) => {
     const data = chapterDataRef.current;
     if (!data) return;
-    window.speechSynthesis.cancel();
-    setPaused(false);
-
-    const verses = data.verses.slice(startIdx);
-
-    // ANNOUNCE the book + chapter first, then the verses. Build the per-verse
-    // char offsets on TOP of the announcement so onboundary verse tracking stays
-    // correct — offsets naturally include the announcement's length.
-    const announcement = `${bookRef.current.name} chapter ${chapterNumRef.current}.  `;
-    let fullText = announcement;
-    const offsets: number[] = []; // offsets[i] = char index where verse startIdx+i begins
-    verses.forEach((v) => {
-      offsets.push(fullText.length);
-      fullText += v.text + "  "; // double-space between verses
-    });
-
-    const utter = new SpeechSynthesisUtterance(fullText);
-    utter.rate = speechRate;
-    utter.pitch = 1;
-    if (selectedVoice) utter.voice = selectedVoice;
-
-    utter.onstart = () => {
-      setSpeaking(true);
-      setReadingVerseIdx(startIdx);
-      setActiveReadingSession({
-        bookId: bookRef.current.id,
-        chapter: chapterNumRef.current,
-        bibleId,
-        label: `${bookRef.current.name} ${chapterNumRef.current}`,
-      });
-    };
-
-    utter.onboundary = (e) => {
-      if (e.name !== "word") return;
-      const charIdx = e.charIndex;
-      // During the announcement (charIdx < offsets[0]) the first verse stays
-      // highlighted; once verses begin, track which one is being read.
-      let currentVerse = startIdx;
-      for (let i = 0; i < offsets.length; i++) {
-        if (charIdx >= offsets[i]) currentVerse = startIdx + i;
-        else break;
-      }
-      setReadingVerseIdx(currentVerse);
-    };
-
-    const finishReading = () => {
-      setSpeaking(false);
-      setPaused(false);
-      setReadingVerseIdx(null);
-      clearActiveReadingSession();
-    };
-
-    utter.onend = () => {
-      // AUTO-CONTINUE: if there's a next reading queued, fetch its verses and
-      // speak them immediately in the SAME session (no navigation/reload) so
-      // iOS keeps playing hands-free through the whole plan day (and beyond).
-      const q = queueIdxRef.current;
-      if (q >= upcomingReadings.length) {
-        finishReading();
-        return;
-      }
-      const next = upcomingReadings[q];
-      queueIdxRef.current = q + 1;
+    const gen = ++readingGeneration.current;
+    setContinuationError(null);
+    setAdvancing(false);
+    const parts = data.verses.slice(startIdx).map((v, i) => ({ text: v.text, index: startIdx + i }));
+    // The chapter label is separate from scripture, never inserted into a verse.
+    parts.unshift({ text: `${bookRef.current.name} chapter ${chapterNumRef.current}.`, index: startIdx });
+    setActiveReadingSession({ bookId: bookRef.current.id, chapter: chapterNumRef.current, bibleId, label: `${bookRef.current.name} ${chapterNumRef.current}` });
+    audio.speakParts(parts, setReadingVerseIdx, () => {
+      const queueIndex = queueIdxRef.current;
+      const next = upcomingReadings[queueIndex];
+      if (!next) { setReadingVerseIdx(null); clearActiveReadingSession(); return; }
+      setAdvancing(true);
       fetch(`/api/bible/chapter?bibleId=${encodeURIComponent(bibleId)}&bookId=${encodeURIComponent(next.bookId)}&chapter=${next.chapter}`)
-        .then((r) => (r.ok ? r.json() : null))
+        .then((r) => r.ok ? r.json() : null)
         .then((nextData: BibleChapter | null) => {
-          if (!nextData || !nextData.verses?.length) { finishReading(); return; }
+          if (gen !== readingGeneration.current) return;
+          setAdvancing(false);
+          if (!nextData?.verses?.length) { setContinuationError("The next chapter could not load. Your place is saved."); return; }
+          queueIdxRef.current = queueIndex + 1;
           const nextBook = bookById(next.bookId) ?? bookRef.current;
-          // Swap the displayed chapter in place (refs first, so the immediate
-          // speakFrom(0) below reads the NEW chapter; state for the UI/highlight).
           bookRef.current = nextBook;
           chapterNumRef.current = next.chapter;
           chapterDataRef.current = nextData;
-          setBook(nextBook);
-          setChapterNum(next.chapter);
-          setChapterData(nextData);
-          setReadingVerseIdx(0);
-          // Keep the URL shareable/bookmarkable WITHOUT navigating (history API
-          // integrates with the Next router but does not remount → session lives).
+          setBook(nextBook); setChapterNum(next.chapter); setChapterData(nextData);
           window.history.replaceState(null, "", `/bible/read/${next.bookId}/${next.chapter}?v=${encodeURIComponent(bibleId)}`);
-          // Announce + read the new chapter, same speechSynthesis session.
           speakFromRef.current(0);
         })
-        .catch(() => { finishReading(); });
-    };
-    utter.onerror = () => { finishReading(); };
+        .catch(() => {
+          if (gen !== readingGeneration.current) return;
+          setAdvancing(false);
+          setContinuationError("The next chapter could not load. Your place is saved.");
+        });
+    });
+  }, [audio.speakParts, upcomingReadings, bibleId]);
 
-    utterRef.current = utter;
-    window.speechSynthesis.speak(utter);
-  }, [selectedVoice, speechRate, upcomingReadings, bibleId]);
-
-  // Keep the recursive-continue pointer aimed at the latest speakFrom.
   useEffect(() => { speakFromRef.current = speakFrom; }, [speakFrom]);
 
-  const pauseResume = useCallback(() => {
-    if (!speaking) return;
-    if (paused) {
-      window.speechSynthesis.resume();
-      setPaused(false);
-    } else {
-      window.speechSynthesis.pause();
-      setPaused(true);
-    }
-  }, [speaking, paused]);
-
-  const stopSpeaking = useCallback(() => {
-    // Cancel the whole chain: park the queue pointer past the end BEFORE
-    // cancel() so that if cancel() triggers onend, it can't auto-advance.
-    queueIdxRef.current = upcomingReadings.length;
-    window.speechSynthesis.cancel();
-    setSpeaking(false);
-    setPaused(false);
-    setReadingVerseIdx(null);
+  const pauseResume = () => paused ? audio.resume() : audio.pause();
+  const stopSpeaking = () => {
+    readingGeneration.current++;
+    audio.stop(); setAdvancing(false); setReadingVerseIdx(null);
     clearActiveReadingSession();
-  }, [upcomingReadings.length]);
+  };
 
   // ── Highlight ─────────────────────────────────────────────
   const toggleHighlight = async (verse: BibleVerse, color: string) => {
@@ -403,10 +302,11 @@ export default function ChapterReader({
         marginBottom: 22,
       }}>
         {/* Speed */}
+        <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>AI narration · Buddy’s voice</span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span className="ios-footnote" style={{ color: "var(--ios-label-2)", fontWeight: 600 }}>Speed</span>
           <input
-            type="range" min={0.5} max={1.4} step={0.05}
+            type="range" min={0.5} max={2} step={0.05}
             value={speechRate}
             onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
             aria-label="Reading speed"
@@ -419,12 +319,18 @@ export default function ChapterReader({
         {speaking && (
           <div className="ios-footnote" style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--ios-tint)", fontWeight: 600 }}>
             <Icons.SparkleIcon style={{ fontSize: 15, animation: "pulse 1s infinite" }} />
-            Reading…
+            {advancing ? "Loading next chapter…" : audio.loading ? "Preparing voice…" : paused ? "Paused" : "Reading with Buddy’s voice…"}
           </div>
         )}
       </div>
       )}
 
+      {audio.notice && <p role="status" className="ios-footnote">{audio.notice}</p>}
+      {(audio.error || continuationError) && (
+        <p role="alert" className="ios-footnote" style={{ color: "var(--ios-red)", marginBottom: 16 }}>
+          {audio.error || continuationError} <button onClick={() => speakFrom(readingVerseIdx ?? 0)} className="ios-btn--plain">Try again</button>
+        </p>
+      )}
       {/* ── Chapter navigation ── */}
       <div className="ios-footnote" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         {prevChapter

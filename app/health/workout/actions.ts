@@ -110,16 +110,57 @@ export async function finishSession(
   durationMin: number
 ): Promise<{ error?: string }> {
   const db: AnyClient = createAdminClient();
+  const userId = await getCurrentUserId();
 
-  const { error } = await db
+  const { data, error } = await db
     .from("workout_sessions")
     .update({ duration_min: durationMin })
-    .eq("id", sessionId);
+    .eq("id", sessionId)
+    .eq("user_id", userId)
+    .select("id").maybeSingle();
 
-  if (error) return { error: error.message };
+  if (error || !data) return { error: error?.message ?? "Workout session not found." };
 
   revalidatePath("/health");
   return {};
+}
+
+/** Reconcile the device's complete log before finishing, including sets that
+ * could not sync while the phone was offline. Retrying updates existing rows. */
+export async function syncWorkoutSets(sessionId: string, logs: {
+  exerciseId: string; setNumber: number; reps: number; weight: number; rpe: number;
+}[]): Promise<{ error?: string }> {
+  if (logs.length > 1000 || logs.some((s) => !s.exerciseId || !Number.isInteger(s.setNumber) || s.setNumber < 1 ||
+      !Number.isFinite(s.reps) || s.reps < 0 || !Number.isFinite(s.weight) || s.weight < 0 || !Number.isFinite(s.rpe) || s.rpe < 0 || s.rpe > 10))
+    return { error: "Invalid workout log." };
+  if (!logs.length) return {};
+  const db: AnyClient = createAdminClient();
+  const userId = await getCurrentUserId();
+  const { data: owned, error: ownershipError } = await db.from("exercises").select("id")
+    .eq("session_id", sessionId).eq("user_id", userId);
+  if (ownershipError) return { error: ownershipError.message };
+  const ids = new Set((owned ?? []).map((e: { id: string }) => e.id));
+  if (logs.some((s) => !ids.has(s.exerciseId))) return { error: "Workout exercises could not be verified." };
+  const { data: existing, error: readError } = await db.from("sets").select("id, exercise_id, set_number")
+    .eq("user_id", userId).in("exercise_id", [...ids]);
+  if (readError) return { error: readError.message };
+  for (const log of logs) {
+    const row = (existing ?? []).find((s: { exercise_id: string; set_number: number }) => s.exercise_id === log.exerciseId && s.set_number === log.setNumber);
+    const values = { reps_actual: log.reps, weight_actual: log.weight, rpe: log.rpe };
+    const result = row
+      ? await db.from("sets").update(values).eq("id", row.id).eq("user_id", userId)
+      : await db.from("sets").insert({ ...values, user_id: userId, exercise_id: log.exerciseId, set_number: log.setNumber });
+    if (result.error) return { error: result.error.message };
+  }
+  return {};
+}
+
+export async function ownsActiveWorkout(sessionId: string): Promise<boolean> {
+  const db: AnyClient = createAdminClient();
+  const userId = await getCurrentUserId();
+  const { data, error } = await db.from("workout_sessions").select("id")
+    .eq("id", sessionId).eq("user_id", userId).is("duration_min", null).maybeSingle();
+  return !error && !!data;
 }
 
 export interface CardioBlock {

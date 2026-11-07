@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useReadAloud } from "@/hooks/useReadAloud";
 import { IconBadge, Icons } from "@/components/ios";
 import type { StudySection, KeyTerm } from "@/app/api/student-support/certifications/[id]/study-guide/route";
 
@@ -70,46 +71,7 @@ const inputStyle: React.CSSProperties = {
 };
 
 // ── Audio hook ─────────────────────────────────────────────────────────────────
-function useAudio() {
-  const [speaking, setSpeaking] = useState(false);
-  const [paused, setPaused]     = useState(false);
-  const [rate, setRate]         = useState(1.0);
-  const [voice, setVoice]       = useState<SpeechSynthesisVoice | null>(null);
-  const [voices, setVoices]     = useState<SpeechSynthesisVoice[]>([]);
-  const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const load = () => {
-      const v = window.speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
-      setVoices(v);
-      const preferred = v.find((v) => v.name.includes("Google US English") || v.name.includes("Samantha") || v.name.includes("Alex")) ?? v[0] ?? null;
-      setVoice(preferred);
-    };
-    load();
-    window.speechSynthesis.addEventListener("voiceschanged", load);
-    return () => window.speechSynthesis.removeEventListener("voiceschanged", load);
-  }, []);
-
-  const speak = useCallback((text: string, onEnd?: () => void) => {
-    if (typeof window === "undefined") return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = rate;
-    if (voice) u.voice = voice;
-    u.onstart = () => { setSpeaking(true); setPaused(false); };
-    u.onend   = () => { setSpeaking(false); setPaused(false); utterRef.current = null; onEnd?.(); };
-    u.onerror = () => { setSpeaking(false); setPaused(false); };
-    utterRef.current = u;
-    window.speechSynthesis.speak(u);
-  }, [rate, voice]);
-
-  const pause  = () => { window.speechSynthesis.pause();  setPaused(true); };
-  const resume = () => { window.speechSynthesis.resume(); setPaused(false); };
-  const stop   = () => { window.speechSynthesis.cancel(); setSpeaking(false); setPaused(false); };
-
-  return { speaking, paused, rate, setRate, voice, setVoice, voices, speak, pause, resume, stop };
-}
+function useAudio() { return useReadAloud(); }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function sectionToSpeech(s: StudySection): string {
@@ -576,6 +538,8 @@ function AudioControls({ audio, onPlay, colorTag }: { audio: ReturnType<typeof u
         </button>
       </div>
 
+      {audio.error && <p role="alert" className="ios-footnote">{audio.error}</p>}
+      {audio.notice && <p role="status" className="ios-footnote">{audio.notice}</p>}
       {showOptions && (
         <>
           {/* Invisible full-screen backdrop so tapping outside closes it */}
@@ -631,11 +595,12 @@ function AudioControls({ audio, onPlay, colorTag }: { audio: ReturnType<typeof u
               <div>
                 <div className="ios-footnote" style={{ fontWeight: 600, color: "var(--ios-label-2)", marginBottom: 8 }}>Voice</div>
                 <select
-                  value={audio.voice?.name ?? ""}
-                  onChange={(e) => audio.setVoice(audio.voices.find((v) => v.name === e.target.value) ?? null)}
+                  value={audio.voice}
+                  onChange={(e) => audio.setVoice(e.target.value)}
                   style={{ ...inputStyle, cursor: "pointer" }}
                 >
-                  {audio.voices.map((v) => <option key={v.name} value={v.name}>{v.name}</option>)}
+                  <option value="buddy">Buddy’s voice · recommended</option>
+                  {audio.voices.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
                 </select>
               </div>
             )}

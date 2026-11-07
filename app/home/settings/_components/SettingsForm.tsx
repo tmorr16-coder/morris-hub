@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Chip } from "@/components/ios";
 import { savePreferences, lookupZip } from "../../actions";
@@ -56,7 +56,7 @@ export default function SettingsForm({ initialPrefs, only }: { initialPrefs: Pre
 
   const [tickersInput, setTickersInput] = useState(initialPrefs.stock_tickers.join(", "));
   const [employerTicker, setEmployerTicker] = useState(initialPrefs.employer_ticker ?? "");
-  const [ttsVoice, setTtsVoice] = useState(initialPrefs.tts_voice ?? "");
+  const [ttsVoice, setTtsVoice] = useState(initialPrefs.tts_voice ?? "buddy");
   const [ttsSpeed, setTtsSpeed] = useState(initialPrefs.tts_speed ?? 1.0);
   const [topics, setTopics] = useState<string[]>(initialPrefs.news_topics);
   const [citiesInput, setCitiesInput] = useState(initialPrefs.city_names.join(", "));
@@ -244,7 +244,7 @@ export default function SettingsForm({ initialPrefs, only }: { initialPrefs: Pre
         ...(latitude !== null && longitude !== null ? { latitude, longitude } : { latitude: null, longitude: null }),
         stock_tickers: tickers,
         employer_ticker: employerTicker.trim().toUpperCase() || null,
-        tts_voice: ttsVoice || null,
+        tts_voice: /^(af_|am_|or-)/.test(ttsVoice) || ["coral", "nova", "shimmer", "sage", "alloy", "ballad", "ash", "echo", "onyx", "verse"].includes(ttsVoice) ? ttsVoice : "buddy",
         tts_speed: ttsSpeed,
         news_topics: topics,
         city_names: cities,
@@ -502,7 +502,7 @@ export default function SettingsForm({ initialPrefs, only }: { initialPrefs: Pre
         <Label>Voice name</Label>
         <TtsVoicePicker value={ttsVoice} onChange={setTtsVoice} />
         <p style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 6 }}>
-          Uses free OS voices — Apple voices on Mac/iOS, Microsoft voices on Windows. Leave blank for browser default.
+          Uses Buddy’s natural voice engine across Bible and study reading, with a device voice available during an outage.
         </p>
         <div style={{ marginTop: 14 }}>
           <Label>Speed <span style={{ fontWeight: 400, color: "var(--color-ink-4)" }}>({ttsSpeed.toFixed(1)}×)</span></Label>
@@ -878,47 +878,16 @@ export default function SettingsForm({ initialPrefs, only }: { initialPrefs: Pre
 }
 
 function TtsVoicePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-
-  // Load voices — browser fires voiceschanged when ready
-  useState(() => {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    const load = () => setVoices(window.speechSynthesis.getVoices());
-    load();
-    window.speechSynthesis.onvoiceschanged = load;
-  });
-
-  if (!voices.length) {
-    return (
-      <select style={{ ...inputBase, opacity: 0.6 }} disabled>
-        <option>Loading voices…</option>
-      </select>
-    );
-  }
-
-  // Group: prefer Apple and Microsoft voices first
-  const apple = voices.filter((v) => v.name.includes("(") || v.localService);
-  const microsoft = voices.filter((v) => v.name.toLowerCase().includes("microsoft"));
-  const other = voices.filter((v) => !apple.includes(v) && !microsoft.includes(v));
-
-  const grouped = [
-    { label: "Apple voices", items: apple.filter((v) => /Mac|iPhone|iPad/.test(v.voiceURI) || v.localService) },
-    { label: "Microsoft voices", items: microsoft },
-    { label: "Other voices", items: other },
-  ].filter((g) => g.items.length > 0);
-
-  return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} style={inputBase}>
-      <option value="">Browser default</option>
-      {grouped.map((group) => (
-        <optgroup key={group.label} label={group.label}>
-          {group.items.map((v) => (
-            <option key={v.name} value={v.name}>{v.name}</option>
-          ))}
-        </optgroup>
-      ))}
-    </select>
-  );
+  const [voices, setVoices] = useState<{ id: string; label: string }[]>([]);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/tts-prefs").then((r) => r.ok ? r.json() : null).then((d) => { if (active) setVoices(d?.voices ?? []); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+  return <select aria-label="Read-aloud voice" value={voices.some((v) => v.id === value) ? value : "buddy"} onChange={(e) => onChange(e.target.value)} style={inputBase}>
+    <option value="buddy">Buddy’s voice · recommended</option>
+    {voices.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+  </select>;
 }
 
 const inputBase: React.CSSProperties = {

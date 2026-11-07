@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef, useTransition } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { EXERCISE_LIBRARY, suggestNext, CARDIO_ACTIVITIES, getCardioActivity, type SetLog } from "../exercise-library";
 import { updateSet } from "../actions";
-import { createWorkoutSession, saveSet, finishSession, saveCardioBlocks, deleteSession, removeExercise as removeExerciseAction, type CardioBlock } from "../actions";
+import { createWorkoutSession, ownsActiveWorkout, syncWorkoutSets, saveSet, finishSession, saveCardioBlocks, deleteSession, removeExercise as removeExerciseAction, type CardioBlock } from "../actions";
 import PostWorkoutSummary from "./PostWorkoutSummary";
-import { RESUME_KEY, readSnapshot, clearSnapshot, type WorkoutSnapshot } from "../_lib/resume";
+import { restoreSnapshot, writeSnapshot, workoutElapsed, clearSnapshot, type WorkoutSnapshot } from "../_lib/resume";
 
 // ── style tokens ──────────────────────────────────────────────────────────────
 
@@ -108,6 +108,7 @@ function BulbGlyph() {
 interface Session { id: string; exerciseIds: string[] }
 
 interface WorkoutTrackerProps {
+  userId: string;
   initialExercises?: typeof EXERCISE_LIBRARY;
   initialWarmup?:   boolean;
   initialCooldown?: boolean;
@@ -117,7 +118,7 @@ interface WorkoutTrackerProps {
   bodyWeight?:      number | null;  // latest recorded body weight (lb) for the "BW" quick-fill
 }
 
-export default function WorkoutTracker({ initialExercises, initialWarmup, initialCooldown, initialCardio, initialBlocks, resume, bodyWeight }: WorkoutTrackerProps = {}) {
+export default function WorkoutTracker({ userId, initialExercises, initialWarmup, initialCooldown, initialCardio, initialBlocks, resume, bodyWeight }: WorkoutTrackerProps) {
   const [exercises, setExercises] = useState(initialExercises ?? EXERCISE_LIBRARY);
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -170,16 +171,37 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
    * remaining rest — you'd unpause to find it already over.
    */
   const pausedRestLeftRef = useRef<number | null>(null);
+  const [pausedAtMs, setPausedAtMs] = useState<number | null>(null);
+  const [pausedDurationMs, setPausedDurationMs] = useState(0);
+  const [persistenceError, setPersistenceError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [extrasSaved, setExtrasSaved] = useState(false);
+  const snapshotRef = useRef<WorkoutSnapshot | null>(null);
+  const completedRef = useRef(false);
+  const pendingWritesRef = useRef(new Set<Promise<void>>());
+  const [setSyncError, setSetSyncError] = useState<string | null>(null);
+  const queueSetWrite = (write: () => Promise<{ error?: string }>) => {
+    const pending = write().then((result) => {
+      if (result.error) setSetSyncError("Set kept on this device. We’ll retry syncing it when you save the workout.");
+    }).catch(() => { setSetSyncError("Set kept on this device. We’ll retry syncing it when you save the workout."); })
+      .finally(() => pendingWritesRef.current.delete(pending));
+    pendingWritesRef.current.add(pending);
+    return pending;
+  };
   const togglePause = () => {
-    setPaused((wasPaused) => {
-      if (!wasPaused) {
-        pausedRestLeftRef.current = restEndsAtMs ? Math.max(0, restEndsAtMs - Date.now()) : null;
-      } else if (pausedRestLeftRef.current != null) {
-        setRestEndsAtMs(Date.now() + pausedRestLeftRef.current);
-        pausedRestLeftRef.current = null;
-      }
-      return !wasPaused;
-    });
+    const now = Date.now();
+    if (paused) {
+      setPausedDurationMs((n) => n + (pausedAtMs ? now - pausedAtMs : 0));
+      setPausedAtMs(null);
+      if (pausedRestLeftRef.current != null) setRestEndsAtMs(now + pausedRestLeftRef.current);
+      pausedRestLeftRef.current = null;
+    } else {
+      pausedRestLeftRef.current = restEndsAtMs ? Math.max(0, restEndsAtMs - now) : null;
+      setPausedAtMs(now);
+      setNowMs(now);
+      setSessionElapsed(workoutElapsed({ startedAtMs, pausedDurationMs }, now));
+    }
+    setPaused(!paused);
   };
 
   /** Start (or restart) a rest period of `seconds`. */
@@ -201,6 +223,8 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   const [phase,       setPhase]       = useState<"deciding" | "prompt" | "ready">("deciding");
   const [pendingSnap, setPendingSnap] = useState<WorkoutSnapshot | null>(null);
   const hydratedRef = useRef(false);
+  const restoringInputsRef = useRef(false);
+  const [workoutTitle, setWorkoutTitle] = useState(initialExercises ? "Custom workout" : "Strength workout");
 
   // Collapsible sections
   const [showCues,     setShowCues]     = useState(false);
@@ -238,6 +262,8 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   const hydrateFrom = (snap: WorkoutSnapshot) => {
     createdRef.current  = true;   // never create a new session when resuming
     hydratedRef.current = true;
+    restoringInputsRef.current = (snap.currentExIdx ?? 0) !== currentExIdx || (snap.activeSetIdx ?? 0) !== activeSetIdx;
+    setWorkoutTitle(snap.title ?? "Strength workout");
     setSession({ id: snap.sessionId, exerciseIds: snap.exerciseIds });
     setExercises(snap.exercises);
     setSetLogs(snap.setLogs);
@@ -252,7 +278,17 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
     // nothing, if it already elapsed while you were away).
     setRestEndsAtMs(snap.restEndsAtMs ?? null);
     setRestTotal(snap.restTotal ?? 0);
-    setStartedAtMs(snap.startedAtMs);   // elapsed base — real original start
+    setStartedAtMs(snap.startedAtMs);
+    setPaused(!!snap.pausedAtMs);
+    setPausedAtMs(snap.pausedAtMs ?? null);
+    setPausedDurationMs(snap.pausedDurationMs ?? 0);
+    pausedRestLeftRef.current = snap.pausedRestLeftMs ?? null;
+    setNowMs(snap.pausedAtMs ?? Date.now());
+    setSessionElapsed(workoutElapsed(snap));
+    setInputReps(snap.inputReps ?? ""); setInputWeight(snap.inputWeight ?? ""); setInputRpe(snap.inputRpe ?? 7);
+    setStationRestSec(snap.stationRestSec ?? 20); setRoundRestSec(snap.roundRestSec ?? 90);
+    setShowSummary(!!snap.showSummary); setFinalElapsed(snap.finalElapsed ?? 0);
+    setExtrasSaved(!!snap.extrasSaved);
     setCreating(false);
   };
 
@@ -260,15 +296,16 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   // server render — always the non-resume UI — matches the first client render).
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    const snap = readSnapshot();
-    if (resume) {
-      // Dedicated resume entry (?resume=1, no plan): must load from snapshot.
-      if (snap) { hydrateFrom(snap); setPhase("ready"); }
-      else router.replace("/health/workout/builder");
-      return;
-    }
-    if (snap) { setPendingSnap(snap); setPhase("prompt"); }
-    else setPhase("ready");
+    let active = true;
+    void restoreSnapshot(userId, ownsActiveWorkout).then((snap) => {
+      if (!active) return;
+      if (resume) {
+        if (snap) { hydrateFrom(snap); setPhase("ready"); }
+        else router.replace("/health/workout/builder");
+      } else if (snap) { setPendingSnap(snap); setPhase("prompt"); }
+      else setPhase("ready");
+    }).catch(() => { if (active) setCreateError("Your saved workout could not be checked. Reload to try again."); });
+    return () => { active = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -289,42 +326,41 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  // Persist a resume snapshot whenever session/progress changes. localStorage is
-  // the source of truth for restoring targets, elapsed base, and position.
+  // Flush before paint and when the page is backgrounded, including drafts,
+  // pause/rest state and an unsaved summary. Navigation never ends a session.
+  useLayoutEffect(() => {
+    if (!session || phase !== "ready" || completedRef.current) return;
+    const snap: WorkoutSnapshot = {
+      userId, title: workoutTitle,
+      sessionId: session.id, exerciseIds: session.exerciseIds, exercises, setLogs,
+      cardioBlocks, warmup, cooldown, startedAtMs, currentExIdx, activeSetIdx,
+      restEndsAtMs, restTotal, mode, pausedAtMs, pausedDurationMs,
+      pausedRestLeftMs: pausedRestLeftRef.current, inputReps, inputWeight, inputRpe,
+      stationRestSec, roundRestSec, showSummary, finalElapsed, extrasSaved, savedAtMs: Date.now(),
+    };
+    snapshotRef.current = snap;
+    setPersistenceError(writeSnapshot(snap) ? null : "This device could not keep a recovery copy. Keep this workout open until it is saved.");
+  }, [userId, session, phase, workoutTitle, exercises, setLogs, cardioBlocks, warmup, cooldown, startedAtMs,
+    currentExIdx, activeSetIdx, restEndsAtMs, restTotal, mode, pausedAtMs, pausedDurationMs,
+    inputReps, inputWeight, inputRpe, stationRestSec, roundRestSec, showSummary, finalElapsed, extrasSaved]);
+
   useEffect(() => {
-    if (!session || showSummary) return;   // nothing to save / session ending
-    try {
-      const snap: WorkoutSnapshot = {
-        sessionId: session.id,
-        exerciseIds: session.exerciseIds,
-        exercises,
-        setLogs,
-        cardioBlocks,
-        warmup,
-        cooldown,
-        startedAtMs,
-        currentExIdx,
-        activeSetIdx,
-        restEndsAtMs,
-        restTotal,
-        mode,
-        savedAtMs: Date.now(),
-      };
-      localStorage.setItem(RESUME_KEY, JSON.stringify(snap));
-    } catch {
-      // storage full / unavailable — resume just won't be possible
-    }
-  }, [session, exercises, setLogs, cardioBlocks, warmup, cooldown, startedAtMs, currentExIdx, activeSetIdx, restEndsAtMs, restTotal, mode, showSummary]);
+    const flush = () => { if (snapshotRef.current && !completedRef.current) writeSnapshot(snapshotRef.current); };
+    const hidden = () => { if (document.visibilityState === "hidden") flush(); };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", hidden);
+    return () => { flush(); window.removeEventListener("pagehide", flush); document.removeEventListener("visibilitychange", hidden); };
+  }, []);
 
   // A single ticker drives both clocks, and both are computed from Date.now()
   // rather than accumulated — so a throttled or suspended interval costs
   // nothing but a stale pixel, never lost time.
   useEffect(() => {
-    if (paused) return;
+    if (paused || showSummary) return;
     const tick = () => {
       const now = Date.now();
       setNowMs(now);
-      setSessionElapsed(Math.floor((now - startedAtMs) / 1000));
+      setSessionElapsed(workoutElapsed({ startedAtMs, pausedDurationMs }, now));
     };
     tick();
     const id = setInterval(tick, 1000);
@@ -339,13 +375,14 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
       document.removeEventListener("visibilitychange", resync);
       window.removeEventListener("focus", resync);
     };
-  }, [startedAtMs, paused]);
+  }, [startedAtMs, paused, pausedDurationMs, showSummary]);
 
   // Tell you the rest is over even if you are looking at something else. Both
   // are best-effort: iOS ignores vibrate, and audio needs a prior interaction —
   // logging a set counts, so by the time a rest starts we have had one.
   const restDoneRef = useRef(false);
   useEffect(() => {
+    if (paused) return;
     if (restRemaining > 0) { restDoneRef.current = false; return; }
     if (!restEndsAtMs || restDoneRef.current) return;
     restDoneRef.current = true;
@@ -367,12 +404,13 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
       osc.stop(ctx.currentTime + 0.35);
       setTimeout(() => ctx.close().catch(() => {}), 600);
     } catch { /* autoplay blocked — the visual countdown still lands */ }
-  }, [restRemaining, restEndsAtMs]);
+  }, [restRemaining, restEndsAtMs, paused]);
 
   const currentEx = exercises[currentExIdx];
   const suggested = suggestNext(currentEx.lastSession, currentEx.target);
 
   useEffect(() => {
+    if (restoringInputsRef.current) { restoringInputsRef.current = false; return; }
     setInputWeight(suggested.weight.toString());
     setInputReps(suggested.reps.toString());
     setInputRpe(7);
@@ -446,33 +484,62 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
 
     if (session?.exerciseIds[currentExIdx]) {
       startTransition(async () => {
-        await saveSet({ exerciseId: session.exerciseIds[currentExIdx], setNumber, reps, weight, rpe: inputRpe });
+        await queueSetWrite(() => saveSet({ exerciseId: session.exerciseIds[currentExIdx], setNumber, reps, weight, rpe: inputRpe }));
       });
     }
   };
 
   const handleFinish = () => {
-    setFinalElapsed(sessionElapsed);
+    setFinalElapsed(workoutElapsed({ startedAtMs, pausedAtMs, pausedDurationMs }));
     setShowSummary(true);
   };
 
-  const handleSaveAndReturn = () => {
-    startTransition(async () => {
-      if (session) await finishSession(session.id, Math.round(sessionElapsed / 60));
-      const extras: CardioBlock[] = [
-        ...(warmup   ? [{ type: "Stretching (warm-up)",  durationMin: 5 }] : []),
-        ...cardioBlocks,
-        ...(cooldown ? [{ type: "Stretching (cool-down)", durationMin: 5 }] : []),
-      ];
-      if (extras.length) await saveCardioBlocks(extras);
-      clearSnapshot();   // session finished — no longer resumable
+  const handleSaveAndReturn = async () => {
+    setSaveError(null);
+    try {
+      if (!session) throw new Error("Your workout session is not ready to save.");
+      await Promise.all([...pendingWritesRef.current]);
+      const synced = await syncWorkoutSets(session.id, setLogs.flatMap((row, exIdx) => row.flatMap((log, setIdx) => log
+        ? [{ exerciseId: session.exerciseIds[exIdx], setNumber: setIdx + 1, ...log }] : [])));
+      if (synced.error) throw new Error(synced.error);
+      setSetSyncError(null);
+      if (!extrasSaved) {
+        const extras: CardioBlock[] = [
+          ...(warmup ? [{ type: "Stretching (warm-up)", durationMin: 5 }] : []), ...cardioBlocks,
+          ...(cooldown ? [{ type: "Stretching (cool-down)", durationMin: 5 }] : []),
+        ];
+        if (extras.length) {
+          const result = await saveCardioBlocks(extras);
+          if (result.error) throw new Error(result.error);
+        }
+        setExtrasSaved(true);
+        if (snapshotRef.current) {
+          snapshotRef.current = { ...snapshotRef.current, extrasSaved: true };
+          writeSnapshot(snapshotRef.current);
+        }
+      }
+      const result = await finishSession(session.id, Math.round(finalElapsed / 60));
+      if (result.error) throw new Error(result.error);
+      completedRef.current = true; snapshotRef.current = null;
+      clearSnapshot();
       router.push("/health");
-    });
+    } catch { setSaveError("Your workout could not be saved. Your progress is still on this device. Try again."); }
   };
 
   // Leave the workout in progress: snapshot stays in localStorage and the DB
   // session stays open (duration_min null). Resume later from the hub.
   const handlePauseAndLeave = () => {
+    if (snapshotRef.current && !snapshotRef.current.pausedAtMs) {
+      const now = Date.now();
+      setPaused(true); setPausedAtMs(now); setNowMs(now);
+      pausedRestLeftRef.current = restEndsAtMs ? Math.max(0, restEndsAtMs - now) : null;
+      snapshotRef.current = { ...snapshotRef.current, pausedAtMs: now,
+        pausedRestLeftMs: restEndsAtMs ? Math.max(0, restEndsAtMs - now) : null, savedAtMs: now };
+      if (!writeSnapshot(snapshotRef.current)) {
+        setPersistenceError("This device could not save the paused workout. Keep it open and try again.");
+        return;
+      }
+    }
     setShowMenu(false);
     router.push("/health/train");
   };
@@ -498,7 +565,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
     setEditingSet(null);
     if (session?.exerciseIds[exIdx]) {
       startTransition(async () => {
-        await updateSet({ exerciseId: session!.exerciseIds[exIdx], setNumber: setIdx + 1, reps, weight, rpe: existing?.rpe ?? 7 });
+        await queueSetWrite(() => updateSet({ exerciseId: session!.exerciseIds[exIdx], setNumber: setIdx + 1, reps, weight, rpe: existing?.rpe ?? 7 }));
       });
     }
   };
@@ -528,7 +595,11 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
 
   const handleDelete = () => {
     startTransition(async () => {
-      if (session) await deleteSession(session.id);
+      if (session) {
+        const result = await deleteSession(session.id);
+        if (result.error) { setSaveError("Could not delete the workout. Please try again."); return; }
+      }
+      completedRef.current = true; snapshotRef.current = null;
       clearSnapshot();   // session gone — clear the resume snapshot
       router.push("/health");
     });
@@ -546,6 +617,11 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
     const swap = i + dir;
     if (swap < 0 || swap >= exercises.length) return;
 
+    setSession((prev) => {
+      if (!prev) return prev;
+      const ids = [...prev.exerciseIds]; [ids[i], ids[swap]] = [ids[swap], ids[i]];
+      return { ...prev, exerciseIds: ids };
+    });
     setExercises((prev) => {
       const next = [...prev];
       [next[i], next[swap]] = [next[swap], next[i]];
@@ -586,13 +662,15 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
         exercises={exercises}
         setLogs={setLogs}
         sessionElapsed={finalElapsed}
+        title={workoutTitle}
+        saveError={saveError || persistenceError}
         onDone={handleSaveAndReturn}
       />
     );
   }
 
   // Still deciding whether to resume (localStorage read happens post-mount)
-  if (phase === "deciding") {
+  if (phase === "deciding" && !createError) {
     return (
       <div className="ios-body" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "80vh", color: "var(--ios-label-2)", gap: 12 }}>
         Loading…
@@ -639,7 +717,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
     );
   }
 
-  if (creating) {
+  if (creating && !createError) {
     return (
       <div className="ios-body" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "80vh", color: "var(--ios-label-2)", gap: 12 }}>
         Starting session…
@@ -670,6 +748,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   return (
     <div style={{ color: "var(--ios-label)", maxWidth: 540, margin: "0 auto" }}>
 
+      {(persistenceError || saveError || setSyncError) && <p role="alert" className="ios-footnote" style={{ padding: 16, color: "var(--ios-red)" }}>{persistenceError || saveError || setSyncError}</p>}
       {/* ── Sticky header ─────────────────────────────────────────────────── */}
       <div
         style={{
@@ -1191,6 +1270,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
                       −
                     </button>
                     <input
+                      aria-label={label}
                       value={value}
                       onChange={(e) => onChange(e.target.value)}
                       type="number"

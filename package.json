@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "check:scoping": "node scripts/check-finance-scoping.mjs"
+    "check:scoping": "node scripts/check-finance-scoping.mjs",
+    "test:voice": "node --test tests/read-aloud.test.mjs tests/narration-route.test.mjs",
+    "test:voice:browser": "node tests/read-aloud.browser.mjs",
+    "test:workout": "node --test tests/workout.test.mjs",
+    "test:workout:browser": "node tests/workout.browser.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",
