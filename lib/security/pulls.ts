@@ -17,3 +17,9 @@ export function reviewHref(url: string): string {
  const match=url.match(/^https:\/\/github\.com\/tmorr16-coder\/morris-hub\/pull\/(\d+)$/);
  return match ? `/home/admin/security/pulls/${match[1]}` : url;
 }
+/** Commands arrive newest first; successful retries and closed PRs clear old alerts. */
+export function activeMergeIssues(pulls: {number:number;snapshot:PullReview}[],commands:PullCommand[]):string[]{
+ const latest=new Map<number,PullCommand>();
+ for(const c of commands)if(c.kind==='merge'&&c.pr_number&&!latest.has(c.pr_number))latest.set(c.pr_number,c);
+ return [...latest.values()].filter(c=>c.status==='blocked'&&(!pulls.find(p=>p.number===c.pr_number)||pulls.find(p=>p.number===c.pr_number)?.snapshot.state==='open')).map(c=>`PR #${c.pr_number}: ${c.message}`);
+}
