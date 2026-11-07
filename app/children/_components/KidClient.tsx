@@ -393,9 +393,17 @@ function useSpeech(childId: string, voices: CloudVoice[]) {
 const noSubscribe = () => () => {};
 const hasRecognition = () => !!((window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition);
 
-function useListening(onResult: (text: string, final: boolean) => void) {
+function useListening(
+  onResult: (text: string, final: boolean) => void,
+  /** A listen ended. `heard` is false for silence; `blocked` when the browser refused the microphone. */
+  onEnd?: (heard: boolean, blocked: boolean) => void,
+) {
   const recRef = useRef<any>(null);
   const [listening, setListening] = useState(false);
+  const heardRef = useRef(false);
+  const blockedRef = useRef(false);
+  const endCb = useRef(onEnd);
+  useEffect(() => { endCb.current = onEnd; });
   // Read once on the client, false on the server, no state to set in an effect.
   const supported = useSyncExternalStore(noSubscribe, hasRecognition, () => false);
   const cb = useRef(onResult);
@@ -415,16 +423,21 @@ function useListening(onResult: (text: string, final: boolean) => void) {
         text += e.results[i][0].transcript;
         if (e.results[i].isFinal) final = true;
       }
+      if (text.trim()) heardRef.current = true;
       cb.current(text.trim(), final);
     };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
+    rec.onend = () => { setListening(false); endCb.current?.(heardRef.current, blockedRef.current); };
+    rec.onerror = (e: any) => {
+      if (e?.error === "not-allowed" || e?.error === "service-not-allowed") blockedRef.current = true;
+      setListening(false);
+    };
     recRef.current = rec;
     return () => { try { rec.abort(); } catch { /* already stopped */ } };
   }, [supported]);
   const start = useCallback(() => {
     if (!recRef.current) return;
-    try { window.speechSynthesis?.cancel(); recRef.current.start(); setListening(true); } catch { setListening(false); }
+    heardRef.current = false; blockedRef.current = false;
+    try { window.speechSynthesis?.cancel(); recRef.current.start(); setListening(true); } catch { setListening(false); endCb.current?.(false, true); }
   }, []);
   const stop = useCallback(() => { try { recRef.current?.stop(); } catch { /* fine */ } }, []);
   return { supported, listening, start, stop };
@@ -614,7 +627,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
   return (
     <Shell burst={burst} speaking={speaking} loading={loading} onStop={stop}>
       <BackButton onClick={() => setView({ kind: "home" })} />
-      <Tutor childId={childId} first={first} gradeLabel={gradeLabel} speak={speak} words={spelling ? [...spelling.words, ...spelling.sightWords] : []} />
+      <Tutor childId={childId} first={first} gradeLabel={gradeLabel} speak={speak} speaking={speaking} stopSpeaking={stop} words={spelling ? [...spelling.words, ...spelling.sightWords] : []} />
       <Footer childId={childId} />
     </Shell>
   );
@@ -733,7 +746,17 @@ const HIDDEN = /\[\[([^\]]+)\]\]/g;
 function forSpeech(text: string): string { return text.replace(HIDDEN, "$1"); }
 function forScreen(text: string, revealed: boolean): string { return text.replace(HIDDEN, (_m, w: string) => (revealed ? w : "🔊 " + "•".repeat(Math.min(8, Math.max(3, w.length))))); }
 
-function Tutor({ childId, first, gradeLabel, speak, words }: { childId: string; first: string; gradeLabel: string | null; speak: (t: string, rate?: number) => void; words: string[] }) {
+/**
+ * Keep-talking limits. A conversation is meant to feel like one, not to run
+ * all evening on its own: Buddy listens again after each answer, but stops
+ * after two silences in a row, after a run of turns, and after a stretch of
+ * time — and then it is one tap to carry on.
+ */
+const KEEP_TALKING_TURNS = 20;
+const KEEP_TALKING_MINUTES = 15;
+const KEEP_TALKING_SILENCES = 2;
+
+function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, words }: { childId: string; first: string; gradeLabel: string | null; speak: (t: string, rate?: number) => void; speaking: boolean; stopSpeaking: () => void; words: string[] }) {
   const [sessionId] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`));
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string; revealed?: boolean }[]>([
     { role: "assistant", content: `Hi ${first}! I'm Buddy. 🦉 What do you want to work on?` },
@@ -743,23 +766,99 @@ function Tutor({ childId, first, gradeLabel, speak, words }: { childId: string; 
   const [heard, setHeard] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
-  const ears = useListening((text, final) => {
-    setHeard(text);
-    if (final && text) { setHeard(""); void send(text); }
-  });
+  // ── Keep talking ──────────────────────────────────────────────────────────
+  // On by default once the child has used the microphone: after Buddy has
+  // finished speaking, the microphone opens again by itself, so a back-and-
+  // forth needs no tapping. Never while Buddy is talking — he would hear
+  // himself — and never past the limits above.
+  const [keepTalking, setKeepTalking] = useState(true);
+  const [handsFree, setHandsFreeState] = useState(false);  // the child started with the mic
+  const handsFreeRef = useRef(false);
+  const setHandsFree = useCallback((v: boolean) => { handsFreeRef.current = v; setHandsFreeState(v); }, []);
+  const [pausedWhy, setPausedWhy] = useState<string | null>(null);
+  const run = useRef({ turns: 0, startedAt: 0, silences: 0 });
+  const awaitingVoice = useRef(false);                    // a reply came back and has not finished speaking
 
-  async function send(text: string) {
+  const pause = useCallback((why: string) => {
+    setHandsFree(false);
+    awaitingVoice.current = false;
+    setPausedWhy(why);
+  }, [setHandsFree]);
+
+  const ears = useListening(
+    (text, final) => {
+      setHeard(text);
+      if (final && text) { setHeard(""); run.current.silences = 0; void send(text, true); }
+    },
+    (heardSomething, blocked) => {
+      if (!handsFreeRef.current) return;
+      if (blocked) { pause("Tap the green button to talk — this device needs a tap each time."); return; }
+      if (heardSomething) return;
+      run.current.silences += 1;
+      if (run.current.silences >= KEEP_TALKING_SILENCES) {
+        pause(`Buddy stopped listening because it got quiet. Tap to keep talking, ${first}!`);
+      } else {
+        // One quiet turn: try once more.
+        setTimeout(() => { if (handsFreeRef.current) ears.start(); }, 600);
+      }
+    },
+  );
+
+  function startTalking() {
+    stopSpeaking();
+    setPausedWhy(null);
+    if (keepTalking) {
+      setHandsFree(true);
+      if (!run.current.startedAt || pausedWhy) run.current = { turns: 0, startedAt: Date.now(), silences: 0 };
+    }
+    ears.start();
+  }
+  function stopTalking() {
+    setHandsFree(false);
+    awaitingVoice.current = false;
+    ears.stop();
+  }
+
+  // Buddy finished speaking: listen again, within reason.
+  const wasSpeaking = useRef(false);
+  useEffect(() => {
+    const ended = wasSpeaking.current && !speaking;
+    wasSpeaking.current = speaking;
+    if (!ended || !handsFree || !awaitingVoice.current || busy || ears.listening) return;
+    awaitingVoice.current = false;
+    const r = run.current;
+    if (r.turns >= KEEP_TALKING_TURNS) { pause(`That was a lot of great talking! Take a break, or tap to keep going.`); return; }
+    if (Date.now() - r.startedAt > KEEP_TALKING_MINUTES * 60_000) { pause(`Time for a little break. Tap when you want to talk again.`); return; }
+    const t = setTimeout(() => { if (handsFreeRef.current) ears.start(); }, 450);
+    return () => clearTimeout(t);
+  }, [speaking, handsFree, busy, ears, pause]);
+  // (handsFree in the deps re-runs the check when hands-free is switched on.)
+
+  // If the voice never starts (no sound on this device), do not wait forever.
+  useEffect(() => {
+    if (!handsFree || busy) return;
+    const t = setTimeout(() => {
+      if (handsFreeRef.current && awaitingVoice.current && !speaking && !ears.listening) { awaitingVoice.current = false; ears.start(); }
+    }, 9000);
+    return () => clearTimeout(t);
+  }, [messages, handsFree, busy, speaking, ears]);
+
+  async function send(text: string, byVoice = false) {
     const q = text.trim();
     if (!q || busy) return;
+    // Typing or a quick button ends hands-free; the next mic tap starts it again.
+    if (!byVoice) setHandsFree(false);
+    else run.current.turns += 1;
     setInput("");
     const next = [...messages, { role: "user" as const, content: q }];
     setMessages(next);
     setBusy(true);
     try {
-      const res = await fetch("/api/children/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ childId, sessionId, messages: next.slice(-8).map((m) => ({ role: m.role, content: m.content })) }) });
+      const res = await fetch("/api/children/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ childId, sessionId, messages: next.slice(-20).map((m) => ({ role: m.role, content: m.content })) }) });
       const data = await res.json();
       const reply = res.ok ? String(data.reply) : "Hmm, I got a little mixed up. Ask me again?";
       setMessages((m) => [...m, { role: "assistant", content: reply, revealed: false }]);
+      if (byVoice) awaitingVoice.current = true;
       speak(forSpeech(reply));
     } catch {
       setMessages((m) => [...m, { role: "assistant", content: "Hmm, I got a little mixed up. Ask me again?" }]);
@@ -800,9 +899,25 @@ function Tutor({ childId, first, gradeLabel, speak, words }: { childId: string; 
         {quick.map((q) => <button key={q} type="button" onClick={() => send(q)} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "10px 14px", fontSize: 16, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>{q}</button>)}
       </div>
       {ears.supported && (
-        <button type="button" onClick={ears.listening ? ears.stop : ears.start} disabled={busy} style={{ ...bigBtn(ears.listening ? "#FF4D42" : "#2ACF5F"), marginTop: 14 }}>
-          {ears.listening ? (heard ? `“${heard}”` : "🎤 Listening… tap when done") : "🎤 Talk to Buddy"}
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={ears.listening || handsFree ? stopTalking : startTalking}
+            disabled={busy && !handsFree}
+            style={{ ...bigBtn(ears.listening ? "#FF4D42" : handsFree ? "#FF9F0A" : "#2ACF5F"), marginTop: 14 }}
+          >
+            {ears.listening
+              ? (heard ? `“${heard}”` : handsFree ? "🎤 I'm listening… (tap to stop)" : "🎤 Listening… tap when done")
+              : handsFree
+                ? (busy ? "🦉 Buddy is thinking… (tap to stop)" : speaking ? "🦉 Buddy is talking… (tap to stop)" : "⏸ Tap to stop talking")
+                : "🎤 Talk to Buddy"}
+          </button>
+          {pausedWhy && !handsFree && <div style={{ fontSize: 17, color: "var(--ios-label-2)", marginTop: 8, textAlign: "center" }}>{pausedWhy}</div>}
+          <label style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center", marginTop: 8, fontSize: 15, color: "var(--ios-label-3)" }}>
+            <input type="checkbox" checked={keepTalking} onChange={(e) => { setKeepTalking(e.target.checked); if (!e.target.checked) setHandsFree(false); }} />
+            Keep talking (Buddy listens again after he answers)
+          </label>
+        </>
       )}
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(input); }} placeholder={ears.supported ? "or type here…" : "Ask Buddy…"} style={{ flex: 1, padding: "14px", borderRadius: 16, border: "2px solid var(--ios-separator)", fontSize: 20, background: "var(--ios-bg-elevated)", color: "var(--ios-label)" }} />

@@ -41,7 +41,9 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   const childId = String(body.childId ?? "");
   const sessionId = /^[0-9a-f-]{36}$/i.test(String(body.sessionId ?? "")) ? String(body.sessionId) : null;
-  const messages = (body.messages ?? []).filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim()).slice(-8).map((m) => ({ role: m.role, content: m.content.slice(0, 600) }));
+  const messages = (body.messages ?? []).filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim()).slice(-20).map((m) => ({ role: m.role, content: m.content.slice(0, 600) }));
+  // How far into this sitting the child is, for the gentle wind-down below.
+  const turnsSoFar = (body.messages ?? []).filter((m) => m.role === "user").length;
   if (!childId || messages.length === 0 || messages[messages.length - 1].role !== "user") return NextResponse.json({ error: "Bad request" }, { status: 400 });
 
   const svc = createServiceClient() as any;
@@ -75,6 +77,8 @@ How you talk:
 What you are for: learning. This week's school work below comes first — spelling, reading, the math being taught, the Bible story, the recitation — and anything else a first, second or third grader learns is welcome too: phonics and reading, spelling patterns, adding and subtracting and place value, telling time, money, shapes, science questions (animals, weather, the body, plants, space), continents and maps, Bible stories, handwriting. Keep it at ${first}'s level and one idea at a time. If ${first} asks about something that is not learning (videos, games, other people, buying things, the internet, anything grown-up, anything scary), say gently that Buddy only helps with learning and offer a learning thing to do instead. Never ask for personal information. Never pretend to be a person. If ${first} seems upset or mentions being hurt, say to go find Mom or Dad right now.
 
 Quizzes: ${first} can see the screen. When you ask ${first} to spell a word, or to read a word or sound it out, put the secret word inside double square brackets, like [[cake]]. The screen hides what is in the brackets and the voice says it, so ${first} hears the word without seeing it. Use the brackets only for the word being tested, never for anything else. After ${first} has tried, you may write the word plainly.
+
+Conversation: this is a back-and-forth, often spoken. Remember what you and ${first} said earlier in it — the word you quizzed, the story you started — and carry on from there instead of starting over. End most turns with one short question or a next step so ${first} knows it is their turn.${turnsSoFar >= 18 ? ` You have been talking for a while now (${turnsSoFar} turns). Start winding down warmly: praise what ${first} did and suggest a break.` : ""}
 
 ${context}`;
 
