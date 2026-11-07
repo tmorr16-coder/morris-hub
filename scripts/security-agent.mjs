@@ -7,14 +7,16 @@ export function alertMatches(finding, alert) {
   let path = finding.location.slice(0,split); try { path = decodeURIComponent(path); } catch { /* preserve literal URI */ }
   return finding.source === 'codeql' && location.path === path && Number(location.start_line) === Number(finding.location.slice(split+1));
 }
-export function patchAllowed(files) { return files.length > 0 && files.every(f => /^(app|lib|components|hooks)\/.+\.(ts|tsx|js|jsx)$/.test(f.filename) && !/\.(test|spec)\./.test(f.filename) && ['modified','added'].includes(f.status)); }
+export function patchAllowed(files) { return files.length > 0 && files.length <= 20 && files.every(f => /^(app|lib|components|hooks)\/.+\.(ts|tsx|js|jsx)$/.test(f.filename) && !/\.(test|spec)\./.test(f.filename) && ['modified','added'].includes(f.status)); }
 export async function repairTargets({ targets, api, repo, runId, sha, wait = ms => new Promise(r=>setTimeout(r,ms)) }) {
   const results=[], candidates=[];
   let attempted = 0;
   const hasCode = targets.some(t => t.source === 'codeql');
   const alerts=hasCode ? await api(`/repos/${repo}/code-scanning/alerts?state=open&ref=refs%2Fheads%2Fmain&per_page=100`) : [];
   const prs=hasCode ? await api(`/repos/${repo}/pulls?state=open&per_page=100`) : [];
-  for (const finding of targets) {
+  const rank = { critical: 0, high: 1, medium: 2, low: 3 };
+  const ordered = [...targets].sort((a,b) => (rank[a.severity] ?? 4) - (rank[b.severity] ?? 4));
+  for (const finding of ordered) {
     const result={key:finding.key,status:'blocked',message:'',url:''};
     try {
       if (finding.source!=='codeql') { result.message='Compatible dependency fixes are attempted by the dependency job. Remaining version changes need manual review; force upgrades are not applied.';results.push(result);continue; }
