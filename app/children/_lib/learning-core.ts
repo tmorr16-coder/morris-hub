@@ -236,8 +236,16 @@ export async function createDocumentFor(
     /** Where it came from, kept inside the read (no schema change): e.g. the email it arrived in. */
     provenance?: Record<string, unknown>;
   },
-): Promise<{ error: string } | { documentId: string; reminders: number; todos: number }> {
+): Promise<{ error: string } | { documentId: string; reminders: number; todos: number; rolledOver: RollOver | null }> {
   const x = input.extraction;
+  // Is this the newest week we have? Asked before inserting, so the answer is
+  // about every newsletter already kept. An older one imported late never
+  // takes the current week down.
+  let newerWeek = false;
+  if (x.kind === "newsletter" && x.week_start) {
+    const latest = await currentWeekDocument(svc, input.childId);
+    newerWeek = !latest || !latest.week_start || x.week_start > latest.week_start;
+  }
   // 1. The document. The page fingerprints ride along when the column exists;
   //    a database that has not had that migration yet still gets the document.
   const row: Record<string, unknown> = {
@@ -261,5 +269,71 @@ export async function createDocumentFor(
 
   const m = await materialise(svc, userId, child, input, documentId);
   if (m.error) return { error: m.error };
-  return { documentId, reminders: m.reminders, todos: m.todos };
+  const rolledOver = newerWeek ? await rollOverWeek(svc, input.childId, documentId) : null;
+  return { documentId, reminders: m.reminders, todos: m.todos, rolledOver };
+}
+
+export interface RollOver {
+  /** Exercises from earlier documents, archived as done. */
+  exerciseIds: string[];
+  /** Jobs on the child's screen that were never finished, cleared. */
+  taskIds: string[];
+  /** Household to-dos made from earlier documents, checked off. */
+  todoIds: string[];
+}
+
+/**
+ * Put last week away so this week's content is what shows.
+ *
+ * Every newsletter adds practice, to-dos and jobs on the child's screen, and
+ * nothing ever took the old ones down: by the fourth week the workspace had
+ * a month of spelling drills for words already tested. This archives what
+ * came from earlier documents and leaves everything else alone — exercises a
+ * parent wrote by hand, reminders for dates still ahead, finished history.
+ * Nothing is deleted; the ids come back so the caller can offer Undo.
+ */
+export async function rollOverWeek(svc: any, childId: string, keepDocumentId: string): Promise<RollOver> {
+  const { data: ex } = await svc.schema("hub").from("child_exercises")
+    .select("id").eq("child_id", childId).in("status", ["suggested", "active"])
+    .not("document_id", "is", null).neq("document_id", keepDocumentId);
+  const exerciseIds = ((ex ?? []) as { id: string }[]).map((r) => r.id);
+  if (exerciseIds.length) await svc.schema("hub").from("child_exercises").update({ status: "done" }).in("id", exerciseIds);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: tasks } = await svc.schema("hub").from("child_tasks")
+    .select("id").eq("child_id", childId).is("completed_at", null).lt("assigned_on", today);
+  const taskIds = ((tasks ?? []) as { id: string }[]).map((r) => r.id);
+  if (taskIds.length) await svc.schema("hub").from("child_tasks").update({ completed_at: new Date().toISOString(), stars: 0, child_note: "Cleared for the new week" }).in("id", taskIds);
+
+  const { data: docs } = await svc.schema("hub").from("child_documents").select("id").eq("child_id", childId).neq("id", keepDocumentId);
+  const oldDocIds = ((docs ?? []) as { id: string }[]).map((r) => r.id);
+  let todoIds: string[] = [];
+  if (oldDocIds.length) {
+    const { data: todos } = await svc.schema("hub").from("todos")
+      .select("id").eq("completed", false).in("child_document_id", oldDocIds);
+    todoIds = ((todos ?? []) as { id: string }[]).map((r) => r.id);
+    if (todoIds.length) await svc.schema("hub").from("todos").update({ completed: true, completed_at: new Date().toISOString() }).in("id", todoIds);
+  }
+  return { exerciseIds, taskIds, todoIds };
+}
+
+/** Put back what rollOverWeek took down. Scoped to the child, so ids from elsewhere do nothing. */
+export async function undoRollOver(svc: any, childId: string, r: RollOver): Promise<void> {
+  const ok = (ids: string[]) => ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 500);
+  const ex = ok(r.exerciseIds), tk = ok(r.taskIds), td = ok(r.todoIds);
+  if (ex.length) await svc.schema("hub").from("child_exercises").update({ status: "active" }).eq("child_id", childId).in("id", ex);
+  if (tk.length) await svc.schema("hub").from("child_tasks").update({ completed_at: null, child_note: null }).eq("child_id", childId).in("id", tk);
+  if (td.length) {
+    const { data: docs } = await svc.schema("hub").from("child_documents").select("id").eq("child_id", childId);
+    const mine = ((docs ?? []) as { id: string }[]).map((d) => d.id);
+    if (mine.length) await svc.schema("hub").from("todos").update({ completed: false, completed_at: null }).in("id", td).in("child_document_id", mine);
+  }
+}
+
+/** The newest newsletter's id — the week the workspace is about. */
+export async function currentWeekDocument(svc: any, childId: string): Promise<{ id: string; title: string; week_start: string | null } | null> {
+  const { data } = await svc.schema("hub").from("child_documents")
+    .select("id, title, week_start, created_at").eq("child_id", childId).eq("kind", "newsletter")
+    .order("week_start", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }).limit(1);
+  return (data?.[0] as { id: string; title: string; week_start: string | null }) ?? null;
 }

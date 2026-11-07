@@ -246,7 +246,9 @@ export default function LearningImportClient({ childId, childName, inboundAddres
     } catch {
       pagesNote = "&pages=0";
     }
-    router.push(`/children/${childId}?saved=1&reminders=${r.reminders ?? 0}&todos=${r.todos ?? 0}${pagesNote}`);
+    const ro = r.rolledOver;
+    const roNote = ro ? `&archived=${ro.exerciseIds.length + ro.taskIds.length + ro.todoIds.length}` : "";
+    router.push(`/children/${childId}?saved=1&reminders=${r.reminders ?? 0}&todos=${r.todos ?? 0}${pagesNote}${roNote}`);
   }
 
   // ── Batch ─────────────────────────────────────────────────────────────────

@@ -38,7 +38,7 @@ import { WeekProgress, WeekRows, type WeekItem } from "./WeekBoard";
 import { useSectionOrder, useLocalValue, writeLocal } from "../_lib/ui-state";
 import {
   logPractice, unlogPractice, setExerciseStatus, markWordPracticed, childDocumentUrls,
-  deleteChildDocument, documentImpact, assignTask, deleteTask, reopenTask, rebuildFromDocument, resetWeekPractice,
+  deleteChildDocument, documentImpact, assignTask, deleteTask, reopenTask, rebuildFromDocument, resetWeekPractice, startNewWeek, undoNewWeek,
   setPinnedChild, setExercisesStatus,
 } from "../_lib/learning-actions";
 import { planTonight, subjectOf, stale, SUBJECT_ORDER, type Subject } from "../_lib/practice";
@@ -327,6 +327,29 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
     say(`Rebuilt from “${title}”: ${r.exercises} exercise${r.exercises === 1 ? "" : "s"}${r.todos ? `, ${r.todos} to-dos` : ""}${r.reminders ? `, ${r.reminders} reminders` : ""}.`);
     router.refresh();
   }
+  /**
+   * Put last week away. Archives exercises from earlier newsletters, clears
+   * jobs on the child's screen that were never finished, and checks off the
+   * household to-dos those newsletters made — with Undo, because it touches
+   * three lists at once. Happens by itself when a newer newsletter is kept.
+   */
+  async function newWeek() {
+    const ok = window.confirm(`Start a new week for ${kid}? Practice, unfinished jobs and to-dos from earlier newsletters are put away, so only the newest week shows. Nothing is deleted, and you can undo it.`);
+    if (!ok) return;
+    const r = await startNewWeek(data.childId);
+    if (r.error || !r.rolledOver) { say(r.error ?? "Could not start a new week."); return; }
+    const ro = r.rolledOver;
+    const n = ro.exerciseIds.length + ro.taskIds.length + ro.todoIds.length;
+    const keep = new Set(ro.exerciseIds);
+    setExercises((prev) => prev.filter((e) => !keep.has(e.id)));
+    say(
+      n === 0 ? `Already on the newest week (${r.keptTitle}).` : `New week: put away ${ro.exerciseIds.length} exercise${ro.exerciseIds.length === 1 ? "" : "s"}, ${ro.taskIds.length} job${ro.taskIds.length === 1 ? "" : "s"} and ${ro.todoIds.length} to-do${ro.todoIds.length === 1 ? "" : "s"}.`,
+      n === 0 ? undefined : async () => { await undoNewWeek(data.childId, ro); router.refresh(); },
+      12000,
+    );
+    router.refresh();
+  }
+
   async function resetPractice() {
     const ok = window.confirm("Reset this week's practice? Word taps go back to zero and “Did it” marks from the last seven days are cleared. Documents and exercises stay.");
     if (!ok) return;
@@ -1141,12 +1164,21 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
         </div>
       )}
 
+      {isGuardian && (
+        <div style={{ display: "flex", justifyContent: "flex-end", margin: "6px var(--ios-gutter) 0" }}>
+          <button type="button" className="ios-btn--plain" onClick={newWeek} style={{ color: "var(--ios-tint)", fontWeight: 600, fontSize: 15 }}>
+            ↻ New week
+          </button>
+        </div>
+      )}
+
       {justSaved && !notice && (
         <div className="ios-list" style={{ margin: "0 var(--ios-gutter) 8px", padding: "12px 14px" }}>
           <div className="ios-subhead" style={{ fontWeight: 600, color: "var(--ios-green)" }}>Kept.</div>
           <div className="ios-caption" style={{ color: "var(--ios-label-2)", marginTop: 2 }}>
             {Number(params.get("reminders") ?? 0) > 0 ? `${params.get("reminders")} reminders and ` : ""}{Number(params.get("todos") ?? 0) > 0 ? `${params.get("todos")} practice to-dos ` : ""}{(Number(params.get("reminders") ?? 0) + Number(params.get("todos") ?? 0)) > 0 ? "are on Today for both of you." : "Nothing was added to Today."}
             {params.get("pages") === "0" ? " The page photos could not be attached; the plan was kept without them." : ""}
+            {Number(params.get("archived") ?? 0) > 0 ? ` A new week: ${params.get("archived")} items from last week were put away (tap “New week” then Undo to bring them back).` : ""}
             {" "}Wrong read? Delete it under “From school” and everything it created goes with it.
           </div>
         </div>

@@ -11,7 +11,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 import { childForGuardian, guardianUserIds } from "./children";
 import { mergeExtractions, type DocumentExtraction } from "./learning";
-import { materialise, createDocumentFor } from "./learning-core";
+import { materialise, createDocumentFor, rollOverWeek, undoRollOver, currentWeekDocument, type RollOver } from "./learning-core";
 
 const BUCKET = "child-documents";
 
@@ -44,7 +44,7 @@ export async function saveChildDocument(input: {
   addPracticeTodos: boolean;
   /** SHA-256 of each page as sent, so the same file is recognised next time whatever it is called. */
   pageHashes?: string[];
-}): Promise<{ error?: string; documentId?: string; reminders?: number; todos?: number }> {
+}): Promise<{ error?: string; documentId?: string; reminders?: number; todos?: number; rolledOver?: RollOver | null }> {
   const g = await requireGuardian(input.childId);
   if ("error" in g) return { error: g.error };
   const { userId, child } = g;
@@ -255,6 +255,34 @@ export async function rebuildFromDocument(childId: string, documentId: string, o
 }
 
 /** Zero this week's word taps and clear the practice log for the active exercises. Documents and exercises stay. */
+/**
+ * Start a new week by hand: archive what came from earlier documents and keep
+ * the newest newsletter's. Happens on its own when a newer newsletter is
+ * saved; this is for a week that arrived some other way, or a do-over.
+ */
+export async function startNewWeek(childId: string): Promise<{ error?: string; rolledOver?: RollOver; keptTitle?: string }> {
+  const g = await requireGuardian(childId);
+  if ("error" in g) return { error: g.error };
+  const svc = db();
+  const keep = await currentWeekDocument(svc, childId);
+  if (!keep) return { error: "There is no newsletter yet to make the current week." };
+  const rolledOver = await rollOverWeek(svc, childId, keep.id);
+  revalidatePath(`/children/${childId}`);
+  revalidatePath(`/children/${childId}/kid`);
+  revalidatePath("/home");
+  return { rolledOver, keptTitle: keep.title };
+}
+
+export async function undoNewWeek(childId: string, rolledOver: RollOver): Promise<{ error?: string }> {
+  const g = await requireGuardian(childId);
+  if ("error" in g) return { error: g.error };
+  await undoRollOver(db(), childId, rolledOver);
+  revalidatePath(`/children/${childId}`);
+  revalidatePath(`/children/${childId}/kid`);
+  revalidatePath("/home");
+  return {};
+}
+
 export async function resetWeekPractice(childId: string): Promise<{ error?: string }> {
   const g = await requireGuardian(childId);
   if ("error" in g) return { error: g.error };

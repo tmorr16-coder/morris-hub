@@ -246,6 +246,9 @@ async function processEmail(resend: Resend, emailId: string) {
     ...(x.summary ? [esc(x.summary)] : []),
     ...(sp && sp.words.length ? [`Spelling${sp.pattern ? ` (${esc(sp.pattern)})` : ""}: ${esc(sp.words.join(", "))}${sp.test_on ? ` — test ${esc(sp.test_on)}` : ""}.`] : []),
     `Added ${saved.reminders} reminder${saved.reminders === 1 ? "" : "s"} and ${saved.todos} to-do${saved.todos === 1 ? "" : "s"}${x.exercises.length ? `, and ${x.exercises.length} practice idea${x.exercises.length === 1 ? "" : "s"}` : ""}. Remove anything you don't want from ${esc(first)}'s page.`,
+    ...(saved.rolledOver && saved.rolledOver.exerciseIds.length + saved.rolledOver.taskIds.length + saved.rolledOver.todoIds.length > 0
+      ? [`It's a new week, so last week's ${saved.rolledOver.exerciseIds.length} practice item${saved.rolledOver.exerciseIds.length === 1 ? "" : "s"}, ${saved.rolledOver.taskIds.length} unfinished job${saved.rolledOver.taskIds.length === 1 ? "" : "s"} and ${saved.rolledOver.todoIds.length} to-do${saved.rolledOver.todoIds.length === 1 ? "" : "s"} were put away. Nothing was deleted.`]
+      : []),
   ];
   await replyTo(resend, mail, `Added: ${x.title || subject}`, lines, { href: `${publicOrigin()}/children/${childId}`, label: `Open ${first}'s page` });
   console.log(JSON.stringify({ inbound: "saved", childId, documentId: saved.documentId, kind: x.kind, reminders: saved.reminders, todos: saved.todos }));
