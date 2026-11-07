@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { childForGuardian } from "@/app/children/_lib/children";
-import { synthesise, ttsConfigured, isAvailableVoice, defaultCloudVoice, voiceById, modelFor, VoiceError } from "@/lib/buddy-voice";
+import { synthesise, ttsConfigured, isAvailableVoice, defaultCloudVoice, voiceById, modelFor, extensionFor, contentTypeFor, VoiceError, type SynthesisResult } from "@/lib/buddy-voice";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -82,7 +82,11 @@ export async function POST(req: NextRequest) {
   const digest = createHash("sha256")
     .update([modelFor(voiceById(voice)!), voice, speed.toFixed(2), text].join("\0"))
     .digest("hex");
-  const path = `${digest.slice(0, 2)}/${digest}.mp3`;
+  // Kokoro and OpenAI answer in MP3; the OpenRouter voice streams PCM and is
+  // stored as WAV. The provider is already in the digest, so one lookup per
+  // extension is enough.
+  const ext = voiceById(voice)!.provider === "openrouter" ? "wav" : "mp3";
+  const path = `${digest.slice(0, 2)}/${digest}.${ext}`;
 
   await ensureBucket(svc);
 
@@ -90,13 +94,14 @@ export async function POST(req: NextRequest) {
   if (cached) {
     console.log(JSON.stringify({ tts: "hit", voice, chars: text.length }));
     return new NextResponse(await cached.arrayBuffer(), {
-      headers: { "Content-Type": "audio/mpeg", "X-Cache": "hit" },
+      headers: { "Content-Type": contentTypeFor(ext), "X-Cache": "hit" },
     });
   }
 
   let audio: Uint8Array;
+  let contentType: SynthesisResult["contentType"];
   try {
-    ({ audio } = await synthesise(text, voice, speed));
+    ({ audio, contentType } = await synthesise(text, voice, speed));
   } catch (e) {
     // The client falls back to the device voice on any non-200, so a provider
     // outage costs quality rather than silence. The code says which kind of
@@ -113,11 +118,12 @@ export async function POST(req: NextRequest) {
   console.log(JSON.stringify({ tts: "miss", voice, chars: text.length, bytes: audio.byteLength }));
   // Store, but never at the cost of answering: a failed upload just means the
   // next identical request pays again.
+  const storedPath = `${digest.slice(0, 2)}/${digest}.${extensionFor(contentType)}`;
   await svc.storage.from(BUCKET)
-    .upload(path, audio, { contentType: "audio/mpeg", upsert: true })
+    .upload(storedPath, audio, { contentType, upsert: true })
     .catch(() => undefined);
 
   return new NextResponse(audio as unknown as BodyInit, {
-    headers: { "Content-Type": "audio/mpeg", "X-Cache": "miss" },
+    headers: { "Content-Type": contentType, "X-Cache": "miss" },
   });
 }

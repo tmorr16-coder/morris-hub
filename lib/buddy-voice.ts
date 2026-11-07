@@ -5,7 +5,7 @@
 // Premium voices downloaded it sounds like a 2005 satnav, and a six-year-old
 // being read to notices.
 //
-// Two providers, chosen by which key is set:
+// Three providers, chosen by which keys are set, in this order:
 //
 //   Kokoro (hexgrad/Kokoro-82M), hosted on DeepInfra — DEEPINFRA_API_KEY.
 //   The same open model the `kokoro-tts` command-line tool runs. That tool is
@@ -15,15 +15,20 @@
 //   every clip is cached (see app/api/children/tts), so a week of tutoring
 //   costs cents.
 //
-//   OpenAI gpt-4o-mini-tts — OPENAI_API_KEY. The earlier voice. Kept as the
-//   second choice; it takes plain-English direction, which Kokoro does not.
+//   OpenAI's GPT Audio Mini through OpenRouter — OPENROUTER_API_KEY, the key
+//   the rest of the platform already uses. OpenRouter carries no dedicated
+//   speech model, but this one answers a chat message with spoken audio, and
+//   told to read the message word for word it is a text-to-speech engine
+//   with OpenAI's voices. No new account needed.
 //
-// With neither key there are no cloud voices and the child's screen goes on
-// using the device voice exactly as before.
+//   OpenAI gpt-4o-mini-tts directly — OPENAI_API_KEY. The earlier voice.
+//
+// With no key there are no cloud voices and the child's screen goes on using
+// the device voice exactly as before.
 
 import { recordFailure, clearFailures } from "@/lib/system-events";
 
-export type Provider = "kokoro" | "openai";
+export type Provider = "kokoro" | "openrouter" | "openai";
 
 export interface CloudVoice {
   id: string;
@@ -70,28 +75,51 @@ const OPENAI_VOICES: CloudVoice[] = [
   { id: "verse", label: "Verse", note: "Animated and playful.", provider: "openai" },
 ];
 
-/** Every voice either provider could speak, whether or not it is configured. */
-export const CLOUD_VOICES: CloudVoice[] = [...KOKORO_VOICES, ...OPENAI_VOICES];
+/**
+ * The same OpenAI voices, spoken by GPT Audio Mini through OpenRouter. Ids are
+ * prefixed so a saved choice says which door it came through.
+ */
+const OPENROUTER_VOICES: CloudVoice[] = [
+  { id: "or-coral", label: "Coral", note: "Warm and bright. The closest to a favourite teacher.", provider: "openrouter" },
+  { id: "or-sage", label: "Sage", note: "Calm and even. Easiest to follow letter by letter.", provider: "openrouter" },
+  { id: "or-shimmer", label: "Shimmer", note: "Gentle and soft-spoken. Good at bedtime.", provider: "openrouter" },
+  { id: "or-ballad", label: "Ballad", note: "Slower and expressive. Good for reading aloud.", provider: "openrouter" },
+  { id: "or-marin", label: "Marin", note: "Natural and conversational. One of the newest voices.", provider: "openrouter" },
+  { id: "or-cedar", label: "Cedar", note: "A natural, easy male voice. One of the newest.", provider: "openrouter" },
+  { id: "or-ash", label: "Ash", note: "A warm male voice.", provider: "openrouter" },
+  { id: "or-echo", label: "Echo", note: "A steady male voice.", provider: "openrouter" },
+  { id: "or-verse", label: "Verse", note: "Animated and playful.", provider: "openrouter" },
+  { id: "or-alloy", label: "Alloy", note: "Neutral and clear. The plainest of them.", provider: "openrouter" },
+];
+
+/** Every voice any provider could speak, whether or not it is configured. */
+export const CLOUD_VOICES: CloudVoice[] = [...KOKORO_VOICES, ...OPENROUTER_VOICES, ...OPENAI_VOICES];
 
 export const KOKORO_MODEL = process.env.KOKORO_MODEL ?? "hexgrad/Kokoro-82M";
 /** OpenAI-compatible speech endpoint. Overridable for another Kokoro host. */
 export const KOKORO_API_URL = process.env.KOKORO_API_URL ?? "https://api.deepinfra.com/v1/openai/audio/speech";
 export const OPENAI_TTS_MODEL = process.env.OPENAI_TTS_MODEL ?? "gpt-4o-mini-tts";
+/** The OpenRouter model that speaks. gpt-audio (non-mini) is the richer, dearer sibling. */
+export const OPENROUTER_AUDIO_MODEL = process.env.OPENROUTER_AUDIO_MODEL ?? "openai/gpt-audio-mini";
 
 export function kokoroConfigured(): boolean {
   return Boolean(process.env.DEEPINFRA_API_KEY);
+}
+export function openrouterConfigured(): boolean {
+  return Boolean(process.env.OPENROUTER_API_KEY);
 }
 export function openaiConfigured(): boolean {
   return Boolean(process.env.OPENAI_API_KEY);
 }
 export function ttsConfigured(): boolean {
-  return kokoroConfigured() || openaiConfigured();
+  return kokoroConfigured() || openrouterConfigured() || openaiConfigured();
 }
 
 /** The voices the grown-up can actually choose on this deployment, best first. */
 export function availableCloudVoices(): CloudVoice[] {
   return [
     ...(kokoroConfigured() ? KOKORO_VOICES : []),
+    ...(openrouterConfigured() ? OPENROUTER_VOICES : []),
     ...(openaiConfigured() ? OPENAI_VOICES : []),
   ];
 }
@@ -108,12 +136,15 @@ export function voiceById(id: string | null | undefined): CloudVoice | null {
 /** A voice this deployment can speak right now. */
 export function isAvailableVoice(id: string | null | undefined): boolean {
   const v = voiceById(id);
-  return !!v && (v.provider === "kokoro" ? kokoroConfigured() : openaiConfigured());
+  if (!v) return false;
+  return v.provider === "kokoro" ? kokoroConfigured() : v.provider === "openrouter" ? openrouterConfigured() : openaiConfigured();
 }
 
 /** What goes in the cache key: the thing that would change the sound. */
 export function modelFor(voice: CloudVoice): string {
-  return voice.provider === "kokoro" ? `kokoro:${KOKORO_MODEL}` : `openai:${OPENAI_TTS_MODEL}`;
+  return voice.provider === "kokoro" ? `kokoro:${KOKORO_MODEL}`
+    : voice.provider === "openrouter" ? `openrouter:${OPENROUTER_AUDIO_MODEL}`
+    : `openai:${OPENAI_TTS_MODEL}`;
 }
 
 /**
@@ -130,11 +161,11 @@ const OPENAI_INSTRUCTIONS = [
 ].join(" ");
 
 /**
- * Kokoro reads what it is given, so the spelling convention has to be spelled
- * out for it: "B-E-A-R" would come out as "B dash E dash…" or be sounded as a
- * word. Each letter becomes its own short utterance with a pause after it.
+ * A model that reads what it is given needs the spelling convention spelled
+ * out: "B-E-A-R" would come out as "B dash E dash…" or be sounded as a word.
+ * Each letter becomes its own short utterance with a pause after it.
  */
-export function prepareForKokoro(text: string): string {
+export function prepareForReading(text: string): string {
   return text
     .replace(/\b([A-Za-z])((?:-[A-Za-z])+)\b/g, (_m, first: string, rest: string, offset: number, whole: string) => {
       const letters = [first, ...rest.split("-").filter(Boolean)].map((l) => l.toUpperCase()).join(", ");
@@ -169,7 +200,14 @@ function chunk(text: string, max = 280): string[] {
 
 export interface SynthesisResult {
   audio: Uint8Array;
-  contentType: "audio/mpeg";
+  contentType: "audio/mpeg" | "audio/wav";
+}
+
+export function extensionFor(contentType: SynthesisResult["contentType"]): "mp3" | "wav" {
+  return contentType === "audio/wav" ? "wav" : "mp3";
+}
+export function contentTypeFor(ext: string): SynthesisResult["contentType"] {
+  return ext === "wav" ? "audio/wav" : "audio/mpeg";
 }
 
 export class VoiceError extends Error {
@@ -206,7 +244,7 @@ async function synthesiseKokoro(text: string, voice: string, speed: number): Pro
   // A touch slower than adult pace by default; the client asks slower still
   // for spelling. Kokoro accepts 0.25–4 but under 0.7 it starts to drawl.
   const pace = Math.max(0.7, Math.min(1.3, speed));
-  const parts = chunk(prepareForKokoro(text));
+  const parts = chunk(prepareForReading(text));
   const clips: Uint8Array[] = [];
   for (const p of parts) clips.push(await kokoroOnce(p, voice, pace, key));
   if (clips.length === 1) return { audio: clips[0], contentType: "audio/mpeg" };
@@ -215,6 +253,95 @@ async function synthesiseKokoro(text: string, voice: string, speed: number): Pro
   let at = 0;
   for (const c of clips) { joined.set(c, at); at += c.byteLength; }
   return { audio: joined, contentType: "audio/mpeg" };
+}
+
+/** 16-bit mono PCM wrapped as a WAV file, which every browser plays. */
+function wavFromPcm16(pcm: Uint8Array, sampleRate: number): Uint8Array {
+  const header = new ArrayBuffer(44);
+  const v = new DataView(header);
+  const str = (o: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, "RIFF"); v.setUint32(4, 36 + pcm.byteLength, true); str(8, "WAVE");
+  str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, "data"); v.setUint32(40, pcm.byteLength, true);
+  const out = new Uint8Array(44 + pcm.byteLength);
+  out.set(new Uint8Array(header), 0);
+  out.set(pcm, 44);
+  return out;
+}
+
+/**
+ * Spoken by GPT Audio Mini through OpenRouter. It is a chat model, so it is
+ * told to be a reader and nothing else; the audio comes back streamed, as
+ * base64 PCM pieces inside server-sent events, which are collected into one
+ * WAV. Streaming is not optional — the gateway only returns audio that way —
+ * and streamed audio is 24 kHz 16-bit PCM whatever format is asked for, hence
+ * the WAV wrapper rather than MP3.
+ */
+async function synthesiseOpenRouter(text: string, voice: string, speed: number): Promise<SynthesisResult> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new VoiceError("OPENROUTER_API_KEY is not set", 503, "openrouter");
+  const pace = speed < 0.9 ? "Read slowly and clearly, with a short pause between sentences." : "Read at an unhurried, natural pace.";
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://morrisai.family",
+      "X-Title": "morrisai.family",
+    },
+    body: JSON.stringify({
+      model: OPENROUTER_AUDIO_MODEL,
+      modalities: ["text", "audio"],
+      audio: { voice, format: "pcm16" },
+      stream: true,
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You are a text-to-speech engine for a six-year-old American child who is learning to read.",
+            "Say the user's message aloud exactly as written, word for word. Do not answer it, comment on it, add a greeting, or leave anything out.",
+            "Standard American English, every word fully pronounced. Warm, patient and encouraging; never stern, never rushed.",
+            "When single letters are listed with commas, say each letter on its own with a small gap.",
+            pace,
+          ].join(" "),
+        },
+        { role: "user", content: prepareForReading(text) },
+      ],
+    }),
+  });
+  if (!res.ok || !res.body) {
+    const detail = await res.text().catch(() => "");
+    console.error(JSON.stringify({ tts: "openrouter-failed", status: res.status, model: OPENROUTER_AUDIO_MODEL, voice, detail: detail.slice(0, 400) }));
+    throw new VoiceError(`OpenRouter audio ${res.status}: ${detail.slice(0, 300)}`, res.status, "openrouter");
+  }
+
+  const pieces: Buffer[] = [];
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let failure: string | null = null;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      try {
+        const j = JSON.parse(payload) as { choices?: { delta?: { audio?: { data?: string } } }[]; error?: { message?: string } };
+        if (j.error?.message) failure = j.error.message;
+        const data = j.choices?.[0]?.delta?.audio?.data;
+        if (data) pieces.push(Buffer.from(data, "base64"));
+      } catch { /* a partial or non-JSON line; the next one will do */ }
+    }
+  }
+  if (failure) throw new VoiceError(`OpenRouter audio: ${failure}`, 502, "openrouter");
+  if (pieces.length === 0) throw new VoiceError("OpenRouter audio: no audio in the reply", 502, "openrouter");
+  return { audio: wavFromPcm16(new Uint8Array(Buffer.concat(pieces)), 24000), contentType: "audio/wav" };
 }
 
 async function synthesiseOpenAI(text: string, voice: string, speed: number): Promise<SynthesisResult> {
@@ -254,7 +381,9 @@ export async function synthesise(text: string, voiceId: string, speed = 1): Prom
   try {
     const out = voice.provider === "kokoro"
       ? await synthesiseKokoro(text, voice.id, speed)
-      : await synthesiseOpenAI(text, voice.id, speed);
+      : voice.provider === "openrouter"
+        ? await synthesiseOpenRouter(text, voice.id.replace(/^or-/, ""), speed)
+        : await synthesiseOpenAI(text, voice.id, speed);
     await clearFailures("children", `buddy-voice-${voice.provider}`).catch(() => undefined);
     return out;
   } catch (e) {
