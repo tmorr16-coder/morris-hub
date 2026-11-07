@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/finance/plaid/sync",
-      "schedule": "0 9 * * *"
+      "schedule": "23 9 * * *"
     },
     {
       "path": "/api/health/oura/sync",

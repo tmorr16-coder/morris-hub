@@ -15,17 +15,19 @@ export async function syncAll(): Promise<{ ok: boolean; synced?: number; error?:
     .from("plaid_items")
     .select("id")
     .eq("user_id", user.id)
-    .eq("status", "active");
+    .in("status", ["active", "error"]);
 
   if (error) return { ok: false, error: error.message };
   if (!items || items.length === 0) return { ok: false, error: "no items to sync" };
 
   let total = 0;
+  const failures: string[] = [];
   for (const item of items) {
     const r = await syncItem(item.id);
-    if (!r.error) total += r.added + r.modified;
+    total += r.added + r.modified;
+    if (r.error) failures.push(r.error);
   }
 
   revalidatePath("/finance/dashboard");
-  return { ok: true, synced: total };
+  return failures.length ? { ok: false, synced: total, error: `${failures.length} connection(s) could not fully sync: ${failures.join(" · ")}` } : { ok: true, synced: total };
 }

@@ -4,7 +4,7 @@ Admin module: `/home/admin/security`. Only an authenticated profile with the adm
 
 ## Reviews and fixes
 
-`.github/workflows/security-review.yml` runs on pushes to main, manually from GitHub Actions, and daily at 7:17 a.m. America/Indiana/Indianapolis. Scheduled Actions can be delayed by GitHub. The review uses CodeQL's extended JavaScript/TypeScript security queries and an npm lockfile audit. Dependabot also checks npm daily and GitHub Actions weekly.
+`.github/workflows/security-review.yml` runs on pushes to main, manually from GitHub Actions, and through an admin-configurable daily or weekly schedule (default 7:17 a.m. America/Indiana/Indianapolis). Scheduled Actions can be delayed by GitHub. The review uses CodeQL's extended JavaScript/TypeScript security queries and an npm lockfile audit. Dependabot also checks npm daily and GitHub Actions weekly.
 
 The remediation job runs `npm audit fix --package-lock-only --ignore-scripts`, without `--force`. If the lockfile changes, it installs without lifecycle scripts and runs security, narration, and workout tests plus the production build. Only a passing candidate can open/update `security/compatible-dependency-fixes`. GitHub must allow Actions to create pull requests (repository Settings → Actions → General → Workflow permissions). A denied PR write is recorded as a remediation failure and emailed.
 
@@ -25,3 +25,15 @@ Alerts go to the owner-approved recipient **tmorr16@gmail.com** using the existi
 - `npm run test:voice`, `npm run test:workout`, `npm run build`.
 
 These automated reviews cover dependency advisories and statically detected code issues. They do not replace runtime testing or a full security assessment.
+
+## Ad hoc scans and configurable scheduling
+
+Admins use **Scan now** in the tracker to enqueue a full review. The same page edits daily/weekly frequency, local Eastern time, weekday, or pauses scheduled reviews. It shows queued/running/completed/failed requests and links each claimed request to its GitHub run. Pending requests refresh every 30 seconds.
+
+The trusted workflow checks the private queue every five minutes, using GitHub OIDC rather than a long-lived GitHub token in the app. GitHub may delay a poll. Empty polls skip scanning. An ad hoc request runs even while the schedule is paused; pushes still trigger reviews. A new main SHA is also detected by polls, so coalesced GitHub push runs are recovered. Requests are deduplicated and claimed transactionally. Reports mark their request completed or failed; abandoned claims expire after two hours. Saving uses a version check to avoid overwriting another admin's schedule.
+
+The watchdog respects weekly and paused schedules and flags stalled ad hoc requests or runs. Eastern scheduling follows actual local minutes across DST; a time that does not exist on a spring-forward day runs at its next valid occurrence.
+
+## SimpleFIN recovery
+
+Manual Money sync now includes both active and errored connections, remains owner-scoped, and reports partial failures. Account reads have a 40-second deadline instead of 15 seconds. Recurring sync uses the previous successful sync minus a five-day overlap, capped at 90 days for first sync/recovery. The daily cron moves away from the top of the hour to 09:23 UTC, and the sync handler has a 300-second runtime budget. Partial provider/account-save failures retain the last full-success time and remain visible. No access URLs or credentials are exposed.

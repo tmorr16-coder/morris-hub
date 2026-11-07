@@ -1,4 +1,4 @@
-import { fetchSimpleFinAccounts, mapSimpleFinAccount, mapSimpleFinTransaction } from '@/lib/finance/simplefin';
+import { fetchSimpleFinAccounts, mapSimpleFinAccount, mapSimpleFinTransaction, simpleFinStartDate } from '@/lib/finance/simplefin';
 import { decrypt } from '@/lib/finance/encryption';
 import { createServiceClient } from '@/lib/supabase/server';
 import { recordFailure, clearFailures } from '@/lib/system-events';
@@ -33,7 +33,7 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
 
   try {
     const accessUrl = decrypt(item.access_token_encrypted);
-    const startDate = Math.floor(Date.now() / 1000) - 90 * 24 * 60 * 60;
+    const startDate = simpleFinStartDate(item.last_synced_at);
     const { accounts, providerErrors } = await fetchSimpleFinAccounts(accessUrl, startDate);
 
     // SimpleFIN reports per-connection trouble in an `errors` array and simply
@@ -258,18 +258,19 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
         .eq('plaid_account_id', internalId);
     }
 
+    const incomplete = [...providerErrors, ...insertFailures];
     await supabase
       .schema('finance')
       .from('plaid_items')
       .update({
-        last_synced_at: new Date().toISOString(),
-        status: 'active',
-        last_error: null,
-        last_error_at: null,
+        last_synced_at: incomplete.length ? item.last_synced_at : new Date().toISOString(),
+        status: incomplete.length ? 'error' : 'active',
+        last_error: incomplete.length ? incomplete.join(' · ').slice(0, 300) : null,
+        last_error_at: incomplete.length ? new Date().toISOString() : null,
       })
       .eq('id', item.id);
 
-    await clearFailures('simplefin', itemId);
+    if (!incomplete.length) await clearFailures('simplefin', itemId);
 
     await supabase.schema('finance').from('audit_log').insert({
       user_id: item.user_id,
@@ -279,7 +280,7 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
       metadata: { added: totalAdded, modified: 0, removed: 0 },
     });
 
-    return { item_id: item.id, added: totalAdded, modified: 0, removed: 0 };
+    return { item_id: item.id, added: totalAdded, modified: 0, removed: 0, ...(incomplete.length ? { error: incomplete.join(" · ").slice(0, 300) } : {}) };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'unknown';
     console.error(`[sync] item ${itemId} failed:`, msg);

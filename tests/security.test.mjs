@@ -37,7 +37,8 @@ test('CodeQL uses security severity and stable fingerprints, and rejects incompl
 });
 test('report ingress rejects unsigned, foreign, and run-mismatched reports before database access',async()=>{
   let signed=claims(),writes=0;
-  const route=await load('../app/api/security/reports/route.ts',{'jose':{createRemoteJWKSet:()=>({}),jwtVerify:async()=>({payload:signed})},'@/lib/security/model':m,'@/lib/security/server':{securityDb:()=>({rpc:async()=>{writes++;return {error:null};}}),sendSecurityAlerts:async()=>{}}});
+  const auth=await load('../lib/security/auth.ts',{'server-only':{},'jose':{createRemoteJWKSet:()=>({}),jwtVerify:async()=>({payload:signed})},'./model':m});
+  const route=await load('../app/api/security/reports/route.ts',{'@/lib/security/auth':auth,'@/lib/security/model':m,'@/lib/security/server':{securityDb:()=>({rpc:async()=>{writes++;return {error:null};}}),sendSecurityAlerts:async()=>{}}});
   const request=(body=report(),auth=true)=>new Request('https://morrisai.family/api/security/reports',{method:'POST',headers:auth?{authorization:'Bearer signed'}:{},body:JSON.stringify(body)});
   assert.equal((await route.POST(request(report(),false))).status,401);signed={...claims(),repository_id:'wrong'};assert.equal((await route.POST(request())).status,401);signed=claims();assert.equal((await route.POST(request({...report(),sha:'b'.repeat(40)}))).status,400);assert.equal(writes,0);assert.equal((await route.POST(request())).status,200);assert.equal(writes,1);
 });
@@ -47,7 +48,7 @@ test('Bible names MAI voice and shows the chapter plus actual verse number',asyn
 });
 test('notification failures remain pending and successful provider acceptance is recorded',async()=>{
   const crypto=await import('node:crypto');let fail=true;const queued=new Map();let sendCount=0;
-  const db={from(table){const q={select:()=>q,is:()=>q,not:()=>q,order:()=>q,range:async()=>({data:[],error:null}),limit:async()=>({data:table==='security_runs'?[{run_id:'100',received_at:new Date().toISOString(),errors:['CodeQL unavailable'],fix_url:null}]:[],error:null}),upsert:async(value)=>{if(!queued.has(value.id))queued.set(value.id,{...value,sent_at:null,attempts:0});return {error:null};},update:(patch)=>({eq:async(_,id)=>{Object.assign(queued.get(id),patch);return {error:null};}})};return q;},rpc:async()=>({data:[...queued.values()].filter(m=>!m.sent_at).map(m=>({...m,attempts:++m.attempts})),error:null})};
+  const db={from(table){const q={select:()=>q,eq:()=>q,single:async()=>({data:{enabled:true,frequency:"daily"},error:null}),is:()=>q,not:()=>q,order:()=>q,range:async()=>({data:[],error:null}),limit:async()=>({data:table==='security_runs'?[{run_id:'100',received_at:new Date().toISOString(),errors:['CodeQL unavailable'],fix_url:null}]:[],error:null}),upsert:async(value)=>{if(!queued.has(value.id))queued.set(value.id,{...value,sent_at:null,attempts:0});return {error:null};},update:(patch)=>({eq:async(_,id)=>{Object.assign(queued.get(id),patch);return {error:null};}})};return q;},rpc:async()=>({data:[...queued.values()].filter(m=>!m.sent_at).map(m=>({...m,attempts:++m.attempts})),error:null})};
   const server=await load('../lib/security/server.ts',{'server-only':{},'node:crypto':crypto,'resend':{Resend:class{emails={send:async(payload,opts)=>{sendCount++;assert.equal(payload.to,m.RECIPIENT);assert.match(opts.idempotencyKey,/^security\//);return fail?{error:{message:'Provider unavailable'}}:{data:{id:'email-1'}};}};}},'@/lib/supabase/server':{createServiceClient:()=>({schema:()=>db})},'./model':m});
   const oldKey=process.env.RESEND_API_KEY,oldFrom=process.env.RESEND_FROM_EMAIL;process.env.RESEND_API_KEY='fixture';process.env.RESEND_FROM_EMAIL='alerts@example.test';
   try {await assert.rejects(server.sendSecurityAlerts(),/pending/);assert.equal([...queued.values()][0].sent_at,null);assert.equal([...queued.values()][0].last_error,'Provider unavailable');fail=false;await server.sendSecurityAlerts();assert.equal(queued.size,1);assert.ok([...queued.values()][0].sent_at);await server.sendSecurityAlerts();assert.equal(sendCount,2);}finally{if(oldKey===undefined)delete process.env.RESEND_API_KEY;else process.env.RESEND_API_KEY=oldKey;if(oldFrom===undefined)delete process.env.RESEND_FROM_EMAIL;else process.env.RESEND_FROM_EMAIL=oldFrom;}
@@ -63,4 +64,24 @@ test('CodeQL extension packs preserve high and critical security severity from r
   const result=(id,index)=>({ruleId:id,rule:{id,index,toolComponent:{index:0}},message:{text:'Security finding'},locations:[{physicalLocation:{artifactLocation:{uri:'app/page.tsx'},region:{startLine:index+1}}}]});
   const sarif={runs:[{tool:{driver:{name:'CodeQL',rules:[]},extensions:[{name:'codeql/javascript-queries',rules:[{id:'js/xss-through-dom',properties:{'security-severity':'7.8'}},{id:'js/critical-example',properties:{'security-severity':'9.8'}}]}]},results:[result('js/xss-through-dom',0),result('js/critical-example',1)]}]};
   assert.deepEqual(sarifFindings(sarif).map(f=>f.severity),['high','critical']);
+});
+const scheduling=await load('../lib/security/schedule.ts');
+test('schedule validates inputs, handles weekly and Eastern DST, and pauses cleanly',()=>{
+  const config={enabled:true,frequency:'daily',time:'07:17',weekday:1};
+  assert.equal(scheduling.nextReview(config,Date.parse('2026-11-01T00:00:00Z')),'2026-11-01T12:17:00.000Z');
+  assert.equal(scheduling.nextReview({...config,frequency:'weekly'},Date.parse('2026-11-01T00:00:00Z')),'2026-11-02T12:17:00.000Z');
+  assert.equal(scheduling.nextReview({...config,time:'01:30'},Date.parse('2026-11-01T05:30:00Z'),'2026-11-01'),'2026-11-02T06:30:00.000Z');
+  assert.equal(scheduling.nextReview({...config,enabled:false}),null);
+  assert.throws(()=>scheduling.parseSchedule({...config,time:'25:00'}));assert.throws(()=>scheduling.parseSchedule({...config,weekday:8}));
+});
+test('scan requests and schedule writes require admin and reject malformed settings',async()=>{
+ let allowed=false,writes=0;const dependencies={'@/lib/supabase/auth-utils':{requireAdmin:async()=>{if(!allowed)throw Error('Admin access required');return{id:'admin'};}},'@/lib/security/server':{securityDb:()=>({rpc:async()=>{writes++;return{error:null};}})},'@/lib/security/schedule':scheduling,'next/cache':{revalidatePath:()=>{}}};
+ const actions=await load('../app/home/admin/security/actions.ts',dependencies);assert.match((await actions.requestSecurityScan()).error,/Admin/);assert.equal(writes,0);allowed=true;
+ const invalid=new FormData();invalid.set('time','25:00');assert.ok((await actions.saveSecuritySchedule({},invalid)).error);assert.equal(writes,0);
+ const form=new FormData();for(const[k,v]of Object.entries({enabled:'on',frequency:'weekly',time:'08:45',weekday:'2',version:'1'}))form.set(k,v);assert.ok((await actions.saveSecuritySchedule({},form)).message);await actions.requestSecurityScan();assert.equal(writes,2);
+});
+test('queue endpoint requires the signed worker and binds claims to its database decision',async()=>{
+ let authenticated=false,args;
+ const route=await load('../app/api/security/queue/route.ts',{'@/lib/security/auth':{verifySecurityWorkflow:async()=>{if(!authenticated)throw Error('Unauthorized');return {run_id:'17',event_name:'schedule',sha:'a'.repeat(40)};}},'@/lib/security/server':{securityDb:()=>({from:()=>({select:()=>({eq:()=>({single:async()=>({data:{enabled:false,frequency:'daily',time:'07:17',weekday:1,next_due:null,version:3},error:null})})})}),rpc:async(_name,p)=>{args=p;return {data:false,error:null};}})},'@/lib/security/schedule':scheduling});
+ const request=()=>new Request('https://morrisai.family/api/security/queue',{method:'POST'});assert.equal((await route.POST(request())).status,401);assert.equal(args,undefined);authenticated=true;assert.deepEqual(await (await route.POST(request())).json(),{should_run:false});assert.deepEqual(args,{rid:'17',event:'schedule',expected_version:3,following_due:null,head_sha:'a'.repeat(40)});
 });

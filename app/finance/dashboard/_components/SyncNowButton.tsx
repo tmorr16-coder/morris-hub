@@ -12,19 +12,18 @@ export default function SyncNowButton() {
   function handleClick() {
     setMsg(null);
     startTransition(async () => {
-      const r = await syncAll();
-      if (r.ok) {
-        // Re-render the cached dashboard so refreshed balances show immediately.
-        router.refresh();
-        setMsg(r.synced ? `Updated · +${r.synced}` : "Updated");
-      } else {
-        setMsg(r.error ?? "failed");
+      try {
+        const r = await syncAll();
+        router.refresh(); // Partial success can also refresh balances and connection status.
+        setMsg(r.ok ? "Sync completed." : r.error ?? "Sync failed. Please try again.");
+      } catch {
+        setMsg("The sync could not finish. Check your connection and try again.");
       }
-      setTimeout(() => setMsg(null), 3000);
     });
   }
 
   return (
+    <div style={{ display: "grid", justifyItems: "end", gap: 6, maxWidth: 360 }}>
     <button
       type="button"
       onClick={handleClick}
@@ -56,7 +55,9 @@ export default function SyncNowButton() {
         <path d="M21 12a9 9 0 1 1-2.64-6.36" />
         <path d="M21 3v6h-6" />
       </svg>
-      {pending ? "Syncing…" : msg ?? "Sync now"}
+      {pending ? "Syncing…" : "Sync now"}
     </button>
+    {msg && <p role="status" style={{ fontSize: 12, lineHeight: 1.5, margin: 0, textAlign: "right", overflowWrap: "anywhere" }}>{msg}</p>}
+    </div>
   );
 }

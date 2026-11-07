@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { Resend } from "resend";
 import { createServiceClient } from "@/lib/supabase/server";
+import type { ReviewConfig } from "./schedule";
 import { RECIPIENT, REPOSITORY, type Finding } from "./model";
 // Custom schema tables are intentionally absent from the generated client types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,21 +20,26 @@ export async function securitySnapshot() {
       if (result.data.length < 1000) return rows;
     }
   }
-  const [runs, open, history, mail] = await Promise.all([
+  const [runs, open, history, mail, config, requests] = await Promise.all([
     db.from("security_runs").select("*").order("run_id", { ascending: false }).limit(20),
     openFindings(),
     db.from("security_findings").select("*").not("resolved_at", "is", null).order("resolved_at", { ascending: false }).limit(200),
     db.from("security_mail").select("id,subject,created_at,sent_at,last_error,attempts").order("created_at", { ascending: false }).limit(10),
+    db.from("security_config").select("*").eq("id", true).single(),
+    db.from("security_requests").select("id,status,requested_at,claimed_run,claimed_at,finished_at").order("requested_at", { ascending: false }).limit(20),
   ]);
-  for (const r of [runs, history, mail]) if (r.error) throw Error("Security tracker database unavailable");
-  return { stale: !runs.data?.[0] || Date.now() - Date.parse(runs.data[0].received_at) > 36 * 3600_000, runs: runs.data as Run[], findings: [...open, ...history.data] as StoredFinding[], mail: mail.data as { id: string; subject: string; created_at: string; sent_at: string | null; last_error: string | null; attempts: number }[] };
+  for (const r of [runs, history, mail, config, requests]) if (r.error) throw Error("Security tracker database unavailable");
+  const now = Date.now();
+  const latest = runs.data?.[0];
+  const stalledRun = config.data.last_started_at && now - Date.parse(config.data.last_started_at) > 2 * 3600_000 && (!latest || Date.parse(config.data.last_started_at) > Date.parse(latest.received_at));
+  const stale = !!stalledRun || (config.data.enabled && (!latest || now - Date.parse(latest.received_at) > (config.data.frequency === "weekly" ? 8 * 24 : 36) * 3600_000)) || requests.data.some((r: {status: string; requested_at: string; claimed_at: string | null}) => r.status === "queued" ? now - Date.parse(r.requested_at) > 30 * 60_000 : r.status === "running" && now - Date.parse(r.claimed_at!) > 2 * 3600_000);
+  return { config: config.data as ReviewConfig, requests: requests.data as { id: string; status: string; requested_at: string; claimed_run: string | null }[], stale, runs: runs.data as Run[], findings: [...open, ...history.data] as StoredFinding[], mail: mail.data as { id: string; subject: string; created_at: string; sent_at: string | null; last_error: string | null; attempts: number }[] };
 }
 export async function sendSecurityAlerts() {
-  const { runs, findings } = await securitySnapshot();
+  const { runs, findings, stale } = await securitySnapshot();
   const run = runs[0];
-  const stale = !run || Date.now() - Date.parse(run.received_at) > 36 * 3600_000;
   const open = findings.filter(f => !f.resolved_at && f.severity !== "low").sort((a,b) => a.key.localeCompare(b.key));
-  const issues = [...(run?.errors ?? []), ...(stale ? ["No security review has reported successfully in the past 36 hours. Check GitHub Actions and report delivery."] : [])];
+  const issues = [...(run?.errors ?? []), ...(stale ? ["A scheduled or requested security review has not reported when expected. Check GitHub Actions, the scan queue, and report delivery."] : [])];
   const db = securityDb();
   if (open.length || issues.length) {
     const subject = `Morris security: ${open.length} medium+ vulnerabilities${issues.length ? `, ${issues.length} review issues` : ""}`;
