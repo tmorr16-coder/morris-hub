@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { pickBestVoice } from "@/lib/tts-voices";
-import { CLOUD_VOICES, DEFAULT_CLOUD_VOICE } from "@/lib/openai-tts";
+import type { CloudVoice } from "@/lib/buddy-voice";
 import type { ChildTask } from "../_lib/learning";
 import { completeTask, markWordPracticed } from "../_lib/learning-actions";
 
@@ -27,8 +27,9 @@ interface Props {
   /** "buddy" opens straight into the tutor. The link is bookmarkable, so the
       iPad can have Buddy on its home screen and never show this menu at all. */
   openTo?: "home" | "buddy";
-  /** Whether the server has an OpenAI key. Without one this is the device voice only. */
-  cloudVoices?: boolean;
+  /** Buddy's own voices on this deployment (Kokoro, OpenAI), best first.
+      Empty means the device voice only. */
+  cloudVoices?: CloudVoice[];
 }
 
 type View = { kind: "home" } | { kind: "task"; task: ChildTask } | { kind: "tutor" };
@@ -137,12 +138,13 @@ function silentWav(): string {
 
 /** What the grown-up is told when Buddy's own voice cannot be had. */
 const CLOUD_TROUBLE: Record<string, string> = {
-  billing: "Buddy\u2019s own voices are paused: the OpenAI account is out of credits. Until a grown-up tops it up at platform.openai.com, Buddy uses the device voice below.",
+  billing: "Buddy\u2019s own voices are paused: the voice account is out of credits. Until a grown-up tops it up, Buddy uses the device voice below.",
   rate: "Buddy\u2019s own voices are catching their breath (too many requests). Buddy is using the device voice for a few minutes.",
   provider: "Buddy\u2019s own voices can\u2019t be reached right now. Buddy is using the device voice below.",
 };
 
-/** Voices are stored with a prefix saying which kind they are; a bare name is a legacy device choice. */
+/** Voices are stored with a prefix saying which kind they are; a bare name is a legacy device choice.
+ *  The cloud prefix predates Kokoro and is kept so saved choices survive. */
 const CLOUD_PREFIX = "openai:";
 const DEVICE_PREFIX = "device:";
 
@@ -169,7 +171,8 @@ function subscribeVoicePref(cb: () => void): () => void {
   return () => { voiceListeners.delete(cb); };
 }
 
-function useSpeech(childId: string, cloudAvailable: boolean) {
+function useSpeech(childId: string, voices: CloudVoice[]) {
+  const cloudAvailable = voices.length > 0;
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const rateRef = useRef(0.92);
   const [voiceName, setVoiceName] = useState<string | null>(null);
@@ -185,13 +188,17 @@ function useSpeech(childId: string, cloudAvailable: boolean) {
   // offered the cloud voices — stored with the "device:" prefix. A bare name
   // is a choice made before the cloud voices existed, and it was keeping the
   // better voice off every iPad that had ever tried Fred.
+  //
+  // A saved cloud voice the deployment no longer offers (an OpenAI name after
+  // the move to Kokoro) falls through to the best voice it does have.
+  const saved = pref?.startsWith(CLOUD_PREFIX) ? pref.slice(CLOUD_PREFIX.length) : null;
   const cloudVoice = !cloudAvailable
     ? null
-    : pref?.startsWith(CLOUD_PREFIX)
-      ? pref.slice(CLOUD_PREFIX.length)
+    : saved
+      ? (voices.some((v) => v.id === saved) ? saved : voices[0].id)
       : pref?.startsWith(DEVICE_PREFIX)
         ? null
-        : DEFAULT_CLOUD_VOICE;
+        : voices[0].id;
 
   // One element for the life of the screen. A fresh Audio() per phrase would
   // need unlocking per phrase, which iOS will not grant.
@@ -371,7 +378,7 @@ function useSpeech(childId: string, cloudAvailable: boolean) {
   // The footer names the voice that is actually talking. While the cloud is
   // down that is the device voice, whatever was picked.
   const label = cloudVoice && !cloudTrouble
-    ? (CLOUD_VOICES.find((v) => v.id === cloudVoice)?.label ?? cloudVoice)
+    ? (voices.find((v) => v.id === cloudVoice)?.label ?? cloudVoice)
     : voiceName;
 
   return { speak, stop, speaking, loading, voiceName, voiceLabel: label, cloudVoice, cloudTrouble, choices, choose };
@@ -427,8 +434,9 @@ const big: React.CSSProperties = { fontSize: 28, fontWeight: 800, lineHeight: 1.
 const cardStyle: React.CSSProperties = { background: "var(--ios-cell)", borderRadius: 22, padding: "18px 20px", boxShadow: "0 8px 24px -16px rgba(0,0,0,0.4)", border: "1px solid var(--ios-separator)" };
 const bigBtn = (bg: string): React.CSSProperties => ({ width: "100%", padding: "18px 20px", borderRadius: 18, border: "none", background: bg, color: "#fff", fontSize: 22, fontWeight: 800, cursor: "pointer", boxShadow: "0 6px 0 rgba(0,0,0,0.15)" });
 
-export default function KidClient({ childId, name, gradeLabel, tasks: initialTasks, exercises, spelling, stars: initialStars, openTo = "home", cloudVoices = false }: Props) {
+export default function KidClient({ childId, name, gradeLabel, tasks: initialTasks, exercises, spelling, stars: initialStars, openTo = "home", cloudVoices = [] }: Props) {
   const { speak, stop, speaking, loading, voiceLabel, cloudVoice, cloudTrouble, choices, choose } = useSpeech(childId, cloudVoices);
+  const hasCloud = cloudVoices.length > 0;
   const [pickingVoice, setPickingVoice] = useState(false);
   const first = name.split(" ")[0] || name;
   const [tasks, setTasks] = useState<ChildTask[]>(initialTasks);
@@ -504,7 +512,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
             {/* Buddy's own voices first. They are better than anything on the
                 device by a wide margin, and they sound the same on every screen
                 the family opens this on. */}
-            {cloudVoices && (
+            {hasCloud && (
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--ios-label-3)", margin: "10px 0 4px" }}>Buddy&rsquo;s own voices</div>
                 {cloudTrouble && (
@@ -512,7 +520,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
                     {cloudTrouble}
                   </div>
                 )}
-                {CLOUD_VOICES.map((v) => {
+                {cloudVoices.map((v) => {
                   const on = cloudVoice === v.id;
                   return (
                     <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--ios-separator)" }}>
@@ -556,7 +564,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
               );
             })}
             <div style={{ fontSize: 13, color: "var(--ios-label-2)", lineHeight: 1.5, marginTop: 12, padding: "10px 12px", background: "var(--ios-fill)", borderRadius: 10 }}>
-              {cloudVoices
+              {hasCloud
                 ? <><strong>Buddy&rsquo;s own voices need the internet.</strong> They sound far better and they sound the same on every device, but out of signal Buddy falls back to the device voice below without saying anything about it — so it is worth having a good one of those too.</>
                 : <><strong>The natural ones have to be downloaded first.</strong></>}
               {" "}On the iPad or iPhone: Settings → Accessibility → Spoken Content → Voices → English → tap <em>Ava</em>, <em>Zoe</em>, <em>Evan</em> or <em>Nathan</em> and download the <em>Premium</em> version (about 200 MB each). Then close Safari fully and reopen this screen; they appear here marked Premium. The <em>Classic</em> voices — Fred, Junior, Kathy, Ralph — are a Mac thing; an iPad or iPhone does not ship them, so they only show up here on a computer.

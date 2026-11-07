@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { childForGuardian } from "@/app/children/_lib/children";
-import { synthesise, ttsConfigured, isCloudVoice, DEFAULT_CLOUD_VOICE, TTS_MODEL } from "@/lib/openai-tts";
+import { synthesise, ttsConfigured, isAvailableVoice, defaultCloudVoice, voiceById, modelFor, VoiceError } from "@/lib/buddy-voice";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -62,7 +62,10 @@ export async function POST(req: NextRequest) {
 
   const text = String(body.text ?? "").trim().slice(0, MAX_CHARS);
   const childId = String(body.childId ?? "");
-  const voice = isCloudVoice(body.voice) ? body.voice! : DEFAULT_CLOUD_VOICE;
+  // A voice this deployment can speak; otherwise the best one it has. A saved
+  // OpenAI choice on a Kokoro-only deployment lands here.
+  const voice = isAvailableVoice(body.voice) ? body.voice! : defaultCloudVoice();
+  if (!voice) return NextResponse.json({ error: "Not configured" }, { status: 503 });
   const speed = Number.isFinite(body.speed) ? Math.max(0.5, Math.min(1.5, Number(body.speed))) : 1;
   if (!text || !childId) return NextResponse.json({ error: "Bad request" }, { status: 400 });
 
@@ -74,8 +77,10 @@ export async function POST(req: NextRequest) {
   if (!child) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Speed is in the key: the same sentence read slowly is a different clip.
+  // So is the provider and model, since the same voice name on a new model
+  // is a different sound.
   const digest = createHash("sha256")
-    .update([TTS_MODEL, voice, speed.toFixed(2), text].join("\0"))
+    .update([modelFor(voiceById(voice)!), voice, speed.toFixed(2), text].join("\0"))
     .digest("hex");
   const path = `${digest.slice(0, 2)}/${digest}.mp3`;
 
@@ -98,8 +103,9 @@ export async function POST(req: NextRequest) {
     // outage, because "out of credits" is a message for a grown-up and a
     // thirty-minute pause, where a rate limit is a three-minute one.
     const msg = e instanceof Error ? e.message : "Synthesis failed";
-    const code = /insufficient_quota|credit_balance_exhausted|billing/i.test(msg) ? "billing"
-      : /^OpenAI TTS 429/.test(msg) ? "rate"
+    const status = e instanceof VoiceError ? e.status : 0;
+    const code = status === 402 || /insufficient_quota|credit_balance_exhausted|billing|insufficient (balance|funds)|out of credit/i.test(msg) ? "billing"
+      : status === 429 ? "rate"
       : "provider";
     return NextResponse.json({ error: msg, code }, { status: 502 });
   }
