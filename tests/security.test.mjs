@@ -58,3 +58,9 @@ test('automatic merges stop on changed base, unexpected head or extra files and 
   const ctx={github,context:{repo:{owner:'owner',repo:'repo'},sha:'a'},core:{info:()=>{}}};
   base='changed';await assert.rejects(merge(ctx,1,'b'),/stopped/);base='a';head='changed';await assert.rejects(merge(ctx,1,'b'),/stopped/);head='b';files.push({filename:'app/page.tsx'});await assert.rejects(merge(ctx,1,'b'),/stopped/);assert.equal(merges,0);assert.equal(dispatches,0);files.pop();await merge(ctx,1,'b');assert.equal(merges,1);assert.equal(dispatches,1);
 });
+
+test('CodeQL extension packs preserve high and critical security severity from real SARIF layout',()=>{
+  const result=(id,index)=>({ruleId:id,rule:{id,index,toolComponent:{index:0}},message:{text:'Security finding'},locations:[{physicalLocation:{artifactLocation:{uri:'app/page.tsx'},region:{startLine:index+1}}}]});
+  const sarif={runs:[{tool:{driver:{name:'CodeQL',rules:[]},extensions:[{name:'codeql/javascript-queries',rules:[{id:'js/xss-through-dom',properties:{'security-severity':'7.8'}},{id:'js/critical-example',properties:{'security-severity':'9.8'}}]}]},results:[result('js/xss-through-dom',0),result('js/critical-example',1)]}]};
+  assert.deepEqual(sarifFindings(sarif).map(f=>f.severity),['high','critical']);
+});

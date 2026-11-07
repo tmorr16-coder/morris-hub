@@ -18,17 +18,21 @@ export function sarifFindings(sarif) {
   const findings = [];
   for (const run of sarif.runs) {
     if (run.invocations?.some(i => i.executionSuccessful === false)) throw Error('CodeQL analysis was incomplete');
-    const rules = run.tool?.driver?.rules ?? [];
+    const components = [run.tool?.driver, ...(run.tool?.extensions ?? [])].filter(Boolean);
+    const rules = components.flatMap(component => component.rules ?? []);
     for (const result of run.results ?? []) {
       if (result.suppressions?.some(s => s.status === 'accepted')) continue;
-      const rule = rules.find(r => r.id === result.ruleId);
+      const ruleId = result.ruleId ?? result.rule?.id;
+      const component = Number.isInteger(result.rule?.toolComponent?.index) ? run.tool?.extensions?.[result.rule.toolComponent.index] : run.tool?.driver;
+      const indexedRule = component?.rules?.[result.rule?.index];
+      const rule = indexedRule?.id === ruleId ? indexedRule : rules.find(r => r.id === ruleId);
       const score = Number(rule?.properties?.['security-severity']);
       const severity = score >= 9 ? 'critical' : score >= 7 ? 'high' : score >= 4 ? 'medium' : Number.isFinite(score) ? 'low' : result.level === 'error' ? 'high' : 'medium';
       const loc = result.locations?.[0]?.physicalLocation;
       const file = loc?.artifactLocation?.uri ?? 'Unknown location';
       const line = loc?.region?.startLine ?? 1;
       const fingerprint = result.partialFingerprints?.primaryLocationLineHash ?? `${line}`;
-      findings.push({key:`codeql:${digest(`${result.ruleId}:${file}:${fingerprint}`)}`,source:'codeql',title:(result.message?.text ?? result.ruleId ?? 'CodeQL finding').slice(0,500),severity,location:`${file}:${line}`.slice(0,500),url:`https://github.com/${repo}/security/code-scanning`,remediation:'Review the CodeQL alert and suggested remediation. Application code changes require review and validation.'});
+      findings.push({key:`codeql:${digest(`${ruleId}:${file}:${fingerprint}`)}`,source:'codeql',title:(result.message?.text ?? ruleId ?? 'CodeQL finding').slice(0,500),severity,location:`${file}:${line}`.slice(0,500),url:`https://github.com/${repo}/security/code-scanning`,remediation:'Review the CodeQL alert and suggested remediation. Application code changes require review and validation.'});
     }
   }
   return [...new Map(findings.map(f => [f.key,f])).values()];
