@@ -1,17 +1,12 @@
-import { createRemoteJWKSet, jwtVerify } from "jose";
-import { AUDIENCE, parseReport, trustedClaims } from "@/lib/security/model";
+import { parseReport } from "@/lib/security/model";
+import { verifySecurityWorkflow } from "@/lib/security/auth";
 import { securityDb, sendSecurityAlerts } from "@/lib/security/server";
 export const runtime = "nodejs";
 export const maxDuration = 60;
-const keys = createRemoteJWKSet(new URL("https://token.actions.githubusercontent.com/.well-known/jwks"));
 export async function POST(request: Request) {
   let claims;
   try {
-    const token = request.headers.get("authorization")?.match(/^Bearer (\S+)$/)?.[1];
-    if (!token) throw Error("Missing token");
-    const { payload } = await jwtVerify(token, keys, { issuer: "https://token.actions.githubusercontent.com", audience: AUDIENCE, algorithms: ["RS256"], maxTokenAge: "10m" });
-    if (!trustedClaims(payload)) throw Error("Untrusted workflow");
-    claims = payload;
+    claims = await verifySecurityWorkflow(request);
   } catch { return Response.json({ error: "Unauthorized workflow" }, { status: 401 }); }
   let report;
   try {

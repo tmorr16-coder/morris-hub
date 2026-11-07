@@ -20,7 +20,8 @@ import { mccToCategory } from "./mcc";
  * Balances are stored as-is (NOT sign-flipped).
  */
 
-const FETCH_TIMEOUT_MS = 15_000;
+const CLAIM_TIMEOUT_MS = 15_000;
+const FETCH_TIMEOUT_MS = 40_000;
 
 export interface SimpleFinTransaction {
   id: string;
@@ -81,7 +82,7 @@ export async function claimAccessUrl(setupToken: string): Promise<string> {
   const res = await fetch(claimUrl, {
     method: "POST",
     body: "",
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    signal: AbortSignal.timeout(CLAIM_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -107,6 +108,7 @@ export async function fetchSimpleFinAccounts(
   // fetch()/undici REJECTS a URL with credentials, so split them out and send
   // them as an Authorization: Basic header against a credential-free URL.
   const parsed = new URL(accessUrl);
+  if (parsed.protocol !== "https:") throw new Error("SimpleFIN requires an HTTPS connection");
   const username = decodeURIComponent(parsed.username);
   const password = decodeURIComponent(parsed.password);
   parsed.username = "";
@@ -126,6 +128,7 @@ export async function fetchSimpleFinAccounts(
   const res = await fetch(url, {
     method: "GET",
     headers,
+    cache: "no-store",
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 
@@ -133,14 +136,16 @@ export async function fetchSimpleFinAccounts(
     throw new Error(`SimpleFIN accounts fetch failed with status ${res.status}`);
   }
 
-  const json = (await res.json()) as Partial<SimpleFinAccountsResponse>;
+  const json = (await res.json()) as Partial<SimpleFinAccountsResponse> & { errlist?: { msg?: string; code?: string }[] };
+  if (!Array.isArray(json.accounts)) throw new Error("SimpleFIN returned an incomplete account response");
+  const errors = [...new Set([...(json.errors ?? []).map(String), ...(json.errlist ?? []).map(e => e.msg || e.code || "SimpleFIN connection needs attention")])];
   // `errors` is not an HTTP failure — the request succeeded. It is SimpleFIN
   // saying "these connections need attention", and the accounts behind them are
   // missing from `accounts`. Named explicitly because both callers previously
   // destructured past it.
   return {
-    errors: json.errors ?? [],
-    providerErrors: (json.errors ?? []).map((e) => String(e)),
+    errors,
+    providerErrors: errors,
     accounts: json.accounts ?? [],
   };
 }
@@ -228,4 +233,11 @@ export function mapSimpleFinTransaction(
     personal_finance_category: mccToCategory(t.mcc) as unknown,
     location: null as unknown,
   };
+}
+
+/** Five-day overlap catches late postings; first sync/recovery is capped at 90 days. */
+export function simpleFinStartDate(lastSynced: string | null, now = Date.now()): number {
+  const oldest = now - 90 * 86_400_000;
+  const previous = lastSynced ? Date.parse(lastSynced) : NaN;
+  return Math.floor(Math.max(oldest, Number.isFinite(previous) && previous <= now ? previous - 5 * 86_400_000 : oldest) / 1000);
 }

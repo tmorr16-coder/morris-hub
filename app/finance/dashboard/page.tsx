@@ -1,3 +1,4 @@
+export const maxDuration = 300;
 export const revalidate = 1800; // cache for 30 minutes
 
 import { createServiceClient } from "@/lib/supabase/server";

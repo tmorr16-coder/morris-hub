@@ -1,7 +1,7 @@
 name: Security review
 on:
   schedule:
-    - cron: '17 7 * * *'
+    - cron: '2-57/5 * * * *'
       timezone: America/Indiana/Indianapolis
   workflow_dispatch:
   push:
@@ -12,7 +12,33 @@ concurrency:
   group: security-review
   cancel-in-progress: false
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      should_run: ${{ steps.queue.outputs.should_run }}
+    steps:
+      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        id: queue
+        with:
+          script: |
+            for (let attempt = 0; attempt < 8; attempt++) {
+              const token = await core.getIDToken('https://morrisai.family/api/security/reports');
+              const response = await fetch('https://morrisai.family/api/security/queue', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30000), redirect: 'error' });
+              if (response.ok) {
+                const decision = await response.json();
+                core.setOutput('should_run', decision.should_run === true ? 'true' : 'false');
+                return;
+              }
+              if (response.status === 401 || attempt === 7) throw new Error(`Security queue: HTTP ${response.status}`);
+              await new Promise(resolve => setTimeout(resolve, 20000));
+            }
   review:
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -47,8 +73,8 @@ jobs:
           path: security-output
           retention-days: 14
   fix:
-    needs: review
-    if: always() && needs.review.result != 'cancelled'
+    needs: [gate, review]
+    if: always() && needs.gate.outputs.should_run == 'true' && needs.review.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -81,6 +107,7 @@ jobs:
           npm run test:security
           npm run test:voice
           npm run test:workout
+          npm run test:simplefin
           npm run build
       - name: Confirm tested patch changes only the lockfile
         if: steps.changed.outputs.yes == 'true'
@@ -98,7 +125,7 @@ jobs:
           title: 'Security: validated compatible dependency fixes'
           body: |
             Daily security review generated compatible npm lockfile fixes without force upgrades or install scripts.
-            Security, voice and workout tests and the production build passed before this PR was opened.
+            Security, voice, workout and bank-sync tests and the production build passed before this PR was opened.
             Compatible lockfile-only fixes are automatically merged if main and the validated candidate are unchanged and repository policy permits it.
             Findings remain open until a follow-up main-branch review confirms resolution.
           delete-branch: true
@@ -113,8 +140,8 @@ jobs:
             const merge = require('./scripts/security-merge.cjs');
             await merge({ github, context, core }, process.env.FIX_PR_NUMBER, process.env.FIX_HEAD_SHA);
   report:
-    needs: [review, fix]
-    if: always()
+    needs: [gate, review, fix]
+    if: always() && needs.gate.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

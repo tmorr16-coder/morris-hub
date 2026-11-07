@@ -45,7 +45,7 @@ export function explainSyncFailure(raw: string | null): { headline: string; deta
   if (/timed out|timeout|aborted/i.test(msg)) {
     return {
       headline: "SimpleFIN did not respond in time",
-      detail: "Usually transient. The next sync will try again.",
+      detail: "Tap Sync now to retry this connection. If it keeps timing out, check the institutions in your SimpleFIN Bridge account for a bank sign-in or service issue. A timeout alone does not require disconnecting.",
       canReconnect: false,
     };
   }

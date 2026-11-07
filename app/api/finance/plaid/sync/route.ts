@@ -4,7 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { evaluateBudgets, usersWithBudgets } from '@/lib/finance/budgets';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * GET — invoked by Vercel Cron. Syncs all active items.
@@ -12,7 +12,7 @@ export const maxDuration = 60;
  */
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization');
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
   const results = await syncAllItems();
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   const auth = req.headers.get('authorization');
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
   const { item_id } = await req.json();
