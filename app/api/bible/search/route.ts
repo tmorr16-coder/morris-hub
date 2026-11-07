@@ -5,6 +5,13 @@ import { searchVerses, lookupReference, type VerseResult } from "@/lib/bible-api
 import { MODEL_FAST } from "@/lib/models";
 
 const anthropic = new Anthropic();
+const DEFAULT_BIBLE_ID = "de4e12af7f28f599-02";
+const ALLOWED_BIBLE_IDS = new Set([
+  "de4e12af7f28f599-02",
+  "685d1470fe4d5c3b-01",
+  "9879dbb7cfe39e4d-01",
+  "01b29f4b342acc35-01",
+]);
 
 /**
  * Turn a topic/keyword/paraphrase ("faith", "love your enemies", "the good
@@ -46,7 +53,10 @@ export async function GET(req: NextRequest) {
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const bibleId = searchParams.get("bibleId") ?? "de4e12af7f28f599-02";
+  const requestedBibleId = searchParams.get("bibleId");
+  const bibleId = requestedBibleId && ALLOWED_BIBLE_IDS.has(requestedBibleId)
+    ? requestedBibleId
+    : DEFAULT_BIBLE_ID;
   const query = searchParams.get("q") ?? "";
   if (!query) return NextResponse.json([]);
 
