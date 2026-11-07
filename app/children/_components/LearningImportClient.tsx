@@ -63,7 +63,7 @@ function fmtDate(iso: string): string {
   return new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
-export default function LearningImportClient({ childId, childName }: { childId: string; childName: string }) {
+export default function LearningImportClient({ childId, childName, inboundAddress = null }: { childId: string; childName: string; inboundAddress?: string | null }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("pick");
   const [pages, setPages] = useState<{ file: File; url: string }[]>([]);
@@ -76,6 +76,7 @@ export default function LearningImportClient({ childId, childName }: { childId: 
   const [replace, setReplace] = useState(true);
   const [hashes, setHashes] = useState<string[]>([]);
   const [many, setMany] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [batch, setBatch] = useState<BatchItem[]>([]);
   const [batchRunning, setBatchRunning] = useState(false);
   const batchRef = useRef<HTMLInputElement>(null);
@@ -291,6 +292,30 @@ export default function LearningImportClient({ childId, childName }: { childId: 
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
         <input ref={pickerRef} type="file" accept="image/*,application/pdf" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
         <input ref={batchRef} type="file" accept="image/*,application/pdf" multiple hidden onChange={(e) => { addBatch(e.target.files); e.target.value = ""; }} />
+
+        {inboundAddress && (
+          <Group
+            header="Or email it"
+            footer={`Forward the teacher's email to this address and it is read the same way, with the dates and practice added for you. In Gmail, a filter on the teacher's address can forward every newsletter automatically (Settings → Forwarding; the confirmation code Gmail sends appears on the platform status page). Only email from ${childName}'s parents is accepted.`}
+          >
+            <Cell
+              chevron={false}
+              lead={<IconBadge color="var(--ios-tint)"><Icons.ComposeIcon /></IconBadge>}
+              title={inboundAddress}
+              subtitle={`${childName}'s school-document address`}
+              trailing={
+                <button
+                  type="button"
+                  className="ios-btn--plain"
+                  onClick={() => { navigator.clipboard?.writeText(inboundAddress).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }).catch(() => undefined); }}
+                  style={{ color: "var(--ios-tint)", fontWeight: 600 }}
+                >
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              }
+            />
+          </Group>
+        )}
 
         <div style={{ margin: "0 var(--ios-gutter) 8px", display: "flex", gap: 8 }}>
           <Chip small selected={!many} onClick={() => setMany(false)}>One document</Chip>

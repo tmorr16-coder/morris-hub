@@ -1,0 +1,237 @@
+// Reading a school document — the model call and the shape it must come back
+// in — apart from any HTTP route, so the same read serves a parent's upload
+// and an email forwarded to the child's address.
+
+import Anthropic from "@anthropic-ai/sdk";
+import { MODEL_BALANCED } from "@/lib/models";
+import { recordFailure } from "@/lib/system-events";
+import { gradeLabelFor, type DocumentExtraction } from "./learning";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+const client = new Anthropic();
+
+// Read a page (or several) from a child's school — a newsletter, a graded
+// test, a word list — into the one structure the workspace understands, and
+// propose the practice that follows from it. The photos come straight off a
+// phone; the client has already turned them into JPEGs under 1568px.
+
+const SYSTEM = `You read what an elementary school sends home — weekly newsletters, spelling lists, graded tests and homework — for the child's parents, and turn it into a plan they can act on that evening.
+
+You are careful, literal, and specific. You transcribe dates, words and scores exactly as printed. You never invent a score, a date or a teacher's comment. When you propose practice, every exercise is anchored to something on the page: a teacher's note in the margin, an item marked wrong, a pattern being taught this week, or a request the teacher made of families. You write for a parent with ten minutes at the kitchen table, not for a teacher.
+
+Return ONLY a JSON object — no prose before or after it, no markdown fences, no comments. Emit it compactly (no indentation) so a long document fits.`;
+
+function promptFor(childName: string, gradeLabel: string | null, today: string): string {
+  return `The child is ${childName}${gradeLabel ? `, in ${gradeLabel}` : ""}. Today is ${today}. Every page attached belongs to the same document (a multi-page newsletter, or one graded paper). Read all of them.
+
+Return this exact JSON shape:
+{
+  "kind": "newsletter" | "graded_work" | "word_list" | "other",
+  "title": "short, specific — e.g. '1st Grade Newsletter, Sept 4' or 'Spelling Test, Week 3 (CVC words)'",
+  "doc_date": "YYYY-MM-DD printed on it, or null",
+  "week_start": "YYYY-MM-DD (Monday) of the week a newsletter covers, or null",
+  "week_end": "YYYY-MM-DD (Friday), or null",
+  "summary": "two or three plain sentences a parent would want first",
+  "dates": [ { "date": "YYYY-MM-DD", "title": "as printed, shortened", "kind": "no_school" | "early_dismissal" | "field_trip" | "test" | "event" | "other", "note": "time or detail, or null" } ],
+  "spelling": { "week_start": "YYYY-MM-DD or null", "week_end": "YYYY-MM-DD or null", "pattern": "the rule as a short label of at most eight words, e.g. 'Silent e: long a, i and o' — never a sentence", "words": ["every practice word printed, lowercase, in order, no duplicates"], "sight_words": ["high-frequency words to practise"], "test_on": "YYYY-MM-DD of the test, or null" } or null,
+  "academics": [ { "subject": "Language Arts" | "Math" | "Science" | "Bible" | "Reading" | "...", "topics": ["as printed"] } ],
+  "read_aloud": "book title, or null",
+  "memory_verse": "reference and text, or null",
+  "recitation": "poem or piece being memorised, or null",
+  "parent_requests": ["things the teacher asked families to do at home, each one sentence"],
+  "birthdays": [ { "name": "...", "date": "YYYY-MM-DD or null" } ],
+  "assessments": [ {
+    "subject": "spelling" | "handwriting" | "reading" | "decoding" | "math" | "science" | "bible" | "other",
+    "title": "e.g. 'Spelling Test — Week 3, CVC words'",
+    "score": number or null, "out_of": number or null,
+    "assessed_on": "YYYY-MM-DD or null",
+    "teacher_feedback": "every handwritten teacher comment, verbatim, joined with ' · ' — or null",
+    "observations": ["what the paper itself shows about how the child is doing — a reversed letter, a vowel confused with another, a capital where a lowercase belongs, a strategy used well. Specific: name the letters, the words, the numbers."],
+    "items": [ { "prompt": "the word or problem", "written": "what the child wrote, or null", "correct": true | false | null } ]
+  } ],
+  "exercises": [ {
+    "title": "short imperative, e.g. 'Clock-start d: three rows'",
+    "skill": "the one skill, e.g. 'letter formation: d'",
+    "rationale": "one sentence, naming the evidence on the page — quote the teacher's words when there are any",
+    "steps": "three to five short numbered steps a parent can run in 5–10 minutes",
+    "minutes": 5 | 8 | 10 | 15,
+    "frequency": "daily" | "three_a_week" | "weekly" | "once",
+    "materials": "what to have on hand, or null"
+  } ]
+}
+
+Rules:
+- Dates: use the document's year (or ${today.slice(0, 4)} if none is printed). "Monday, Sept. 7th" with a document dated 2026 is "2026-09-07". Include EVERY calendar item printed, including no-school days and dismissal changes.
+- A graded paper: score and out_of exactly as the teacher wrote them (a "+9/10" is 9 of 10). If the teacher scored two things (spelling AND handwriting), return two assessments. Transcribe each numbered item with what the child wrote; mark correct=false only where the teacher marked it or the spelling is clearly wrong.
+- Observations are yours, from looking: reversals (b/d, p/q), letter sizing and baseline, which vowel sound was confused (the child wrote 'fex' for 'fix'), which strategy the child used in math. Be concrete and kind.
+- Exercises: 3 to 6. Each must trace to the page. A teacher's note ("start at 2 on the clock" for the letter d) becomes an exercise that repeats her exact cue. A pattern being taught this week (silent e) becomes a game with this week's actual words. A request to families (practise tying shoes, recite the poem with the map) becomes an exercise. Age-appropriate for ${gradeLabel ?? "the child's grade"}: short, physical, playful, with the child doing the writing or saying.
+- Never include an exercise for a skill the page shows the child has already mastered.
+- Pages may be photographed or scanned sideways or upside down; read them in whatever orientation they are.
+- Keep "items" to the graded items themselves — at most 30 per assessment, each entry short. Keep "observations" to at most six per assessment.
+- Set spelling to null for a graded paper that carries no list of words to study. Set assessments to [] for a newsletter.
+- kind is "newsletter" when the pages are a newsletter and its attachments together (spelling sheet, word list); "word_list" only when a word list arrives alone.`;
+}
+
+export const ALLOWED = new Set(["application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"]);
+export const MAX_TOTAL = 4 * 1024 * 1024;   // Vercel drops bodies over 4.5MB before we run
+export const MAX_PAGES = 3;
+
+
+export type DocumentPart =
+  | { type: "pdf"; data: Buffer }
+  | { type: "image"; mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp"; data: Buffer }
+  | { type: "text"; text: string };
+
+export type ReadResult =
+  | { extraction: DocumentExtraction }
+  | { error: string; status: 422 | 502 | 500 };
+
+/**
+ * Read the parts of one document — pages as images or a PDF, and optionally
+ * the text of the email they came in — into the workspace's structure.
+ */
+export async function readSchoolDocument(
+  child: { display_name: string | null; birth_year: number | null },
+  parts: DocumentPart[],
+  opts?: { userId?: string | null; source?: string },
+): Promise<ReadResult> {
+  const blocks: any[] = [];
+  let pages = 0;
+  for (const p of parts) {
+    if (p.type === "pdf") { pages++; blocks.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: p.data.toString("base64") } }); }
+    else if (p.type === "image") { pages++; blocks.push({ type: "image", source: { type: "base64", media_type: p.mediaType, data: p.data.toString("base64") } }); }
+    else blocks.push({ type: "text", text: `The text of the email this came in, which may itself be the newsletter:\n\n${p.text}` });
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const gradeLabel = gradeLabelFor(child.birth_year, new Date());
+  const childName = child.display_name ?? "the child";
+
+  try {
+    const response = await client.messages.create({
+      model: MODEL_BALANCED,
+      max_tokens: 6000,
+      system: SYSTEM,
+      messages: [{ role: "user", content: [...blocks, { type: "text", text: promptFor(childName, gradeLabel, today) }] }],
+    });
+    const text = response.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("\n").trim();
+
+    // The reply ran out of room before the closing brace. Five graded pages
+    // with every item transcribed can do that; say so, rather than blaming
+    // the photographs.
+    if (response.stop_reason === "max_tokens") {
+      console.error("[children/read-document] reply truncated at max_tokens", { pages, chars: text.length });
+      return { error: "There was more on those pages than can be read in one go. Send them in twos, or one graded paper at a time.", status: 422 };
+    }
+
+    const parsed = parseJsonObject(text);
+    if (!parsed) {
+      // Log the shape of what came back, so the next failure is a fact and not a guess.
+      console.error("[children/read-document] unparseable reply", { pages, chars: text.length, head: text.slice(0, 300), tail: text.slice(-200) });
+      return { error: "The reader's reply could not be understood. This is on our side, not the photographs — try once more, or send fewer pages at a time.", status: 422 };
+    }
+    return { extraction: normalize(parsed) };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await recordFailure({ source: "children", subject: "document-read", userId: opts?.userId ?? null, message: `Document read failed: ${msg}`, detail: { pages, source: opts?.source ?? "upload" } });
+    if (err instanceof Anthropic.APIError) return { error: "The reading service had a problem. Try again in a moment.", status: 502 };
+    console.error("[children/read-document]", err);
+    return { error: "Could not read the document.", status: 500 };
+  }
+}
+
+/**
+ * Find and parse the JSON object in a model reply. Tolerates fences, prose
+ * before or after, and trailing commas — every one of which the first
+ * version treated as an unreadable photograph.
+ */
+function parseJsonObject(text: string): any | null {
+  const candidates: string[] = [];
+  const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  candidates.push(stripped);
+  const first = text.indexOf("{");
+  const last = text.lastIndexOf("}");
+  if (first >= 0 && last > first) candidates.push(text.slice(first, last + 1));
+  for (const c of candidates) {
+    try { return JSON.parse(c); } catch { /* next */ }
+    try { return JSON.parse(c.replace(/,\s*([}\]])/g, "$1")); } catch { /* next */ }
+  }
+  return null;
+}
+
+const FREQ = new Set(["daily", "three_a_week", "weekly", "once"]);
+const KINDS = new Set(["newsletter", "graded_work", "word_list", "other"]);
+const DATE_KINDS = new Set(["no_school", "early_dismissal", "field_trip", "test", "event", "other"]);
+const isoDate = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+const arr = <T,>(v: unknown, map: (x: any) => T | null): T[] => (Array.isArray(v) ? v.map(map).filter((x): x is T => x != null) : []);
+
+/** The model's output, made safe to save: every field the right type, nothing missing. */
+function normalize(p: any): DocumentExtraction {
+  const words = (v: unknown) => [...new Set(arr<string>(v, (w) => str(w)?.toLowerCase() ?? null))];
+  return {
+    kind: KINDS.has(p?.kind) ? p.kind : "other",
+    title: str(p?.title) ?? "School document",
+    doc_date: isoDate(p?.doc_date),
+    week_start: isoDate(p?.week_start),
+    week_end: isoDate(p?.week_end),
+    summary: str(p?.summary) ?? "",
+    dates: arr(p?.dates, (d) => {
+      const date = isoDate(d?.date);
+      const title = str(d?.title);
+      return date && title ? { date, title, kind: DATE_KINDS.has(d?.kind) ? d.kind : "other", note: str(d?.note) } : null;
+    }),
+    spelling: p?.spelling
+      ? {
+          week_start: isoDate(p.spelling.week_start),
+          week_end: isoDate(p.spelling.week_end),
+          pattern: str(p.spelling.pattern),
+          words: words(p.spelling.words),
+          sight_words: words(p.spelling.sight_words),
+          test_on: isoDate(p.spelling.test_on),
+        }
+      : null,
+    academics: arr(p?.academics, (a) => {
+      const subject = str(a?.subject);
+      return subject ? { subject, topics: arr<string>(a?.topics, (t) => str(t)) } : null;
+    }),
+    read_aloud: str(p?.read_aloud),
+    memory_verse: str(p?.memory_verse),
+    recitation: str(p?.recitation),
+    parent_requests: arr<string>(p?.parent_requests, (t) => str(t)),
+    birthdays: arr(p?.birthdays, (b) => {
+      const name = str(b?.name);
+      return name ? { name, date: isoDate(b?.date) } : null;
+    }),
+    assessments: arr(p?.assessments, (a) => {
+      const title = str(a?.title);
+      if (!title) return null;
+      return {
+        subject: str(a?.subject)?.toLowerCase() ?? "other",
+        title,
+        score: typeof a?.score === "number" ? a.score : null,
+        out_of: typeof a?.out_of === "number" ? a.out_of : null,
+        assessed_on: isoDate(a?.assessed_on),
+        teacher_feedback: str(a?.teacher_feedback),
+        observations: arr<string>(a?.observations, (t) => str(t)),
+        items: arr(a?.items, (it) => {
+          const prompt = str(it?.prompt);
+          return prompt ? { prompt, written: str(it?.written), correct: typeof it?.correct === "boolean" ? it.correct : null } : null;
+        }),
+      };
+    }),
+    exercises: arr(p?.exercises, (e) => {
+      const title = str(e?.title);
+      if (!title) return null;
+      return {
+        title,
+        skill: str(e?.skill) ?? "",
+        rationale: str(e?.rationale) ?? "",
+        steps: str(e?.steps) ?? "",
+        minutes: typeof e?.minutes === "number" ? e.minutes : null,
+        frequency: FREQ.has(e?.frequency) ? e.frequency : "daily",
+        materials: str(e?.materials),
+      };
+    }),
+  };
+}
