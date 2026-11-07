@@ -302,6 +302,7 @@ export function suggestNext(
   target: { sets: number; reps: number; weight: number }
 ): ProgressionSuggestion {
   const last = lastSession.sets;
+  if (last.length === 0) return { reps: target.reps, weight: target.weight, hint: null };
   const allHitTarget = last.every((s) => s.reps >= target.reps && s.rpe <= 8);
   if (allHitTarget) {
     return { reps: target.reps, weight: last[last.length - 1].weight + 5, hint: "↑ All sets crushed at RPE ≤8 — bump weight 5 lbs" };

@@ -1,0 +1,60 @@
+// Uses the local development bypass and fake sessions; never posts to Facebook.
+import assert from "node:assert/strict";
+import { chromium, expect as baseExpect } from "@playwright/test";
+const expect = baseExpect.configure({ timeout: 30000 });
+
+const origin = process.env.WORKOUT_TEST_ORIGIN ?? "http://127.0.0.1:3011";
+const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined });
+try {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await context.newPage();
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await context.addInitScript(() => {
+    if (localStorage.getItem("workout-fixture-seeded")) return;
+    const ex = (name) => ({ name, muscles: ["Legs"], cues: [], restSec: 90, target: { sets: 2, reps: 8, weight: 100 }, lastSession: { date: "", sets: [] } });
+    const now = Date.now();
+    localStorage.setItem("morris:activeWorkout", JSON.stringify({ userId: "00000000-0000-0000-0000-000000000001", title: "Community strength", sessionId: "fixture-session", exerciseIds: ["fixture-squat", "fixture-row"], exercises: [ex("Squat"), ex("Row")], setLogs: [[{ reps: 8, weight: 100, rpe: 7 }, null], [{ reps: 8, weight: 80, rpe: 7 }, null]], cardioBlocks: [], warmup: false, cooldown: false, startedAtMs: now - 1200000, savedAtMs: now, currentExIdx: 1, activeSetIdx: 1, pausedAtMs: now - 30000, pausedDurationMs: 60000, pausedRestLeftMs: 90000, restEndsAtMs: now + 60000, inputReps: "9", inputWeight: "85", inputRpe: 8 }));
+    localStorage.setItem("workout-fixture-seeded", "yes");
+  });
+  await page.goto(`${origin}/health/workout?resume=1`, { timeout: 120000 });
+  await expect(page.getByRole("spinbutton", { name: "Reps", exact: true })).toHaveValue("9", { timeout: 60000 });
+  await expect(page.getByRole("spinbutton", { name: "Weight (lb)", exact: true })).toHaveValue("85");
+  await expect(page.getByText("Paused", { exact: true })).toBeVisible();
+  await page.getByRole("spinbutton", { name: "Weight (lb)", exact: true }).fill("87");
+  await page.goto(`${origin}/privacy`);
+  await expect(page.getByRole("complementary", { name: "Active workout" })).toBeVisible();
+  await expect(page.getByText("Workout paused", { exact: true })).toBeVisible();
+  await page.getByRole("complementary", { name: "Active workout" }).getByRole("link").click();
+  await expect(page.getByRole("spinbutton", { name: "Weight (lb)", exact: true })).toHaveValue("87");
+  await page.reload();
+  await expect(page.getByRole("spinbutton", { name: "Weight (lb)", exact: true })).toHaveValue("87");
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("morris:activeWorkout")));
+  assert.equal(saved.sessionId, "fixture-session"); assert.equal(saved.currentExIdx, 1); assert.equal(saved.activeSetIdx, 1);
+  assert.ok(saved.pausedAtMs); assert.equal(saved.setLogs.flat().filter(Boolean).length, 2);
+  await page.getByRole("button", { name: "Session menu", exact: true }).click();
+  await page.getByRole("button", { name: "Stop & save session", exact: true }).click();
+  await page.getByRole("button", { name: "Share workout on Facebook", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Preview your workout post" })).toBeVisible();
+  await page.getByLabel("Add a message").fill("We showed up today. Join us tomorrow!");
+  await page.getByLabel("Include total lifting volume").uncheck();
+  const fbLink = new URL(await page.getByRole("link", { name: "Continue to Facebook" }).getAttribute("href"));
+  assert.equal(fbLink.hostname, "www.facebook.com");
+  const publicUrl = fbLink.searchParams.get("u");
+  assert.ok(!publicUrl.includes("fixture-session"));
+  const data = JSON.parse(new URL(publicUrl).searchParams.get("s"));
+  assert.equal(data.sets, 2); assert.equal(data.reps, 16); assert.equal(data.volume, undefined);
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Share workout on Facebook", exact: true })).toBeVisible();
+  const shared = await context.newPage();
+  await shared.goto(publicUrl);
+  await expect(shared.getByRole("heading", { name: "Community strength", exact: true })).toBeVisible();
+  await expect(shared.getByText("We showed up today. Join us tomorrow!", { exact: true })).toBeVisible();
+  const image = new URL("/workouts/share/image", origin); image.searchParams.set("s", JSON.stringify(data));
+  const response = await shared.request.get(image.toString());
+  assert.equal(response.status(), 200); assert.match(response.headers()["content-type"], /image\/png/);
+  const png = await response.body(); assert.equal(png.subarray(1, 4).toString(), "PNG");
+  await shared.screenshot({ path: "/tmp/morris-workout-share-preview.png", fullPage: true });
+  assert.deepEqual(errors, []);
+  console.log("PASS: workout drafts, pause, navigation, reload, unfinished summary, public share page and PNG card.");
+} finally { await browser.close(); }

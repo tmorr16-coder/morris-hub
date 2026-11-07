@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useActiveWorkout } from "@/hooks/useActiveWorkout";
 import Link from "next/link";
 import { IconBadge, Icons } from "@/components/ios";
-import { readSnapshot, type WorkoutSnapshot } from "../../workout/_lib/resume";
+
 
 function relativeTime(ms: number) {
   const mins = Math.max(0, Math.round((Date.now() - ms) / 60000));
@@ -18,13 +18,8 @@ function relativeTime(ms: number) {
 // Reads the in-progress workout snapshot from localStorage (post-mount, so no
 // hydration mismatch) and, if one exists, offers a tap-to-resume card. Works
 // after fully closing the app since it needs no ?plan param.
-export default function ResumeWorkoutBanner() {
-  const [snap, setSnap] = useState<WorkoutSnapshot | null>(null);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSnap(readSnapshot());
-  }, []);
+export default function ResumeWorkoutBanner({ userId }: { userId: string }) {
+  const snap = useActiveWorkout(userId);
 
   if (!snap) return null;
 

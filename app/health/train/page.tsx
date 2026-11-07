@@ -160,7 +160,7 @@ export default async function TrainPage() {
 
       {/* Resume an in-progress workout (localStorage snapshot; client widget) */}
       <div style={{ padding: "8px 16px 0" }}>
-        <ResumeWorkoutBanner />
+        <ResumeWorkoutBanner userId={userId} />
       </div>
 
       {/* Scheduled workouts (client widget) */}

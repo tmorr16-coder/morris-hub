@@ -7,6 +7,7 @@ import { getCurrentUserId } from "@/lib/health/auth";
 
 /** Latest recorded body weight (lb), for the "BW" quick-fill on bodyweight sets. */
 async function getBodyWeight(): Promise<number | null> {
+  if (process.env.NEXT_PUBLIC_AUTH_BYPASS === "true") return null;
   try {
     const userId = await getCurrentUserId();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,7 +32,7 @@ export default async function WorkoutPage({
   searchParams: Promise<{ plan?: string; resume?: string }>;
 }) {
   const { plan: encoded, resume } = await searchParams;
-  const bodyWeight = await getBodyWeight();
+  const [bodyWeight, userId] = await Promise.all([getBodyWeight(), getCurrentUserId()]);
 
   // No plan means nothing was built yet. If we're resuming an in-progress
   // workout, load it entirely from the localStorage snapshot instead of the
@@ -40,7 +41,7 @@ export default async function WorkoutPage({
     if (resume === "1") {
       return (
         <div className="ios-scroll">
-          <WorkoutTracker resume bodyWeight={bodyWeight} />
+          <WorkoutTracker userId={userId} resume bodyWeight={bodyWeight} />
         </div>
       );
     }
@@ -73,6 +74,7 @@ export default async function WorkoutPage({
   return (
     <div className="ios-scroll">
       <WorkoutTracker
+        userId={userId}
         initialExercises={initialExercises}
         initialWarmup={initialWarmup}
         initialCooldown={initialCooldown}

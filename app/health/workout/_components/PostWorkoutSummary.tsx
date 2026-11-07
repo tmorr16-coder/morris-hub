@@ -1,13 +1,16 @@
 "use client";
 
 import { useTransition, type ReactNode } from "react";
+import ShareWorkout from "./ShareWorkout";
 import type { Exercise, SetLog } from "../exercise-library";
 
 interface Props {
   exercises: Exercise[];
   setLogs: (SetLog | null)[][];
   sessionElapsed: number;
-  onDone: () => void;
+  onDone: () => Promise<void>;
+  title: string;
+  saveError?: string | null;
 }
 
 const eyebrow: React.CSSProperties = {
@@ -49,7 +52,7 @@ function MoonIcon() {
   );
 }
 
-export default function PostWorkoutSummary({ exercises, setLogs, sessionElapsed, onDone }: Props) {
+export default function PostWorkoutSummary({ exercises, setLogs, sessionElapsed, onDone, title, saveError }: Props) {
   const [isPending, startTransition] = useTransition();
 
   const allSets     = setLogs.flat().filter((s): s is SetLog => s !== null);
@@ -123,7 +126,7 @@ export default function PostWorkoutSummary({ exercises, setLogs, sessionElapsed,
             marginBottom: 6,
           }}
         >
-          Lower Body Power
+          {title}
         </div>
         <div className="ios-num" style={{ fontSize: 15, color: "rgba(255,255,255,0.75)", marginBottom: prCount > 0 ? 6 : 0 }}>
           {formatTime(sessionElapsed)}
@@ -245,6 +248,10 @@ export default function PostWorkoutSummary({ exercises, setLogs, sessionElapsed,
         </div>
       </div>
 
+      <ShareWorkout summary={{ title, minutes: Math.round(sessionElapsed / 60),
+        exercises: exercises.filter((_, i) => (setLogs[i] ?? []).some(Boolean)).length,
+        sets: allSets.length, reps: totalReps, volume: totalVolume, caption: "" }} />
+
       {/* ── Recovery ───────────────────────────────────────────────────────── */}
       <div
         style={{
@@ -277,9 +284,10 @@ export default function PostWorkoutSummary({ exercises, setLogs, sessionElapsed,
         </div>
       </div>
 
+      {saveError && <p role="alert" className="ios-footnote" style={{ color: "var(--ios-red)" }}>{saveError}</p>}
       {/* ── Done button ────────────────────────────────────────────────────── */}
       <button
-        onClick={() => startTransition(() => { onDone(); })}
+        onClick={() => startTransition(async () => { await onDone(); })}
         disabled={isPending}
         className="ios-btn ios-btn--full"
         style={{

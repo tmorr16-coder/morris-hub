@@ -5,6 +5,8 @@ import PerfBeacon from "@/components/PerfBeacon";
 import ThemeApplier from "@/components/ThemeApplier";
 import GlobalBackButton from "@/components/GlobalBackButton";
 import PullToRefresh from "@/components/PullToRefresh";
+import ActiveWorkoutBar from "@/components/ActiveWorkoutBar";
+import { DEV_USER_ID } from "@/lib/health/auth";
 import { NavModeProvider } from "@/components/NavModeProvider";
 import { createServiceClient, getCurrentClaims } from "@/lib/supabase/server";
 import { unstable_cache } from "next/cache";
@@ -134,7 +136,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const personal = await resolvePersonalMode();
+  const [personal, claims] = await Promise.all([resolvePersonalMode(), getCurrentClaims().catch(() => null)]);
+  const workoutUserId = claims?.id ?? (process.env.NEXT_PUBLIC_AUTH_BYPASS === "true" ? DEV_USER_ID : null);
   return (
     <html
       lang="en"
@@ -151,6 +154,7 @@ export default async function RootLayout({
         <PullToRefresh />
         <NavModeProvider personal={personal}>
           <RateLimitErrorBoundary>{children}</RateLimitErrorBoundary>
+          {workoutUserId && <ActiveWorkoutBar userId={workoutUserId} />}
         </NavModeProvider>
       </body>
     </html>

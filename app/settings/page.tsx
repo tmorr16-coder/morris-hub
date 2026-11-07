@@ -103,6 +103,10 @@ export default async function SettingsHubPage() {
         </Group>
       )}
 
+      <Group header="Voice">
+        <Cell lead={<IconBadge color="var(--ios-morris)"><Icons.SparkleIcon /></IconBadge>} title="Read-aloud voice" subtitle="Buddy’s natural voice · Bible & study" href="/home/settings/voice" />
+      </Group>
+
       <GeneralSettings
         initialTimezone={getUserTimezone(user.user_metadata)}
         initialMoveGoal={Number((user.user_metadata as { move_goal?: number })?.move_goal) || 1300}

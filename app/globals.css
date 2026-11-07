@@ -1,5 +1,19 @@
 @import "tailwindcss";
 
+.active-workout-bar {
+  position: fixed;
+  bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+  left: 50%; transform: translateX(-50%);
+  width: calc(100% - 24px); max-width: 608px;
+  z-index: 90;
+  border: 1px solid var(--pf-rule-2);
+  border-radius: 14px;
+  background: var(--pf-ground-2);
+  color: var(--pf-text);
+  box-shadow: 0 6px 24px rgba(0,0,0,.18);
+}
+body[data-workout-active="true"] .ios-scroll { padding-bottom: 110px; }
+
 :root {
   /* Paper */
   --color-bg:           #F7F4EE;
