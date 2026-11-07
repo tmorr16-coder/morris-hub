@@ -2,13 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fetchChapter } from "@/lib/bible-api";
 
+const DEFAULT_BIBLE_ID = "de4e12af7f28f599-02";
+const ALLOWED_BIBLE_IDS = new Set([
+  "de4e12af7f28f599-02",
+  "685d1470fe4d5c3b-01",
+  "9879dbb7cfe39e4d-01",
+  "01b29f4b342acc35-01",
+]);
+
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return new NextResponse("Unauthorized", { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const bibleId = searchParams.get("bibleId") ?? "de4e12af7f28f599-02";
+  const requestedBibleId = searchParams.get("bibleId");
+  const bibleId = requestedBibleId && ALLOWED_BIBLE_IDS.has(requestedBibleId)
+    ? requestedBibleId
+    : DEFAULT_BIBLE_ID;
   const bookId = searchParams.get("bookId");
   const chapter = parseInt(searchParams.get("chapter") ?? "1");
 
