@@ -9,7 +9,7 @@ export function VoiceControls({ audio }: { audio: ReturnType<typeof useReadAloud
       <label className="ios-body">
         Voice
         <select value={audio.voice} onChange={(e) => { audio.stop(); audio.setVoice(e.target.value); }} className="ios-input" style={{ width: "100%", marginTop: 6 }}>
-          <option value="buddy">Buddy’s voice · recommended</option>
+          <option value="buddy">MAI voice · recommended</option>
           {audio.voices.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
         </select>
       </label>
@@ -20,7 +20,7 @@ export function VoiceControls({ audio }: { audio: ReturnType<typeof useReadAloud
       <button type="button" className="ios-btn" onClick={() => audio.speaking ? audio.stop() : audio.speak("The Lord is my shepherd; I shall not want.")}>
         {audio.loading ? "Preparing voice… Tap to stop" : audio.speaking ? "Stop preview" : "Preview voice"}
       </button>
-      <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: 0 }}>The same natural voice engine as Buddy, with a calm reading style. Audio is AI generated.</p>
+      <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: 0 }}>MAI voice uses a calm, natural reading style. Audio is AI generated.</p>
       {audio.error && <p role="alert" className="ios-footnote">{audio.error}</p>}
       {audio.notice && <p role="status" className="ios-footnote">{audio.notice}</p>}
     </div>

@@ -93,7 +93,7 @@ export class ReadAloudPlayer {
         if (gen !== this.generation) return;
         this.stop(); this.update({ error: "Audio was interrupted. Tap Read aloud to try again." });
       };
-      this.update({ loading: false, notice: "Using the device voice while Buddy’s voice is unavailable." });
+      this.update({ loading: false, notice: "Using the device voice while MAI voice is unavailable." });
       onPart?.(parts[position].index);
       const start = () => { if (gen === this.generation) this.speech?.speak(utterance); };
       if (this.state.paused) this.resumePending = start;

@@ -138,9 +138,9 @@ function silentWav(): string {
 
 /** What the grown-up is told when Buddy's own voice cannot be had. */
 const CLOUD_TROUBLE: Record<string, string> = {
-  billing: "Buddy\u2019s own voices are paused: the voice account is out of credits. Until a grown-up tops it up, Buddy uses the device voice below.",
-  rate: "Buddy\u2019s own voices are catching their breath (too many requests). Buddy is using the device voice for a few minutes.",
-  provider: "Buddy\u2019s own voices can\u2019t be reached right now. Buddy is using the device voice below.",
+  billing: "MAI voices are paused: the voice account is out of credits. Until a grown-up tops it up, Buddy uses the device voice below.",
+  rate: "MAI voices are catching their breath (too many requests). Buddy is using the device voice for a few minutes.",
+  provider: "MAI voices can\u2019t be reached right now. Buddy is using the device voice below.",
 };
 
 /** Voices are stored with a prefix saying which kind they are; a bare name is a legacy device choice.
@@ -527,7 +527,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
                 the family opens this on. */}
             {hasCloud && (
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--ios-label-3)", margin: "10px 0 4px" }}>Buddy&rsquo;s own voices</div>
+                <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--ios-label-3)", margin: "10px 0 4px" }}>MAI voices</div>
                 {cloudTrouble && (
                   <div role="status" style={{ fontSize: 14, lineHeight: "19px", color: "var(--ios-orange, #ff9500)", background: "var(--ios-fill)", borderRadius: 10, padding: "8px 10px", margin: "4px 0 8px" }}>
                     {cloudTrouble}
@@ -578,7 +578,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
             })}
             <div style={{ fontSize: 13, color: "var(--ios-label-2)", lineHeight: 1.5, marginTop: 12, padding: "10px 12px", background: "var(--ios-fill)", borderRadius: 10 }}>
               {hasCloud
-                ? <><strong>Buddy&rsquo;s own voices need the internet.</strong> They sound far better and they sound the same on every device, but out of signal Buddy falls back to the device voice below without saying anything about it — so it is worth having a good one of those too.</>
+                ? <><strong>MAI voices need the internet.</strong> They sound far better and they sound the same on every device, but out of signal Buddy falls back to the device voice below without saying anything about it — so it is worth having a good one of those too.</>
                 : <><strong>The natural ones have to be downloaded first.</strong></>}
               {" "}On the iPad or iPhone: Settings → Accessibility → Spoken Content → Voices → English → tap <em>Ava</em>, <em>Zoe</em>, <em>Evan</em> or <em>Nathan</em> and download the <em>Premium</em> version (about 200 MB each). Then close Safari fully and reopen this screen; they appear here marked Premium. The <em>Classic</em> voices — Fred, Junior, Kathy, Ralph — are a Mac thing; an iPad or iPhone does not ship them, so they only show up here on a computer.
             </div>

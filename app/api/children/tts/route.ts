@@ -9,7 +9,7 @@ export const maxDuration = 30;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// Buddy's voice.
+// MAI voice.
 //
 // Every clip is cached in storage under a hash of exactly what produced it —
 // model, voice, speed, text — so the same phrase is never paid for twice. That
