@@ -7,6 +7,7 @@ import { childForGuardian, listChildrenForParent } from "@/app/children/_lib/chi
 import { readSchoolDocument, MAX_PAGES, MAX_TOTAL, type DocumentPart } from "@/app/children/_lib/read-document";
 import { createDocumentFor } from "@/app/children/_lib/learning-core";
 import { receivingDomain, intendedInboundDomain } from "@/lib/inbound-email";
+import { publicOrigin } from "@/lib/site-url";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -70,6 +71,28 @@ function htmlToText(html: string): string {
 }
 
 const sha = (b: Buffer | string) => createHash("sha256").update(b).digest("hex");
+
+const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * Tell the parent who forwarded it what happened. The email door works out
+ * of sight, so without this the only way to know a newsletter had landed was
+ * to go and look. Sent as a reply in the same thread, so it sits under the
+ * newsletter in the parent's inbox. Never throws.
+ */
+async function replyTo(resend: Resend, mail: { from: string; subject: string; message_id: string }, subject: string, lines: string[], link?: { href: string; label: string }) {
+  try {
+    const from = process.env.RESEND_FROM_EMAIL ?? "noreply@resend.dev";
+    const html = `<div style="font:15px/1.5 -apple-system,Segoe UI,sans-serif;color:#1c1c1e">${lines.map((l) => `<p style="margin:0 0 10px">${l}</p>`).join("")}${link ? `<p style="margin:16px 0"><a href="${link.href}" style="background:#007aff;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:600">${esc(link.label)}</a></p>` : ""}<p style="margin:16px 0 0;color:#8e8e93;font-size:13px">Sent by morrisai.family because you forwarded this to a child's school address.</p></div>`;
+    await resend.emails.send({
+      from, to: mail.from, subject,
+      html,
+      headers: { "In-Reply-To": mail.message_id, References: mail.message_id },
+    });
+  } catch (e) {
+    console.error(JSON.stringify({ inbound: "reply-failed", detail: e instanceof Error ? e.message : String(e) }));
+  }
+}
 
 export async function POST(req: NextRequest) {
   const secret = process.env.RESEND_WEBHOOK_SECRET;
@@ -148,19 +171,22 @@ async function processEmail(resend: Resend, emailId: string) {
     if (first !== (nameToken ?? "").toLowerCase()) return false;
     return !idToken || c.childId.replace(/-/g, "").toLowerCase().startsWith(idToken.toLowerCase());
   });
+  const re = `Re: ${subject || "your forwarded email"}`;
+  const fail = async (why: string) => replyTo(resend, mail, re, [`<strong>That one didn't go in.</strong>`, esc(why)], { href: `${publicOrigin()}/home/admin/status`, label: "Open platform status" });
   if (matches.length !== 1) {
+    await fail(matches.length === 0 ? `No child of yours matches ${ours[0] ?? "that address"}.` : `Two children match ${ours[0]}; the address needs the longer form shown on the import screen.`);
     await note(matches.length === 0 ? `No child matches the address ${ours[0] ?? "(none at our domain)"}` : `The address ${ours[0]} matches ${matches.length} children — add the id: ${matches.map((c) => `${nameToken}-${c.childId.slice(0, 8)}`).join(", ")}`, { subject, from, userId: sender.id });
     return;
   }
   const childId = matches[0].childId;
   const child = await childForGuardian(svc, childId, sender.id);
-  if (!child) { await note(`Sender may not act for the child named in ${ours[0]}`, { subject, from }); return; }
+  if (!child) { await fail("You are not set up as a guardian for that child."); await note(`Sender may not act for the child named in ${ours[0]}`, { subject, from }); return; }
 
   // Already have this one? The message id is the surest sign; the bytes of the
   // attachments come next (the same PDF forwarded twice has a new message id).
   const { data: dupe } = await svc.schema("hub").from("child_documents")
     .select("id").eq("child_id", childId).eq("extracted->email->>message_id", mail.message_id).limit(1);
-  if (dupe?.[0]) { console.log(JSON.stringify({ inbound: "duplicate-message", childId, emailId })); return; }
+  if (dupe?.[0]) { await replyTo(resend, mail, re, ["Already have this one — it was read the first time it arrived, so nothing was added twice."], { href: `${publicOrigin()}/children/${childId}`, label: `Open ${matches[0].name.split(" ")[0]}'s page` }); console.log(JSON.stringify({ inbound: "duplicate-message", childId, emailId })); return; }
 
   // The document: PDFs and real pictures first, then the email's own text.
   // Inline images are mostly logos and signatures; only a big one is a page.
@@ -187,14 +213,14 @@ async function processEmail(resend: Resend, emailId: string) {
     parts.push({ type: "text", text: `Subject: ${subject}\n\n${bodyText}` });
     hashes.push(sha(bodyText.replace(/\s+/g, " ").toLowerCase()));
   }
-  if (parts.length === 0) { await note(`Email "${subject}" had nothing to read (no PDF, pictures or text)`, { from, childId }); return; }
+  if (parts.length === 0) { await fail("There was nothing to read in it — no PDF, no pictures, and almost no text."); await note(`Email "${subject}" had nothing to read (no PDF, pictures or text)`, { from, childId }); return; }
 
   const { data: sameBytes } = await svc.schema("hub").from("child_documents")
     .select("id, title").eq("child_id", childId).overlaps("page_hashes", hashes).limit(1);
-  if (sameBytes?.[0]) { console.log(JSON.stringify({ inbound: "duplicate-bytes", childId, emailId, as: sameBytes[0].id })); return; }
+  if (sameBytes?.[0]) { await replyTo(resend, mail, re, [`Already have this one — it matches “${esc(sameBytes[0].title)}”, so nothing was added twice.`], { href: `${publicOrigin()}/children/${childId}`, label: `Open ${matches[0].name.split(" ")[0]}'s page` }); console.log(JSON.stringify({ inbound: "duplicate-bytes", childId, emailId, as: sameBytes[0].id })); return; }
 
   const read = await readSchoolDocument(child, parts, { userId: sender.id, source: "email" });
-  if ("error" in read) { await note(`Could not read "${subject}": ${read.error}`, { from, childId }, "error"); return; }
+  if ("error" in read) { await fail(`It could not be read: ${read.error}`); await note(`Could not read "${subject}": ${read.error}`, { from, childId }, "error"); return; }
 
   // Everything the reader proposed is adopted, with the dates as reminders and
   // the practice as to-dos — the same defaults the import screen starts with.
@@ -209,8 +235,18 @@ async function processEmail(resend: Resend, emailId: string) {
     pageHashes: hashes,
     provenance: { email: { message_id: mail.message_id, from, subject, received_at: mail.created_at, email_id: emailId } },
   });
-  if ("error" in saved) { await note(`Could not save "${subject}": ${saved.error}`, { from, childId }, "error"); return; }
+  if ("error" in saved) { await fail(`It was read but could not be saved: ${saved.error}`); await note(`Could not save "${subject}": ${saved.error}`, { from, childId }, "error"); return; }
 
   await clearFailures("children", "inbound-email").catch(() => undefined);
+
+  const first = matches[0].name.split(" ")[0];
+  const sp = x.spelling;
+  const lines = [
+    `<strong>${esc(x.title || "The newsletter")}</strong> is on ${esc(first)}'s page.`,
+    ...(x.summary ? [esc(x.summary)] : []),
+    ...(sp && sp.words.length ? [`Spelling${sp.pattern ? ` (${esc(sp.pattern)})` : ""}: ${esc(sp.words.join(", "))}${sp.test_on ? ` — test ${esc(sp.test_on)}` : ""}.`] : []),
+    `Added ${saved.reminders} reminder${saved.reminders === 1 ? "" : "s"} and ${saved.todos} to-do${saved.todos === 1 ? "" : "s"}${x.exercises.length ? `, and ${x.exercises.length} practice idea${x.exercises.length === 1 ? "" : "s"}` : ""}. Remove anything you don't want from ${esc(first)}'s page.`,
+  ];
+  await replyTo(resend, mail, `Added: ${x.title || subject}`, lines, { href: `${publicOrigin()}/children/${childId}`, label: `Open ${first}'s page` });
   console.log(JSON.stringify({ inbound: "saved", childId, documentId: saved.documentId, kind: x.kind, reminders: saved.reminders, todos: saved.todos }));
 }

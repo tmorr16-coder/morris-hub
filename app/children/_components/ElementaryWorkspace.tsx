@@ -1044,7 +1044,7 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
               <Cell key={d.id} chevron={false}
                 lead={<IconBadge color={d.kind === "newsletter" ? "var(--ios-tint)" : d.kind === "graded_work" ? "var(--ios-green)" : "#8E8E93"}><Icons.BookIcon /></IconBadge>}
                 title={d.title}
-                subtitle={`Week of ${fmtDate(docWeek(d), false)} · ${d.docDate ? fmtDate(d.docDate, false) : `added ${new Date(d.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}${d.filePaths.length > 0 ? ` · ${d.filePaths.length} page${d.filePaths.length === 1 ? "" : "s"}` : " · no scan kept"}${d.summary ? ` · ${d.summary}` : ""}`}
+                subtitle={`Week of ${fmtDate(docWeek(d), false)} · ${d.docDate ? fmtDate(d.docDate, false) : `added ${new Date(d.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}${(d.extracted as { email?: { received_at?: string } }).email ? ` · by email ${new Date((d.extracted as { email: { received_at?: string } }).email.received_at ?? d.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : d.filePaths.length > 0 ? ` · ${d.filePaths.length} page${d.filePaths.length === 1 ? "" : "s"}` : " · no scan kept"}${d.summary ? ` · ${d.summary}` : ""}`}
                 trailing={
                   <span style={{ display: "flex", gap: 12, alignItems: "center" }}>
                     {d.filePaths.length > 0 && <button type="button" className="ios-btn--plain" onClick={() => openDocument(d.id, d.title)} style={{ color: "var(--ios-tint)" }}>View</button>}
