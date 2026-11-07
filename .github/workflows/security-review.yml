@@ -22,6 +22,9 @@ jobs:
       should_run: ${{ steps.queue.outputs.should_run }}
       repair: ${{ steps.queue.outputs.repair }}
       targets: ${{ steps.queue.outputs.targets }}
+      merges: ${{ steps.queue.outputs.merges }}
+      sync_pulls: ${{ steps.queue.outputs.sync_pulls }}
+      pull_numbers: ${{ steps.queue.outputs.pull_numbers }}
     steps:
       - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         id: queue
@@ -35,6 +38,9 @@ jobs:
                 core.setOutput('should_run', decision.should_run === true ? 'true' : 'false');
                 core.setOutput('repair', decision.repair === true ? 'true' : 'false');
                 core.setOutput('targets', JSON.stringify(decision.targets ?? []));
+                core.setOutput('merges', JSON.stringify(decision.merges ?? []));
+                core.setOutput('sync_pulls', decision.sync_pulls !== false ? 'true' : 'false');
+                core.setOutput('pull_numbers', JSON.stringify(decision.pull_numbers ?? []));
                 return;
               }
               if (response.status === 401 || attempt === 7) throw new Error(`Security queue: HTTP ${response.status}`);
@@ -200,6 +206,100 @@ jobs:
           npm run test:workout
           npm run test:simplefin
           npm run build
+  pulls_sync:
+    needs: gate
+    if: always() && needs.gate.result == 'success' && needs.gate.outputs.sync_pulls == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - run: node scripts/security-prs.mjs sync
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBERS: ${{ needs.gate.outputs.pull_numbers }}
+  merge_prepare:
+    needs: gate
+    if: needs.gate.outputs.merges != '[]' && needs.gate.outputs.merges != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: read
+      id-token: write
+    outputs:
+      plans: ${{ steps.prepare.outputs.plans }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - id: prepare
+        run: node scripts/security-prs.mjs prepare
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MERGE_COMMANDS: ${{ needs.gate.outputs.merges }}
+  merge_validation:
+    needs: merge_prepare
+    if: needs.merge_prepare.result == 'success' && needs.merge_prepare.outputs.plans != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        plan: ${{ fromJSON(needs.merge_prepare.outputs.plans || '[]') }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ matrix.plan.candidate }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - name: Check the reviewed PR against its exact main merge preview
+        run: |
+          npm run test:security
+          npm run test:voice
+          npm run test:workout
+          npm run test:simplefin
+          npm run build
+  merge_apply:
+    needs: [merge_prepare, merge_validation]
+    if: always() && needs.merge_prepare.result == 'success' && needs.merge_prepare.outputs.plans != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+      actions: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - run: node scripts/security-prs.mjs merge
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MERGE_PLANS: ${{ needs.merge_prepare.outputs.plans }}
+          MERGE_VALIDATION: ${{ needs.merge_validation.result }}
   report:
     needs: [gate, review, fix, repairs, repair_validation]
     if: always() && needs.gate.outputs.should_run == 'true'
