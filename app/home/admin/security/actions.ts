@@ -36,3 +36,11 @@ export async function requestSecurityFix(_previous: SecurityActionState, form: F
     return { message: "Cyber agent repair queued. It will review the latest scan, attempt supported fixes and validate code-fix PRs. GitHub checks the queue every five minutes." };
   } catch (e) { return { error: e instanceof Error ? e.message : "Could not request repair" }; }
 }
+export async function refreshSecurityPulls(_previous: SecurityActionState,form: FormData): Promise<SecurityActionState> {
+ try {const {id}=await requireAdmin();const value=form.get("number");const number=value===null?null:Number(value);if(number!==null&&(!Number.isInteger(number)||number<1))throw Error("Invalid PR number.");const {error}=await securityDb().rpc("queue_security_pr_command",{actor:id,pull_number:number});if(error)throw Error("Could not refresh reviews. Try again.");revalidatePath("/home/admin/security");return{message:"Refresh requested. GitHub checks the queue every five minutes."};}
+ catch(e){return{error:e instanceof Error?e.message:"Could not refresh reviews"};}
+}
+export async function mergeSecurityPull(_previous: SecurityActionState,form: FormData): Promise<SecurityActionState> {
+ try {const {id}=await requireAdmin();const number=Number(form.get("number")),head=String(form.get("head")),base=String(form.get("base"));if(!Number.isInteger(number)||number<1||!/^[a-f0-9]{40}$/.test(head)||!/^[a-f0-9]{40}$/.test(base))throw Error("Refresh the PR review before merging.");const{error}=await securityDb().rpc("queue_security_pr_command",{actor:id,pull_number:number,head_sha:head,base_sha:base});if(error)throw Error("The PR details may have changed or expired. Refresh, review, and try again.");revalidatePath("/home/admin/security");revalidatePath(`/home/admin/security/pulls/${number}`);return{message:"Merge requested. The worker will re-run tests and the build, then merge this reviewed version if the PR and main are unchanged. Check back here for the result."};}
+ catch(e){return{error:e instanceof Error?e.message:"Could not request merge"};}
+}

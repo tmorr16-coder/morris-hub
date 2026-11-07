@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { Resend } from "resend";
 import { createServiceClient } from "@/lib/supabase/server";
+import type { PullReview, PullCommand } from "./pulls";
 import type { ReviewConfig } from "./schedule";
 import { RECIPIENT, REPOSITORY, type Finding, type Repair } from "./model";
 // Custom schema tables are intentionally absent from the generated client types.
@@ -37,9 +38,10 @@ export async function securitySnapshot() {
 }
 export async function sendSecurityAlerts() {
   const { runs, findings, stale } = await securitySnapshot();
+  const prReviews = await securityPullSnapshot();
   const run = runs[0];
   const open = findings.filter(f => !f.resolved_at && f.severity !== "low").sort((a,b) => a.key.localeCompare(b.key));
-  const issues = [...(run?.errors ?? []), ...(run?.repairs ?? []).filter(r => r.status === "blocked" || r.status === "validation_failed").map(r => r.message), ...(stale ? ["A scheduled or requested security review has not reported when expected. Check GitHub Actions, the scan queue, and report delivery."] : [])];
+  const issues = [...(run?.errors ?? []), ...prReviews.commands.filter(c=>c.kind === "merge" && c.status === "blocked").map(c=>`PR #${c.pr_number}: ${c.message}`), ...(run?.repairs ?? []).filter(r => r.status === "blocked" || r.status === "validation_failed").map(r => r.message), ...(stale ? ["A scheduled or requested security review has not reported when expected. Check GitHub Actions, the scan queue, and report delivery."] : [])];
   const db = securityDb();
   if (open.length || issues.length) {
     const subject = `Morris security: ${open.length} medium+ vulnerabilities${issues.length ? `, ${issues.length} review issues` : ""}`;
@@ -65,4 +67,11 @@ export async function sendSecurityAlerts() {
     }
   }
   if (failures) throw Error(`${failures} security notifications pending; check tracker delivery status`);
+}
+export async function securityPullSnapshot() {
+ const db=securityDb();
+ const [pulls,commands]=await Promise.all([db.from("security_pulls").select("number,snapshot,synced_at").order("number",{ascending:false}).limit(100),db.from("security_pr_commands").select("*").order("requested_at",{ascending:false}).limit(30)]);
+ if(pulls.error||commands.error)throw Error("PR reviews unavailable");
+ const rows=(pulls.data??[]) as {number:number;snapshot:PullReview;synced_at:string}[];
+ return{pulls:rows.map(r=>({...r,fresh:Date.now()-Date.parse(r.synced_at)<15*60_000})),commands:(commands.data??[]) as PullCommand[]};
 }
