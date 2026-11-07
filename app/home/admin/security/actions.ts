@@ -25,3 +25,14 @@ export async function saveSecuritySchedule(_previous: SecurityActionState, form:
     return { message: settings.enabled ? "Schedule saved in Eastern time." : "Scheduled reviews paused. Scan now and push reviews remain available." };
   } catch (e) { return { error: e instanceof Error ? e.message : "Could not save schedule" }; }
 }
+export async function requestSecurityFix(_previous: SecurityActionState, form: FormData): Promise<SecurityActionState> {
+  try {
+    const { id } = await requireAdmin();
+    const value = form.get("finding");
+    if (value !== null && (typeof value !== "string" || value.length > 250)) throw Error("Invalid finding.");
+    const { error } = await securityDb().rpc("queue_security_repair", { requested_by: id, finding_key: value || null });
+    if (error) throw Error("Could not request a repair. Refresh and try again.");
+    revalidatePath("/home/admin/security");
+    return { message: "Cyber agent repair queued. It will review the latest scan, attempt supported fixes and validate code-fix PRs. GitHub checks the queue every five minutes." };
+  } catch (e) { return { error: e instanceof Error ? e.message : "Could not request repair" }; }
+}

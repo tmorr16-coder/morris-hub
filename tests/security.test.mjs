@@ -9,7 +9,7 @@ async function load(path, dependencies={}) {
   const exports={}; new Function('require','exports',outputText)(id=>{if(!(id in dependencies))throw Error(id);return dependencies[id];},exports);return exports;
 }
 const m=await load('../lib/security/model.ts');
-const report=()=>({runId:'100',attempt:1,sha:'a'.repeat(40),completed:['dependencies'],findings:[{key:'dependencies:pkg:123',source:'dependencies',title:'Package issue',severity:'medium',location:'pkg',url:'https://github.com/advisories/GHSA-1234-1234-1234',remediation:'Review update'}],errors:[],fixUrl:null});
+const report=()=>({runId:'100',attempt:1,sha:'a'.repeat(40),completed:['dependencies'],findings:[{key:'dependencies:pkg:123',source:'dependencies',title:'Package issue',severity:'medium',location:'pkg',url:'https://github.com/advisories/GHSA-1234-1234-1234',remediation:'Review update'}],errors:[],fixUrl:null,repairs:[]});
 const claims=()=>({repository:m.REPOSITORY,repository_id:'1247836919',ref:'refs/heads/main',workflow_ref:`${m.REPOSITORY}/.github/workflows/security-review.yml@refs/heads/main`,event_name:'schedule',run_id:'100',run_attempt:'1',sha:'a'.repeat(40)});
 test('report validates severity, duplicate keys, coverage, bounded payloads and safe URLs',()=>{
   assert.deepEqual(m.parseReport(report()),report());
@@ -38,7 +38,7 @@ test('CodeQL uses security severity and stable fingerprints, and rejects incompl
 test('report ingress rejects unsigned, foreign, and run-mismatched reports before database access',async()=>{
   let signed=claims(),writes=0;
   const auth=await load('../lib/security/auth.ts',{'server-only':{},'jose':{createRemoteJWKSet:()=>({}),jwtVerify:async()=>({payload:signed})},'./model':m});
-  const route=await load('../app/api/security/reports/route.ts',{'@/lib/security/auth':auth,'@/lib/security/model':m,'@/lib/security/server':{securityDb:()=>({rpc:async()=>{writes++;return {error:null};}}),sendSecurityAlerts:async()=>{}}});
+  const route=await load('../app/api/security/reports/route.ts',{'@/lib/security/auth':auth,'@/lib/security/model':m,'@/lib/security/server':{securityDb:()=>({rpc:async()=>{writes++;return {error:null};},from:()=>({update:()=>({eq:()=>({eq:async()=>({error:null})})})})}),sendSecurityAlerts:async()=>{}}});
   const request=(body=report(),auth=true)=>new Request('https://morrisai.family/api/security/reports',{method:'POST',headers:auth?{authorization:'Bearer signed'}:{},body:JSON.stringify(body)});
   assert.equal((await route.POST(request(report(),false))).status,401);signed={...claims(),repository_id:'wrong'};assert.equal((await route.POST(request())).status,401);signed=claims();assert.equal((await route.POST(request({...report(),sha:'b'.repeat(40)}))).status,400);assert.equal(writes,0);assert.equal((await route.POST(request())).status,200);assert.equal(writes,1);
 });
@@ -83,5 +83,20 @@ test('scan requests and schedule writes require admin and reject malformed setti
 test('queue endpoint requires the signed worker and binds claims to its database decision',async()=>{
  let authenticated=false,args;
  const route=await load('../app/api/security/queue/route.ts',{'@/lib/security/auth':{verifySecurityWorkflow:async()=>{if(!authenticated)throw Error('Unauthorized');return {run_id:'17',event_name:'schedule',sha:'a'.repeat(40)};}},'@/lib/security/server':{securityDb:()=>({from:()=>({select:()=>({eq:()=>({single:async()=>({data:{enabled:false,frequency:'daily',time:'07:17',weekday:1,next_due:null,version:3},error:null})})})}),rpc:async(_name,p)=>{args=p;return {data:false,error:null};}})},'@/lib/security/schedule':scheduling});
- const request=()=>new Request('https://morrisai.family/api/security/queue',{method:'POST'});assert.equal((await route.POST(request())).status,401);assert.equal(args,undefined);authenticated=true;assert.deepEqual(await (await route.POST(request())).json(),{should_run:false});assert.deepEqual(args,{rid:'17',event:'schedule',expected_version:3,following_due:null,head_sha:'a'.repeat(40)});
+ const request=()=>new Request('https://morrisai.family/api/security/queue',{method:'POST'});assert.equal((await route.POST(request())).status,401);assert.equal(args,undefined);authenticated=true;assert.deepEqual(await (await route.POST(request())).json(),{should_run:false,repair:false,targets:[]});assert.deepEqual(args,{rid:'17',event:'schedule',expected_version:3,following_due:null,head_sha:'a'.repeat(40)});
+});
+test('workflow queue gate retries HTML readiness responses instead of parsing them as JSON',async()=>{
+ const yaml=await readFile(new URL('../.github/workflows/security-review.yml',import.meta.url),'utf8');
+ const script=yaml.match(/script: \|\n([\s\S]*?)\n  review:/)[1];
+ const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;const gate=new AsyncFunction('core','fetch','setTimeout',script);let calls=0,output;const outputs={};
+ await gate({getIDToken:async()=> 'fixture-token',setOutput:(name,value)=>{output=[name,value];outputs[name]=value;}},async()=>++calls===1?new Response('<html>Deployment in progress</html>',{headers:{'content-type':'text/html'}}):Response.json({should_run:false}),(fn)=>fn());
+ assert.equal(calls,2);assert.deepEqual(output,['targets','[]']);assert.equal(outputs.should_run,'false');
+});
+test('Fix now requires admin and never accepts arbitrary repair commands',async()=>{
+ let allowed=false,writes=0;const actions=await load('../app/home/admin/security/actions.ts',{'@/lib/supabase/auth-utils':{requireAdmin:async()=>{if(!allowed)throw Error('Admin access required');return{id:'admin'};}},'@/lib/security/server':{securityDb:()=>({rpc:async(name,args)=>{assert.equal(name,'queue_security_repair');assert.equal(args.finding_key,'codeql:fixture');writes++;return{error:null};}})},'@/lib/security/schedule':scheduling,'next/cache':{revalidatePath:()=>{}}});
+ const form=new FormData();form.set('finding','codeql:fixture');assert.match((await actions.requestSecurityFix({},form)).error,/Admin/);assert.equal(writes,0);allowed=true;assert.ok((await actions.requestSecurityFix({},form)).message);assert.equal(writes,1);
+});
+test('repair reports reject foreign PR URLs and unknown repair states',()=>{
+ assert.throws(()=>m.parseReport({...report(),repairs:[{key:'codeql:fixture',status:'fixed',message:'claim',url:''}]}));
+ assert.throws(()=>m.parseReport({...report(),repairs:[{key:'codeql:fixture',status:'pr_created',message:'claim',url:'https://evil.example/pr/1'}]}));
 });

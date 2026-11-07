@@ -21,6 +21,8 @@ export async function POST(request: Request) {
   try {
     const { error } = await securityDb().rpc("ingest_security_report", { report });
     if (error) throw Error("Report persistence failed");
+    const repaired = await securityDb().from("security_runs").update({ repairs: report.repairs }).eq("run_id", report.runId).eq("attempt", report.attempt);
+    if (repaired.error) throw Error("Repair status persistence failed");
     // Retry notification work even for a duplicate report after a prior transient error.
     await sendSecurityAlerts();
     return Response.json({ accepted: true });
