@@ -2,6 +2,9 @@ import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 
 // Yahoo Finance v8 chart API — free, no key required
 const YF_BASE = "https://query1.finance.yahoo.com/v8/finance/chart";
+const ALLOWED_RANGES = new Set(["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]);
+const ALLOWED_INTERVALS = new Set(["1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo"]);
+const TICKER_REGEX = /^[A-Z0-9.\-^]{1,15}$/;
 
 interface CandlePoint {
   time: number; // ms
@@ -18,16 +21,24 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const ticker = searchParams.get("ticker")?.toUpperCase();
-  const range = searchParams.get("range") || "1mo";
-  const interval = searchParams.get("interval") || "1d";
+  const requestedRange = searchParams.get("range") || "1mo";
+  const requestedInterval = searchParams.get("interval") || "1d";
 
   if (!ticker) return Response.json({ error: "Ticker required" }, { status: 400 });
+  if (!TICKER_REGEX.test(ticker)) {
+    return Response.json({ error: "Invalid ticker" }, { status: 400 });
+  }
 
-  const url = `${YF_BASE}/${ticker}?interval=${interval}&range=${range}`;
+  const range = ALLOWED_RANGES.has(requestedRange) ? requestedRange : "1mo";
+  const interval = ALLOWED_INTERVALS.has(requestedInterval) ? requestedInterval : "1d";
+
+  const url = new URL(`${YF_BASE}/${ticker}`);
+  url.searchParams.set("interval", interval);
+  url.searchParams.set("range", range);
 
   let raw: Record<string, unknown>;
   try {
-    const res = await fetch(url, {
+    const res = await fetch(url.toString(), {
       headers: { "User-Agent": "Mozilla/5.0 (compatible; morrisai-research/1.0)" },
       next: { revalidate: 300 },
     });
