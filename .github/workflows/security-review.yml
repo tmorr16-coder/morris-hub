@@ -22,10 +22,10 @@ jobs:
     outputs:
       codeql: ${{ steps.analyze.outcome }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
       - run: mkdir -p security-output
@@ -40,7 +40,7 @@ jobs:
         id: analyze
         with:
           output: security-output/sarif
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: security-review-input
@@ -58,10 +58,10 @@ jobs:
     outputs:
       url: ${{ steps.pr.outputs.pull-request-url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
       - name: Apply compatible dependency fixes
@@ -88,7 +88,7 @@ jobs:
           node -e "const cp=require('node:child_process');const paths=cp.execFileSync('git',['diff','--name-only'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);if(paths.length!==1||paths[0]!=='package-lock.json')throw Error('Candidate exceeds lockfile-only scope')"
       - name: Open or update validated fix PR
         if: steps.changed.outputs.yes == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
         id: pr
         with:
           token: ${{ github.token }}
@@ -104,7 +104,7 @@ jobs:
           delete-branch: true
       - name: Merge validated lockfile fix and schedule verification
         if: steps.pr.outputs.pull-request-number != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           FIX_PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
           FIX_HEAD_SHA: ${{ steps.pr.outputs.pull-request-head-sha }}
@@ -121,13 +121,13 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         continue-on-error: true
         with:
           name: security-review-input
@@ -139,7 +139,7 @@ jobs:
           CODEQL_RESULT: ${{ needs.review.outputs.codeql }}
           FIX_RESULT: ${{ needs.fix.result }}
           FIX_URL: ${{ needs.fix.outputs.url }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: security-review-report
           path: security-output/report.json
