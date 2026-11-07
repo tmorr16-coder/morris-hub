@@ -49,6 +49,17 @@ async function collect() {
     report.completed.push('codeql');
   } catch { report.errors.push('CodeQL code review failed or was incomplete. Existing code findings have been retained.'); }
   if (process.env.FIX_RESULT === 'failure' || process.env.FIX_RESULT === 'cancelled') report.errors.push('Automatic dependency remediation failed validation, PR publication, automatic merge, or follow-up scheduling. Manual review is required.');
+  report.repairs = [];
+  if (process.env.REPAIR_REQUESTED === 'true') {
+    try {
+      report.repairs = JSON.parse(await readFile('security-output/repair/repair-results.json','utf8'));
+      for (const repair of report.repairs) if (repair.status === 'pr_created') {
+        repair.status = process.env.REPAIR_VALIDATION_RESULT === 'success' ? 'validated_pr' : 'validation_failed';
+        repair.message = repair.status === 'validated_pr' ? 'Candidate tests and build passed. Review the PR before merging; resolution requires a new main scan.' : 'Candidate validation did not pass completely. Check GitHub jobs and review the PR; no code fix was merged.';
+      }
+    } catch { report.errors.push('Cyber agent did not return repair results. Check GitHub permissions, feature availability, and the repair job.'); }
+    if (process.env.REPAIR_VALIDATION_RESULT === 'failure') report.errors.push('Cyber agent candidate validation failed. Manual review is required.');
+  }
   await writeFile('security-output/report.json',JSON.stringify(report));
   console.log(`Review collected: ${report.findings.length} findings; ${report.errors.length} operational issues.`);
 }

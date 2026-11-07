@@ -37,3 +37,13 @@ The watchdog respects weekly and paused schedules and flags stalled ad hoc reque
 ## SimpleFIN recovery
 
 Manual Money sync now includes both active and errored connections, remains owner-scoped, and reports partial failures. Account reads have a 40-second deadline instead of 15 seconds. Recurring sync uses the previous successful sync minus a five-day overlap, capped at 90 days for first sync/recovery. The daily cron moves away from the top of the hour to 09:23 UTC, and the sync handler has a 300-second runtime budget. Partial provider/account-save failures retain the last full-success time and remain visible. No access URLs or credentials are exposed.
+
+## Cyber agent / Fix now
+
+The Security page includes **Fix now** for each open finding and a batch control. Admin authorization is checked for every request. Repairs use the same private, transactional queue as ad hoc scans; a repair request upgrades a queued scan and multiple different targets coalesce to a batch. Requests remain visible until the signed worker reports completion.
+
+The worker attempts compatible dependency fixes and, for code findings, matches the open GitHub code-scanning alert by source location. Ambiguous matches are not patched. GitHub Copilot Autofix generates supported code changes. Feature/license/permission errors, unsupported queries, generation still pending, changed main branches and scope violations remain visible as blocked or pending outcomes. A request attempts at most three new code generations, with bounded polling. Existing open fix PRs are reused rather than duplicated.
+
+Generated changes are restricted to application JavaScript/TypeScript under app, lib, components or hooks; changes to workflows, dependency manifests, scripts, tests or infrastructure are not executed. Candidate commits run in separate read-only GitHub jobs without app secrets or an OIDC permission. Install lifecycle scripts are disabled; security, narration, workout, bank-sync tests and the production build run. Mixed/failed validation is never labeled passed. Application code PRs require human review and merge. A subsequent main scan must confirm resolution.
+
+The tracker shows the latest repair outcome and fix PR link for each finding, with outcome history retained in review records. Blocked repairs and failed validation are included in security email alerts. GitHub Copilot Autofix must be available for the repository and the specific alert; this module does not claim arbitrary vulnerabilities are automatically fixable or that passing tests proves the platform is secure.

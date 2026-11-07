@@ -20,6 +20,8 @@ jobs:
       id-token: write
     outputs:
       should_run: ${{ steps.queue.outputs.should_run }}
+      repair: ${{ steps.queue.outputs.repair }}
+      targets: ${{ steps.queue.outputs.targets }}
     steps:
       - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         id: queue
@@ -28,9 +30,11 @@ jobs:
             for (let attempt = 0; attempt < 8; attempt++) {
               const token = await core.getIDToken('https://morrisai.family/api/security/reports');
               const response = await fetch('https://morrisai.family/api/security/queue', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30000), redirect: 'error' });
-              if (response.ok) {
+              if (response.ok && response.headers.get('content-type')?.includes('application/json')) {
                 const decision = await response.json();
                 core.setOutput('should_run', decision.should_run === true ? 'true' : 'false');
+                core.setOutput('repair', decision.repair === true ? 'true' : 'false');
+                core.setOutput('targets', JSON.stringify(decision.targets ?? []));
                 return;
               }
               if (response.status === 401 || attempt === 7) throw new Error(`Security queue: HTTP ${response.status}`);
@@ -139,8 +143,65 @@ jobs:
           script: |
             const merge = require('./scripts/security-merge.cjs');
             await merge({ github, context, core }, process.env.FIX_PR_NUMBER, process.env.FIX_HEAD_SHA);
+  repairs:
+    needs: [gate, review]
+    if: needs.gate.outputs.repair == 'true' && needs.review.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+      security-events: write
+    outputs:
+      candidates: ${{ steps.agent.outputs.candidates }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Generate scoped code fix PRs
+        id: agent
+        run: node scripts/security-agent.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPAIR_TARGETS: ${{ needs.gate.outputs.targets }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: security-repairs
+          path: repair-results.json
+          retention-days: 30
+  repair_validation:
+    needs: repairs
+    if: needs.repairs.result == 'success' && needs.repairs.outputs.candidates != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        candidate: ${{ fromJSON(needs.repairs.outputs.candidates || '[]') }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ matrix.candidate.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - name: Validate generated candidate without application secrets
+        run: |
+          npm run test:security
+          npm run test:voice
+          npm run test:workout
+          npm run test:simplefin
+          npm run build
   report:
-    needs: [gate, review, fix]
+    needs: [gate, review, fix, repairs, repair_validation]
     if: always() && needs.gate.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -159,6 +220,12 @@ jobs:
         with:
           name: security-review-input
           path: security-output
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: needs.gate.outputs.repair == 'true'
+        continue-on-error: true
+        with:
+          name: security-repairs
+          path: security-output/repair
       - run: mkdir -p security-output
       - name: Assemble coverage and findings
         run: node scripts/security-report.mjs collect
@@ -166,6 +233,9 @@ jobs:
           CODEQL_RESULT: ${{ needs.review.outputs.codeql }}
           FIX_RESULT: ${{ needs.fix.result }}
           FIX_URL: ${{ needs.fix.outputs.url }}
+          REPAIR_REQUESTED: ${{ needs.gate.outputs.repair }}
+          REPAIR_RESULT: ${{ needs.repairs.result }}
+          REPAIR_VALIDATION_RESULT: ${{ needs.repair_validation.result }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: security-review-report

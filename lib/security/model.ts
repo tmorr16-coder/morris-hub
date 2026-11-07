@@ -4,7 +4,8 @@ export const RECIPIENT = "tmorr16@gmail.com";
 export type Source = "dependencies" | "codeql";
 export type Severity = "critical" | "high" | "medium" | "low";
 export type Finding = { key: string; source: Source; title: string; severity: Severity; location: string; url: string; remediation: string };
-export type Report = { runId: string; attempt: number; sha: string; completed: Source[]; findings: Finding[]; errors: string[]; fixUrl: string | null };
+export type Repair = { key: string; status: "blocked" | "deferred" | "generating" | "existing_pr" | "pr_created" | "validated_pr" | "validation_failed"; message: string; url: string };
+export type Report = { runId: string; attempt: number; sha: string; completed: Source[]; findings: Finding[]; errors: string[]; fixUrl: string | null; repairs: Repair[] };
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 function string(v: unknown, max: number): string { if (typeof v !== "string" || !v.length || v.length > max) throw Error("Invalid report field"); return v; }
 export function safeGithubUrl(value: unknown): string {
@@ -24,7 +25,12 @@ export function parseReport(value: unknown): Report {
     if (!key.startsWith(`${f.source}:`) || keys.has(key)) throw Error("Duplicate or invalid finding key"); keys.add(key);
     return { key, source: f.source as Source, severity: f.severity as Severity, title: string(f.title, 500), location: string(f.location, 500), url: safeGithubUrl(f.url), remediation: string(f.remediation, 1000) };
   });
-  return { runId: String(value.runId), attempt: Number(value.attempt), sha: String(value.sha), completed: [...new Set(value.completed)] as Source[], findings, errors: value.errors.map(e => string(e, 1000)), fixUrl: value.fixUrl ? safeGithubUrl(value.fixUrl) : null };
+  if (value.repairs !== undefined && (!Array.isArray(value.repairs) || value.repairs.length > 200)) throw Error("Invalid repair results");
+  const repairs = ((value.repairs ?? []) as unknown[]).map((r): Repair => {
+    if (!record(r) || !["blocked","deferred","generating","existing_pr","pr_created","validated_pr","validation_failed"].includes(String(r.status))) throw Error("Invalid repair status");
+    return { key: string(r.key,250), status: r.status as Repair["status"], message: string(r.message,1000), url: safeGithubUrl(r.url) };
+  });
+  return { repairs, runId: String(value.runId), attempt: Number(value.attempt), sha: String(value.sha), completed: [...new Set(value.completed)] as Source[], findings, errors: value.errors.map(e => string(e, 1000)), fixUrl: value.fixUrl ? safeGithubUrl(value.fixUrl) : null };
 }
 export function trustedClaims(p: Record<string, unknown>): boolean {
   return p.repository === REPOSITORY && p.repository_id === "1247836919" && p.ref === "refs/heads/main" && p.workflow_ref === `${REPOSITORY}/.github/workflows/security-review.yml@refs/heads/main` && ["schedule", "push", "workflow_dispatch"].includes(String(p.event_name));
