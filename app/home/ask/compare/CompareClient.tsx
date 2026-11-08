@@ -9,6 +9,59 @@ import type { Pricing } from "./page";
 import { describeAttachments, estimateTokens, estimateOcrCost, type PanelAttachment } from "@/lib/panel-context";
 import "./panel.css";
 
+const THREADS_ENC_PREFIX = "enc-v1:";
+const THREADS_ENC_PASSPHRASE = "compare-threads-local-v1";
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
+async function getThreadsCryptoKey(): Promise<CryptoKey> {
+  const enc = new TextEncoder();
+  const passphrase = enc.encode(THREADS_ENC_PASSPHRASE);
+  const material = await crypto.subtle.importKey("raw", passphrase, "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: enc.encode(location.origin),
+      iterations: 100_000,
+      hash: "SHA-256",
+    },
+    material,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+async function encryptThreadsPayload(plainText: string): Promise<string> {
+  const key = await getThreadsCryptoKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(plainText));
+  return `${THREADS_ENC_PREFIX}${bytesToBase64(iv)}.${bytesToBase64(new Uint8Array(encrypted))}`;
+}
+
+async function decryptThreadsPayload(stored: string): Promise<string | null> {
+  if (!stored.startsWith(THREADS_ENC_PREFIX)) return null;
+  const encoded = stored.slice(THREADS_ENC_PREFIX.length);
+  const splitAt = encoded.indexOf(".");
+  if (splitAt <= 0) return null;
+  const iv = base64ToBytes(encoded.slice(0, splitAt));
+  const data = base64ToBytes(encoded.slice(splitAt + 1));
+  const key = await getThreadsCryptoKey();
+  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+  return new TextDecoder().decode(plain);
+}
+
 interface Citation { url: string; title: string }
 
 /** A document already in Morris Hub, offered by the "from the app" picker. */
@@ -493,7 +546,16 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
   useEffect(() => {
     let saved: Thread[] = [];
     try {
-      const raw = JSON.parse(localStorage.getItem(THREADS_KEY) || "[]");
+      const stored = localStorage.getItem(THREADS_KEY);
+      let raw: unknown = [];
+      if (stored) {
+        try {
+          const decrypted = await decryptThreadsPayload(stored);
+          raw = JSON.parse(decrypted ?? stored);
+        } catch {
+          raw = JSON.parse(stored);
+        }
+      }
       if (Array.isArray(raw)) saved = raw.filter((t) => t && Array.isArray(t.turns) && t.turns.length);
     } catch { /* ignore */ }
     if (!saved.length) {
@@ -583,14 +645,22 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
     while (list.length > 1 && JSON.stringify(list).length > MAX_BYTES) list = list.slice(0, -1);
     setThreads(list);
     for (;;) {
-      try { localStorage.setItem(THREADS_KEY, JSON.stringify(list)); break; } catch {
+      try {
+        encryptThreadsPayload(JSON.stringify(list))
+          .then((cipherText) => { localStorage.setItem(THREADS_KEY, cipherText); })
+          .catch(() => { /* ignore */ });
+        break;
+      } catch {
         // Last resort for a single thread too big to store (a large image on the
         // open conversation): save it without its image payloads rather than
         // discarding the conversation entirely.
         if (list.length <= 1) {
           const stripped = list.map((t) => ({ ...t, attachments: (t.attachments ?? []).filter((a) => !isHeavy(a)) }));
-          try { localStorage.setItem(THREADS_KEY, JSON.stringify(stripped)); }
-          catch { try { localStorage.removeItem(THREADS_KEY); } catch { /* ignore */ } }
+          try {
+            encryptThreadsPayload(JSON.stringify(stripped))
+              .then((cipherText) => { localStorage.setItem(THREADS_KEY, cipherText); })
+              .catch(() => { try { localStorage.removeItem(THREADS_KEY); } catch { /* ignore */ } });
+          } catch { try { localStorage.removeItem(THREADS_KEY); } catch { /* ignore */ } }
           break;
         }
         list = list.slice(0, -1);
