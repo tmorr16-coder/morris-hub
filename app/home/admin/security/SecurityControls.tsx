@@ -1,14 +1,11 @@
 "use client";
-import { useActionState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState } from "react";
 import { requestSecurityScan, saveSecuritySchedule } from "./actions";
 import type { ReviewConfig } from "@/lib/security/schedule";
 import styles from "./security.module.css";
 export default function SecurityControls({ config, pending }: { config: ReviewConfig; pending: boolean }) {
   const [request, requestAction, requesting] = useActionState(requestSecurityScan, {});
   const [schedule, saveAction, saving] = useActionState(saveSecuritySchedule, {});
-  const router = useRouter();
-  useEffect(() => { if (!pending) return; const timer = setInterval(() => router.refresh(), 30_000); return () => clearInterval(timer); }, [pending, router]);
   return <section id="scan-controls" className={styles.panel} aria-labelledby="scan-title">
     <div className={styles.heading}><h2 id="scan-title">Scans and schedule</h2><form action={requestAction}><button className={styles.button} disabled={requesting || pending} type="submit">{requesting ? "Queueing…" : pending ? "Scan requested" : "Scan now"}</button></form></div>
     <p>Request a full review at any time. GitHub checks the queue every five minutes; scheduled runs may be delayed by GitHub.</p>

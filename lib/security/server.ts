@@ -34,7 +34,7 @@ export async function securitySnapshot() {
   const latest = runs.data?.[0];
   const stalledRun = config.data.last_started_at && now - Date.parse(config.data.last_started_at) > 2 * 3600_000 && (!latest || Date.parse(config.data.last_started_at) > Date.parse(latest.received_at));
   const stale = !!stalledRun || (config.data.enabled && (!latest || now - Date.parse(latest.received_at) > (config.data.frequency === "weekly" ? 8 * 24 : 36) * 3600_000)) || requests.data.some((r: {status: string; requested_at: string; claimed_at: string | null}) => r.status === "queued" ? now - Date.parse(r.requested_at) > 30 * 60_000 : r.status === "running" && now - Date.parse(r.claimed_at!) > 2 * 3600_000);
-  return { config: config.data as ReviewConfig, requests: requests.data as { id: string; kind: string; target_key: string | null; status: string; requested_at: string; claimed_run: string | null }[], stale, runs: runs.data as Run[], findings: [...open, ...history.data] as StoredFinding[], mail: mail.data as { id: string; subject: string; created_at: string; sent_at: string | null; last_error: string | null; attempts: number }[] };
+  return { config: config.data as ReviewConfig, requests: requests.data as { id: string; kind: string; target_key: string | null; status: string; requested_at: string; claimed_run: string | null; claimed_at?: string | null; finished_at?: string | null }[], stale, runs: runs.data as Run[], findings: [...open, ...history.data] as StoredFinding[], mail: mail.data as { id: string; subject: string; created_at: string; sent_at: string | null; last_error: string | null; attempts: number }[] };
 }
 export async function sendSecurityAlerts() {
   const { runs, findings, stale } = await securitySnapshot();

@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/supabase/auth-utils";
-import { securitySnapshot } from "@/lib/security/server";
+import { securitySnapshot, securityPullSnapshot } from "@/lib/security/server";
 import { RECIPIENT, REPOSITORY } from "@/lib/security/model";
 import PullQueue from "./PullQueue";
 import AutopilotControls from "./AutopilotControls";
+import ActivityStatus from "./ActivityStatus";
+import {securityActivity} from "@/lib/security/activity";
 import {reviewHref} from "@/lib/security/pulls";
 import FixNow from "./FixNow";
 import SecurityControls from "./SecurityControls";
@@ -16,12 +18,14 @@ export default async function SecurityPage({ searchParams }: { searchParams: Pro
   try { await requireAdmin(); } catch { redirect("/home"); }
   const filters = await searchParams;
   let snapshot;
-  try { snapshot = await securitySnapshot(); } catch {
+  let pullData:Awaited<ReturnType<typeof securityPullSnapshot>>|null;
+  try { [snapshot,pullData] = await Promise.all([securitySnapshot(),securityPullSnapshot().catch(()=>null)]); } catch {
     return <main className={styles.main}><Link href="/home/admin">← Admin</Link><h1>Security tracker unavailable</h1><p role="alert">The security database could not be reached. This does not mean the platform is free of vulnerabilities.</p><a className={styles.actionLink} href={`${github}/actions/workflows/security-review.yml`}>Check GitHub reviews</a></main>;
   }
   const { runs, findings, mail, stale, config, requests } = snapshot;
   const open = findings.filter(f => !f.resolved_at);
   const latest = runs[0];
+  const activity=securityActivity({config,requests,runs,commands:pullData?.commands,pulls:pullData?.pulls,available:pullData!==null});
   const activeRequests = requests.filter(r => r.status === "queued" || r.status === "running");
   const scanRequests = requests.filter(r => r.kind !== "repair");
   const repairs = new Map<string, NonNullable<typeof latest>["repairs"][number]>();
@@ -42,8 +46,8 @@ export default async function SecurityPage({ searchParams }: { searchParams: Pro
   return <main className={styles.main}>
     <Link className={styles.back} href="/home/admin">← Admin</Link>
     <header className={styles.header}><div><p className={styles.eyebrow}>MORRIS AI · SECURITY</p><h1>Security, handled.</h1><p>One action. The agent prioritizes findings, attempts fixes, and asks for your judgment when the change needs it.</p></div></header>
-    <section className={`${styles.panel} ${styles.protectionPanel}`} aria-labelledby="protection-title"><div className={styles.sectionHeader}><div><span className={`${styles.badge} ${config.automation_enabled ? styles.goodBadge : ""}`}>{config.automation_enabled ? "Risk-based automation on" : "Automatic repairs paused"}</span><h2 id="protection-title">{activeRequests.length ? "The agent is working" : stale ? "Protection needs attention" : "Your security agent is ready"}</h2><p>{open.length} open findings · {open.filter(f=>f.severity==='critical'||f.severity==='high').length} high / critical · {latest ? `Last checked ${date(latest.received_at)} Eastern` : "First review pending"}</p><p className={styles.muted}>Low-risk fixes apply after validation. Sensitive changes and unsuccessful repairs stay visible for review. Findings close after a confirming scan.</p></div></div><AutopilotControls enabled={config.automation_enabled === true} pending={activeRequests.length>0}/></section>
-    <PullQueue findings={findings}/>
+    <section className={`${styles.panel} ${styles.protectionPanel}`} aria-labelledby="protection-title"><div className={styles.sectionHeader}><div><span className={`${styles.badge} ${config.automation_enabled ? styles.goodBadge : ""}`}>{config.automation_enabled ? "Risk-based automation on" : "Automatic repairs paused"}</span><h2 id="protection-title">{activity.state === "attention" ? "Protection needs attention" : activity.active ? "The agent is working" : stale ? "Protection needs attention" : "Your security agent is ready"}</h2><p>{open.length} open findings · {open.filter(f=>f.severity==='critical'||f.severity==='high').length} high / critical · {latest ? `Last checked ${date(latest.received_at)} Eastern` : "First review pending"}</p><p className={styles.muted}>Low-risk fixes apply after validation. Sensitive changes and unsuccessful repairs stay visible for review. Findings close after a confirming scan.</p></div></div><ActivityStatus activity={activity}/><AutopilotControls enabled={config.automation_enabled === true} pending={activity.busy}/></section>
+    <PullQueue findings={findings} data={pullData??undefined}/>
     {(stale||!!latest?.errors.length||agentHelp.length>0)&&<section className={styles.panel}><h2>Agent needs help</h2>{stale&&<p className={styles.issue}>A review is overdue or stalled. Protect now requests a fresh attempt.</p>}{latest?.errors.map((e,i)=><p className={styles.issue} key={i}>{e}</p>)}{agentHelp.sort((a,b)=>ranks[findings.find(f=>f.key===a.key)?.severity??'medium']-ranks[findings.find(f=>f.key===b.key)?.severity??'medium']).slice(0,5).map(r=><article className={styles.activityRow} key={r.key}><div><strong>{findings.find(f=>f.key===r.key)?.title??r.key}</strong><p>{r.message}</p></div>{r.url&&<Link className={styles.actionLink} href={reviewHref(r.url)}>Review fix →</Link>}</article>)}</section>}
     <details className={styles.panel} open={!!(filters.state||filters.severity||filters.source||filters.page)}><summary className={styles.summary}>All findings <span className={styles.count}>{open.length} open</span></summary>
     <section id="vulnerabilities" className={styles.panel} aria-labelledby="findings-title">

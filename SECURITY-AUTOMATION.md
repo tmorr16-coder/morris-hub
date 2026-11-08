@@ -70,3 +70,8 @@ All automatic requests use the existing exact-head/main merge-preview tests and 
 Automatic merges serialize one at a time. Failed versions are not retried automatically (except a changed main or an administrator pause); users can explicitly review/retry. Automatic/manual provenance and results remain in the command log. Pause stops queued automatic merges and fails current automatic authorization checks; an already submitted GitHub merge can finish. Pausing repairs does not pause monitoring. Compatible dependency fixes enter the same risk queue, replacing the older direct lockfile merge path. No force upgrades or security-rule bypasses are used. A subsequent scan must confirm a finding resolved.
 
 Scheduled batches consult the last 20 repair reports for the same main SHA. Already blocked code-generation attempts are left for review so the next batch can progress to other findings. Explicit repair requests can retry them. Blocked outcomes remain visible across recent reports while the finding stays open.
+
+
+## Remediation activity status
+
+The protection card refreshes every 15 seconds and reports queue, active workflow, fix validation/application, review, confirmation pending, completion and overdue/unknown states from persisted records. It shows elapsed/wait time, the last worker report, when the page checked, queued work and the associated GitHub run for detailed job stages. Scheduled work is detected from the last claimed run even without an ad hoc request; merge-only work also makes the protection control busy. Work without a completion after two hours is shown overdue and allows a recovery request. It does not guess individual job phases or completion percentages. A successful merge stays unconfirmed until a subsequent security scan reports.
