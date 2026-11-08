@@ -1,5 +1,5 @@
 export type ReviewSchedule = { enabled: boolean; frequency: "daily" | "weekly"; time: string; weekday: number };
-export type ReviewConfig = ReviewSchedule & { id: boolean; version: number; next_due: string | null };
+export type ReviewConfig = ReviewSchedule & { id: boolean; version: number; automation_enabled?: boolean; next_due: string | null };
 export const REVIEW_TIMEZONE = "America/Indiana/Indianapolis";
 const formatter = new Intl.DateTimeFormat("en-US", { timeZone: REVIEW_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
