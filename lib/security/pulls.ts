@@ -2,7 +2,7 @@ import { REPOSITORY } from "./model";
 export type PullFile = { path: string; status: string; additions: number; deletions: number; patch: string; truncated: boolean };
 export type PullRisk = { level: "low" | "review"; kind: "dependency" | "code" | "manual"; reason: string; priority: "critical" | "high" | "medium" | "low"; version: number; rule?: string; path?: string };
 export type PullReview = { risk?: PullRisk; number: number; title: string; body: string; url: string; state: "open" | "closed" | "merged"; draft: boolean; head: string; base: string; branch: string; author: string; mergeable: boolean | null; checks: { name: string; state: string }[]; files: PullFile[]; additions: number; deletions: number; changedFiles: number; updatedAt: string; truncated: boolean };
-export type PullCommand = { automatic?: boolean; id: string; kind: string; pr_number: number | null; expected_head: string | null; expected_base: string | null; status: string; message: string; requested_at: string; claimed_run: string | null };
+export type PullCommand = { claimed_at?: string | null; finished_at?: string | null; automatic?: boolean; id: string; kind: string; pr_number: number | null; expected_head: string | null; expected_base: string | null; status: string; message: string; requested_at: string; claimed_run: string | null };
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const str = (v: unknown, max: number) => { if (typeof v !== "string" || v.length > max) throw Error("Invalid PR field"); return v; };
 const count = (v: unknown) => { if (!Number.isInteger(v) || Number(v)<0 || Number(v)>1e7) throw Error("Invalid PR count"); return Number(v); };
