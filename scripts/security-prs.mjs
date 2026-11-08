@@ -21,7 +21,7 @@ async function assertReviewed(api,command){
 }
 async function assertAutomatic(api,command,authorize){
  if(!command.automatic)return null;
- if(!await authorize(command.id))throw Error('Automation paused or this automatic request is no longer authorized.');
+ if(!await authorize(command.id))throw Error('Automation paused by administrator.');
  const snapshot=await pullSnapshot(api,command.pr_number);
  if(snapshot.risk.level!=='low')throw Error(snapshot.risk.reason);
  return snapshot;

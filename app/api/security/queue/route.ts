@@ -28,9 +28,18 @@ export async function POST(request: Request) {
     if (repair) {
       let query = db.from("security_findings").select("key,source,title,severity,location").is("resolved_at", null);
       if (config.automation_enabled !== true && requests.data.length && requests.data.every((r: { target_key: string | null }) => r.target_key)) query = query.in("key", requests.data.map((r: { target_key: string }) => r.target_key));
-      const findings = await query.limit(200);
+      const findings = await query.limit(1000);
       if (findings.error) throw Error("Repair targets unavailable");
       targets = findings.data;
+      if (config.automation_enabled === true && !requests.data?.length) {
+        const history = await db.from("security_runs").select("repairs").eq("sha", claims.sha).order("run_id", {ascending:false}).limit(20);
+        if(history.error) throw Error("Repair history unavailable");
+        const seen = new Set<string>(), blocked = new Set<string>();
+        for(const run of history.data ?? []) for(const repair of run.repairs ?? []) if(!seen.has(repair.key)){seen.add(repair.key);if(repair.status === "blocked" || repair.status === "validation_failed")blocked.add(repair.key);}
+        targets = targets.filter((f:{key:string;source:string})=>f.source !== "codeql" || !blocked.has(f.key));
+      }
+      const ranks:Record<string,number>={critical:0,high:1,medium:2,low:3};
+      targets.sort((a:{severity:string},b:{severity:string})=>(ranks[a.severity]??4)-(ranks[b.severity]??4));
     }
     return Response.json({ should_run: true, repair, targets, merges, sync_pulls, pull_numbers, automate: config.automation_enabled === true });
   } catch { return Response.json({ error: "Security queue unavailable" }, { status: 503 }); }
