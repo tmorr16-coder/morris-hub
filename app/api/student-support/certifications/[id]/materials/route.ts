@@ -1,6 +1,34 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
+function isDisallowedHost(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase();
+
+  // Localhost and common local aliases
+  if (host === "localhost" || host.endsWith(".localhost")) return true;
+
+  // Block direct IPv4 access to local/private/link-local ranges
+  const ipv4Match = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const octets = ipv4Match.slice(1).map(Number);
+    if (octets.some((n) => Number.isNaN(n) || n < 0 || n > 255)) return true;
+    const [a, b] = octets;
+
+    if (a === 10) return true; // 10.0.0.0/8
+    if (a === 127) return true; // 127.0.0.0/8 loopback
+    if (a === 169 && b === 254) return true; // 169.254.0.0/16 link-local
+    if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
+    if (a === 192 && b === 168) return true; // 192.168.0.0/16
+  }
+
+  // Block IPv6 loopback/link-local/ULA literals
+  if (host === "::1" || host.startsWith("fe80:") || host.startsWith("fc") || host.startsWith("fd")) {
+    return true;
+  }
+
+  return false;
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -103,6 +131,22 @@ export async function POST(
     return NextResponse.json({ error: "url is required for type 'url'" }, { status: 400 });
   }
 
+  let safeUrl: string | null = null;
+  if (type === "url") {
+    try {
+      const parsed = new URL(String(url));
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        return NextResponse.json({ error: "url must use http or https" }, { status: 400 });
+      }
+      if (isDisallowedHost(parsed.hostname)) {
+        return NextResponse.json({ error: "url host is not allowed" }, { status: 400 });
+      }
+      safeUrl = parsed.toString();
+    } catch {
+      return NextResponse.json({ error: "url is invalid" }, { status: 400 });
+    }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
 
@@ -123,8 +167,8 @@ export async function POST(
   let resolvedExtractedText = extracted_text ?? null;
   let extractionNote: string | null = null;
 
-  if (type === "url" && url && !resolvedExtractedText) {
-    const urlLower = (url as string).toLowerCase();
+  if (type === "url" && safeUrl && !resolvedExtractedText) {
+    const urlLower = safeUrl.toLowerCase();
 
     if (urlLower.endsWith(".pdf")) {
       // PDF extraction requires server-side processing (e.g. pdf-parse or external service)
@@ -133,7 +177,7 @@ export async function POST(
     } else {
       // Attempt to fetch plain HTML and strip tags for basic text extraction
       try {
-        const fetchRes = await fetch(url as string, {
+        const fetchRes = await fetch(safeUrl, {
           headers: { "User-Agent": "MorrisHub/1.0 (study material indexer)" },
           signal: AbortSignal.timeout(8000),
         });
