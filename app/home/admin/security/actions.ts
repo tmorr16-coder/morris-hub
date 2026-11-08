@@ -44,3 +44,10 @@ export async function mergeSecurityPull(_previous: SecurityActionState,form: For
  try {const {id}=await requireAdmin();const number=Number(form.get("number")),head=String(form.get("head")),base=String(form.get("base"));if(!Number.isInteger(number)||number<1||!/^[a-f0-9]{40}$/.test(head)||!/^[a-f0-9]{40}$/.test(base))throw Error("Refresh the PR review before merging.");const{error}=await securityDb().rpc("queue_security_pr_command",{actor:id,pull_number:number,head_sha:head,base_sha:base});if(error)throw Error("The PR details may have changed or expired. Refresh, review, and try again.");revalidatePath("/home/admin/security");revalidatePath(`/home/admin/security/pulls/${number}`);return{message:"Merge requested. The worker will re-run tests and the build, then merge this reviewed version if the PR and main are unchanged. Check back here for the result."};}
  catch(e){return{error:e instanceof Error?e.message:"Could not request merge"};}
 }
+
+export async function protectSecurityNow():Promise<SecurityActionState>{
+ try{const{id}=await requireAdmin();const{error}=await securityDb().rpc("configure_security_automation",{actor:id,enabled:true,run_now:true});if(error)throw Error("Could not start protection. Refresh and try again.");revalidatePath("/home/admin/security");return{message:"Protection queued. The agent will scan, prioritize, repair and validate supported fixes. Only changes needing your judgment will ask for review. GitHub checks requests every five minutes."};}catch(e){return{error:e instanceof Error?e.message:"Could not start protection"};}
+}
+export async function pauseSecurityAutomation():Promise<SecurityActionState>{
+ try{const{id}=await requireAdmin();const{error}=await securityDb().rpc("configure_security_automation",{actor:id,enabled:false,run_now:false});if(error)throw Error("Could not pause automation. Try again.");revalidatePath("/home/admin/security");return{message:"Automatic repairs and queued automatic merges paused. Scanning continues. A merge already submitted to GitHub may finish."};}catch(e){return{error:e instanceof Error?e.message:"Could not pause automation"};}
+}

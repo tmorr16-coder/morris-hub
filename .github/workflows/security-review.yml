@@ -21,6 +21,7 @@ jobs:
     outputs:
       should_run: ${{ steps.queue.outputs.should_run }}
       repair: ${{ steps.queue.outputs.repair }}
+      automate: ${{ steps.queue.outputs.automate }}
       targets: ${{ steps.queue.outputs.targets }}
       merges: ${{ steps.queue.outputs.merges }}
       sync_pulls: ${{ steps.queue.outputs.sync_pulls }}
@@ -37,6 +38,7 @@ jobs:
                 const decision = await response.json();
                 core.setOutput('should_run', decision.should_run === true ? 'true' : 'false');
                 core.setOutput('repair', decision.repair === true ? 'true' : 'false');
+                core.setOutput('automate', decision.automate === true ? 'true' : 'false');
                 core.setOutput('targets', JSON.stringify(decision.targets ?? []));
                 core.setOutput('merges', JSON.stringify(decision.merges ?? []));
                 core.setOutput('sync_pulls', decision.sync_pulls !== false ? 'true' : 'false');
@@ -84,7 +86,7 @@ jobs:
           retention-days: 14
   fix:
     needs: [gate, review]
-    if: always() && needs.gate.outputs.should_run == 'true' && needs.review.result != 'cancelled'
+    if: always() && needs.gate.outputs.should_run == 'true' && needs.review.result != 'cancelled' && (needs.gate.outputs.automate == 'true' || needs.gate.outputs.repair == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -136,19 +138,10 @@ jobs:
           body: |
             Daily security review generated compatible npm lockfile fixes without force upgrades or install scripts.
             Security, voice, workout and bank-sync tests and the production build passed before this PR was opened.
-            Compatible lockfile-only fixes are automatically merged if main and the validated candidate are unchanged and repository policy permits it.
+            The risk policy assesses the exact patch. Eligible low-risk changes receive fresh isolated merge checks before automatic merge when protection is enabled.
             Findings remain open until a follow-up main-branch review confirms resolution.
           delete-branch: true
-      - name: Merge validated lockfile fix and schedule verification
-        if: steps.pr.outputs.pull-request-number != ''
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          FIX_PR_NUMBER: ${{ steps.pr.outputs.pull-request-number }}
-          FIX_HEAD_SHA: ${{ steps.pr.outputs.pull-request-head-sha }}
-        with:
-          script: |
-            const merge = require('./scripts/security-merge.cjs');
-            await merge({ github, context, core }, process.env.FIX_PR_NUMBER, process.env.FIX_HEAD_SHA);
+
   repairs:
     needs: [gate, review]
     if: needs.gate.outputs.repair == 'true' && needs.review.result == 'success'
@@ -207,7 +200,7 @@ jobs:
           npm run test:simplefin
           npm run build
   pulls_sync:
-    needs: gate
+    needs: [gate, fix, repairs, repair_validation]
     if: always() && needs.gate.result == 'success' && needs.gate.outputs.sync_pulls == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -215,6 +208,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: read
+      security-events: read
       id-token: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -235,6 +229,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
+      security-events: read
       id-token: write
     outputs:
       plans: ${{ steps.prepare.outputs.plans }}
@@ -265,18 +260,48 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ matrix.plan.candidate }}
+          path: candidate
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
+      - name: Initialize additional code-fix verification
+        if: matrix.plan.automatic && matrix.plan.risk.kind == 'code'
+        uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          source-root: candidate
+          queries: security-extended
       - run: npm ci --ignore-scripts
+        working-directory: candidate
       - name: Check the reviewed PR against its exact main merge preview
+        working-directory: candidate
         run: |
           npm run test:security
           npm run test:voice
           npm run test:workout
           npm run test:simplefin
           npm run build
+      - name: Analyze automatic code fix
+        if: matrix.plan.automatic && matrix.plan.risk.kind == 'code'
+        uses: github/codeql-action/analyze@v4
+        with:
+          upload: false
+          output: ${{ runner.temp }}/automatic-code-sarif
+      - name: Load trusted policy after candidate execution
+        if: matrix.plan.automatic && matrix.plan.risk.kind == 'code'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          path: trusted-policy
+          persist-credentials: false
+      - name: Confirm CodeQL cleared the changed files
+        if: matrix.plan.automatic && matrix.plan.risk.kind == 'code'
+        run: node trusted-policy/scripts/security-risk.mjs "$SARIF_DIR"
+        env:
+          SARIF_DIR: ${{ runner.temp }}/automatic-code-sarif
+          MERGE_PLAN: ${{ toJSON(matrix.plan) }}
   merge_apply:
     needs: [merge_prepare, merge_validation]
     if: always() && needs.merge_prepare.result == 'success' && needs.merge_prepare.outputs.plans != '[]'
@@ -286,6 +311,7 @@ jobs:
       contents: write
       pull-requests: write
       checks: read
+      security-events: read
       actions: write
       id-token: write
     steps:

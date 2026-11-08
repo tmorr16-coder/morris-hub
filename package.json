@@ -12,7 +12,7 @@
     "test:voice:browser": "node tests/read-aloud.browser.mjs",
     "test:workout": "node --test tests/workout.test.mjs",
     "test:workout:browser": "node tests/workout.browser.mjs",
-    "test:security": "node --test tests/security.test.mjs tests/security-agent.test.mjs tests/security-prs.test.mjs",
+    "test:security": "node --test tests/security.test.mjs tests/security-agent.test.mjs tests/security-prs.test.mjs tests/security-autopilot.test.mjs",
     "test:simplefin": "node --test tests/simplefin.test.mjs"
   },
   "dependencies": {
