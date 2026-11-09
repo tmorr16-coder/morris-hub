@@ -16,7 +16,7 @@
     "test:simplefin": "node --test tests/simplefin.test.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.96.0",
+    "@anthropic-ai/sdk": "^1.6.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.105.4",
     "docx": "^9.7.1",
