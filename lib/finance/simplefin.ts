@@ -1,5 +1,10 @@
 import { mccToCategory } from "./mcc";
 
+const SIMPLEFIN_CLAIM_HOSTS = new Set<string>([
+  "beta-bridge.simplefin.org",
+  "bridge.simplefin.org",
+]);
+
 /**
  * SimpleFIN bank-aggregation integration.
  *
@@ -68,18 +73,33 @@ export async function claimAccessUrl(setupToken: string): Promise<string> {
   const token = (setupToken ?? "").trim();
   if (!token) throw new Error("Setup token is required");
 
-  let claimUrl: string;
+  let claimUrlRaw: string;
   try {
-    claimUrl = Buffer.from(token, "base64").toString("utf8").trim();
+    claimUrlRaw = Buffer.from(token, "base64").toString("utf8").trim();
   } catch {
     throw new Error("Setup token is not valid base64");
   }
 
-  if (!/^https:\/\//i.test(claimUrl)) {
+  let claimUrl: URL;
+  try {
+    claimUrl = new URL(claimUrlRaw);
+  } catch {
     throw new Error("Setup token did not decode to a valid https claim URL");
   }
 
-  const res = await fetch(claimUrl, {
+  if (claimUrl.protocol !== "https:") {
+    throw new Error("Setup token did not decode to a valid https claim URL");
+  }
+
+  if (claimUrl.username || claimUrl.password) {
+    throw new Error("Setup token did not decode to a valid claim URL");
+  }
+
+  if (!SIMPLEFIN_CLAIM_HOSTS.has(claimUrl.hostname.toLowerCase())) {
+    throw new Error("Setup token did not decode to an allowed claim host");
+  }
+
+  const res = await fetch(claimUrl.toString(), {
     method: "POST",
     body: "",
     signal: AbortSignal.timeout(CLAIM_TIMEOUT_MS),
