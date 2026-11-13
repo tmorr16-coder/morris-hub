@@ -129,7 +129,12 @@ export default function SearchClient({ versions, defaultBibleId }: Props) {
       <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "0 var(--ios-gutter)" }}>
         <select
           value={bibleId}
-          onChange={(e) => setBibleId(e.target.value)}
+          onChange={(e) => {
+            const nextBibleId = e.target.value;
+            if (versions.some((v) => v.id === nextBibleId)) {
+              setBibleId(nextBibleId);
+            }
+          }}
           aria-label="Translation"
           style={selectStyle}
         >
