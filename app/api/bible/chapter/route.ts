@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { fetchChapter } from "@/lib/bible-api";
+import { BIBLE_BOOKS, fetchChapter } from "@/lib/bible-api";
 
 const DEFAULT_BIBLE_ID = "de4e12af7f28f599-02";
 const ALLOWED_BIBLE_IDS = new Set([
@@ -9,6 +9,7 @@ const ALLOWED_BIBLE_IDS = new Set([
   "9879dbb7cfe39e4d-01",
   "01b29f4b342acc35-01",
 ]);
+const ALLOWED_BOOK_IDS = new Set(BIBLE_BOOKS.map((b) => b.id));
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
@@ -24,6 +25,9 @@ export async function GET(req: NextRequest) {
   const chapter = parseInt(searchParams.get("chapter") ?? "1");
 
   if (!bookId) return new NextResponse("bookId required", { status: 400 });
+  if (!ALLOWED_BOOK_IDS.has(bookId)) {
+    return new NextResponse("Invalid bookId", { status: 400 });
+  }
 
   try {
     const data = await fetchChapter(bibleId, bookId, chapter);
