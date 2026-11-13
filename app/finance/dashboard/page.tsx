@@ -763,7 +763,14 @@ export default async function DashboardPage() {
               chevron={false}
               lead={<IconBadge color={g.kind === "stock" ? "#B5651D" : g.kind === "retirement" ? "var(--ios-green)" : "#C97A3A"}><Icons.TrendUpIcon /></IconBadge>}
               title={g.kind === "retirement" ? "Retirement plans" : g.kind === "stock" ? "Employer stock plans" : "Brokerage & other"}
-              subtitle={g.list.map((a) => `${a.name}${a.owner !== "you" ? ` (${a.owner})` : ""} ${fmtMoney(a.balance)}`).join(" · ")}
+              // Two spouses at one employer hold two plans with one name. A
+              // family member's was already labelled; yours was not, so the
+              // pair read as the same account listed twice.
+              subtitle={g.list.map((a) => {
+                const twin = g.list.some((b) => b !== a && b.name === a.name);
+                const whose = a.owner !== "you" ? ` (${a.owner})` : twin ? " (yours)" : "";
+                return `${a.name}${whose} ${fmtMoney(a.balance)}`;
+              }).join(" · ")}
               trailing={<span className="ios-num">{fmtMoney(g.total)}</span>}
             />
           ))}
