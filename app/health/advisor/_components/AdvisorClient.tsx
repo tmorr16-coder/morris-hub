@@ -98,7 +98,58 @@ interface Thread {
 }
 
 const STORE_KEY = "advisor-threads-v1";
+const ENC_KEY_STORAGE = "advisor-threads-v1-key";
+const ENC_PREFIX = "enc-v1:";
 const MAX_THREADS = 30;
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
+async function getOrCreateStorageKey(): Promise<CryptoKey> {
+  const existing = localStorage.getItem(ENC_KEY_STORAGE);
+  if (existing) {
+    const raw = base64ToBytes(existing);
+    return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
+  }
+  const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+  const exported = new Uint8Array(await crypto.subtle.exportKey("raw", key));
+  localStorage.setItem(ENC_KEY_STORAGE, bytesToBase64(exported));
+  return key;
+}
+
+async function encryptText(plain: string): Promise<string> {
+  const key = await getOrCreateStorageKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(plain);
+  const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded));
+  return `${ENC_PREFIX}${bytesToBase64(iv)}.${bytesToBase64(cipher)}`;
+}
+
+async function decryptText(payload: string): Promise<string | null> {
+  if (!payload.startsWith(ENC_PREFIX)) return null;
+  const body = payload.slice(ENC_PREFIX.length);
+  const [ivB64, cipherB64] = body.split(".");
+  if (!ivB64 || !cipherB64) return null;
+  try {
+    const key = await getOrCreateStorageKey();
+    const iv = base64ToBytes(ivB64);
+    const cipher = base64ToBytes(cipherB64);
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, cipher);
+    return new TextDecoder().decode(new Uint8Array(plain));
+  } catch {
+    return null;
+  }
+}
 
 /**
  * The browser's copy of the conversations.
@@ -108,19 +159,23 @@ const MAX_THREADS = 30;
  * been applied, and a sync failure leaves what is on the device alone instead
  * of presenting as an empty history.
  */
-function loadLocal(): Thread[] {
+async function loadLocal(): Promise<Thread[]> {
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const decrypted = await decryptText(raw);
+    const parsed = decrypted ? JSON.parse(decrypted) : [];
     return Array.isArray(parsed) ? (parsed as Thread[]) : [];
   } catch {
     return [];
   }
 }
 
-function saveLocal(threads: Thread[]) {
+async function saveLocal(threads: Thread[]) {
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(threads.slice(0, MAX_THREADS)));
+    const json = JSON.stringify(threads.slice(0, MAX_THREADS));
+    const encrypted = await encryptText(json);
+    localStorage.setItem(STORE_KEY, encrypted);
   } catch {
     /* quota or private mode — the server copy is the fallback */
   }
@@ -158,12 +213,20 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [checker, setChecker] = useState(CHECKERS[0].id);
-  // Lazy initialiser rather than an effect: the device's copy is available
-  // synchronously, so reading it here paints the list correctly on the first
-  // frame instead of after a state round trip.
-  const [threads, setThreads] = useState<Thread[]>(loadLocal);
+  // Local storage load is async due to encryption; seed empty and hydrate on mount.
+  const [threads, setThreads] = useState<Thread[]>([]);
   const [threadId, setThreadId] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let alive = true;
+    loadLocal().then((localThreads) => {
+      if (alive) setThreads(localThreads);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Then whatever the server holds, which may include conversations started on
   // another device.
@@ -225,7 +288,7 @@ export default function AdvisorClient({ assessment }: { assessment: HealthAssess
   function removeThread(id: number) {
     setThreads((prev) => {
       const next = prev.filter((t) => t.id !== id);
-      saveLocal(next);
+      void saveLocal(next);
       return next;
     });
     fetch(`/api/health/advisor/threads?id=${id}`, { method: "DELETE" }).catch(() => {});
