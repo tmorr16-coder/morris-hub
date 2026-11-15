@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEV_USER_ID } from "@/lib/health/auth";
 import { createHash } from "crypto";
+import { logValue } from "@/lib/log-safe";
 
 // URL format: /api/health/webhooks/apple-health?userId=<uuid>
 // The shared HEALTH_AUTO_EXPORT_SECRET authenticates the sender;
@@ -239,7 +240,7 @@ export async function POST(request: NextRequest) {
         .select("id");
 
       if (error) {
-        console.error(`[apple-health] Metrics error (${group.name}):`, error.message);
+        console.error("[apple-health] Metrics error (%s): %s", logValue(group.name), logValue(error.message));
       } else {
         metricsInserted += (inserted as unknown[]).length;
       }
@@ -273,7 +274,7 @@ export async function POST(request: NextRequest) {
     const startMs = toEpochMs(workout.start);
     if (startMs === null) continue;
     if (storedStarts.some((t) => Math.abs(t - startMs) < 60_000)) {
-      console.log(`[apple-health] Workout duplicate skipped: ${workout.name} @ ${workout.start}`);
+      console.log("[apple-health] Workout duplicate skipped: %s @ %s", logValue(workout.name), logValue(workout.start));
       continue;
     }
     storedStarts.push(startMs);
@@ -301,12 +302,9 @@ export async function POST(request: NextRequest) {
     if (error) {
       // 23505 = unique_violation — expected on duplicate sends, skip silently
       if ((error as { code?: string }).code === "23505") {
-        console.log(`[apple-health] Workout duplicate skipped: ${workout.name} @ ${workout.start}`);
+        console.log("[apple-health] Workout duplicate skipped: %s @ %s", logValue(workout.name), logValue(workout.start));
       } else {
-        console.error(
-          `[apple-health] Workout error (${workout.name} @ ${workout.start}):`,
-          error.message
-        );
+        console.error("[apple-health] Workout error (%s @ %s): %s", logValue(workout.name), logValue(workout.start), logValue(error.message));
       }
     } else {
       workoutsInserted++;

@@ -11,8 +11,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { Group, Cell, IconBadge, Segmented, Icons } from "@/components/ios";
+import { signOutOfDevice } from "@/lib/client/sign-out";
 
 type Theme = "automatic" | "light" | "dark";
 type Scheme = "classic" | "famu" | "braves";
@@ -76,7 +76,7 @@ export default function AppearanceAccount() {
 
   const signOut = async () => {
     setSigningOut(true);
-    await createClient().auth.signOut();
+    await signOutOfDevice();
     router.push("/login");
   };
 

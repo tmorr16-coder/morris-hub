@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEV_USER_ID } from "@/lib/health/auth";
 import { recordFailure, clearFailures } from "@/lib/system-events";
+import { logValue } from "@/lib/log-safe";
 
 const BASE = "https://api.ouraring.com/v2/usercollection";
 
@@ -66,7 +67,7 @@ async function syncOneUser(db: any, userId: string, token: string): Promise<numb
       if (item.score == null) continue;
       rows.push({ user_id: userId, timestamp: `${item.day}T00:00:00Z`, metric_name: "sleep_score", value: item.score as number, unit: "score", source: "oura" });
     }
-  } else { console.error(`[oura/sync] ${userId} daily_sleep:`, detailSleepResult); }
+  } else { console.error("[oura/sync] %s daily_sleep: %s", logValue(userId), logValue(detailSleepResult)); }
 
   if (detailSleepResult.status === "fulfilled") {
     for (const item of detailSleepResult.value.data) {
@@ -120,7 +121,7 @@ async function syncOneUser(db: any, userId: string, token: string): Promise<numb
       .from("apple_health_metrics")
       .upsert(batch, { onConflict: "user_id,timestamp,metric_name,source", ignoreDuplicates: true })
       .select("id");
-    if (error) console.error(`[oura/sync] Upsert error for ${userId}:`, error.message);
+    if (error) console.error("[oura/sync] Upsert error for %s: %s", logValue(userId), logValue(error.message));
     else inserted += (data as unknown[]).length;
   }
   return inserted;
@@ -182,7 +183,7 @@ export async function GET(request: NextRequest) {
       await clearFailures("oura", user_id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[oura/sync] Failed for user ${user_id}:`, msg);
+      console.error("[oura/sync] Failed for user %s: %s", logValue(user_id), logValue(msg));
       // Previously this failure existed only in Vercel's console, so an expired
       // token could go unnoticed for weeks while the metrics quietly stopped.
       await recordFailure({ source: "oura", subject: user_id, userId: user_id, message: msg });

@@ -2,6 +2,7 @@ import { fetchSimpleFinAccounts, mapSimpleFinAccount, mapSimpleFinTransaction, s
 import { decrypt } from '@/lib/finance/encryption';
 import { createServiceClient } from '@/lib/supabase/server';
 import { recordFailure, clearFailures } from '@/lib/system-events';
+import { logValue } from "@/lib/log-safe";
 
 type SyncResult = {
   item_id: string;
@@ -283,7 +284,7 @@ export async function syncItem(itemId: string): Promise<SyncResult> {
     return { item_id: item.id, added: totalAdded, modified: 0, removed: 0, ...(incomplete.length ? { error: incomplete.join(" · ").slice(0, 300) } : {}) };
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'unknown';
-    console.error(`[sync] item ${itemId} failed:`, msg);
+    console.error('[sync] item %s failed: %s', logValue(itemId), logValue(msg));
 
     // Write the failure down. Previously this was console-only, so the row kept
     // reporting 'active' and a connection could be broken for weeks with nothing

@@ -1,5 +1,6 @@
 // Finnhub API integration for real-time stock data
 // Free tier: 60 calls/minute, data delayed by 15 minutes
+import { logValue } from "@/lib/log-safe";
 
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 const FINNHUB_BASE_URL = "https://finnhub.io/api/v1";
@@ -88,7 +89,7 @@ export async function getCompanyProfile(
 
     return data as FinnhubCompanyProfile;
   } catch (error) {
-    console.error(`Failed to fetch profile for ${ticker}:`, error);
+    console.error("Failed to fetch profile for %s: %s", logValue(ticker, 20), logValue(error));
     return null;
   }
 }
@@ -207,7 +208,7 @@ export async function searchSymbol(
     const data = await response.json();
     return (data.result || []).slice(0, 10); // Limit to 10 results
   } catch (error) {
-    console.error(`Failed to search for ${query}:`, error);
+    console.error("Failed to search for %s: %s", logValue(query, 80), logValue(error));
     return [];
   }
 }

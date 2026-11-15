@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 import { MODEL_FAST } from "@/lib/models";
+import { logValue } from "@/lib/log-safe";
 
 export const maxDuration = 60;
 
@@ -155,7 +156,7 @@ async function fetchFullReport(ticker: string): Promise<FullReport> {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((b) => (b as any).text as string)
       .join("\n");
-    console.error(`[full-report] ${ticker} write_report not called. stop_reason: ${response.stop_reason}. Text preview: ${text.slice(0, 300)}`);
+    console.error("[full-report] %s write_report not called. stop_reason: %s. Text preview: %s", logValue(ticker, 20), logValue(response.stop_reason), logValue(text, 300));
     throw new Error("Research incomplete — try again");
   }
 

@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { randomInt } from "node:crypto";
 import { notFound } from "next/navigation";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
@@ -94,9 +95,8 @@ export default async function CertPracticeSessionPage({
     );
 
     if (unanswered.length > 0) {
-      // Pseudo-random pick from first 5 unanswered to add variety
-      // eslint-disable-next-line react-hooks/purity -- async server component, not a React render
-      const idx = Math.floor(Math.random() * Math.min(unanswered.length, 5));
+      // A pick from the first five unanswered, for variety.
+      const idx = randomInt(Math.min(unanswered.length, 5));
       nextQuestion = unanswered[idx] as QuestionRow;
 
       if (nextQuestion) {

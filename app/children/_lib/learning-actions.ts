@@ -181,9 +181,14 @@ export async function markWordPracticed(childId: string, weekId: string, word: s
   const g = await requireGuardian(childId);
   if ("error" in g) return { error: g.error };
   const svc = db();
-  const { data: row } = await svc.schema("hub").from("child_spelling_weeks").select("practiced").eq("id", weekId).eq("child_id", childId).maybeSingle();
+  const { data: row } = await svc.schema("hub").from("child_spelling_weeks").select("practiced, words, sight_words").eq("id", weekId).eq("child_id", childId).maybeSingle();
   if (!row) return { error: "Not found" };
-  const practiced = { ...(row.practiced ?? {}) } as Record<string, number>;
+  // The word becomes a key in a JSON object, so only a word actually on this
+  // week's list is accepted — never "__proto__" or anything else sent by hand.
+  const list = new Set<string>([...((row.words ?? []) as string[]), ...((row.sight_words ?? []) as string[])]);
+  if (!list.has(word) || !Number.isInteger(delta) || Math.abs(delta) > 5) return { error: "Not on this week's list" };
+  const practiced: Record<string, number> = {};
+  for (const [k, v] of Object.entries((row.practiced ?? {}) as Record<string, number>)) if (list.has(k) && Number.isFinite(v)) practiced[k] = v;
   practiced[word] = Math.max(0, (practiced[word] ?? 0) + delta);
   if (practiced[word] === 0) delete practiced[word];
   const { error } = await svc.schema("hub").from("child_spelling_weeks").update({ practiced }).eq("id", weekId);

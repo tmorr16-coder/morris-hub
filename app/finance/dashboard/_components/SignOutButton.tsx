@@ -1,10 +1,10 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
+import { signOutOfDevice } from "@/lib/client/sign-out";
 
 export default function SignOutButton() {
   async function handleSignOut() {
-    await createClient().auth.signOut();
+    await signOutOfDevice();
     window.location.href = "/";
   }
 

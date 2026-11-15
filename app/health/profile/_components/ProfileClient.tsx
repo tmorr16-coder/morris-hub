@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
 import { Chip } from "@/components/ios";
 import { saveProfileGoals, deleteMyAccount, submitSupportTicket } from "../actions";
+import { signOutOfDevice } from "@/lib/client/sign-out";
 
 interface OAuthUser {
   name: string;
@@ -314,7 +315,7 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
         {/* Sign out */}
         <button
           onClick={async () => {
-            await createClient().auth.signOut();
+            await signOutOfDevice();
             window.location.href = "/health";
           }}
           className="ios-btn ios-btn--full"

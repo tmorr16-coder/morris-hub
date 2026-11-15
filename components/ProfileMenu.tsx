@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { createClient } from "@/lib/supabase/client";
+import { signOutOfDevice } from "@/lib/client/sign-out";
 
 export interface ProfileMenuUser {
   email?: string | null;
@@ -70,8 +70,7 @@ export default function ProfileMenu({ user }: { user: ProfileMenuUser }) {
   }, [open]);
 
   async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+    await signOutOfDevice();
     window.location.href = "/";
   }
 

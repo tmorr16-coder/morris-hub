@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { LargeTitle, Group, Cell, IconBadge, Icons } from "@/components/ios";
+import { signOutOfDevice } from "@/lib/client/sign-out";
 
 export default function NoAccessPage() {
   const [email, setEmail] = useState<string | null>(null);
@@ -14,7 +15,7 @@ export default function NoAccessPage() {
   }, []);
 
   async function handleSignOut() {
-    await createClient().auth.signOut();
+    await signOutOfDevice();
     window.location.href = "/";
   }
 

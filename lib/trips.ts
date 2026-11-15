@@ -240,6 +240,9 @@ export function parseIcs(text: string): TripSegment[] {
     if (idx < 0) continue;
     const [name, ...params] = line.slice(0, idx).split(";");
     const key = name.toUpperCase();
+    // iCalendar property names are letters, digits and hyphens. Anything else
+    // (a crafted "__proto__" line in an emailed invite) is not a property.
+    if (!/^[A-Z][A-Z0-9-]{0,63}$/.test(key)) continue;
     current[key] = line.slice(idx + 1);
     // DTSTART;TZID=America/New_York:20260901T201500 — the zone is the point.
     const tzid = params.map((p) => p.match(/^TZID=(.+)$/i)?.[1]).find(Boolean);

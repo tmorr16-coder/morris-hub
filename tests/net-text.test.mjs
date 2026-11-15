@@ -87,3 +87,12 @@ test('slides keep headings, bullets and link labels', () => {
   assert.deepEqual(deck[0].bullets, ['first', 'second']);
   assert.equal(deck[1].title, 'Spaced');
 });
+
+test('log values are one line, bounded and free of control characters', async () => {
+  const log = await load('../lib/log-safe.ts');
+  assert.equal(log.logValue('a\nFAKE: admin logged in\r\nb'), 'a FAKE: admin logged in b');
+  assert.equal(log.logValue('%s%o\u0007'), '%s%o');
+  assert.equal(log.logValue(new Error('boom\nline2')), 'boom line2');
+  assert.equal(log.logValue({ a: 1 }), '{"a":1}');
+  assert.equal(log.logValue('x'.repeat(400), 10), 'xxxxxxxxxx…');
+});

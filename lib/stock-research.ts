@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk";
 import { getStockQuote, getCompanyProfile, searchSymbol } from "./finnhub";
 import { MODEL_FAST } from "@/lib/models";
+import { logValue } from "@/lib/log-safe";
 
 export interface Stock {
   ticker: string;
@@ -88,7 +89,7 @@ export async function searchStocks(query: string): Promise<Stock[]> {
       }
     }
   } catch (e) {
-    console.error(`Finnhub search failed for "${q}":`, e);
+    console.error("Finnhub search failed for \"%s\": %s", logValue(q, 80), logValue(e));
   }
 
   if (finnhubStocks.length > 0) return finnhubStocks;
@@ -142,7 +143,7 @@ US tickers only. Mix large-caps and relevant ETFs where appropriate.`,
       tickerSuggestions = (parsed.stocks ?? []).slice(0, 8);
     }
   } catch (e) {
-    console.error(`Topic search failed for "${topic}":`, e);
+    console.error("Topic search failed for \"%s\": %s", logValue(topic, 80), logValue(e));
     return [];
   }
 

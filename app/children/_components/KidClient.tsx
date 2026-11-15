@@ -757,7 +757,11 @@ const KEEP_TALKING_MINUTES = 15;
 const KEEP_TALKING_SILENCES = 2;
 
 function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, words }: { childId: string; first: string; gradeLabel: string | null; speak: (t: string, rate?: number) => void; speaking: boolean; stopSpeaking: () => void; words: string[] }) {
-  const [sessionId] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`));
+  // randomUUID needs a secure context; getRandomValues does not, so the
+  // fallback is just as unguessable rather than a Math.random string.
+  const [sessionId] = useState(() => (typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("")));
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string; revealed?: boolean }[]>([
     { role: "assistant", content: `Hi ${first}! I'm Buddy. 🦉 What do you want to work on?` },
   ]);

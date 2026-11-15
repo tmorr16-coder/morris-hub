@@ -95,6 +95,7 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
 
   // Search state
   const [bibleId, setBibleId] = useState(defaultBibleId);
+  const safeBibleId = versions.some((v) => v.id === bibleId) ? bibleId : defaultBibleId;
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -121,7 +122,7 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
     setSearched(false);
     try {
       const res = await fetch(
-        `/api/bible/search?bibleId=${encodeURIComponent(bibleId)}&q=${encodeURIComponent(q)}`
+        `/api/bible/search?bibleId=${encodeURIComponent(safeBibleId)}&q=${encodeURIComponent(q)}`
       );
       const data = await res.json();
       setResults(data ?? []);
@@ -148,7 +149,7 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
   function resultHref(r: SearchResult): string {
     if (!r.id) return "#";
     const parts = r.id.split(".");
-    if (parts.length >= 2) return `/bible/read/${parts[0]}/${parts[1]}?bibleId=${bibleId}`;
+    if (parts.length >= 2) return `/bible/read/${parts[0]}/${parts[1]}?bibleId=${safeBibleId}`;
     return "#";
   }
 
@@ -231,7 +232,7 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
           {/* Translation + search field */}
           <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px var(--ios-gutter) 0" }}>
             <select
-              value={bibleId}
+              value={safeBibleId}
               onChange={(e) => setBibleId(e.target.value)}
               aria-label="Translation"
               style={selectStyle}
