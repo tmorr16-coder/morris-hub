@@ -13,7 +13,12 @@ export function auditFindings(audit) {
     return { key: `dependencies:${name}:${digest(ghsa.join(',') || name)}`, source:'dependencies', title: `${name}: ${advisories[0]?.title ?? 'Vulnerable dependency chain'}`.slice(0,500), severity, location:name.slice(0,500), url:ghsa[0] ? `https://github.com/advisories/${ghsa[0]}` : `https://github.com/${repo}/security/dependabot`, remediation: v.fixAvailable ? 'Automatic compatible dependency fix attempted. Review and merge a validated fix PR; major upgrades require manual review.' : 'No npm fix is available. Review the advisory, replace or mitigate this dependency.' };
   });
 }
-export function sarifFindings(sarif) {
+/** True when a person recorded this rule in this file as reviewed (.github/security-decisions.json). */
+export function decided(decisions, ruleId, file) {
+  let path = file; try { path = decodeURIComponent(file); } catch { /* literal */ }
+  return (decisions ?? []).some(d => d && d.rule === ruleId && d.path === path && typeof d.reason === 'string' && d.reason.trim());
+}
+export function sarifFindings(sarif, decisions = []) {
   if (!Array.isArray(sarif.runs) || !sarif.runs.length) throw Error('CodeQL SARIF missing runs');
   const findings = [];
   for (const run of sarif.runs) {
@@ -30,6 +35,9 @@ export function sarifFindings(sarif) {
       const severity = score >= 9 ? 'critical' : score >= 7 ? 'high' : score >= 4 ? 'medium' : Number.isFinite(score) ? 'low' : result.level === 'error' ? 'high' : 'medium';
       const loc = result.locations?.[0]?.physicalLocation;
       const file = loc?.artifactLocation?.uri ?? 'Unknown location';
+      // Raw scan results include alerts already dismissed in GitHub, so a
+      // recorded decision would otherwise never close the tracker's finding.
+      if (decided(decisions, ruleId, file)) continue;
       const line = loc?.region?.startLine ?? 1;
       const fingerprint = result.partialFingerprints?.primaryLocationLineHash ?? `${line}`;
       findings.push({key:`codeql:${digest(`${ruleId}:${file}:${fingerprint}`)}`,source:'codeql',title:(result.message?.text ?? ruleId ?? 'CodeQL finding').slice(0,500),severity,location:`${file}:${line}`.slice(0,500),url:`https://github.com/${repo}/security/code-scanning`,remediation:'Review the CodeQL alert and suggested remediation. Application code changes require review and validation.'});
@@ -45,7 +53,9 @@ async function collect() {
     if (process.env.CODEQL_RESULT !== 'success') throw Error('CodeQL job failed');
     const files = (await readdir('security-output/sarif')).filter(f=>f.endsWith('.sarif'));
     if (!files.length) throw Error('No CodeQL output');
-    for (const file of files) report.findings.push(...sarifFindings(JSON.parse(await readFile(`security-output/sarif/${file}`,'utf8'))));
+    let decisions = [];
+    try { decisions = JSON.parse(await readFile('.github/security-decisions.json','utf8')).decisions ?? []; } catch { /* none recorded */ }
+    for (const file of files) report.findings.push(...sarifFindings(JSON.parse(await readFile(`security-output/sarif/${file}`,'utf8')), decisions));
     report.completed.push('codeql');
   } catch { report.errors.push('CodeQL code review failed or was incomplete. Existing code findings have been retained.'); }
   if (process.env.FIX_RESULT === 'failure' || process.env.FIX_RESULT === 'cancelled') report.errors.push('Automatic dependency remediation failed validation, PR publication, automatic merge, or follow-up scheduling. Manual review is required.');
