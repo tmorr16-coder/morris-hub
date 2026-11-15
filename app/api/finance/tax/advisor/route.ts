@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { TaxSnapshot } from "@/app/finance/tax/_lib/snapshot";
 import { MODEL_BALANCED } from "@/lib/models";
+import { CONTEXT_RULE, withAppContext } from "@/lib/ai/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -68,11 +69,10 @@ export async function POST(req: NextRequest) {
     const response = await client.messages.create({
       model: MODEL_BALANCED,
       max_tokens: 1024,
-      system: [
-        { type: "text", text: SYSTEM_INSTRUCTIONS },
-        { type: "text", text: buildContext(body.snapshot) },
-      ],
-      messages: trimmed.map((m) => ({ role: m.role, content: m.content })),
+      // The snapshot comes from the browser: data, so it rides in the
+      // conversation, not at system level. See lib/ai/context.ts.
+      system: [{ type: "text", text: `${SYSTEM_INSTRUCTIONS}\n\n${CONTEXT_RULE}` }],
+      messages: withAppContext(trimmed, buildContext(body.snapshot)),
     });
     // Sonnet may return a thinking block first — pick the text block, not content[0].
     const textBlock = response.content.find((b) => b.type === "text");

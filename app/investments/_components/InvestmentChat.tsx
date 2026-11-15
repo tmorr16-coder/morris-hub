@@ -45,24 +45,6 @@ export default function InvestmentChat({
   }, [messages.length]);
 
   // Build investment context for the API
-  const buildContext = () => {
-    const filters: string[] = [];
-    if (selectedCategory !== "all") filters.push(`Category: ${selectedCategory}`);
-    if (selectedStatus !== "all") filters.push(`Status: ${selectedStatus}`);
-    if (showFavoritesOnly) filters.push("Favorites only");
-    if (capitalRange[0] > 0 || capitalRange[1] < 1000000) {
-      filters.push(`Capital: $${(capitalRange[0] / 1000).toFixed(0)}k - $${(capitalRange[1] / 1000).toFixed(0)}k`);
-    }
-    if (returnsRange[0] > 0 || returnsRange[1] < 100) {
-      filters.push(`Returns: ${returnsRange[0]}% - ${returnsRange[1]}%`);
-    }
-
-    const ideaTitles = displayedIdeas.map((i) => i.title).join(", ");
-
-    return `You are helping research investment ideas. Current filters: ${filters.length > 0 ? filters.join(", ") : "None"}.
-There are ${displayedIdeas.length} ideas displayed: ${ideaTitles || "None"}.
-Provide helpful investment research guidance based on these ideas and filters.`;
-  };
 
   async function send(text: string) {
     const userMsg: Message = { role: "user", content: text };
@@ -89,7 +71,6 @@ Provide helpful investment research guidance based on these ideas and filters.`;
               returnsRange,
             },
           },
-          systemPrompt: buildContext(),
         }),
       });
       const data = await res.json();

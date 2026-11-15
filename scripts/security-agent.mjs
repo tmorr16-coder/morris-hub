@@ -55,6 +55,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   try {plan=await repairTargets({targets,api,repo,runId:process.env.GITHUB_RUN_ID,sha:process.env.GITHUB_SHA});}
   catch(e){plan={candidates:[],results:targets.map(f=>({key:f.key,status:'blocked',message:`Cyber agent unavailable: ${(e instanceof Error?e.message:'GitHub error').slice(0,800)}`,url:''}))};}
   await writeFile('repair-results.json',JSON.stringify(plan.results));
-  await appendFile(process.env.GITHUB_OUTPUT,`candidates=${JSON.stringify(plan.candidates)}\n`);
+  const line=`candidates=${JSON.stringify(plan.candidates)}`;if(/[\r\n\u2028\u2029]/.test(line))throw Error('Refusing a multi-line workflow output.');
+  await appendFile(process.env.GITHUB_OUTPUT,`${line}\n`);
   console.log(`Cyber agent: ${plan.candidates.length} new fix PRs; ${plan.results.filter(r=>r.status==='blocked').length} blocked findings.`);
 }

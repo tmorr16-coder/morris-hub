@@ -5,7 +5,10 @@ import MarkdownMessage from "@/components/MarkdownMessage";
 interface ChatMessage { role: "user" | "assistant"; content: string; }
 
 interface Props {
-  systemContext: string;
+  /** Which coach answers. Its instructions are on the server. */
+  coach: "nutrition" | "training" | "general";
+  /** Facts from the screen (recent workouts, etc.). Sent as data, never as instructions. */
+  context?: string;
   placeholder?: string;
   welcomeMessage?: string;
   compact?: boolean;
@@ -39,7 +42,8 @@ function buildProfileAddendum(): string {
 }
 
 export default function ChatWidget({
-  systemContext,
+  coach,
+  context = "",
   placeholder = "Ask anything…",
   welcomeMessage,
   compact = false,
@@ -50,7 +54,7 @@ export default function ChatWidget({
   );
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [enrichedContext, setEnrichedContext] = useState(systemContext);
+  const [enrichedContext, setEnrichedContext] = useState(context);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // Skip the auto-scroll on first render — otherwise scrollIntoView yanks the
@@ -62,8 +66,8 @@ export default function ChatWidget({
   useEffect(() => {
     if (!addProfileContext) return;
     const addendum = buildProfileAddendum();
-    setEnrichedContext(systemContext + addendum);
-  }, [systemContext, addProfileContext]);
+    setEnrichedContext(context + addendum);
+  }, [context, addProfileContext]);
 
   useEffect(() => {
     if (!didMountRef.current) {
@@ -87,7 +91,7 @@ export default function ChatWidget({
       const res = await fetch("/api/health/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next, systemContext: enrichedContext }),
+        body: JSON.stringify({ messages: next, coach, context: enrichedContext }),
       });
       const data = (await res.json()) as { reply?: string; error?: string };
       if (data.reply) {

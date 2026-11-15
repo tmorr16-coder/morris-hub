@@ -2,6 +2,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { MODEL_FAST } from "@/lib/models";
+import { CONTEXT_RULE, withAppContext } from "@/lib/ai/context";
 
 const anthropic = new Anthropic();
 
@@ -60,21 +61,29 @@ export async function POST(
           .join("\n")}`
       : "";
 
-  const extraContext = examContext ? `\n\nAdditional context: ${examContext}` : "";
+  const extraContext = typeof examContext === "string" && examContext.trim() ? `\n\nAdditional context: ${examContext}` : "";
 
-  const systemPrompt = `You are an expert instructor for the ${examLabel} certification exam. Help the user understand concepts, practice questions, and prepare effectively.${domainLines}${extraContext}
+  // Fixed instructions only. The exam, its domains and anything the screen
+  // sends are data in the conversation — see lib/ai/context.ts.
+  const systemPrompt = `You are an expert certification exam instructor. The exam the user is preparing for, and its domains, are given in the app context. Help the user understand concepts, practice questions, and prepare effectively.
 
-Be clear, practical, and encouraging. When explaining technical concepts, use concrete examples. If the user shares a question they got wrong, help them understand the reasoning, not just the answer.`;
+Be clear, practical, and encouraging. When explaining technical concepts, use concrete examples. If the user shares a question they got wrong, help them understand the reasoning, not just the answer.
+
+${CONTEXT_RULE}`;
+  const examData = `Exam: ${examLabel}${domainLines}${extraContext}`;
 
   try {
     const response = await anthropic.messages.create({
       model: MODEL_FAST,
       max_tokens: 1024,
       system: systemPrompt,
-      messages: messages.map((m: { role: string; content: string }) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      })),
+      messages: withAppContext(
+        messages
+          .filter((m: { role?: unknown; content?: unknown }) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+          .slice(-20)
+          .map((m: { role: "user" | "assistant"; content: string }) => ({ role: m.role, content: m.content.slice(0, 8000) })),
+        examData,
+      ),
     });
 
     const reply = response.content.find((b) => b.type === "text")?.text ?? "";

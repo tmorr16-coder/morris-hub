@@ -140,7 +140,6 @@ export default async function TrainPage() {
       "\n\nUse this history to give specific progressive overload suggestions and reference what they've actually done recently."
     : "";
 
-  const workoutCoachContext = `You are an expert personal trainer and strength coach. Give specific, actionable advice about programming, form, progressive overload, and recovery. Keep answers concise — 2-4 sentences unless the question genuinely requires more. Be encouraging but direct.${workoutHistoryContext}`;
 
   // Group by day label for display
   const groups: { day: string; items: UnifiedWorkout[] }[] = [];
@@ -190,7 +189,8 @@ export default async function TrainPage() {
       <Group header="Workout coach">
         <div style={{ padding: "14px 16px" }}>
           <ChatWidget
-            systemContext={workoutCoachContext}
+            coach="training"
+            context={workoutHistoryContext}
             placeholder="Ask about sets, reps, form, programming…"
             welcomeMessage="Ready to help with your training. What do you want to work on?"
             addProfileContext

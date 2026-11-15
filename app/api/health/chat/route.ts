@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { logEvent } from "@/lib/usage";
 import { MODEL_FAST } from "@/lib/models";
+import { CONTEXT_RULE, withAppContext } from "@/lib/ai/context";
 
 const client = new Anthropic();
 
@@ -13,8 +14,18 @@ export interface ChatMessage {
 
 export interface ChatRequest {
   messages: ChatMessage[];
-  systemContext: string;
+  /** Which coach. The instructions for each live here, not in the browser. */
+  coach?: "nutrition" | "training" | "general";
+  /** What the screen knows — recent workouts, the profile. Data, not instructions. */
+  context?: string;
 }
+
+const RULES = "Keep replies concise, two to four sentences unless the question genuinely needs more. Be specific, encouraging and direct; never preachy. You are not a doctor: for symptoms, injuries, medication or anything urgent, say so plainly and suggest a professional. Stay on health, fitness and nutrition.";
+const COACHES: Record<NonNullable<ChatRequest["coach"]>, string> = {
+  nutrition: `You are a nutrition coach. Give practical, evidence-based advice about meals, macros, calorie estimates and healthy eating. If asked to estimate calories for a food, give a reasonable estimate with a brief explanation. ${RULES}`,
+  training: `You are an expert personal trainer and strength coach. Give specific, actionable advice about programming, form, progressive overload and recovery, using the user's recent workouts when they are given. ${RULES}`,
+  general: `You are a friendly health and fitness coach. ${RULES}`,
+};
 
 // In-memory rate limiter — 10 requests per IP per 60s window
 const rateLimiter = new Map<string, { count: number; resetAt: number }>();
@@ -64,7 +75,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { messages, systemContext } = (await req.json()) as ChatRequest;
+  const { messages, coach, context } = (await req.json()) as ChatRequest;
+  const role = coach && coach in COACHES ? coach : "general";
 
   if (!messages?.length) {
     return NextResponse.json({ error: "No messages provided" }, { status: 400 });
@@ -76,8 +88,14 @@ export async function POST(req: NextRequest) {
   const response = await client.messages.create({
     model: MODEL_FAST,
     max_tokens: 512,
-    system: systemContext,
-    messages: trimmed.map((m) => ({ role: m.role, content: m.content })),
+    // This route used to take its entire system prompt from the request,
+    // which made it an open model proxy for anyone signed in.
+    system: `${COACHES[role]}\n\n${CONTEXT_RULE}`,
+    messages: withAppContext(
+      trimmed.filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string").map((m) => ({ role: m.role, content: m.content.slice(0, 4000) })),
+      typeof context === "string" ? context : "",
+      { max: 8000 },
+    ),
   });
 
   const reply =

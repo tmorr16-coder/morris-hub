@@ -301,8 +301,6 @@ export default function NutritionClient({ date, meals: initialMeals, favorites: 
     });
   }
 
-  const nutritionSystemContext = `You are a nutrition coach. Give practical, evidence-based advice about meals, macros, calorie estimates, and healthy eating. Keep replies concise — 2-4 sentences. Be specific and helpful. Don't be preachy. If the user asks to estimate calories for a food, give a reasonable estimate with a brief explanation.`;
-
   const pct = calorieGoal ? Math.round((totalCalories / calorieGoal) * 100) : 0;
   const over = calorieGoal != null && totalCalories > calorieGoal;
 
@@ -404,7 +402,7 @@ export default function NutritionClient({ date, meals: initialMeals, favorites: 
         <span className="ios-group-header">Nutrition coach</span>
         <div className="ios-list" style={{ margin: "0 16px", padding: "14px 16px" }}>
           <ChatWidget
-            systemContext={nutritionSystemContext}
+            coach="nutrition"
             placeholder="Ask about calories, macros, meal ideas…"
             welcomeMessage="Hi! Ask me to estimate calories, suggest meals, or discuss your nutrition goals."
             addProfileContext

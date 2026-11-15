@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { PlanSnapshot } from "@/app/finance/retirement/types";
 import { MODEL_FAST } from "@/lib/models";
+import { CONTEXT_RULE, withAppContext } from "@/lib/ai/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -185,11 +186,10 @@ export async function POST(req: NextRequest) {
     response = await client.messages.create({
       model: MODEL_FAST,
       max_tokens: 1024,
-      system: [
-        { type: "text", text: SYSTEM_INSTRUCTIONS },
-        { type: "text", text: retirementContext, cache_control: { type: "ephemeral" } },
-      ],
-      messages: trimmed.map((m) => ({ role: m.role, content: m.content })),
+      // The plan snapshot comes from the browser: data, not instructions. It
+      // keeps its cache breakpoint in the conversation. See lib/ai/context.ts.
+      system: [{ type: "text", text: `${SYSTEM_INSTRUCTIONS}\n\n${CONTEXT_RULE}` }],
+      messages: withAppContext(trimmed, retirementContext, { cache: true }),
     });
   } catch (err: unknown) {
     if (err instanceof Anthropic.RateLimitError) {

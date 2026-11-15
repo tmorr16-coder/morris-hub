@@ -64,7 +64,13 @@ async function collect() {
   console.log(`Review collected: ${report.findings.length} findings; ${report.errors.length} operational issues.`);
 }
 async function deliver() {
-  const body = await readFile('security-output/report.json','utf8');
+  // The artifact is re-parsed and re-serialised, so only a bounded JSON object
+  // produced by collect() is ever sent, and only to this fixed endpoint.
+  const raw = await readFile('security-output/report.json','utf8');
+  if (raw.length > 5_000_000) throw Error('Security report is larger than the tracker accepts.');
+  const parsed = JSON.parse(raw);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !/^\d{1,20}$/.test(String(parsed.runId))) throw Error('Security report artifact is malformed.');
+  const body = JSON.stringify(parsed);
   const endpoint = 'https://morrisai.family/api/security/reports';
   for (let attempt=0;attempt<12;attempt++) {
     try {

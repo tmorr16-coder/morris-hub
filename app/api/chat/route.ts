@@ -9,6 +9,7 @@ import { logEvent } from "@/lib/usage";
 import { ASK_MORRIS_MODEL, type Router } from "@/lib/ask-morris";
 import { AUTO_MODEL, askModel, openrouterConfigured } from "@/lib/openrouter";
 import { MODEL_FAST } from "@/lib/models";
+import { CONTEXT_RULE, withAppContext } from "@/lib/ai/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -164,13 +165,21 @@ export async function POST(req: NextRequest) {
   const trimmed = messages.slice(-20);
 
   // If investment context is provided, use simpler investment-focused chat
-  if (investmentContext && systemPrompt) {
+  // The browser used to send this path's whole system prompt. It now sends
+  // only what is on screen, which goes in as data; the instructions are ours.
+  if (investmentContext) {
+    void systemPrompt; // accepted from older clients and ignored
+    const ctx = investmentContext;
+    const screen = [
+      `Investment research screen. ${Number(ctx.ideasCount) || 0} ideas displayed: ${(ctx.ideas ?? []).slice(0, 60).map((i) => `${i.title} (${i.category}, ${i.status})`).join("; ") || "none"}.`,
+      `Filters: category ${ctx.filters?.category ?? "all"}, status ${ctx.filters?.status ?? "all"}, favourites only ${ctx.filters?.favorites ? "yes" : "no"}, capital range ${JSON.stringify(ctx.filters?.capitalRange ?? [])}, returns range ${JSON.stringify(ctx.filters?.returnsRange ?? [])}.`,
+    ].join("\n");
     try {
       const response = await client.messages.create({
         model: MODEL_FAST,
         max_tokens: 1024,
-        system: systemPrompt,
-        messages: trimmed.map((m) => ({ role: m.role, content: m.content })),
+        system: `You are helping a family research investment ideas. Give helpful, balanced research guidance about the ideas and filters described in the app context: what to look into, risks, and questions worth asking. You do not give personalised financial advice or tell anyone to buy or sell.\n\n${CONTEXT_RULE}`,
+        messages: withAppContext(trimmed, screen, { max: 12_000 }),
       });
 
       const reply = response.content[0].type === "text" ? response.content[0].text : "";
