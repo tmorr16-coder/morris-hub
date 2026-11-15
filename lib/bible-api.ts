@@ -173,7 +173,14 @@ export async function fetchChapter(
   chapterNum: number
 ): Promise<BibleChapter> {
   const apiKey = process.env.BIBLE_API_KEY;
-  const chapterId = `${bookId}.${chapterNum}`;
+  // Every part of this goes into an upstream URL path. Only known books, a
+  // real chapter number and a translation id of the shape api.bible issues
+  // get that far; anything else is a request to somewhere we did not intend.
+  const book = BIBLE_BOOKS.find((b) => b.id === bookId);
+  if (!book || !Number.isInteger(chapterNum) || chapterNum < 1 || chapterNum > book.chapters || !/^[a-z0-9-]{4,40}$/i.test(bibleId)) {
+    throw new Error("Unknown passage");
+  }
+  const chapterId = `${book.id}.${chapterNum}`;
 
   if (apiKey) {
     const url = `${ABS_BASE}/bibles/${bibleId}/chapters/${chapterId}?content-type=json&include-notes=false&include-titles=true&include-chapter-numbers=false&include-verse-numbers=true&include-verse-spans=false`;
@@ -348,15 +355,19 @@ function resolveBookId(raw: string): string | null {
 export function parseReference(
   query: string
 ): { bookId: string; chapter: number; vStart?: number; vEnd?: number } | null {
-  const m = query.trim().match(/^(.+?)\s+(\d+)(?::(\d+)(?:\s*-\s*(\d+))?)?$/);
-  if (!m) return null;
-  const bookId = resolveBookId(m[1]);
+  // The book is everything before the chapter number. Matching the numeric
+  // tail on its own, anchored at the end, keeps this linear — the old
+  // "(.+?)\s+(\d+)" form backtracked quadratically on long runs of spaces.
+  const q = query.trim().slice(0, 120);
+  const tail = q.match(/\s(\d{1,3})(?::(\d{1,3})(?:\s?-\s?(\d{1,3}))?)?$/);
+  if (!tail || tail.index === undefined) return null;
+  const bookId = resolveBookId(q.slice(0, tail.index).trim());
   if (!bookId) return null;
   return {
     bookId,
-    chapter: parseInt(m[2]),
-    vStart: m[3] ? parseInt(m[3]) : undefined,
-    vEnd: m[4] ? parseInt(m[4]) : undefined,
+    chapter: parseInt(tail[1]),
+    vStart: tail[2] ? parseInt(tail[2]) : undefined,
+    vEnd: tail[3] ? parseInt(tail[3]) : undefined,
   };
 }
 

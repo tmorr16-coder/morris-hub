@@ -1,5 +1,7 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { fetchPublicText, vetPublicUrl, UnsafeUrlError } from "@/lib/net/safe-fetch";
+import { htmlToText } from "@/lib/text/html";
 
 export async function DELETE(
   request: NextRequest,
@@ -102,6 +104,13 @@ export async function POST(
   if (type === "url" && !url) {
     return NextResponse.json({ error: "url is required for type 'url'" }, { status: 400 });
   }
+  // Refuse a link to a private or internal address up front, with a reason,
+  // rather than storing it and quietly failing to fetch it.
+  if (type === "url") {
+    try { vetPublicUrl(String(url)); } catch (e) {
+      return NextResponse.json({ error: e instanceof UnsafeUrlError ? e.message : "url is invalid" }, { status: 400 });
+    }
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createServiceClient() as any;
@@ -133,20 +142,15 @@ export async function POST(
     } else {
       // Attempt to fetch plain HTML and strip tags for basic text extraction
       try {
-        const fetchRes = await fetch(url as string, {
+        // Every hop is checked against private and internal addresses — see
+        // lib/net/safe-fetch.ts for why a hostname check alone is not enough.
+        const fetchRes = await fetchPublicText(String(url), {
           headers: { "User-Agent": "MorrisHub/1.0 (study material indexer)" },
-          signal: AbortSignal.timeout(8000),
+          timeoutMs: 8000,
         });
 
         if (fetchRes.ok) {
-          const html = await fetchRes.text();
-          // Strip HTML tags for a rough text extraction
-          const stripped = html
-            .replace(/<script[\s\S]*?<\/script>/gi, "")
-            .replace(/<style[\s\S]*?<\/style>/gi, "")
-            .replace(/<[^>]+>/g, " ")
-            .replace(/\s{2,}/g, " ")
-            .trim();
+          const stripped = htmlToText(fetchRes.text, { maxChars: 20001 });
 
           // Truncate to a reasonable size for storage
           resolvedExtractedText = stripped.length > 20000

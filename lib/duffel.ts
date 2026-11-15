@@ -11,6 +11,12 @@ import { fetchWithRetry } from "./http-retry";
 const BASE = "https://api.duffel.com";
 const VERSION = "v2";
 
+function isSafeDuffelOfferId(value: string): boolean {
+  // Duffel ids are token-like; keep this strict to prevent path/query injection.
+  // Allow alphanumerics plus underscore/hyphen, with sane length bounds.
+  return /^[A-Za-z0-9_-]{1,128}$/.test(value);
+}
+
 export function duffelConfigured(): boolean {
   return Boolean(process.env.DUFFEL_ACCESS_TOKEN);
 }
@@ -264,7 +270,9 @@ export interface DuffelPassenger {
 
 /** Re-price/confirm an offer just before booking (prices can move / expire). */
 export async function confirmOffer(offerId: string): Promise<{ price: number; currency: string; expiresAt: string | null } | null> {
-  const data = await duffelGet(`/air/offers/${offerId}?return_available_services=false`);
+  if (!isSafeDuffelOfferId(offerId)) return null;
+  const safeOfferId = encodeURIComponent(offerId);
+  const data = await duffelGet(`/air/offers/${safeOfferId}?return_available_services=false`);
   const o = data.data;
   if (!o) return null;
   return { price: parseFloat(o.total_amount ?? "0"), currency: o.total_currency ?? "USD", expiresAt: o.expires_at ?? null };

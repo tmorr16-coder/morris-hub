@@ -27,14 +27,16 @@ function buildDocx(content: string, title: string): Document {
   for (const raw of content.replace(/\r/g, "").split("\n")) {
     const line = raw.trimEnd();
     if (!line.trim()) continue;
-    const h = line.match(/^(#{1,3})\s+(.*)$/);
+    const h = line.match(/^(#{1,3})\s(.*)$/);
     if (h) {
+      h[2] = h[2].trim();
       const lvl = h[1].length === 1 ? HeadingLevel.HEADING_1 : h[1].length === 2 ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3;
       paras.push(new Paragraph({ children: runs(h[2]), heading: lvl, spacing: { before: 240, after: 90 } }));
       continue;
     }
-    const b = line.match(/^\s*[-*•]\s+(.*)$/);
-    if (b) { paras.push(new Paragraph({ children: runs(b[1]), bullet: { level: 0 }, spacing: { after: 70 } })); continue; }
+    const b = line.trimStart().match(/^[-*•]\s(.*)$/);
+    if (b) {
+      b[1] = b[1].trim(); paras.push(new Paragraph({ children: runs(b[1]), bullet: { level: 0 }, spacing: { after: 70 } })); continue; }
     paras.push(new Paragraph({ children: runs(line), spacing: { after: 140, line: 276 } }));
   }
   return new Document({

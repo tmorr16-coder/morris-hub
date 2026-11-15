@@ -3,6 +3,7 @@
 // the fetcher in unstable_cache for a real TTL keyed by the topic set.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { decodeEntities, htmlToText } from "@/lib/text/html";
 import { unstable_cache } from "next/cache";
 import { MODEL_FAST } from "@/lib/models";
 
@@ -356,19 +357,13 @@ function atomAlternateHref(block: string): string {
   return "";
 }
 
+// One pass each: decoding &amp; first used to turn "&amp;lt;" into "<".
 function stripTags(html: string): string {
-  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return htmlToText(html);
 }
 
 function decode(text: string): string {
-  return text
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n)));
+  return decodeEntities(text);
 }
 
 async function fetchRssFeed(

@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { htmlToText as sharedHtmlToText } from "@/lib/text/html";
 import { NextRequest, NextResponse, after } from "next/server";
 import { Resend } from "resend";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -60,14 +61,7 @@ function addressOf(s: string): string {
 
 /** HTML newsletter → readable text. Rough, and enough for a reader that sees prose. */
 function htmlToText(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<head[\s\S]*?<\/head>/gi, " ")
-    .replace(/<br\s*\/?>|<\/(p|div|tr|li|h[1-6]|table)>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"')
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n\s*\n\s*\n+/g, "\n\n")
-    .trim();
+  return sharedHtmlToText(html, { keepLines: true });
 }
 
 const sha = (b: Buffer | string) => createHash("sha256").update(b).digest("hex");

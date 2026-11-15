@@ -24,7 +24,7 @@ const MAX_BULLET_CHARS = 300;
 /** Strip the markdown a model leaves behind — slides render plain text. */
 export function plain(s: string): string {
   return s
-    .replace(/\[([^\]]+)\]\((?:https?:)?[^)]*\)/g, "$1") // links → label
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")              // links → label
     .replace(/(\*\*|__)(.*?)\1/g, "$2")                   // bold
     .replace(/(^|\s)[*_]([^*_]+)[*_](?=\s|$)/g, "$1$2")   // italics
     .replace(/`([^`]*)`/g, "$1")                          // code
@@ -68,15 +68,15 @@ export function outlineFromMarkdown(content: string, title: string): Slide[] {
     const line = raw.trim();
     if (!line) continue;
 
-    const heading = line.match(/^(#{1,6})\s+(.*)$/);
-    if (heading) { current = start(plain(heading[2])); continue; }
+    const heading = line.match(/^(#{1,6})\s(.*)$/);
+    if (heading) { current = start(plain(heading[2].trim())); continue; }
 
     // A short bold-only line ("**Risks**") is a heading in all but syntax.
     const boldOnly = line.match(/^\*\*([^*]{2,60})\*\*:?$/);
     if (boldOnly) { current = start(plain(boldOnly[1])); continue; }
 
-    const bullet = line.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)$/);
-    const text = plain(bullet ? bullet[1] : line);
+    const bullet = line.match(/^(?:[-*•]|\d{1,3}[.)])\s(.*)$/);
+    const text = plain(bullet ? bullet[1].trim() : line);
     if (!text) continue;
     if (!current) current = start(title);
     for (const piece of bullet ? [text] : sentences(text)) current.bullets.push(piece);
