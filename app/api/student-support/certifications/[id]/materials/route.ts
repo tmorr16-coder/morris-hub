@@ -142,9 +142,19 @@ export async function POST(
     } else {
       // Attempt to fetch plain HTML and strip tags for basic text extraction
       try {
+        const vettedUrl = vetPublicUrl(String(url));
+        const hostname = vettedUrl.hostname.toLowerCase();
+        const allowedHosts = ["learn.microsoft.com", "aws.amazon.com", "cloud.google.com"];
+        const isAllowedHost = allowedHosts.some(
+          (h) => hostname === h || hostname.endsWith(`.${h}`),
+        );
+        if (!isAllowedHost) {
+          throw new UnsafeUrlError("That host is not allowed.");
+        }
+
         // Every hop is checked against private and internal addresses — see
         // lib/net/safe-fetch.ts for why a hostname check alone is not enough.
-        const fetchRes = await fetchPublicText(String(url), {
+        const fetchRes = await fetchPublicText(vettedUrl.toString(), {
           headers: { "User-Agent": "MorrisHub/1.0 (study material indexer)" },
           timeoutMs: 8000,
         });
