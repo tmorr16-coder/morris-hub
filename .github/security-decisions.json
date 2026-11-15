@@ -63,6 +63,13 @@
       "dismissal": "false positive",
       "reason": "Writes single-line JSON to GITHUB_OUTPUT through outputLine(), which refuses any value that would break onto a second line, so PR data cannot forge an output. Reviewed 2026-11-15.",
       "decided": "2026-11-15"
+    },
+    {
+      "rule": "js/request-forgery",
+      "path": "lib/net/safe-fetch.ts",
+      "dismissal": "won't fix",
+      "reason": "Intended: this helper exists to fetch a URL a person typed. The connection's own DNS lookup refuses non-public addresses, literal IPs are checked first and every redirect is re-vetted (tests/net-text.test.mjs). Reviewed 2026-11-15.",
+      "decided": "2026-11-15"
     }
   ]
 }

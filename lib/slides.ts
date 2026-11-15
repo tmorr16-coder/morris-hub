@@ -23,9 +23,12 @@ const MAX_BULLET_CHARS = 300;
 
 /** Strip the markdown a model leaves behind — slides render plain text. */
 export function plain(s: string): string {
-  return s
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")              // links → label
-    .replace(/(\*\*|__)(.*?)\1/g, "$2")                   // bold
+  // Each pattern stops at the next bracket or marker, so none can rescan a
+  // long run of "[" or "**" — and nothing on a slide is longer than this.
+  return s.slice(0, 2000)
+    .replace(/\[([^[\]]+)\]\([^()]*\)/g, "$1")             // links → label
+    .replace(/\*\*([^*]+)\*\*/g, "$1")                      // bold
+    .replace(/__([^_]+)__/g, "$1")
     .replace(/(^|\s)[*_]([^*_]+)[*_](?=\s|$)/g, "$1$2")   // italics
     .replace(/`([^`]*)`/g, "$1")                          // code
     .replace(/^\s*#{1,6}\s*/, "")                         // stray heading marks

@@ -149,7 +149,10 @@ export default function SearchAndAsk({ versions, defaultBibleId, initialTab, fir
   function resultHref(r: SearchResult): string {
     if (!r.id) return "#";
     const parts = r.id.split(".");
-    if (parts.length >= 2) return `/bible/read/${parts[0]}/${parts[1]}?bibleId=${safeBibleId}`;
+    // The translation id is taken from the page's own list, never from the
+    // select's text, and every part is encoded before it becomes a link.
+    const version = versions.find((v) => v.id === safeBibleId)?.id ?? defaultBibleId;
+    if (parts.length >= 2) return `/bible/read/${encodeURIComponent(parts[0])}/${encodeURIComponent(parts[1])}?bibleId=${encodeURIComponent(version)}`;
     return "#";
   }
 

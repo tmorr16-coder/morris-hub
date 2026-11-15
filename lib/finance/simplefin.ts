@@ -98,8 +98,16 @@ export async function claimAccessUrl(setupToken: string): Promise<string> {
   if (!SIMPLEFIN_CLAIM_HOSTS.has(claimUrl.hostname.toLowerCase())) {
     throw new Error("Setup token did not decode to an allowed claim host");
   }
+  // The request is rebuilt from a fixed origin rather than sent to the decoded
+  // URL: only the claim path comes from the token, and only in its known shape.
+  if (!/^\/simplefin\/claim\/[A-Za-z0-9._~%-]{4,512}$/.test(claimUrl.pathname) || claimUrl.search || claimUrl.hash) {
+    throw new Error("Setup token did not decode to a SimpleFIN claim URL");
+  }
+  const origin = claimUrl.hostname.toLowerCase() === "beta-bridge.simplefin.org"
+    ? "https://beta-bridge.simplefin.org"
+    : "https://bridge.simplefin.org";
 
-  const res = await fetch(claimUrl.toString(), {
+  const res = await fetch(`${origin}${claimUrl.pathname}`, {
     method: "POST",
     body: "",
     signal: AbortSignal.timeout(CLAIM_TIMEOUT_MS),

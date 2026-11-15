@@ -15,5 +15,8 @@ export function logValue(value: unknown, max = 300): string {
   else if (typeof value === "string") s = value;
   else { try { s = JSON.stringify(value) ?? String(value); } catch { s = String(value); } }
   s = s.replace(/[\r\n\u2028\u2029]+/g, " ").replace(/[\u0000-\u001f\u007f]/g, "");
+  // Already newline-free; this is the exact form code scanning recognises as
+  // a log-injection sanitiser, so the guarantee is visible to it too.
+  s = s.replace(/\n/g, "").replace(/\r/g, "");
   return s.length > max ? `${s.slice(0, max)}…` : s;
 }

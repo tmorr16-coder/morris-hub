@@ -118,3 +118,10 @@ test('workflow outputs stay on one line', async () => {
   assert.equal(prs.outputLine('plans', [{ title: 'a\nb' }]), 'plans=[{"title":"a\\nb"}]\n');
   assert.throws(() => prs.outputLine('bad\nname', []));
 });
+
+test('slide markdown patterns stay linear on runs of brackets and markers', () => {
+  for (const s of ['['.repeat(50000), '[a'.repeat(30000), '**'.repeat(30000) + 'x', '__'.repeat(30000)]) {
+    const t = performance.now(); slides.plain(s); assert.ok(performance.now() - t < 200);
+  }
+  assert.equal(slides.plain('**bold** and __also__ with [label](https://x.y)'), 'bold and also with label');
+});
