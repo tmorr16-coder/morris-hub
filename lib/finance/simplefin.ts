@@ -95,11 +95,29 @@ export async function claimAccessUrl(setupToken: string): Promise<string> {
     throw new Error("Setup token did not decode to a valid claim URL");
   }
 
-  if (!SIMPLEFIN_CLAIM_HOSTS.has(claimUrl.hostname.toLowerCase())) {
+  const normalizedHost = claimUrl.hostname.toLowerCase();
+  if (!SIMPLEFIN_CLAIM_HOSTS.has(normalizedHost)) {
     throw new Error("Setup token did not decode to an allowed claim host");
   }
 
-  const res = await fetch(claimUrl.toString(), {
+  if (claimUrl.port) {
+    throw new Error("Setup token did not decode to a valid claim URL");
+  }
+
+  if (claimUrl.hash) {
+    throw new Error("Setup token did not decode to a valid claim URL");
+  }
+
+  const pathSegments = claimUrl.pathname.split("/");
+  if (!claimUrl.pathname.startsWith("/") || pathSegments.some((segment) => segment === "." || segment === "..")) {
+    throw new Error("Setup token did not decode to a valid claim URL");
+  }
+
+  const sanitizedClaimUrl = new URL(`https://${normalizedHost}`);
+  sanitizedClaimUrl.pathname = claimUrl.pathname;
+  sanitizedClaimUrl.search = claimUrl.search;
+
+  const res = await fetch(sanitizedClaimUrl.toString(), {
     method: "POST",
     body: "",
     signal: AbortSignal.timeout(CLAIM_TIMEOUT_MS),
