@@ -19,13 +19,28 @@ export async function repairTargets({ targets, api, repo, runId, sha, decisions 
   const results=[], candidates=[];
   let attempted = 0;
   const hasCode = targets.some(t => t.source === 'codeql');
-  const alerts=hasCode ? await api(`/repos/${repo}/code-scanning/alerts?state=open&ref=refs%2Fheads%2Fmain&per_page=100`) : [];
+  // Every page: a finding past the first hundred alerts used to read as
+  // "no matching alert" and was never repaired or dismissed.
+  const alerts=[];
+  if (hasCode) for (let page=1; page<=10; page++) { const batch=await api(`/repos/${repo}/code-scanning/alerts?state=open&ref=refs%2Fheads%2Fmain&per_page=100&page=${page}`); alerts.push(...(Array.isArray(batch)?batch:[])); if (!Array.isArray(batch)||batch.length<100) break; }
+  // Decisions cover a rule in a file, whatever line it has drifted to, so they
+  // are applied to every matching alert first, independent of the targets.
+  const dismissed=new Map();
+  for (const a of alerts) {
+    const decision=decisionFor(decisions,a);
+    if (!decision) continue;
+    const reason=DISMISS_REASONS.has(decision.dismissal)?decision.dismissal:'false positive';
+    try { await api(`/repos/${repo}/code-scanning/alerts/${a.number}`,'PATCH',{state:'dismissed',dismissed_reason:reason,dismissed_comment:decision.reason.slice(0,280)}); dismissed.set(a.number,{reason,decision}); } catch { /* reported per finding below */ }
+  }
+  const decidedFor=(finding)=>{ const split=finding.location.lastIndexOf(':'); let path=finding.location.slice(0,split); try{path=decodeURIComponent(path);}catch{/* literal */} return [...dismissed.entries()].find(([n])=>alerts.find(a=>a.number===n)?.most_recent_instance?.location?.path===path)?.[1] ?? null; };
   const prs=hasCode ? await api(`/repos/${repo}/pulls?state=open&per_page=100`) : [];
   const rank = { critical: 0, high: 1, medium: 2, low: 3 };
   const ordered = [...targets].sort((a,b) => (rank[a.severity] ?? 4) - (rank[b.severity] ?? 4));
   for (const finding of ordered) {
     const result={key:finding.key,status:'blocked',message:'',url:''};
     try {
+      const already=finding.source==='codeql'?decidedFor(finding):null;
+      if (already) { result.status='accepted';result.message=`Accepted (${already.reason}): ${already.decision.reason}`.slice(0,1000);results.push(result);continue; }
       if (finding.source!=='codeql') { result.message='Compatible dependency fixes are attempted by the dependency job. Remaining version changes need manual review; force upgrades are not applied.';results.push(result);continue; }
       const matches=alerts.filter(a=>alertMatches(finding,a));
       const alert=matches.length===1 ? matches[0] : matches.find(a=>a.most_recent_instance?.message?.text?.startsWith(finding.title));

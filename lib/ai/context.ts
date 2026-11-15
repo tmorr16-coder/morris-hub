@@ -20,7 +20,9 @@ type Turn = { role: "user" | "assistant"; content: string };
 
 /** Keep the data from closing its own tag and posing as the conversation. */
 function contain(text: string, max: number): string {
-  const t = text.replace(/<\s*\/?\s*app_context\s*>/gi, "[app_context]");
+  // Renaming every occurrence of the tag name is enough, and is linear: with
+  // no "app_context" left in the data, nothing in it can open or close the tag.
+  const t = text.replace(/app_context/gi, "app-context");
   return t.length > max ? `${t.slice(0, max)}\n[truncated]` : t;
 }
 
