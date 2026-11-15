@@ -3,6 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import { Chip, IconBadge, Icons } from "@/components/ios";
 import { addMedication, updateMedication, removeMedication } from "../actions";
+import { createClient } from "@/lib/supabase/client";
 
 export interface Med {
   id: string;
@@ -39,6 +40,7 @@ const SCHEDULES = [
 const ZEPBOUND_DOSES = [2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20];
 const INJECTION_SITES = ["L Abdomen", "R Abdomen", "L Thigh", "R Thigh", "L Upper Arm", "R Upper Arm"];
 const ZEPBOUND_KEY = "zepbound-tracker";
+const ZEPBOUND_ENC_PREFIX = "enc:v1:";
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 interface ZepboundLog { date: string; dose: number; site: string }
@@ -68,17 +70,80 @@ function ZepboundCard() {
   const [backdateDose, setBackdateDose] = useState<number | null>(null);
   const [backdateSite, setBackdateSite] = useState<string | null>(null);
 
+  function bytesToBase64(bytes: Uint8Array) {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+
+  function base64ToBytes(base64: string) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  async function deriveStorageKey() {
+    const { data: { user } } = await createClient().auth.getUser();
+    if (!user?.id) return null;
+    const enc = new TextEncoder();
+    const material = await crypto.subtle.importKey("raw", enc.encode(user.id), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey(
+      { name: "PBKDF2", salt: enc.encode("zepbound-tracker-salt"), iterations: 100000, hash: "SHA-256" },
+      material,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"],
+    );
+  }
+
+  async function encryptForStorage(value: ZepboundData) {
+    const key = await deriveStorageKey();
+    if (!key) return null;
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const plain = new TextEncoder().encode(JSON.stringify(value));
+    const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plain);
+    return `${ZEPBOUND_ENC_PREFIX}${bytesToBase64(iv)}:${bytesToBase64(new Uint8Array(encrypted))}`;
+  }
+
+  async function decryptFromStorage(raw: string) {
+    if (!raw.startsWith(ZEPBOUND_ENC_PREFIX)) return null;
+    const key = await deriveStorageKey();
+    if (!key) return null;
+    const payload = raw.slice(ZEPBOUND_ENC_PREFIX.length);
+    const [ivB64, dataB64] = payload.split(":");
+    if (!ivB64 || !dataB64) return null;
+    const iv = base64ToBytes(ivB64);
+    const encrypted = base64ToBytes(dataB64);
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encrypted);
+    return JSON.parse(new TextDecoder().decode(plain)) as ZepboundData;
+  }
+
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(ZEPBOUND_KEY);
-      if (raw) setData(JSON.parse(raw));
-      // No auto-init — only show if the user has previously saved data
-    } catch { /* ignore */ }
+    (async () => {
+      try {
+        const raw = localStorage.getItem(ZEPBOUND_KEY);
+        if (!raw) return;
+        const decrypted = await decryptFromStorage(raw);
+        if (decrypted) {
+          setData(decrypted);
+        } else {
+          setData(JSON.parse(raw));
+        }
+        // No auto-init — only show if the user has previously saved data
+      } catch { /* ignore */ }
+    })();
   }, []);
 
   function save(next: ZepboundData) {
     setData(next);
-    try { localStorage.setItem(ZEPBOUND_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+    (async () => {
+      try {
+        const encrypted = await encryptForStorage(next);
+        if (encrypted) localStorage.setItem(ZEPBOUND_KEY, encrypted);
+        else localStorage.setItem(ZEPBOUND_KEY, JSON.stringify(next));
+      } catch { /* ignore */ }
+    })();
   }
 
   function logDose() {
