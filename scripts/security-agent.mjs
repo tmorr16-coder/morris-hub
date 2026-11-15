@@ -1,4 +1,4 @@
-import { writeFile, appendFile } from 'node:fs/promises';
+import { writeFile, appendFile, readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 export function alertMatches(finding, alert) {
   const location = alert.most_recent_instance?.location;
@@ -8,7 +8,14 @@ export function alertMatches(finding, alert) {
   return finding.source === 'codeql' && location.path === path && Number(location.start_line) === Number(finding.location.slice(split+1));
 }
 export function patchAllowed(files) { return files.length > 0 && files.length <= 20 && files.every(f => /^(app|lib|components|hooks)\/.+\.(ts|tsx|js|jsx)$/.test(f.filename) && !/\.(test|spec)\./.test(f.filename) && ['modified','added'].includes(f.status)); }
-export async function repairTargets({ targets, api, repo, runId, sha, wait = ms => new Promise(r=>setTimeout(r,ms)) }) {
+/** Decisions recorded in .github/security-decisions.json: a rule at a path, judged and explained by a person. */
+export function decisionFor(decisions, alert) {
+  const path = alert.most_recent_instance?.location?.path;
+  return (decisions ?? []).find(d => d && d.rule === alert.rule?.id && d.path === path && typeof d.reason === 'string' && d.reason.trim()) ?? null;
+}
+export const DISMISS_REASONS = new Set(['false positive', "won't fix", 'used in tests']);
+export const BATCH_LIMIT = 6;
+export async function repairTargets({ targets, api, repo, runId, sha, decisions = [], wait = ms => new Promise(r=>setTimeout(r,ms)) }) {
   const results=[], candidates=[];
   let attempted = 0;
   const hasCode = targets.some(t => t.source === 'codeql');
@@ -23,9 +30,18 @@ export async function repairTargets({ targets, api, repo, runId, sha, wait = ms 
       const matches=alerts.filter(a=>alertMatches(finding,a));
       const alert=matches.length===1 ? matches[0] : matches.find(a=>a.most_recent_instance?.message?.text?.startsWith(finding.title));
       if (!alert) { result.message='No matching open GitHub code-scanning alert was found. Review the finding location in GitHub.';results.push(result);continue; }
+      // A person already judged this one. Record it on the GitHub alert, with
+      // their reason, so the next scan closes it and the agent stops
+      // regenerating a fix that was rejected for a reason.
+      const decision=decisionFor(decisions,alert);
+      if (decision) {
+        const reason=DISMISS_REASONS.has(decision.dismissal)?decision.dismissal:'false positive';
+        await api(`/repos/${repo}/code-scanning/alerts/${alert.number}`,'PATCH',{state:'dismissed',dismissed_reason:reason,dismissed_comment:decision.reason.slice(0,280)});
+        result.status='accepted';result.message=`Accepted (${reason}): ${decision.reason}`.slice(0,1000);results.push(result);continue;
+      }
       const existing=prs.find(p=>p.body?.includes(`<!-- morris-security-alert:${alert.number} -->`));
       if (existing) {result.status='existing_pr';result.message='A fix PR is already open. The risk policy will handle eligible fixes and flag changes that need review.';result.url=existing.html_url;results.push(result);continue;}
-      if (attempted>=3) {result.status='deferred';result.message='Batch limit reached. The next protection review can attempt more eligible findings.';results.push(result);continue;}
+      if (attempted>=BATCH_LIMIT) {result.status='deferred';result.message='Batch limit reached. The next protection review can attempt more eligible findings.';results.push(result);continue;}
       attempted++;
       await api(`/repos/${repo}/code-scanning/alerts/${alert.number}/autofix`,'POST');
       let fix;
@@ -51,8 +67,10 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   const repo='tmorr16-coder/morris-hub';
   const targets=JSON.parse(process.env.REPAIR_TARGETS??'[]');
   const api=async(path,method='GET',body)=>{const response=await fetch(`https://api.github.com${path}`,{method,headers:{Authorization:`Bearer ${process.env.GITHUB_TOKEN}`,Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2026-03-10'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(30000),redirect:'error'});if(!response.ok){const detail=await response.json().catch(()=>({}));throw Error(`GitHub repair HTTP ${response.status}: ${String(detail.message??'request failed').slice(0,400)}`);}return response.status===204?{}:response.json();};
+  let decisions=[];
+  try { decisions=JSON.parse(await readFile('.github/security-decisions.json','utf8')).decisions ?? []; } catch { /* no decisions recorded */ }
   let plan;
-  try {plan=await repairTargets({targets,api,repo,runId:process.env.GITHUB_RUN_ID,sha:process.env.GITHUB_SHA});}
+  try {plan=await repairTargets({targets,api,repo,runId:process.env.GITHUB_RUN_ID,sha:process.env.GITHUB_SHA,decisions});}
   catch(e){plan={candidates:[],results:targets.map(f=>({key:f.key,status:'blocked',message:`Cyber agent unavailable: ${(e instanceof Error?e.message:'GitHub error').slice(0,800)}`,url:''}))};}
   await writeFile('repair-results.json',JSON.stringify(plan.results));
   const line=`candidates=${JSON.stringify(plan.candidates)}`;if(/[\r\n\u2028\u2029]/.test(line))throw Error('Refusing a multi-line workflow output.');

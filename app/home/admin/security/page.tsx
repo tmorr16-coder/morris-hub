@@ -65,7 +65,7 @@ export default async function SecurityPage({ searchParams }: { searchParams: Pro
             return <tr key={f.key}>
               <td><span className={`${styles.severityBadge} ${styles[f.severity]}`}>{f.severity}</span><span className={styles.cellMeta}>{f.source === "codeql" ? "CodeQL" : "Dependencies"}</span></td>
               <td><h3 className={styles.findingTitle}>{f.title}</h3><code className={styles.location}>{f.location}</code>
-                <p className={styles.repairState}>{f.resolved_at ? "Resolved" : pending ? "Repair queued / running" : repair ? repair.status.replaceAll("_", " ") : "Open · needs review"}</p>
+                <p className={styles.repairState}>{f.resolved_at ? "Resolved" : pending ? "Repair queued / running" : repair?.status === "accepted" ? "Accepted risk · closes on next scan" : repair ? repair.status.replaceAll("_", " ") : "Open · needs review"}</p>
                 <details className={styles.findingDetails}><summary>Details and remediation</summary><p>{f.remediation}</p>{repair && <p><strong>Last repair:</strong> {repair.message}</p>}<p className={styles.muted}>{f.resolved_at ? `Resolved ${date(f.resolved_at)}` : `First seen ${date(f.first_seen)}`} Eastern</p><a className={styles.actionLink} href={f.url || `${github}/security`}>View advisory / code review ↗</a></details>
               </td>
               <td className={styles.rowActions}>{repair?.url && <Link className={styles.actionLink} href={reviewHref(repair.url)}>Review fix →</Link>}{!f.resolved_at && <details className={styles.findingDetails}><summary>More actions</summary><FixNow finding={f.key} pending={pending} /></details>}{f.resolved_at && <span className={`${styles.badge} ${styles.goodBadge}`}>Resolved</span>}</td>

@@ -4,7 +4,7 @@ export const RECIPIENT = "tmorr16@gmail.com";
 export type Source = "dependencies" | "codeql";
 export type Severity = "critical" | "high" | "medium" | "low";
 export type Finding = { key: string; source: Source; title: string; severity: Severity; location: string; url: string; remediation: string };
-export type Repair = { key: string; status: "blocked" | "deferred" | "generating" | "existing_pr" | "pr_created" | "validated_pr" | "validation_failed"; message: string; url: string };
+export type Repair = { key: string; status: "blocked" | "deferred" | "generating" | "existing_pr" | "pr_created" | "validated_pr" | "validation_failed" | "accepted"; message: string; url: string };
 export type Report = { runId: string; attempt: number; sha: string; completed: Source[]; findings: Finding[]; errors: string[]; fixUrl: string | null; repairs: Repair[] };
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 function string(v: unknown, max: number): string { if (typeof v !== "string" || !v.length || v.length > max) throw Error("Invalid report field"); return v; }
@@ -27,7 +27,7 @@ export function parseReport(value: unknown): Report {
   });
   if (value.repairs !== undefined && (!Array.isArray(value.repairs) || value.repairs.length > 200)) throw Error("Invalid repair results");
   const repairs = ((value.repairs ?? []) as unknown[]).map((r): Repair => {
-    if (!record(r) || !["blocked","deferred","generating","existing_pr","pr_created","validated_pr","validation_failed"].includes(String(r.status))) throw Error("Invalid repair status");
+    if (!record(r) || !["blocked","deferred","generating","existing_pr","pr_created","validated_pr","validation_failed","accepted"].includes(String(r.status))) throw Error("Invalid repair status");
     return { key: string(r.key,250), status: r.status as Repair["status"], message: string(r.message,1000), url: safeGithubUrl(r.url) };
   });
   return { repairs, runId: String(value.runId), attempt: Number(value.attempt), sha: String(value.sha), completed: [...new Set(value.completed)] as Source[], findings, errors: value.errors.map(e => string(e, 1000)), fixUrl: value.fixUrl ? safeGithubUrl(value.fixUrl) : null };

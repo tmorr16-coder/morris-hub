@@ -1,0 +1,68 @@
+{
+  "about": "Security findings a person has reviewed and judged safe. The security agent dismisses a matching GitHub alert (same rule, same file) with this reason, so the tracker closes it and the reasoning stays in git. A new finding of a different rule, or in a different file, is never covered. Remove an entry to reopen the question.",
+  "decisions": [
+    {
+      "rule": "js/clear-text-storage-of-sensitive-data",
+      "path": "app/health/medications/_components/MedicationsClient.tsx",
+      "dismissal": "false positive",
+      "reason": "Not a credential: the signed-in person's own screen data (filters, chats, health notes) kept in their own browser by design. Cleared on sign-out by lib/client/sign-out.ts. Reviewed 2026-11-15.",
+      "decided": "2026-11-15"
+    },
+    {
+      "rule": "js/clear-text-storage-of-sensitive-data",
+      "path": "app/health/advisor/_components/AdvisorClient.tsx",
+      "dismissal": "false positive",
+      "reason": "Not a credential: the signed-in person's own screen data (filters, chats, health notes) kept in their own browser by design. Cleared on sign-out by lib/client/sign-out.ts. Reviewed 2026-11-15.",
+      "decided": "2026-11-15"
+    },
+    {
+      "rule": "js/clear-text-storage-of-sensitive-data",
+      "path": "app/health/profile/_components/ProfileClient.tsx",
+      "dismissal": "false positive",
+      "reason": "Not a credential: the signed-in person's own screen data (filters, chats, health notes) kept in their own browser by design. Cleared on sign-out by lib/client/sign-out.ts. Reviewed 2026-11-15.",
+      "decided": "2026-11-15"
+    },
+    {
+      "rule": "js/clear-text-storage-of-sensitive-data",
+      "path": "app/health/workout/_lib/resume.ts",
+      "dismissal": "false positive",
+      "reason": "Not a credential: the signed-in person's own screen data (filters, chats, health notes) kept in their own browser by design. Cleared on sign-out by lib/client/sign-out.ts. Reviewed 2026-11-15.",
+      "decided": "2026-11-15"
+    },
+    {
+      "rule": "js/clear-text-storage-of-sensitive-data",
+      "path": "app/home/ask/compare/CompareClient.tsx",
+      "dismissal": "false positive",
+      "reason": "Not a credential: the signed-in person's own screen data (filters, chats, health notes) kept in their own browser by design. Cleared on sign-out by lib/client/sign-out.ts. Reviewed 2026-11-15.",
+      "decided": "2026-11-15"
+    },
+    {
+      "rule": "js/clear-text-storage-of-sensitive-data",
+      "path": "app/investments/_components/InvestmentsClient.tsx",
+      "dismissal": "false positive",
+      "reason": "Not a credential: the signed-in person's own screen data (filters, chats, health notes) kept in their own browser by design. Cleared on sign-out by lib/client/sign-out.ts. Reviewed 2026-11-15.",
+      "decided": "2026-11-15"
+    },
+    {
+      "rule": "js/clear-text-storage-of-sensitive-data",
+      "path": "hooks/useChatHistory.ts",
+      "dismissal": "false positive",
+      "reason": "Not a credential: the signed-in person's own screen data (filters, chats, health notes) kept in their own browser by design. Cleared on sign-out by lib/client/sign-out.ts. Reviewed 2026-11-15.",
+      "decided": "2026-11-15"
+    },
+    {
+      "rule": "js/file-access-to-http",
+      "path": "scripts/security-report.mjs",
+      "dismissal": "false positive",
+      "reason": "Intended: delivers the workflow's own report, re-parsed and size-bounded, to the fixed tracker endpoint with redirects refused; the server re-validates it (lib/security/model.ts parseReport). Reviewed 2026-11-15.",
+      "decided": "2026-11-15"
+    },
+    {
+      "rule": "js/http-to-file-access",
+      "path": "scripts/security-prs.mjs",
+      "dismissal": "false positive",
+      "reason": "Writes single-line JSON to GITHUB_OUTPUT through outputLine(), which refuses any value that would break onto a second line, so PR data cannot forge an output. Reviewed 2026-11-15.",
+      "decided": "2026-11-15"
+    }
+  ]
+}

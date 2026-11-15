@@ -11,13 +11,20 @@ export async function pullSnapshot(api,number){
  const snapshot={number:pr.number,title:pr.title.slice(0,500),body:(pr.body??'').slice(0,12000),url:pr.html_url,state:pr.merged_at?'merged':pr.state,draft:pr.draft,head:pr.head.sha,base:main.object.sha,branch:pr.head.ref,author:pr.user.login,mergeable:pr.mergeable??null,checks:[...(status.statuses??[]).map(s=>({name:s.context.slice(0,200),state:s.state.slice(0,100)})),...(checks.check_runs??[]).map(c=>({name:c.name.slice(0,200),state:(c.conclusion??c.status).slice(0,100)}))].slice(0,100),files:files.map(f=>{const raw=f.patch??'';const patch=raw.slice(0,Math.min(20000,remaining));remaining-=patch.length;return{path:f.filename,status:f.status,additions:f.additions,deletions:f.deletions,patch,truncated:raw.length>patch.length||(!f.patch&&f.changes>0)};}),additions:pr.additions,deletions:pr.deletions,changedFiles:pr.changed_files,updatedAt:pr.updated_at,truncated:files.length<pr.changed_files||remaining===0};
  return{...snapshot,risk:await assessPull(api,snapshot)};
 }
-async function assertReviewed(api,command){
+// What a person reviews is the PR's own change: its head commit. Main moving
+// underneath it is not a change to that review — prepareMerge builds a fresh
+// merge preview on current main and the full test suite and build run on that
+// exact tree before anything merges. Requiring main to be byte-identical to
+// the moment of review blocked every merge on a repository that commits
+// several times a day ("Main changed" on PRs #21, #39, #45). The head is still
+// pinned exactly, and between validation and merge main must not move.
+async function assertReviewed(api,command,{acceptNewBase=false}={}){
  const pr=await api(`/repos/${REPO}/pulls/${command.pr_number}`);
  if(!eligiblePull(pr)||pr.state!=='open'||pr.draft||pr.head.sha!==command.expected_head)throw Error('PR changed. Refresh the review and request merge again.');
  const base=await api(`/repos/${REPO}/git/ref/heads/main`);
- if(base.object.sha!==command.expected_base)throw Error('Main changed. Refresh the review before merging.');
+ if(base.object.sha!==command.expected_base&&!acceptNewBase)throw Error('Main changed while the fix was being validated. Request the merge again; it will re-test against the new main.');
  if(pr.mergeable===false)throw Error('This PR has conflicts. Resolve them before merging.');
- return pr;
+ return {pr,base:base.object.sha};
 }
 async function assertAutomatic(api,command,authorize){
  if(!command.automatic)return null;
@@ -26,11 +33,13 @@ async function assertAutomatic(api,command,authorize){
  if(snapshot.risk.level!=='low')throw Error(snapshot.risk.reason);
  return snapshot;
 }
-export async function prepareMerge(api,command,authorize=async()=>false){
- const automatic=await assertAutomatic(api,command,authorize);
- await assertReviewed(api,command);
- if(!/^[a-f0-9-]{36}$/.test(command.id))throw Error('Invalid merge request');
- const preview=`security/merge-preview-${command.id}`;
+export async function prepareMerge(api,original,authorize=async()=>false){
+ const automatic=await assertAutomatic(api,original,authorize);
+ const {base}=await assertReviewed(api,original,{acceptNewBase:true});
+ if(!/^[a-f0-9-]{36}$/.test(original.id)||!/^[a-f0-9]{40}$/.test(base))throw Error('Invalid merge request');
+ const rebased=base!==original.expected_base;
+ const command={...original,expected_base:base,...(rebased?{rebased:true,reviewed_base:original.expected_base}:{})};
+ const preview=`security/merge-preview-${command.id}-${base.slice(0,7)}`;
  let ref;
  try{await api(`/repos/${REPO}/git/refs`,'POST',{ref:`refs/heads/${preview}`,sha:command.expected_base});ref={object:{sha:command.expected_base}};}
  catch(error){if(error.status!==422)throw error;ref=await api(`/repos/${REPO}/git/ref/heads/${preview}`);}
