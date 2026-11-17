@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import mammoth from "mammoth";
 import { htmlToText as sharedHtmlToText } from "@/lib/text/html";
 import { NextRequest, NextResponse, after } from "next/server";
 import { Resend } from "resend";
@@ -53,6 +54,23 @@ function allowUnsigned(ip: string, limit = 30, windowMs = 60_000): boolean {
 /** Gmail sends a confirmation email before it will forward anywhere. The code in it is what the parent needs. */
 const GMAIL_FORWARDING = /forwarding-noreply@google\.com/i;
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+// Teachers often send the newsletter as a Word file, and it used to be dropped
+// without a word: the email was read, the newsletter was not, and the week
+// silently stayed on the old one.
+const WORD_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const isWord = (a: { content_type: string; filename?: string }) => a.content_type === WORD_TYPE || /\.docx$/i.test(a.filename ?? "");
+
+/** Why an attachment was not read, in words a parent can act on. Null when it is read. */
+function skipReason(a: { content_type: string; filename?: string; content_disposition?: string; size: number }): string | null {
+  if (a.content_type === "application/pdf" || IMAGE_TYPES.has(a.content_type) || isWord(a)) {
+    return a.content_disposition === "inline" && !isWord(a) && a.content_type !== "application/pdf" && a.size <= 150_000 ? "" : null;
+  }
+  const name = a.filename ?? a.content_type;
+  if (/\.doc$/i.test(name) || a.content_type === "application/msword") return `${name}: an older Word format. Save it as PDF or .docx and send again.`;
+  if (/heic|heif/i.test(a.content_type)) return `${name}: an iPhone HEIC photo. Send it as a JPEG (Settings → Camera → Formats → Most Compatible).`;
+  if (a.content_type === "message/rfc822") return `${name}: a forwarded email inside this one. Forward the original message instead.`;
+  return `${name}: this kind of file can't be read. A PDF, photo or Word file works.`;
+}
 
 function addressOf(s: string): string {
   const m = /<([^>]+)>/.exec(s);
@@ -189,28 +207,49 @@ async function processEmail(resend: Resend, emailId: string) {
   let total = 0;
   const { data: list } = await resend.emails.receiving.attachments.list({ emailId });
   const attachments = ((list as any)?.data ?? (Array.isArray(list) ? list : [])) as { id: string; filename?: string; content_type: string; content_disposition?: string; size: number; download_url: string }[];
+  // Everything that was not read is named, in the reply and on the record.
+  const skipped = attachments.map(skipReason).filter((r): r is string => !!r);
   const ranked = attachments
-    .filter((a) => a.content_type === "application/pdf" || IMAGE_TYPES.has(a.content_type))
-    .filter((a) => a.content_disposition !== "inline" || a.size > 150_000)
-    .sort((a, b) => Number(b.content_type === "application/pdf") - Number(a.content_type === "application/pdf") || b.size - a.size);
+    .filter((a) => skipReason(a) === null)
+    .sort((a, b) => Number(b.content_type === "application/pdf" || isWord(b)) - Number(a.content_type === "application/pdf" || isWord(a)) || b.size - a.size);
   for (const a of ranked) {
-    if (parts.length >= MAX_PAGES) break;
-    if (total + a.size > MAX_TOTAL) continue;
+    if (parts.length >= MAX_PAGES) { skipped.push(`${a.filename ?? a.content_type}: past the ${MAX_PAGES}-page limit for one email.`); continue; }
+    if (total + a.size > MAX_TOTAL) { skipped.push(`${a.filename ?? a.content_type}: too large to read with the rest.`); continue; }
     const res = await fetch(a.download_url);
-    if (!res.ok) continue;
+    if (!res.ok) { skipped.push(`${a.filename ?? a.content_type}: could not be downloaded.`); continue; }
     const data = Buffer.from(await res.arrayBuffer());
     total += data.byteLength;
     hashes.push(sha(data));
+    if (isWord(a)) {
+      // Word to plain text; the reader sees it as the newsletter's own words.
+      try {
+        const { value } = await mammoth.extractRawText({ buffer: data });
+        const text = value.replace(/\n{3,}/g, "\n\n").trim().slice(0, 60_000);
+        if (text.length > 40) parts.push({ type: "text", text: `Attached Word document "${a.filename ?? "newsletter.docx"}":\n\n${text}` });
+        else skipped.push(`${a.filename ?? "Word file"}: no text inside it (it may be pictures only). Send it as a PDF.`);
+      } catch { skipped.push(`${a.filename ?? "Word file"}: the Word file could not be opened. Send it as a PDF.`); }
+      continue;
+    }
     parts.push(a.content_type === "application/pdf" ? { type: "pdf", data } : { type: "image", mediaType: a.content_type as any, data });
   }
+  const attachmentHashes = [...hashes];
   if (bodyText.length > 40) {
     parts.push({ type: "text", text: `Subject: ${subject}\n\n${bodyText}` });
     hashes.push(sha(bodyText.replace(/\s+/g, " ").toLowerCase()));
   }
-  if (parts.length === 0) { await fail("There was nothing to read in it — no PDF, no pictures, and almost no text."); await note(`Email "${subject}" had nothing to read (no PDF, pictures or text)`, { from, childId }); return; }
+  if (parts.length === 0) {
+    const why = skipped.length ? ` Not read: ${skipped.join(" ")}` : "";
+    await fail(`There was nothing to read in it — no PDF, pictures, Word file or text.${why}`);
+    await note(`Email "${subject}" had nothing to read${skipped.length ? `; skipped ${skipped.length} attachment(s)` : ""}`, { from, childId, skipped });
+    return;
+  }
 
+  // A duplicate is the same attachments. The email's own text is not enough:
+  // forwarding a message again because its newsletter was missed would match
+  // the first copy on the body alone and be refused.
+  const dupeBy = attachmentHashes.length ? attachmentHashes : hashes;
   const { data: sameBytes } = await svc.schema("hub").from("child_documents")
-    .select("id, title").eq("child_id", childId).overlaps("page_hashes", hashes).limit(1);
+    .select("id, title").eq("child_id", childId).overlaps("page_hashes", dupeBy).limit(1);
   if (sameBytes?.[0]) { await replyTo(resend, mail, re, [`Already have this one — it matches “${esc(sameBytes[0].title)}”, so nothing was added twice.`], { href: `${publicOrigin()}/children/${childId}`, label: `Open ${matches[0].name.split(" ")[0]}'s page` }); console.log(JSON.stringify({ inbound: "duplicate-bytes", childId, emailId, as: sameBytes[0].id })); return; }
 
   const read = await readSchoolDocument(child, parts, { userId: sender.id, source: "email" });
@@ -227,7 +266,7 @@ async function processEmail(resend: Resend, emailId: string) {
     addDateReminders: true,
     addPracticeTodos: true,
     pageHashes: hashes,
-    provenance: { email: { message_id: mail.message_id, from, subject, received_at: mail.created_at, email_id: emailId } },
+    provenance: { email: { message_id: mail.message_id, from, subject, received_at: mail.created_at, email_id: emailId, ...(skipped.length ? { skipped } : {}) } },
   });
   if ("error" in saved) { await fail(`It was read but could not be saved: ${saved.error}`); await note(`Could not save "${subject}": ${saved.error}`, { from, childId }, "error"); return; }
 
@@ -240,6 +279,8 @@ async function processEmail(resend: Resend, emailId: string) {
     ...(x.summary ? [esc(x.summary)] : []),
     ...(sp && sp.words.length ? [`Spelling${sp.pattern ? ` (${esc(sp.pattern)})` : ""}: ${esc(sp.words.join(", "))}${sp.test_on ? ` — test ${esc(sp.test_on)}` : ""}.`] : []),
     `Added ${saved.reminders} reminder${saved.reminders === 1 ? "" : "s"} and ${saved.todos} to-do${saved.todos === 1 ? "" : "s"}${x.exercises.length ? `, and ${x.exercises.length} practice idea${x.exercises.length === 1 ? "" : "s"}` : ""}. Remove anything you don't want from ${esc(first)}'s page.`,
+    ...(skipped.length ? [`<strong>Not read:</strong> ${skipped.map(esc).join(" ")}`] : []),
+    ...(x.kind !== "newsletter" && attachments.length > 0 && skipped.length > 0 ? [`So ${esc(first)}'s week still comes from the last newsletter that could be read. Upload the newsletter on ${esc(first)}'s page, or forward it again as a PDF.`] : []),
     ...(saved.rolledOver && saved.rolledOver.exerciseIds.length + saved.rolledOver.taskIds.length + saved.rolledOver.todoIds.length > 0
       ? [`It's a new week, so last week's ${saved.rolledOver.exerciseIds.length} practice item${saved.rolledOver.exerciseIds.length === 1 ? "" : "s"}, ${saved.rolledOver.taskIds.length} unfinished job${saved.rolledOver.taskIds.length === 1 ? "" : "s"} and ${saved.rolledOver.todoIds.length} to-do${saved.rolledOver.todoIds.length === 1 ? "" : "s"} were put away. Nothing was deleted.`]
       : []),

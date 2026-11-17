@@ -427,6 +427,38 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   const sourceOf = (id: string | null | undefined) => (id ? docById.get(id) ?? null : null);
   const isGuardian = data.viewerIsGuardian;
 
+  // ── Which document this week is built from ──────────────────────────────
+  // The week is the newest newsletter on file. When nothing newer has been
+  // read, that newsletter can be weeks old and still fill "This week", which
+  // read as old work blended into the current week. So the source is named,
+  // dated and aged at the top, the heading stops calling it "this week" once
+  // it is not, and anything that arrived later without a newsletter in it is
+  // pointed out, because that is usually where the missing week went.
+  const sourceWeek = newsletter ? docWeek(newsletter) : null;
+  const weeksBehind = sourceWeek ? Math.max(0, Math.round((Date.parse(`${thisMonday}T12:00:00Z`) - Date.parse(`${sourceWeek}T12:00:00Z`)) / (7 * 86_400_000))) : null;
+  const sourceStale = weeksBehind !== null && weeksBehind >= 2;
+  const newerArrivals = (L?.documents ?? [])
+    .filter((d) => d.kind !== "newsletter" && d.kind !== "graded_work" && newsletter && d.createdAt > newsletter.createdAt)
+    .slice(0, 2);
+  const weekSource = newsletter ? (
+    <div style={{ padding: "0 var(--ios-gutter) 8px", display: "grid", gap: 6 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+        <span className="ios-caption" style={{ color: "var(--ios-label-3)" }}>Built from</span>
+        <SourceChip doc={newsletter} onOpen={openDoc} />
+        <span className="ios-caption" style={{ color: sourceStale ? "var(--ios-orange)" : "var(--ios-label-3)", fontWeight: sourceStale ? 700 : 400 }}>
+          {sourceWeek ? `week of ${fmtDate(sourceWeek, false)}` : ""}{weeksBehind === 0 ? " · this week" : weeksBehind === 1 ? " · last week" : weeksBehind ? ` · ${weeksBehind} weeks ago` : ""}
+        </span>
+      </div>
+      {sourceStale && (
+        <div className="ios-footnote" style={{ background: "var(--ios-fill)", borderRadius: 10, padding: "8px 10px", color: "var(--ios-label)", lineHeight: 1.45 }}>
+          No newer newsletter has been read, so this is the latest week on file, not this week.
+          {newerArrivals[0] ? <> The newest arrival, <strong>{newerArrivals[0].title}</strong>, had no newsletter in it{newerArrivals[0].filePaths.length === 0 ? " (no pages were attached that could be read)" : ""}.</> : null}
+          {isGuardian && <> <Link href={`/children/${data.childId}/import`} style={{ color: "var(--ios-tint)", fontWeight: 600 }}>Add this week&rsquo;s newsletter</Link> as a photo or PDF, or forward the email again (Word attachments are read from email).</>}
+        </div>
+      )}
+    </div>
+  ) : null;
+
   // ── The week's standing work ────────────────────────────────────────────
   // Scripture and memory work come home every week in the same three shapes.
   // They used to be three subtitle lines inside "This week at school", eight
@@ -604,9 +636,9 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   sections.push({
     id: "week",
     tab: "week",
-    title: "This week",
+    title: sourceStale && sourceWeek ? `Latest week on file · ${fmtDate(sourceWeek, false)}` : "This week",
     defaultOpen: true,
-    accessory: <WeekProgress items={weekItems} weekLabel={week?.weekStart ? `Week of ${fmtDate(week.weekStart, false)}${week.testOn ? ` · spelling test ${soon(week.testOn)}` : ""}` : "Everything owed this week"} />,
+    accessory: <>{weekSource}<WeekProgress items={weekItems} weekLabel={week?.weekStart ? `Week of ${fmtDate(week.weekStart, false)}${week.testOn ? ` · spelling test ${soon(week.testOn)}` : ""}` : "Everything owed this week"} /></>,
     summary: weekItems.length === 0 ? undefined : `${weekItems.filter((i) => !i.done).length} still to do.`,
     search: weekItems.map((it) => hit(`w-${it.key}`, it.label, it.detail, `${it.group} ${it.done ? "done" : "to do"}`)),
     body: <WeekRows items={weekItems} keyPrefix={`ch-topic-week-${data.childId}`} emptyNote="Nothing set for this week yet. Photograph the newsletter or a graded paper and the week fills itself in." />,
@@ -939,14 +971,21 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   }
 
   if (L && L.assessments.length > 0) {
-    const papers = [...L.assessments].sort((a, b) => (b.assessedOn ?? "").localeCompare(a.assessedOn ?? "")).slice(0, 30);
+    // A paper with no date on it takes the date it came home (its document's),
+    // so September's undated test pages stop sitting at the top in November.
+    const paperDay = (a: (typeof L.assessments)[number]) => a.assessedOn ?? sourceOf(a.documentId)?.docDate ?? sourceOf(a.documentId)?.createdAt.slice(0, 10) ?? "";
+    const recentCut = addDays(thisMonday, -28);
+    const allPapers = [...L.assessments].sort((a, b) => paperDay(b).localeCompare(paperDay(a)));
+    const papers = allPapers.filter((a) => paperDay(a) >= recentCut).slice(0, 30);
+    const olderPapers = allPapers.length - papers.length;
     sections.push({
       id: "papers",
       tab: "progress",
       title: "Graded papers",
       count: papers.length,
+      accessory: olderPapers > 0 ? <div className="ios-caption" style={{ padding: "0 var(--ios-gutter) 6px", color: "var(--ios-label-3)" }}>Last four weeks. {olderPapers} older paper{olderPapers === 1 ? " is" : "s are"} kept with {olderPapers === 1 ? "its" : "their"} week: pick it in the week strip on This week.</div> : undefined,
       defaultOpen: true,
-      summary: `${papers.length} paper${papers.length === 1 ? "" : "s"} on file. Tap one for the teacher's note and what went wrong.`,
+      summary: papers.length === 0 ? "None came home in the last four weeks." : `${papers.length} paper${papers.length === 1 ? "" : "s"} in the last four weeks. Tap one for the teacher's note and what went wrong.`,
       search: papers.map((a) => hit(`pp-${a.id}`, a.title, `${SUBJECT_LABEL[a.subject] ?? a.subject}${a.score != null && a.outOf ? ` · ${a.score}/${a.outOf}` : ""}`, `${a.teacherFeedback ?? ""} ${a.observations.join(" ")} ${a.items.map((i) => i.prompt).join(" ")}`)),
       body: (
         <>
