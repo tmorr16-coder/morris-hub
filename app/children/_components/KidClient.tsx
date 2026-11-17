@@ -30,6 +30,9 @@ interface Props {
   /** Buddy's own voices on this deployment (Kokoro, OpenAI), best first.
       Empty means the device voice only. */
   cloudVoices?: CloudVoice[];
+  /** On the child's own iPad (/kid): no links into the grown-ups' pages,
+      which would only ask for an account the iPad does not have. */
+  kidMode?: boolean;
 }
 
 type View = { kind: "home" } | { kind: "task"; task: ChildTask } | { kind: "tutor" };
@@ -447,7 +450,7 @@ const big: React.CSSProperties = { fontSize: 28, fontWeight: 800, lineHeight: 1.
 const cardStyle: React.CSSProperties = { background: "var(--ios-cell)", borderRadius: 22, padding: "18px 20px", boxShadow: "0 8px 24px -16px rgba(0,0,0,0.4)", border: "1px solid var(--ios-separator)" };
 const bigBtn = (bg: string): React.CSSProperties => ({ width: "100%", padding: "18px 20px", borderRadius: 18, border: "none", background: bg, color: "#fff", fontSize: 22, fontWeight: 800, cursor: "pointer", boxShadow: "0 6px 0 rgba(0,0,0,0.15)" });
 
-export default function KidClient({ childId, name, gradeLabel, tasks: initialTasks, exercises, spelling, stars: initialStars, openTo = "home", cloudVoices = [] }: Props) {
+export default function KidClient({ childId, name, gradeLabel, tasks: initialTasks, exercises, spelling, stars: initialStars, openTo = "home", cloudVoices = [], kidMode = false }: Props) {
   const { speak, stop, speaking, loading, voiceLabel, cloudVoice, cloudTrouble, choices, choose } = useSpeech(childId, cloudVoices);
   const hasCloud = cloudVoices.length > 0;
   const [pickingVoice, setPickingVoice] = useState(false);
@@ -586,6 +589,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
         )}
         <Footer
           childId={childId}
+          kidMode={kidMode}
           onVoice={() => setPickingVoice((v) => !v)}
           voiceLabel={pickingVoice ? "Done" : `Voice${voiceLabel ? `: ${voiceLabel.replace(/\s*\(.*?\)/g, "")}` : ""}`}
         />
@@ -618,7 +622,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
               starting over is three taps and a lost train of thought. */}
           <button type="button" style={{ ...bigBtn("#FF8C42"), fontSize: 19 }} onClick={askBuddy}>🦉 Ask Buddy about this</button>
         </div>
-        <Footer childId={childId} />
+        <Footer childId={childId} kidMode={kidMode} />
       </Shell>
     );
   }
@@ -628,7 +632,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
     <Shell burst={burst} speaking={speaking} loading={loading} onStop={stop}>
       <BackButton onClick={() => setView({ kind: "home" })} />
       <Tutor childId={childId} first={first} gradeLabel={gradeLabel} speak={speak} speaking={speaking} stopSpeaking={stop} words={spelling ? [...spelling.words, ...spelling.sightWords] : []} />
-      <Footer childId={childId} />
+      <Footer childId={childId} kidMode={kidMode} />
     </Shell>
   );
 }
@@ -661,10 +665,10 @@ function BackButton({ onClick }: { onClick: () => void }) {
   return <button type="button" onClick={onClick} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "10px 18px", fontSize: 18, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>← Back</button>;
 }
 
-function Footer({ childId, onVoice, voiceLabel }: { childId: string; onVoice?: () => void; voiceLabel?: string }) {
+function Footer({ childId, onVoice, voiceLabel, kidMode = false }: { childId: string; onVoice?: () => void; voiceLabel?: string; kidMode?: boolean }) {
   return (
     <div style={{ marginTop: 40, display: "flex", justifyContent: "center", gap: 18 }}>
-      <Link href={`/children/${childId}`} style={{ fontSize: 13, color: "var(--ios-label-3)", textDecoration: "none" }}>Grown-ups</Link>
+      {!kidMode && <Link href={`/children/${childId}`} style={{ fontSize: 13, color: "var(--ios-label-3)", textDecoration: "none" }}>Grown-ups</Link>}
       {onVoice && (
         <button type="button" onClick={onVoice} style={{ background: "none", border: "none", padding: 0, fontSize: 13, color: "var(--ios-label-3)", cursor: "pointer" }}>
           {voiceLabel}

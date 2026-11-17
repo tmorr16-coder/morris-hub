@@ -56,6 +56,34 @@ export interface ChildWorkspaceData {
   viewerIsGuardian: boolean;
   /** Whether THIS viewer has this child pinned to their own Today screen. */
   pinnedToToday: boolean;
+  /** The child's own iPad: whether a PIN is set, and the iPads paired. Null
+      before 20261117_kid_devices.sql is applied, or for a non-parent viewer. */
+  kidAccess: KidAccessSummary | null;
+}
+
+export interface KidAccessSummary {
+  hasPin: boolean;
+  devices: { id: string; label: string; pairedAt: string | null; lastSeenAt: string | null; unlocked: boolean; lockedUntil: string | null }[];
+}
+
+/** For the parent's "iPad" section. Swallows a missing table: the feature is simply not set up yet. */
+async function loadKidAccess(db: Svc, childId: string, now: Date): Promise<KidAccessSummary | null> {
+  try {
+    const [pin, dev] = await Promise.all([
+      db.schema("hub").from("child_kid_pins").select("child_id").eq("child_id", childId).maybeSingle(),
+      db.schema("hub").from("child_devices").select("id, label, paired_at, last_seen_at, unlocked_until, locked_until")
+        .eq("child_id", childId).is("revoked_at", null).not("token_hash", "is", null).order("paired_at", { ascending: false }),
+    ]);
+    if (pin.error || dev.error) return null;
+    return {
+      hasPin: !!pin.data,
+      devices: ((dev.data ?? []) as { id: string; label: string; paired_at: string | null; last_seen_at: string | null; unlocked_until: string | null; locked_until: string | null }[]).map((d) => ({
+        id: d.id, label: d.label, pairedAt: d.paired_at, lastSeenAt: d.last_seen_at,
+        unlocked: !!d.unlocked_until && Date.parse(d.unlocked_until) > now.getTime(),
+        lockedUntil: d.locked_until && Date.parse(d.locked_until) > now.getTime() ? d.locked_until : null,
+      })),
+    };
+  } catch { return null; }
 }
 
 /**
@@ -300,5 +328,6 @@ export async function getChildWorkspace(childId: string, viewerUserId: string, n
     learning,
     viewerIsGuardian: isParent,
     pinnedToToday: pinnedChildId === childId,
+    kidAccess: isParent && ageTier === "elementary" ? await loadKidAccess(db, childId, now) : null,
   };
 }

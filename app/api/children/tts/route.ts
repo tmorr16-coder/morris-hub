@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { childForGuardian } from "@/app/children/_lib/children";
+import { createServiceClient } from "@/lib/supabase/server";
+import { childScreenAccess } from "@/app/children/_lib/kid-device";
 import { synthesise, ttsConfigured, isAvailableVoice, defaultCloudVoice, voiceById, modelFor, extensionFor, contentTypeFor, VoiceError, type SynthesisResult } from "@/lib/buddy-voice";
 
 export const runtime = "nodejs";
@@ -52,11 +52,6 @@ async function ensureBucket(svc: any) {
 export async function POST(req: NextRequest) {
   if (!ttsConfigured()) return NextResponse.json({ error: "Not configured" }, { status: 503 });
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!allow(user.id)) return NextResponse.json({ error: "Slow down" }, { status: 429 });
-
   let body: { childId?: string; text?: string; voice?: string; speed?: number };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
 
@@ -73,8 +68,10 @@ export async function POST(req: NextRequest) {
   // Not because the audio is sensitive to a guardian in particular, but because
   // an unguarded synthesis endpoint on a signed-in session is somebody else's
   // OpenAI bill waiting to happen.
-  const child = await childForGuardian(svc, childId, user.id);
-  if (!child) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // A parent, or the child's own unlocked iPad — and only for this child.
+  const access = await childScreenAccess(childId);
+  if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!allow(access.rateKey)) return NextResponse.json({ error: "Slow down" }, { status: 429 });
 
   // Speed is in the key: the same sentence read slowly is a different clip.
   // So is the provider and model, since the same voice name on a new model

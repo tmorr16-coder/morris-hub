@@ -24,6 +24,7 @@
 // Every tap here can be taken back: a word tapped by mistake, a "Did it",
 // a dismissed exercise, a whole scanned document with everything it created.
 
+import KidIpadPanel from "./KidIpadPanel";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -1030,6 +1031,20 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
           {(nx.academics ?? []).map((a, i) => <Cell key={i} chevron={false} title={a.subject} subtitle={a.topics.join(" · ")} />)}
         </div>
       ),
+    });
+  }
+
+  if (isGuardian) {
+    const ka = data.kidAccess;
+    sections.push({
+      id: "ipad",
+      tab: "records",
+      title: `${kid}'s iPad`,
+      count: ka ? ka.devices.length : undefined,
+      summary: !ka ? "Not set up yet."
+        : !ka.hasPin && ka.devices.length === 0 ? `Give ${kid} a front door: a 4-digit number on their own iPad.`
+        : `${ka.hasPin ? "Secret number set" : "No secret number yet"} · ${ka.devices.length === 0 ? "no iPad set up" : ka.devices.length === 1 ? "1 iPad" : `${ka.devices.length} iPads`}`,
+      body: <KidIpadPanel childId={data.childId} first={kid} access={ka} />,
     });
   }
 

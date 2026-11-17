@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { MODEL_FAST } from "@/lib/models";
-import { childForGuardian } from "@/app/children/_lib/children";
+import { childScreenAccess } from "@/app/children/_lib/kid-device";
 import { loadLearning } from "@/app/children/_lib/learning";
 import { recordFailure, clearFailures } from "@/lib/system-events";
 import { CONTEXT_RULE, withAppContext } from "@/lib/ai/context";
@@ -33,11 +33,6 @@ function allow(userId: string, limit = 40, windowMs = 10 * 60 * 1000): boolean {
 
 export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: "Not configured" }, { status: 503 });
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!allow(user.id)) return NextResponse.json({ reply: "Let's take a little break and come back in a few minutes!" });
-
   let body: { childId?: string; sessionId?: string; messages?: { role: "user" | "assistant"; content: string }[] };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Bad request" }, { status: 400 }); }
   const childId = String(body.childId ?? "");
@@ -47,9 +42,13 @@ export async function POST(req: NextRequest) {
   const turnsSoFar = (body.messages ?? []).filter((m) => m.role === "user").length;
   if (!childId || messages.length === 0 || messages[messages.length - 1].role !== "user") return NextResponse.json({ error: "Bad request" }, { status: 400 });
 
+  // A parent, or the child's own unlocked iPad — and only for this child.
+  const access = await childScreenAccess(childId);
+  if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!allow(access.rateKey)) return NextResponse.json({ reply: "Let's take a little break and come back in a few minutes!" });
+  const user = { id: access.actorUserId };
+  const child = access.child;
   const svc = createServiceClient() as any;
-  const child = await childForGuardian(svc, childId, user.id);
-  if (!child) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const L = await loadLearning(svc, childId, child.birth_year, new Date());
   const first = (child.display_name ?? "friend").split(" ")[0];
   const nl = L.latestNewsletter?.extracted;

@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 import { childForGuardian, guardianUserIds } from "./children";
+import { childScreenAccess } from "./kid-device";
 import { mergeExtractions, type DocumentExtraction } from "./learning";
 import { materialise, createDocumentFor, rollOverWeek, undoRollOver, currentWeekDocument, type RollOver } from "./learning-core";
 
@@ -178,8 +179,8 @@ export async function setExerciseStatus(childId: string, exerciseId: string, sta
 
 /** Tap a spelling word: one more practice of it this week. */
 export async function markWordPracticed(childId: string, weekId: string, word: string, delta = 1): Promise<{ error?: string; count?: number }> {
-  const g = await requireGuardian(childId);
-  if ("error" in g) return { error: g.error };
+  // A parent, or the child's own unlocked iPad (see kid-device.ts).
+  if (!(await childScreenAccess(childId))) return { error: "Not found" };
   const svc = db();
   const { data: row } = await svc.schema("hub").from("child_spelling_weeks").select("practiced, words, sight_words").eq("id", weekId).eq("child_id", childId).maybeSingle();
   if (!row) return { error: "Not found" };
@@ -388,8 +389,10 @@ export async function assignTask(input: {
 
 /** The child finished a task on their screen. Stars are the reward; an exercise task also logs today's practice. */
 export async function completeTask(childId: string, taskId: string, stars = 1, childNote?: string): Promise<{ error?: string }> {
-  const g = await requireGuardian(childId);
-  if ("error" in g) return { error: g.error };
+  // A parent, or the child's own unlocked iPad (see kid-device.ts).
+  const access = await childScreenAccess(childId);
+  if (!access) return { error: "Not found" };
+  const g = { userId: access.actorUserId };
   const svc = db();
   const { data: task, error } = await svc.schema("hub").from("child_tasks")
     .update({ completed_at: new Date().toISOString(), stars: Math.max(0, Math.min(5, stars)), child_note: childNote ?? null })
@@ -403,6 +406,7 @@ export async function completeTask(childId: string, taskId: string, stars = 1, c
   }
   revalidatePath(`/children/${childId}`);
   revalidatePath(`/children/${childId}/kid`);
+  revalidatePath("/kid");
   return {};
 }
 
