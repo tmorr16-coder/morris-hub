@@ -19,6 +19,12 @@ export default function KidPair({ initialCode }: { initialCode: string }) {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    // The button is never greyed out: a disabled button with no reason read
+    // as broken. Tapping it without a code says where the code comes from.
+    if (code.replace(/[^A-Za-z0-9]/g, "").length < 8) {
+      setError("First make a code on your phone: open your child's page, tap their iPad section, then “Set up an iPad”. Type the 8-character code here.");
+      return;
+    }
     start(async () => {
       const r = await pairThisDevice(code);
       if (r.ok) { router.replace("/kid"); router.refresh(); return; }
@@ -49,7 +55,7 @@ export default function KidPair({ initialCode }: { initialCode: string }) {
           style={{ fontSize: 30, letterSpacing: "0.12em", textAlign: "center", padding: "14px 12px", borderRadius: 14, border: "1px solid var(--ios-separator)", background: "var(--ios-cell)", color: "var(--ios-label)", fontFamily: "ui-monospace, Menlo, monospace" }}
         />
         {error && <p role="alert" style={{ margin: 0, color: "var(--ios-red)", fontSize: 15 }}>{error}</p>}
-        <button type="submit" className="ios-btn ios-btn--primary" disabled={pending || code.replace(/[^A-Za-z0-9]/g, "").length < 8}>
+        <button type="submit" className="ios-btn ios-btn--primary" disabled={pending}>
           {pending ? "Setting up…" : "Set up this iPad"}
         </button>
         <p style={{ margin: 0, fontSize: 13, color: "var(--ios-label-3)", lineHeight: 1.45 }}>
