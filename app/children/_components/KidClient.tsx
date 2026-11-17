@@ -15,6 +15,7 @@ import { pickBestVoice } from "@/lib/tts-voices";
 import type { CloudVoice } from "@/lib/buddy-voice";
 import type { ChildTask } from "../_lib/learning";
 import { completeTask, markWordPracticed } from "../_lib/learning-actions";
+import { Bubble, Confetti, KID, KID_CSS, LevelBar, Mascot, PathNode, PathTrail, SectionTitle, StepDots, Tile, levelFor, type Mood } from "./KidUi";
 
 interface Props {
   childId: string;
@@ -33,9 +34,25 @@ interface Props {
   /** On the child's own iPad (/kid): no links into the grown-ups' pages,
       which would only ask for an account the iPad does not have. */
   kidMode?: boolean;
+  /** Days in a row with a finished job, counting today or yesterday as the latest. */
+  streak?: number;
 }
 
-type View = { kind: "home" } | { kind: "task"; task: ChildTask } | { kind: "tutor" };
+type View = { kind: "home" } | { kind: "task"; task: ChildTask } | { kind: "practice" } | { kind: "tutor"; starter?: string };
+
+/** Things to do with Buddy. One tap starts each; nothing to type or read first. */
+interface Activity { emoji: string; label: string; prompt: string; lead: string; colour: string; dark: string }
+function activitiesFor(hasWords: boolean): Activity[] {
+  return [
+    ...(hasWords ? [
+      { emoji: "🔤", label: "Quiz my words", prompt: "Quiz me on my spelling words, one at a time.", lead: "Word quiz!", colour: KID.blue, dark: KID.blueDark },
+      { emoji: "📖", label: "Silly story", prompt: "Tell me a silly story with my spelling words.", lead: "Story time!", colour: KID.purple, dark: KID.purpleDark },
+    ] : []),
+    { emoji: "➕", label: "Math game", prompt: "Let's play a math game. Give me one problem at a time.", lead: "Math game!", colour: KID.teal, dark: KID.tealDark },
+    { emoji: "🙏", label: "My verse", prompt: "Help me learn my memory verse, a little bit at a time.", lead: "Let's learn your verse!", colour: KID.pink, dark: KID.pinkDark },
+    { emoji: "🦁", label: "Animal facts", prompt: "Tell me one amazing animal fact, then ask me a question about it.", lead: "Animal facts!", colour: KID.green, dark: KID.greenDark },
+  ];
+}
 
 const TASK_EMOJI: Record<string, string> = { exercise: "✏️", spelling: "🔤", reading: "📖", custom: "⭐" };
 const PRAISE = ["Yes!", "You got it!", "Super!", "Great job!", "Wow!", "Nice work!"];
@@ -448,80 +465,54 @@ function useListening(
 
 const big: React.CSSProperties = { fontSize: 28, fontWeight: 800, lineHeight: 1.2, letterSpacing: "-0.01em" };
 const cardStyle: React.CSSProperties = { background: "var(--ios-cell)", borderRadius: 22, padding: "18px 20px", boxShadow: "0 8px 24px -16px rgba(0,0,0,0.4)", border: "1px solid var(--ios-separator)" };
-const bigBtn = (bg: string): React.CSSProperties => ({ width: "100%", padding: "18px 20px", borderRadius: 18, border: "none", background: bg, color: "#fff", fontSize: 22, fontWeight: 800, cursor: "pointer", boxShadow: "0 6px 0 rgba(0,0,0,0.15)" });
+const bigBtn = (bg: string, ledge = "rgba(0,0,0,0.18)"): React.CSSProperties => ({ width: "100%", padding: "18px 20px", borderRadius: 20, border: "none", background: bg, color: "#fff", fontSize: 22, fontWeight: 800, cursor: "pointer", boxShadow: `0 6px 0 ${ledge}` });
 
-export default function KidClient({ childId, name, gradeLabel, tasks: initialTasks, exercises, spelling, stars: initialStars, openTo = "home", cloudVoices = [], kidMode = false }: Props) {
+export default function KidClient({ childId, name, gradeLabel, tasks: initialTasks, exercises, spelling, stars: initialStars, openTo = "home", cloudVoices = [], kidMode = false, streak: initialStreak = 0 }: Props) {
   const { speak, stop, speaking, loading, voiceLabel, cloudVoice, cloudTrouble, choices, choose } = useSpeech(childId, cloudVoices);
   const hasCloud = cloudVoices.length > 0;
   const [pickingVoice, setPickingVoice] = useState(false);
   const first = name.split(" ")[0] || name;
   const [tasks, setTasks] = useState<ChildTask[]>(initialTasks);
   const [stars, setStars] = useState(initialStars);
+  const [streak, setStreak] = useState(initialStreak);
   const [view, setView] = useState<View>(openTo === "buddy" ? { kind: "tutor" } : { kind: "home" });
   const [burst, setBurst] = useState<string | null>(null);
   const open = tasks.filter((t) => !t.completedAt);
   const doneToday = tasks.filter((t) => t.completedAt);
 
+  const allWords = spelling ? [...spelling.words, ...spelling.sightWords] : [];
+  const activities = activitiesFor(allWords.length > 0);
+
   function celebrate(text: string) {
     setBurst(text);
     speak(text, 1);
-    setTimeout(() => setBurst(null), 1400);
+    setTimeout(() => setBurst(null), 2200);
   }
 
   function askBuddy() {
     setView({ kind: "tutor" });
-    speak(`Hi ${first}! I'm Buddy. What do you want to work on?`);
+    speak(`Hi ${first}! I'm Buddy. What do you want to do?`);
+  }
+  // The few words spoken here are inside the tap, which is what lets Buddy's
+  // answer be heard on an iPad when it arrives a second later.
+  function startActivity(a: Activity) {
+    setView({ kind: "tutor", starter: a.prompt });
+    speak(a.lead, 1);
   }
 
   async function finish(task: ChildTask, earned: number) {
     setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, completedAt: new Date().toISOString(), stars: earned } : t)));
     setStars((s) => ({ total: s.total + earned, week: s.week + earned }));
-    celebrate(`${PRAISE[Math.floor(Math.random() * PRAISE.length)]} ${earned} star${earned === 1 ? "" : "s"}!`);
+    if (doneToday.length === 0) setStreak((n) => n + 1);   // today's first finished job
+    const before = levelFor(stars.total), after = levelFor(stars.total + earned);
+    celebrate(after.number > before.number
+      ? `Level up! You are a ${after.name} now!`
+      : `${PRAISE[Math.floor(Math.random() * PRAISE.length)]} ${earned} star${earned === 1 ? "" : "s"}!`);
     setView({ kind: "home" });
     await completeTask(childId, task.id, earned);
   }
 
-  // ── Home ────────────────────────────────────────────────────────────────
-  if (view.kind === "home") {
-    return (
-      <Shell burst={burst} speaking={speaking} loading={loading} onStop={stop}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-          <h1 style={{ ...big, fontSize: 36, margin: 0 }}>Hi, {first}! 👋</h1>
-          <span style={{ fontSize: 22, fontWeight: 800, whiteSpace: "nowrap" }}>⭐ {stars.total}</span>
-        </div>
-        <p style={{ fontSize: 18, color: "var(--ios-label-2)", margin: "4px 0 10px" }}>
-          {open.length === 0 ? "No jobs right now. Ask your tutor a question!" : open.length === 1 ? "You have 1 job today." : `You have ${open.length} jobs today.`}
-        </p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-          <button type="button" onClick={() => speak(`Hi ${first}! Can you hear me? Let's go!`, 1)} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "10px 16px", fontSize: 16, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>
-            🔊 Tap if you can&rsquo;t hear me
-          </button>
-        </div>
-
-        <div style={{ display: "grid", gap: 12 }}>
-          <button type="button" onClick={askBuddy} style={{ ...cardStyle, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 16, background: "linear-gradient(135deg, #FFB13A, #FF7A59)", color: "#fff", border: "none" }}>
-            <span style={{ fontSize: 40 }}>🦉</span>
-            <span><span style={{ ...big, fontSize: 22, display: "block" }}>Ask Buddy</span><span style={{ fontSize: 16, opacity: 0.95 }}>Your tutor. Ask about your words or your math.</span></span>
-          </button>
-          {open.map((t) => (
-            <button key={t.id} type="button" onClick={() => { setView({ kind: "task", task: t }); speak(t.title); }} style={{ ...cardStyle, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 16 }}>
-              <span style={{ fontSize: 40 }}>{TASK_EMOJI[t.kind] ?? "⭐"}</span>
-              <span style={{ ...big, fontSize: 22 }}>{t.title}</span>
-            </button>
-          ))}
-        </div>
-
-        {doneToday.length > 0 && (
-          <div style={{ marginTop: 22 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ios-label-2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Done today</div>
-            {doneToday.map((t) => (
-              <div key={t.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 4px", fontSize: 18, color: "var(--ios-label-2)", borderBottom: "1px solid var(--ios-separator)" }}>
-                <span>{TASK_EMOJI[t.kind]} {t.title}</span><span>{"⭐".repeat(Math.max(1, t.stars))}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        {pickingVoice && (
+  const voicePicker = pickingVoice ? (
           <div style={{ ...cardStyle, marginBottom: 14, padding: "12px 14px" }}>
             <div style={{ fontSize: 14, color: "var(--ios-label-2)", marginBottom: 8 }}>For grown-ups: pick the voice Buddy uses on this device. Tap a name to hear it.</div>
 
@@ -586,13 +577,83 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
               {" "}On the iPad or iPhone: Settings → Accessibility → Spoken Content → Voices → English → tap <em>Ava</em>, <em>Zoe</em>, <em>Evan</em> or <em>Nathan</em> and download the <em>Premium</em> version (about 200 MB each). Then close Safari fully and reopen this screen; they appear here marked Premium. The <em>Classic</em> voices — Fred, Junior, Kathy, Ralph — are a Mac thing; an iPad or iPhone does not ship them, so they only show up here on a computer.
             </div>
           </div>
+  ) : null;
+
+  // ── Home: Buddy, today's path, things to explore ────────────────────────
+  if (view.kind === "home") {
+    const greeting = open.length === 0
+      ? (doneToday.length > 0 ? `You finished everything, ${first}! Want to explore?` : `Hi ${first}! No jobs right now. Let's explore!`)
+      : doneToday.length === 0
+        ? `Hi ${first}! You have ${open.length} job${open.length === 1 ? "" : "s"} today. Tap the green one!`
+        : `Great going, ${first}! ${open.length} more to go.`;
+    // Finished stones first, then what is left, then the trophy at the end.
+    const stones = [...doneToday.map((t) => ({ t, done: true })), ...open.map((t) => ({ t, done: false }))];
+    const weave = [0, 58, 0, -58];
+    return (
+      <Shell burst={burst} speaking={speaking} loading={loading} onStop={stop}>
+        <LevelBar stars={stars.total} streak={streak} />
+
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginTop: 18 }}>
+          <Mascot mood={speaking ? "talking" : burst ? "cheer" : "idle"} />
+          <Bubble onTap={() => speak(greeting, 1)}>{greeting}</Bubble>
+        </div>
+
+        {stones.length > 0 && (
+          <>
+            <SectionTitle>Today&rsquo;s path</SectionTitle>
+            <div style={{ display: "grid", justifyItems: "center", padding: "10px 0 4px" }}>
+              {stones.map(({ t, done }, i) => (
+                <div key={t.id} style={{ display: "grid", justifyItems: "center" }}>
+                  {i > 0 && <PathTrail from={weave[(i - 1) % 4]} to={weave[i % 4]} />}
+                  <PathNode
+                    emoji={TASK_EMOJI[t.kind] ?? "⭐"}
+                    label={t.title}
+                    state={done ? "done" : t.id === open[0]?.id ? "next" : "todo"}
+                    stars={t.stars}
+                    offset={weave[i % 4]}
+                    onTap={done ? undefined : () => { setView({ kind: "task", task: t }); speak(t.title); }}
+                  />
+                </div>
+              ))}
+              <PathTrail from={weave[(stones.length - 1) % 4]} to={0} />
+              <PathNode emoji="🏆" label={open.length === 0 ? "All done today!" : "Finish line"} state={open.length === 0 ? "trophy-won" : "trophy"} offset={0} />
+            </div>
+          </>
         )}
+
+        <SectionTitle>Explore with Buddy</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14 }}>
+          <Tile wide emoji="🦉" label="Talk to Buddy" colour={KID.orange} dark={KID.orangeDark} onTap={askBuddy} />
+          {allWords.length > 0 && (
+            <Tile emoji="✏️" label="Practice my words" colour={KID.gold} dark={KID.goldDark} onTap={() => { setView({ kind: "practice" }); speak("Let's practice your words!", 1); }} />
+          )}
+          {activities.map((a) => <Tile key={a.label} emoji={a.emoji} label={a.label} colour={a.colour} dark={a.dark} onTap={() => startActivity(a)} />)}
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 22 }}>
+          <button type="button" className="kid-press" onClick={() => speak(`Hi ${first}! Can you hear me? Let's go!`, 1)} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "10px 16px", fontSize: 15, fontWeight: 700, color: "var(--ios-label-2)", cursor: "pointer" }}>
+            🔊 Tap if you can&rsquo;t hear Buddy
+          </button>
+        </div>
+
+        {voicePicker}
         <Footer
           childId={childId}
           kidMode={kidMode}
           onVoice={() => setPickingVoice((v) => !v)}
           voiceLabel={pickingVoice ? "Done" : `Voice${voiceLabel ? `: ${voiceLabel.replace(/\s*\(.*?\)/g, "")}` : ""}`}
         />
+      </Shell>
+    );
+  }
+
+  // ── Practising this week's words, any time, no job needed ───────────────
+  if (view.kind === "practice") {
+    return (
+      <Shell burst={burst} speaking={speaking} loading={loading} onStop={stop}>
+        <SpellingRun words={allWords} speak={speak} childId={childId} weekId={spelling?.weekId ?? null} onBack={() => setView({ kind: "home" })}
+          onFinish={(right) => { celebrate(right > 0 ? `You spelled ${right} word${right === 1 ? "" : "s"}! Great practice!` : "Good try! Practice makes you stronger!"); setView({ kind: "home" }); }}
+          onRight={(w) => celebrate(`${PRAISE[Math.floor(Math.random() * PRAISE.length)]} ${w}!`)} />
       </Shell>
     );
   }
@@ -612,15 +673,22 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
     return (
       <Shell burst={burst} speaking={speaking} loading={loading} onStop={stop}>
         <BackButton onClick={() => setView({ kind: "home" })} />
-        <div style={{ fontSize: 48, marginTop: 8 }}>{TASK_EMOJI[t.kind] ?? "⭐"}</div>
-        <h1 style={{ ...big, margin: "8px 0 12px" }}>{t.title}</h1>
-        {text && <div style={{ ...cardStyle, fontSize: 20, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{text}</div>}
-        <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
-          {text && <button type="button" style={bigBtn("var(--ios-tint)")} onClick={() => speak(`${t.title}. ${text}`)}>🔊 Read it to me</button>}
-          <button type="button" style={bigBtn("#2ACF5F")} onClick={() => finish(t, 1)}>⭐ I did it!</button>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginTop: 14 }}>
+          <Mascot mood={speaking ? "talking" : "idle"} size={72} />
+          <Bubble onTap={() => speak(text ? `${t.title}. ${text}` : t.title)}>
+            <span style={{ fontSize: 24, fontWeight: 800 }}>{TASK_EMOJI[t.kind] ?? "⭐"} {t.title}</span>
+          </Bubble>
+        </div>
+        {text && <div style={{ ...cardStyle, marginTop: 14, fontSize: 21, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{text}</div>}
+        <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
+          {text && <button type="button" className="kid-press" style={bigBtn(KID.blue, KID.blueDark)} onClick={() => speak(`${t.title}. ${text}`)}>🔊 Read it to me</button>}
+          <button type="button" className="kid-press" style={bigBtn(KID.green, KID.greenDark)} onClick={() => finish(t, 1)}>⭐ I did it!</button>
           {/* Stuck is the moment help is wanted. Going Back, finding the owl and
               starting over is three taps and a lost train of thought. */}
-          <button type="button" style={{ ...bigBtn("#FF8C42"), fontSize: 19 }} onClick={askBuddy}>🦉 Ask Buddy about this</button>
+          <button type="button" className="kid-press" style={{ ...bigBtn(KID.orange, KID.orangeDark), fontSize: 19 }}
+            onClick={() => { setView({ kind: "tutor", starter: `I need help with this job: ${t.title}.${text ? ` It says: ${text.slice(0, 300)}` : ""}` }); speak("Okay, let's figure it out together!", 1); }}>
+            🦉 Help me, Buddy
+          </button>
         </div>
         <Footer childId={childId} kidMode={kidMode} />
       </Shell>
@@ -631,7 +699,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
   return (
     <Shell burst={burst} speaking={speaking} loading={loading} onStop={stop}>
       <BackButton onClick={() => setView({ kind: "home" })} />
-      <Tutor childId={childId} first={first} gradeLabel={gradeLabel} speak={speak} speaking={speaking} stopSpeaking={stop} words={spelling ? [...spelling.words, ...spelling.sightWords] : []} />
+      <Tutor key={view.starter ?? "open"} childId={childId} first={first} gradeLabel={gradeLabel} speak={speak} speaking={speaking} stopSpeaking={stop} activities={activities} starter={view.starter} />
       <Footer childId={childId} kidMode={kidMode} />
     </Shell>
   );
@@ -639,7 +707,8 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
 
 function Shell({ children, burst, speaking, loading, onStop }: { children: React.ReactNode; burst: string | null; speaking?: boolean; loading?: boolean; onStop?: () => void }) {
   return (
-    <main className="ios-scroll" style={{ padding: "max(16px, env(safe-area-inset-top)) 18px 40px", maxWidth: 560, margin: "0 auto", position: "relative" }}>
+    <main className="ios-scroll" style={{ padding: "max(16px, env(safe-area-inset-top)) 18px 40px", maxWidth: 620, margin: "0 auto", position: "relative" }}>
+      <style>{KID_CSS}</style>
       {children}
       {loading && !speaking && (
         <div aria-live="polite" style={{ position: "fixed", right: 16, bottom: "max(20px, env(safe-area-inset-bottom))", zIndex: 40, background: "var(--ios-fill)", color: "var(--ios-label-2)", borderRadius: 999, padding: "14px 20px", fontSize: 18, fontWeight: 800 }}>
@@ -652,17 +721,22 @@ function Shell({ children, burst, speaking, loading, onStop }: { children: React
         </button>
       )}
       {burst && (
-        <div aria-live="polite" style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 50 }}>
-          <div style={{ background: "var(--ios-cell)", borderRadius: 28, padding: "22px 30px", fontSize: 34, fontWeight: 900, boxShadow: "0 20px 60px -20px rgba(0,0,0,0.5)", animation: "kidpop 0.35s ease-out" }}>🎉 {burst}</div>
-          <style>{`@keyframes kidpop { from { transform: scale(0.6); opacity: 0 } to { transform: scale(1); opacity: 1 } }`}</style>
-        </div>
+        <>
+          <Confetti />
+          <div aria-live="polite" style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 50, padding: 24 }}>
+            <div className="kid-anim" style={{ display: "grid", justifyItems: "center", gap: 10, background: "var(--ios-cell)", borderRadius: 32, padding: "24px 30px", fontSize: 32, fontWeight: 900, textAlign: "center", lineHeight: 1.2, boxShadow: "0 20px 60px -20px rgba(0,0,0,0.5)", animation: "kidPop 0.35s ease-out", maxWidth: 440 }}>
+              <Mascot mood="cheer" size={76} />
+              {burst}
+            </div>
+          </div>
+        </>
       )}
     </main>
   );
 }
 
 function BackButton({ onClick }: { onClick: () => void }) {
-  return <button type="button" onClick={onClick} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "10px 18px", fontSize: 18, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>← Back</button>;
+  return <button type="button" className="kid-press" onClick={onClick} aria-label="Back" style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "12px 20px", fontSize: 19, fontWeight: 800, color: "var(--ios-label)", cursor: "pointer", flexShrink: 0 }}>← Back</button>;
 }
 
 function Footer({ childId, onVoice, voiceLabel, kidMode = false }: { childId: string; onVoice?: () => void; voiceLabel?: string; kidMode?: boolean }) {
@@ -711,13 +785,14 @@ function SpellingRun({ words, speak, childId, weekId, onBack, onFinish, onRight 
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <BackButton onClick={onBack} />
-        <span style={{ fontSize: 18, fontWeight: 700, color: "var(--ios-label-2)" }}>{i + 1} of {words.length}</span>
+        <StepDots total={words.length} at={i} />
+        <span style={{ fontSize: 16, fontWeight: 800, color: "var(--ios-label-2)", whiteSpace: "nowrap" }}>{i + 1}/{words.length}</span>
       </div>
       <div style={{ ...cardStyle, marginTop: 16, textAlign: "center" }}>
         <div style={{ fontSize: 18, color: "var(--ios-label-2)" }}>Listen, then spell it</div>
-        <button type="button" onClick={() => speak(word)} style={{ ...bigBtn("var(--ios-tint)"), marginTop: 12 }}>🔊 Hear the word</button>
+        <button type="button" className="kid-press" onClick={() => speak(word)} style={{ ...bigBtn(KID.blue, KID.blueDark), marginTop: 12 }}>🔊 Hear the word</button>
         {/* The word is not on the screen at all until a first try or "Show me": a child can read a faint word. */}
         <div style={{ marginTop: 16, minHeight: 44, fontSize: 40, fontWeight: 900, letterSpacing: "0.12em", color: shown ? "var(--ios-orange)" : "var(--ios-label-3)" }}>{shown ? word : "•".repeat(word.length)}</div>
         <input
@@ -730,7 +805,7 @@ function SpellingRun({ words, speak, childId, weekId, onBack, onFinish, onRight 
           placeholder="type here"
         />
         <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-          <button type="button" style={bigBtn("#2ACF5F")} onClick={check} disabled={!typed.trim()}>✓ Check</button>
+          <button type="button" className="kid-press" style={{ ...bigBtn(KID.green, KID.greenDark), opacity: typed.trim() ? 1 : 0.5 }} onClick={check} disabled={!typed.trim()}>✓ Check</button>
           <div style={{ display: "flex", gap: 10 }}>
             <button type="button" onClick={() => { setShown(true); speak(word.split("").join(", "), 0.8); }} style={{ ...bigBtn("var(--ios-fill)"), color: "var(--ios-label)", fontSize: 18, boxShadow: "none" }}>👀 Show me</button>
             <button type="button" onClick={() => (i + 1 < words.length ? go(i + 1) : onFinish(right))} style={{ ...bigBtn("var(--ios-fill)"), color: "var(--ios-label)", fontSize: 18, boxShadow: "none" }}>Skip →</button>
@@ -760,14 +835,14 @@ const KEEP_TALKING_TURNS = 20;
 const KEEP_TALKING_MINUTES = 15;
 const KEEP_TALKING_SILENCES = 2;
 
-function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, words }: { childId: string; first: string; gradeLabel: string | null; speak: (t: string, rate?: number) => void; speaking: boolean; stopSpeaking: () => void; words: string[] }) {
+function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, activities, starter }: { childId: string; first: string; gradeLabel: string | null; speak: (t: string, rate?: number) => void; speaking: boolean; stopSpeaking: () => void; activities: Activity[]; starter?: string }) {
   // randomUUID needs a secure context; getRandomValues does not, so the
   // fallback is just as unguessable rather than a Math.random string.
   const [sessionId] = useState(() => (typeof crypto.randomUUID === "function"
     ? crypto.randomUUID()
     : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("")));
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string; revealed?: boolean }[]>([
-    { role: "assistant", content: `Hi ${first}! I'm Buddy. 🦉 What do you want to work on?` },
+    { role: "assistant", content: `Hi ${first}! I'm Buddy. What do you want to do?` },
   ]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -875,62 +950,110 @@ function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, word
     }
   }
 
-  const quick = [
-    words.length ? "Quiz me on my spelling words" : null,
-    words.length ? "Tell me a silly story with my words" : null,
-    "Help me with doubles in math",
-    "Why is the e silent?",
-  ].filter(Boolean) as string[];
+  // An activity tile or "Help me, Buddy" arrives with its first line already
+  // chosen. It is sent once, a beat after the screen appears, as if the child
+  // had said it.
+  const started = useRef(false);
+  const sendRef = useRef(send);
+  useEffect(() => { sendRef.current = send; });
+  useEffect(() => {
+    if (!starter || started.current) return;
+    const t = setTimeout(() => { started.current = true; void sendRef.current(starter); }, 350);
+    return () => clearTimeout(t);
+  }, [starter]);
+
+  const mood: Mood = ears.listening ? "listening" : busy ? "thinking" : speaking ? "talking" : "idle";
+  const status = ears.listening ? (heard ? `“${heard}”` : "I'm listening…")
+    : busy ? "Hmm, let me think…"
+    : speaking ? "Buddy is talking"
+    : handsFree ? "Your turn!"
+    : ears.supported ? "Tap the green button and talk to me" : "Type a question for me";
+  const fresh = messages.length === 1 && !starter;
+  const micColour = ears.listening ? ["#FF4D42", "#C7281F"] : handsFree ? [KID.orange, KID.orangeDark] : [KID.green, KID.greenDark];
 
   return (
     <>
-      <h1 style={{ ...big, margin: "12px 0 4px" }}>🦉 Buddy</h1>
-      <div style={{ fontSize: 15, color: "var(--ios-label-3)", marginBottom: 12 }}>Your {gradeLabel ?? "school"} tutor. Buddy only talks about school stuff.</div>
-      <div style={{ display: "grid", gap: 10 }}>
-        {messages.map((m, i) => (
-          <div key={i} style={{ ...cardStyle, padding: "12px 16px", fontSize: 20, lineHeight: 1.45, alignSelf: m.role === "user" ? "end" : "start", background: m.role === "user" ? "var(--ios-tint)" : "var(--ios-cell)", color: m.role === "user" ? "var(--ios-on-tint)" : "var(--ios-label)", maxWidth: "88%", justifySelf: m.role === "user" ? "end" : "start", border: m.role === "user" ? "none" : undefined }}>
-            {m.role === "assistant" ? forScreen(m.content, m.revealed !== false) : m.content}
-            {m.role === "assistant" && i > 0 && (
-              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                <button type="button" onClick={() => speak(forSpeech(m.content))} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "8px 14px", fontSize: 16, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>🔊 Say it again</button>
-                {HIDDEN.test(m.content) && m.revealed === false && (
-                  <button type="button" onClick={() => setMessages((all) => all.map((x, k) => (k === i ? { ...x, revealed: true } : x)))} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "8px 14px", fontSize: 16, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>👀 Show me</button>
-                )}
-              </div>
-            )}
+      <div style={{ display: "grid", justifyItems: "center", gap: 8, margin: "10px 0 16px" }}>
+        <Mascot mood={mood} size={112} />
+        <div aria-live="polite" style={{ fontSize: 19, fontWeight: 800, color: "var(--ios-label-2)", textAlign: "center", minHeight: 26 }}>{status}</div>
+      </div>
+
+      <div style={{ display: "grid", gap: 12 }}>
+        {messages.map((m, i) => m.role === "user" ? (
+          <div key={i} style={{ justifySelf: "end", maxWidth: "82%", background: KID.blue, color: "#fff", borderRadius: "22px 22px 6px 22px", padding: "12px 16px", fontSize: 20, fontWeight: 600, lineHeight: 1.4 }}>{m.content}</div>
+        ) : (
+          <div key={i} style={{ display: "flex", alignItems: "flex-end", gap: 8, maxWidth: "94%" }}>
+            <span aria-hidden style={{ width: 38, height: 38, borderRadius: "50%", background: "linear-gradient(160deg, #FFE7B8, #FFC56B)", display: "grid", placeItems: "center", fontSize: 22, flexShrink: 0 }}>🦉</span>
+            <div style={{ background: "var(--ios-cell)", border: "1px solid var(--ios-separator)", borderRadius: "22px 22px 22px 6px", padding: "12px 16px", fontSize: 21, lineHeight: 1.45, minWidth: 0 }}>
+              {forScreen(m.content, m.revealed !== false)}
+              {i > 0 && (
+                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  <button type="button" className="kid-press" onClick={() => speak(forSpeech(m.content))} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "9px 15px", fontSize: 16, fontWeight: 800, color: "var(--ios-label)", cursor: "pointer" }}>🔊 Again</button>
+                  {HIDDEN.test(m.content) && m.revealed === false && (
+                    <button type="button" className="kid-press" onClick={() => setMessages((all) => all.map((x, k) => (k === i ? { ...x, revealed: true } : x)))} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "9px 15px", fontSize: 16, fontWeight: 800, color: "var(--ios-label)", cursor: "pointer" }}>👀 Show me</button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         ))}
-        {busy && <div style={{ fontSize: 18, color: "var(--ios-label-3)" }}>Buddy is thinking…</div>}
+        {busy && (
+          <div className="kid-anim" aria-hidden style={{ display: "flex", gap: 6, paddingLeft: 50 }}>
+            {[0, 1, 2].map((d) => <span key={d} style={{ width: 12, height: 12, borderRadius: "50%", background: "var(--ios-label-3)", animation: `kidBob .9s ease-in-out ${d * 0.15}s infinite` }} />)}
+          </div>
+        )}
         <div ref={endRef} />
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
-        {quick.map((q) => <button key={q} type="button" onClick={() => send(q)} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "10px 14px", fontSize: 16, fontWeight: 700, color: "var(--ios-label)", cursor: "pointer" }}>{q}</button>)}
-      </div>
+
+      {/* Before anything has been said: what Buddy can do, as pictures. After
+          that the same choices shrink to a row, so the talk has the room. */}
+      {fresh ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginTop: 18 }}>
+          {activities.map((a) => <Tile key={a.label} emoji={a.emoji} label={a.label} colour={a.colour} dark={a.dark} onTap={() => { speak(a.lead, 1); void send(a.prompt); }} />)}
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 8, marginTop: 16, overflowX: "auto", paddingBottom: 4 }}>
+          {activities.map((a) => (
+            <button key={a.label} type="button" className="kid-press" disabled={busy} onClick={() => send(a.prompt)}
+              style={{ flexShrink: 0, background: a.colour, color: "#fff", border: "none", borderRadius: 999, padding: "10px 16px", fontSize: 16, fontWeight: 800, cursor: "pointer", opacity: busy ? 0.6 : 1 }}>
+              {a.emoji} {a.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {ears.supported && (
-        <>
+        <div style={{ display: "grid", justifyItems: "center", gap: 10, marginTop: 22 }}>
           <button
             type="button"
+            className="kid-press"
             onClick={ears.listening || handsFree ? stopTalking : startTalking}
             disabled={busy && !handsFree}
-            style={{ ...bigBtn(ears.listening ? "#FF4D42" : handsFree ? "#FF9F0A" : "#2ACF5F"), marginTop: 14 }}
+            aria-label={ears.listening || handsFree ? "Stop talking" : "Talk to Buddy"}
+            style={{ position: "relative", width: 112, height: 112, borderRadius: "50%", border: "none", background: micColour[0], boxShadow: `0 8px 0 ${micColour[1]}`, color: "#fff", fontSize: 48, cursor: "pointer" }}
           >
-            {ears.listening
-              ? (heard ? `“${heard}”` : handsFree ? "🎤 I'm listening… (tap to stop)" : "🎤 Listening… tap when done")
-              : handsFree
-                ? (busy ? "🦉 Buddy is thinking… (tap to stop)" : speaking ? "🦉 Buddy is talking… (tap to stop)" : "⏸ Tap to stop talking")
-                : "🎤 Talk to Buddy"}
+            {ears.listening && <span className="kid-anim" style={{ position: "absolute", inset: 0 }}><span style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "5px solid #FF4D42", animation: "kidRing 1.2s ease-out infinite" }} /></span>}
+            {ears.listening ? "⏹" : handsFree ? "⏸" : "🎤"}
           </button>
-          {pausedWhy && !handsFree && <div style={{ fontSize: 17, color: "var(--ios-label-2)", marginTop: 8, textAlign: "center" }}>{pausedWhy}</div>}
-          <label style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center", marginTop: 8, fontSize: 15, color: "var(--ios-label-3)" }}>
-            <input type="checkbox" checked={keepTalking} onChange={(e) => { setKeepTalking(e.target.checked); if (!e.target.checked) setHandsFree(false); }} />
-            Keep talking (Buddy listens again after he answers)
-          </label>
-        </>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ios-label-2)", textAlign: "center" }}>
+            {ears.listening ? "Tap when you are done" : handsFree ? "Tap to stop" : "Tap to talk"}
+          </div>
+          {pausedWhy && !handsFree && <div style={{ fontSize: 17, color: "var(--ios-label-2)", textAlign: "center" }}>{pausedWhy}</div>}
+        </div>
       )}
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(input); }} placeholder={ears.supported ? "or type here…" : "Ask Buddy…"} style={{ flex: 1, padding: "14px", borderRadius: 16, border: "2px solid var(--ios-separator)", fontSize: 20, background: "var(--ios-bg-elevated)", color: "var(--ios-label)" }} />
-        <button type="button" onClick={() => send(input)} disabled={busy || !input.trim()} style={{ ...bigBtn("var(--ios-tint)"), width: "auto", padding: "0 20px", fontSize: 18 }}>Send</button>
+
+      <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+        <label htmlFor="buddy-type" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>Type to Buddy</label>
+        <input id="buddy-type" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(input); }} placeholder={ears.supported ? "or type here…" : "Ask Buddy…"} style={{ flex: 1, minWidth: 0, padding: "14px 16px", borderRadius: 18, border: "2px solid var(--ios-separator)", fontSize: 20, background: "var(--ios-bg-elevated)", color: "var(--ios-label)" }} />
+        <button type="button" className="kid-press" onClick={() => send(input)} disabled={busy || !input.trim()} aria-label="Send" style={{ ...bigBtn(KID.blue, KID.blueDark), width: "auto", padding: "0 22px", fontSize: 22, opacity: busy || !input.trim() ? 0.5 : 1 }}>➤</button>
       </div>
+      {ears.supported && (
+        <label style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center", marginTop: 14, fontSize: 13, color: "var(--ios-label-3)" }}>
+          <input type="checkbox" checked={keepTalking} onChange={(e) => { setKeepTalking(e.target.checked); if (!e.target.checked) setHandsFree(false); }} />
+          For grown-ups: keep the conversation going hands-free
+        </label>
+      )}
+      <div style={{ fontSize: 13, color: "var(--ios-label-3)", textAlign: "center", marginTop: 8 }}>Buddy is a {gradeLabel ?? "school"} tutor and only talks about learning.</div>
     </>
   );
 }

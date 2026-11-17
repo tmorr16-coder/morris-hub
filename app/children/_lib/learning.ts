@@ -202,6 +202,8 @@ export interface LearningData {
   tasks: ChildTask[];
   /** Stars earned in total, and this week. */
   stars: { total: number; week: number };
+  /** Days in a row with a finished job, ending today or yesterday. */
+  streakDays: number;
   spellingWeek: SpellingWeek | null;
   /** Every week on file, newest first, for looking back. */
   spellingWeeks: SpellingWeek[];
@@ -310,6 +312,7 @@ export async function loadLearning(db: any, childId: string, birthYear: number |
     (acc, r) => ({ total: acc.total + (r.stars ?? 0), week: acc.week + (r.completed_at >= weekAgoIso ? (r.stars ?? 0) : 0) }),
     { total: 0, week: 0 },
   );
+  const streakDays = streakFrom(((starRows ?? []) as { completed_at: string }[]).map((r) => r.completed_at.slice(0, 10)), today);
 
   const documents: ChildDocument[] = ((docRows ?? []) as any[]).map((d) => ({
     id: d.id,
@@ -403,6 +406,7 @@ export async function loadLearning(db: any, childId: string, birthYear: number |
     tutorRecent,
     tasks,
     stars,
+    streakDays,
     spellingWeek,
     spellingWeeks,
     latestNewsletter,

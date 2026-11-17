@@ -41,6 +41,7 @@ export default async function KidScreenPage({
         exercises={(L?.exercises ?? []).map((e) => ({ id: e.id, title: e.title, steps: e.steps, minutes: e.minutes }))}
         spelling={L?.spellingWeek ? { weekId: L.spellingWeek.id, words: L.spellingWeek.words, sightWords: L.spellingWeek.sightWords, pattern: L.spellingWeek.pattern } : null}
         stars={L?.stars ?? { total: 0, week: 0 }}
+        streak={L?.streakDays ?? 0}
         openTo={open === "buddy" ? "buddy" : "home"}
         cloudVoices={availableCloudVoices()}
       />

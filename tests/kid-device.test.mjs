@@ -95,3 +95,16 @@ test("an unlocked iPad reaches only its own child's screen, and never when locke
   assert.equal(d.unlocked, false);
   assert.ok(d.lockedSeconds > 3000);
 });
+
+test('levels turn stars into somewhere to get to', async () => {
+  const source = await readFile(new URL('../app/children/_components/KidUi.tsx', import.meta.url), 'utf8');
+  const { outputText } = ts.transpileModule(source, { fileName: 'KidUi.tsx', compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } });
+  const ui = {};
+  new Function('require', 'exports', outputText)(() => ({}), ui);
+  assert.equal(ui.levelFor(0).number, 1);
+  assert.equal(ui.levelFor(9).toGo, 1);
+  assert.equal(ui.levelFor(10).number, 2);
+  assert.equal(ui.levelFor(37).name, 'Owlet');
+  assert.equal(ui.levelFor(5000).next, null);
+  assert.equal(ui.levelFor(-3).number, 1);
+});

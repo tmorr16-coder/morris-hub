@@ -23,7 +23,10 @@ export default function GlobalBackButton() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const show = !!pathname && !NO_BACK.has(pathname) && !pathname.startsWith("/auth");
+  // The child's screen has its own big Back buttons and nothing behind it a
+  // child should be sent to; this one only sat on top of the level bar.
+  const kidScreen = !!pathname && (pathname === "/kid" || pathname.endsWith("/kid") || pathname === "/ios-demo/buddy");
+  const show = !!pathname && !NO_BACK.has(pathname) && !pathname.startsWith("/auth") && !kidScreen;
 
   useEffect(() => {
     if (show) document.body.setAttribute("data-back", "true");
