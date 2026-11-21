@@ -72,7 +72,8 @@ export function readSnapshot(userId?: string): WorkoutSnapshot | null {
 
 export function writeSnapshot(snapshot: WorkoutSnapshot): boolean {
   try {
-    localStorage.setItem(RESUME_KEY, JSON.stringify(snapshot));
+    const { userId: _userId, ...persisted } = snapshot;
+    localStorage.setItem(RESUME_KEY, JSON.stringify(persisted));
     window.dispatchEvent(new Event(WORKOUT_UPDATED));
     return true;
   } catch { return false; }
