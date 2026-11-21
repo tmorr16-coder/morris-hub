@@ -31,6 +31,53 @@ function allow(userId: string, limit = 40, windowMs = 10 * 60 * 1000): boolean {
   return true;
 }
 
+/**
+ * Take the answer out of a message that asks the question.
+ *
+ * The prompt tells Buddy not to do this and a small model does it anyway,
+ * some of the time: "Spell [[cake]]. c-a-k-e!" or "What is 7 + 8? It's 15!".
+ * A rule a child can catch being broken is not a rule, so it is enforced
+ * here, on the text, whatever the model wrote.
+ */
+export function withoutGiveaways(reply: string): string {
+  let out = reply;
+  // Spelling: a word under test may appear only inside its brackets.
+  const tested = [...out.matchAll(/\[\[([^\]]+)\]\]/g)].map((m) => m[1].trim()).filter((w) => /^[A-Za-z]{2,}$/.test(w));
+  for (const w of tested) {
+    const spelled = new RegExp(`\\b${w.split("").join("[\\s,.\\-–·]+")}\\b`, "gi");
+    const plain = new RegExp(`\\b${w}\\b`, "gi");
+    out = out.split(/(\[\[[^\]]+\]\])/).map((part) => (part.startsWith("[[") ? part : part.replace(spelled, "").replace(plain, `[[${w}]]`))).join("");
+  }
+  // A number is said as a number: "t-w-o" or "t w o" becomes 2, unless that
+  // word is the one being spelled.
+  const NUMS = ["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen","twenty"];
+  NUMS.forEach((name, value) => {
+    if (tested.some((w) => w.toLowerCase() === name)) return;
+    out = out.replace(new RegExp(`(^|[^A-Za-z])${name.split("").join("[\\s,.\\-–·]+")}(?![A-Za-z])`, "gi"), `$1${value}`);
+  });
+  // Arithmetic: if the message asks a sum, nothing after the question may be its result.
+  const q = out.lastIndexOf("?");
+  if (q >= 0) {
+    const exprs = [...out.slice(0, q + 1).matchAll(/(\d+)\s*(\+|-|−|plus|minus|take away)\s*(\d+)/gi)];
+    const last = exprs[exprs.length - 1];
+    if (last) {
+      const a = Number(last[1]), b = Number(last[3]);
+      const r = /\+|plus/i.test(last[2]) ? a + b : a - b;
+      const after = out.slice(q + 1);
+      const between = out.slice((last.index ?? 0) + last[0].length, q + 1);
+      const has = (t: string) => new RegExp(`(^|[^\\d])${r}([^\\d]|$)`).test(t);
+      if (has(after)) out = out.slice(0, q + 1);
+      if (has(between)) out = out.slice(0, (last.index ?? 0) + last[0].length) + "?";
+    }
+  }
+  return out
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\s+([.!?,])/g, "$1")
+    .replace(/([?!.])[!.,]+/g, "$1")          // "?!" and ".." left where the answer was
+    .replace(/\s+\[\[[^\]]+\]\][.!]?\s*$/, "")   // a trailing repeat of the hidden word on its own
+    .trim() || "Let's try that again!";
+}
+
 export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: "Not configured" }, { status: 503 });
   let body: { childId?: string; sessionId?: string; messages?: { role: "user" | "assistant"; content: string }[] };
@@ -68,8 +115,13 @@ export async function POST(req: NextRequest) {
 
 How you talk:
 - Very short: one to three short sentences. Simple words a six-year-old knows. Warm and encouraging. One question at a time.
-- When spelling a word, say it, then spell it letter by letter with dashes (c-a-k-e), then say it again.
-- When quizzing, give ONE word or problem, wait for the answer, then say if it is right. If wrong, say the right answer kindly and try one more like it.
+- Asking and answering are separate turns. A message that asks ${first} a question NEVER contains its answer — not the number, not the spelled-out word, not "the answer is". Ask, then stop and wait.
+- When ${first} answers: if right, say so and why in a few words, then ask the next one. If not right the first time, do not give the answer: give one small hint and ask the same thing again. Only after a second miss, say the answer kindly, explain it in one short sentence, and try one more like it.
+- Only spell a word out letter by letter (c-a-k-e) when ${first} asks how to spell it, or after two misses — never in the message that asks ${first} to spell it.
+- You cannot check spelling by voice: "cake" sounds the same however it is spelled. If ${first} wants a spelling quiz, say that spelling is done with the pencil — "Tap Back, then Start today's pages!" — and offer something to do here instead: a story with the words, or what a word means.
+- Numbers are numbers. Write them as digits (2, 15) and say them as numbers. Never break a number into letters (not "t-w-o") unless ${first} asks how to spell that number word.
+- Memory verse: teach it a little at a time. Say one short part (five to eight words) and ask ${first} to say it back. What you receive is speech turned into text, so small words may be misheard: if the main words are there, it counts. Then say that part plus the next. Do not ask for the whole verse until the parts are learned, and do not print the whole verse in the message that asks ${first} to say it from memory.
+- Check ${first}'s arithmetic yourself before you say right or not yet. Never say "right" to a wrong answer.
 - Stories: four or five sentences, silly, using this week's words.
 - Praise effort. Never say "wrong" harshly; say "not yet" or "almost".
 - When ${first} asks for help with a problem or a word, do not give the answer straight away. Give one small hint, or ask one easy question that points the way. If ${first} is still stuck after two tries, say the answer kindly and explain it in one short sentence.
@@ -94,7 +146,7 @@ ${CONTEXT_RULE}`;
       system,
       messages: withAppContext(messages, [context, sessionNote].filter(Boolean).join("\n")),
     });
-    const reply = res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join(" ").trim() || "Let's try that again!";
+    const reply = withoutGiveaways(res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join(" ").trim() || "Let's try that again!");
     // Keep the exchange for the parents. A failure here (the table not yet
     // migrated) must not cost the child the reply.
     // Awaited on purpose: a serverless function can be frozen the moment the

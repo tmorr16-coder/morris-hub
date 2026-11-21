@@ -14,6 +14,19 @@ import { answerOf, labelOf, matches, MATH_LEVELS, type WorkItem, type WorkResult
 
 type Phase = "loading" | "writing" | "checking" | "right" | "retry" | "trace" | "selfcheck" | "done" | "error";
 
+/**
+ * How long the page waits after the pencil lifts before it marks.
+ * A first grader pauses between letters and between the digits of "15", so
+ * the wait has to outlast that pause without making a finished answer feel
+ * ignored. A half-written answer that is read early is not marked at all
+ * (see the prefix rule in check), so these can stay short.
+ */
+const WAIT_NUMBER_MS = 1700;
+const WAIT_WORD_MS = 2800;
+const WAIT_TRACE_MS = 2000;
+/** How long a miss stays on the page before it is wiped, so the child sees what was marked. */
+const SHOW_MISS_MS = 1100;
+
 const INK = "#1c3d8f";
 
 /** A short two-note chime: instant, where a spoken "Yes!" would talk over the next question. */
@@ -45,6 +58,8 @@ function usePad(onInk: () => void) {
   const last = useRef<{ x: number; y: number } | null>(null);
   const penSeen = useRef(false);
   const hasInk = useRef(false);
+  /** Goes up with every stroke, so a mark for an older picture can be thrown away. */
+  const strokes = useRef(0);
   const inkCb = useRef(onInk);
   useEffect(() => { inkCb.current = onInk; });
 
@@ -69,7 +84,7 @@ function usePad(onInk: () => void) {
     drawing.current = true; last.current = at(e);
     const ctx = ref.current!.getContext("2d")!;
     ctx.beginPath(); ctx.arc(last.current.x, last.current.y, 2.5, 0, Math.PI * 2); ctx.fillStyle = INK; ctx.fill();
-    hasInk.current = true; inkCb.current();
+    hasInk.current = true; strokes.current += 1; inkCb.current();
   };
   const move = (e: React.PointerEvent) => {
     if (!drawing.current || !last.current) return;
@@ -94,7 +109,7 @@ function usePad(onInk: () => void) {
     ctx.drawImage(c, 0, 0, out.width, out.height);
     return out.toDataURL("image/png");
   }, []);
-  return { ref, down, move, up, clear, snapshot, hasInk, drawing };
+  return { ref, down, move, up, clear, snapshot, hasInk, drawing, strokes };
 }
 
 export default function Workbook({ childId, first, speak, onBack, onFinish }: {
@@ -110,6 +125,7 @@ export default function Workbook({ childId, first, speak, onBack, onFinish }: {
   const [level, setLevel] = useState(1);
   const [tries, setTries] = useState(0);
   const [note, setNote] = useState<string | null>(null);
+  const [hint, setHint] = useState(false);
   const results = useRef<Map<string, WorkResult>>(new Map());
   const corrected = useRef<Set<string>>(new Set());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -128,7 +144,7 @@ export default function Workbook({ childId, first, speak, onBack, onFinish }: {
     if (timer.current) clearTimeout(timer.current);
     if (phaseRef.current !== "writing" && phaseRef.current !== "retry" && phaseRef.current !== "trace") return;
     if (pad.drawing.current) return;
-    const wait = phaseRef.current === "trace" ? 1800 : item?.type === "math" ? 1400 : 2400;
+    const wait = phaseRef.current === "trace" ? WAIT_TRACE_MS : item?.type === "math" ? WAIT_NUMBER_MS : WAIT_WORD_MS;
     timer.current = setTimeout(() => { void check(); }, wait);
   });
 
@@ -155,15 +171,17 @@ export default function Workbook({ childId, first, speak, onBack, onFinish }: {
     if (missed && !corrected.current.has(item.id)) { corrected.current.add(item.id); q = [...queue, item]; setQueue(q); }
     const next = pos + 1;
     if (next >= q.length) { void finish(); return; }
-    setPos(next); setTries(0); setNote(null); pad.clear(); setPhase("writing");
+    setPos(next); setTries(0); setNote(null); setHint(false); pad.clear(); setPhase("writing");
     say(q[next]);
   }
 
-  async function check() {
+  async function check(asked = false) {
     if (!item || !pad.hasInk.current) return;
     if (phaseRef.current === "trace") { advance(true); return; }
     const image = pad.snapshot();
     if (!image) return;
+    const before = phaseRef.current;
+    const inkAt = pad.strokes.current;
     setPhase("checking");
     let read: string | null = null;
     try {
@@ -174,21 +192,53 @@ export default function Workbook({ childId, first, speak, onBack, onFinish }: {
     // The reader is down: show the answer and let the child mark it, the way a
     // paper workbook's answer page does.
     if (read === null) { setPhase("selfcheck"); return; }
-    if (read === "") { setNote("I couldn't read that. Write it a little bigger!"); speak("I couldn't read that. Try a little bigger.", 1); pad.clear(); setPhase(tries > 0 ? "retry" : "writing"); return; }
+
+    // More was written while the page was looking: that mark is for an old
+    // picture. Say nothing and wait for the pencil to stop again.
+    if (pad.strokes.current !== inkAt) { setPhase(before); return; }
+
+    // Half an answer is not a wrong answer. "1" on the way to "15", or "ca" on
+    // the way to "cake", was read too soon: leave the ink and keep waiting.
+    // (Tapping Done says "this is my answer", so then it is marked as written.)
+    const want = answerOf(item);
+    if (!asked && read !== "" && read !== want && want.startsWith(read)) { setPhase(before); return; }
+
+    if (read === "") {
+      setNote("I couldn't read that. Write it a little bigger!");
+      speak("I couldn't read that. Try a little bigger.", 1);
+      setPhase(before);
+      setTimeout(() => pad.clear(), SHOW_MISS_MS);
+      return;
+    }
 
     const n = tries + 1;
     if (matches(item, read)) {
       record(item, n === 1 && !corrected.current.has(item.id), n);
       chime(true); setPhase("right");
-      setTimeout(() => advance(false), 850);
-    } else if (n < 2) {
-      setTries(n); chime(false); setNote("Almost! Try one more time."); pad.clear(); setPhase("retry");
-      if (item.type !== "math") speak(`Almost. Listen again: ${item.word}.`, 0.85);
+      setTimeout(() => advance(false), 900);
+      return;
+    }
+
+    // A miss. The ladder is the same every time, so it is never a surprise:
+    // try again → a hint → the answer to trace. The answer comes last.
+    chime(false);
+    setTries(n);
+    if (n === 1) {
+      setNote("Not yet. Try one more time!");
+      setPhase("retry");
+      if (item.type !== "math") speak(`Not yet. Listen again: ${item.word}.`, 0.85);
+      setTimeout(() => pad.clear(), SHOW_MISS_MS);
+    } else if (n === 2) {
+      setHint(true);
+      setNote(item.type === "math" ? "Here's a hint. Count the dots!" : "Here's a hint. Listen to each sound.");
+      setPhase("retry");
+      speak(item.type === "math" ? "Here's a hint. Count the dots." : `Here's a hint. It starts with ${item.word[0]}. ${item.word}.`, 0.85);
+      setTimeout(() => pad.clear(), SHOW_MISS_MS);
     } else {
       record(item, false, n);
-      setTries(n); chime(false); pad.clear(); setPhase("trace");
       setNote("Here it is. Trace over it!");
       speak(item.type === "math" ? `It's ${item.answer}. Trace it.` : `Here is ${item.word}. Trace it.`, 0.9);
+      setTimeout(() => { pad.clear(); setPhase("trace"); }, SHOW_MISS_MS);
     }
   }
 
@@ -243,6 +293,25 @@ export default function Workbook({ childId, first, speak, onBack, onFinish }: {
         <button type="button" onClick={() => say(item)} aria-label="Hear it again" style={{ background: "var(--ios-tint)", color: "#fff", border: "none", borderRadius: 999, width: 60, height: 60, fontSize: 26, flexShrink: 0, boxShadow: "0 4px 0 rgba(0,0,0,0.18)" }}>🔊</button>
       </div>
 
+      {/* The hint, after two misses: something to work it out with, not the answer. */}
+      {hint && phase !== "trace" && phase !== "right" && (
+        item.type === "math" ? (
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 18, marginBottom: 12, flexWrap: "wrap" }}>
+            {item.op === "+" ? (
+              <>
+                <Dots n={item.a} colour="#3B82F6" />
+                <span style={{ fontSize: 30, fontWeight: 800 }}>+</span>
+                <Dots n={item.b} colour="#F59E0B" />
+              </>
+            ) : <Dots n={item.a} colour="#3B82F6" crossed={item.b} />}
+          </div>
+        ) : (
+          <div style={{ textAlign: "center", fontSize: 44, fontWeight: 800, letterSpacing: "0.3em", marginBottom: 12, color: "var(--ios-label-2)" }}>
+            {item.word[0]}{"_".repeat(item.word.length - 1)}
+          </div>
+        )
+      )}
+
       {/* The writing box */}
       <div style={{ position: "relative", height: item.type === "math" ? 230 : 250, borderRadius: 22, background: "#fff", border: `4px solid ${border}`, overflow: "hidden", transition: "border-color 0.15s" }}>
         {/* A writing line, like ruled paper */}
@@ -271,12 +340,26 @@ export default function Workbook({ childId, first, speak, onBack, onFinish }: {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 12, marginTop: 14 }}>
           <button type="button" onClick={() => { if (timer.current) clearTimeout(timer.current); pad.clear(); }} disabled={phase === "checking" || phase === "right"} style={{ padding: "16px 22px", borderRadius: 18, border: "none", background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 22, fontWeight: 800 }}>🧽 Erase</button>
-          <button type="button" onClick={() => { if (timer.current) clearTimeout(timer.current); void check(); }} disabled={phase === "checking" || phase === "right"} style={{ padding: 16, borderRadius: 18, border: "none", background: "#2ACF5F", color: "#fff", fontSize: 22, fontWeight: 800, boxShadow: "0 5px 0 rgba(0,0,0,0.18)" }}>
+          <button type="button" onClick={() => { if (timer.current) clearTimeout(timer.current); void check(true); }} disabled={phase === "checking" || phase === "right"} style={{ padding: 16, borderRadius: 18, border: "none", background: "#2ACF5F", color: "#fff", fontSize: 22, fontWeight: 800, boxShadow: "0 5px 0 rgba(0,0,0,0.18)" }}>
             {phase === "checking" ? "Looking…" : "✓ Done"}
           </button>
         </div>
       )}
       <div style={{ fontSize: 13, color: "var(--ios-label-3)", textAlign: "center", marginTop: 12 }}>Math: {MATH_LEVELS[level - 1]}</div>
+    </div>
+  );
+}
+
+/** Counters for a hint: rows of five, like a ten-frame; the last `crossed` are struck out for taking away. */
+function Dots({ n, colour, crossed = 0 }: { n: number; colour: string; crossed?: number }) {
+  if (n > 30) return null;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 22px)", gap: 6 }}>
+      {Array.from({ length: n }, (_, i) => (
+        <span key={i} style={{ width: 22, height: 22, borderRadius: 11, background: i >= n - crossed ? "transparent" : colour, border: `3px solid ${colour}`, opacity: i >= n - crossed ? 0.45 : 1, position: "relative" }}>
+          {i >= n - crossed && <span style={{ position: "absolute", left: -3, right: -3, top: 7, borderTop: `3px solid ${colour}`, transform: "rotate(-45deg)" }} />}
+        </span>
+      ))}
     </div>
   );
 }

@@ -46,7 +46,6 @@ interface Activity { emoji: string; label: string; prompt: string; lead: string;
 function activitiesFor(hasWords: boolean): Activity[] {
   return [
     ...(hasWords ? [
-      { emoji: "🔤", label: "Quiz my words", prompt: "Quiz me on my spelling words, one at a time.", lead: "Word quiz!", colour: KID.blue, dark: KID.blueDark },
       { emoji: "📖", label: "Silly story", prompt: "Tell me a silly story with my spelling words.", lead: "Story time!", colour: KID.purple, dark: KID.purpleDark },
     ] : []),
     { emoji: "➕", label: "Math game", prompt: "Let's play a math game. Give me one problem at a time.", lead: "Math game!", colour: KID.teal, dark: KID.tealDark },
@@ -829,7 +828,8 @@ function SpellingRun({ words, speak, childId, weekId, onBack, onFinish, onRight 
         <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
           <button type="button" className="kid-press" style={{ ...bigBtn(KID.green, KID.greenDark), opacity: typed.trim() ? 1 : 0.5 }} onClick={check} disabled={!typed.trim()}>✓ Check</button>
           <div style={{ display: "flex", gap: 10 }}>
-            <button type="button" onClick={() => { setShown(true); speak(word.split("").join(", "), 0.8); }} style={{ ...bigBtn("var(--ios-fill)"), color: "var(--ios-label)", fontSize: 18, boxShadow: "none" }}>👀 Show me</button>
+            {/* A peek is a hint, and a hint comes after a try. */}
+            {wrongOnce && <button type="button" onClick={() => { setShown(true); speak(word.split("").join(", "), 0.8); }} style={{ ...bigBtn("var(--ios-fill)"), color: "var(--ios-label)", fontSize: 18, boxShadow: "none" }}>👀 Show me</button>}
             <button type="button" onClick={() => (i + 1 < words.length ? go(i + 1) : onFinish(right))} style={{ ...bigBtn("var(--ios-fill)"), color: "var(--ios-label)", fontSize: 18, boxShadow: "none" }}>Skip →</button>
           </div>
         </div>
@@ -877,6 +877,8 @@ function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, acti
   // forth needs no tapping. Never while Buddy is talking — he would hear
   // himself — and never past the limits above.
   const [keepTalking, setKeepTalking] = useState(true);
+  const keepTalkingRef = useRef(true);
+  useEffect(() => { keepTalkingRef.current = keepTalking; }, [keepTalking]);
   const [handsFree, setHandsFreeState] = useState(false);  // the child started with the mic
   const handsFreeRef = useRef(false);
   const setHandsFree = useCallback((v: boolean) => { handsFreeRef.current = v; setHandsFreeState(v); }, []);
@@ -890,12 +892,42 @@ function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, acti
     setPausedWhy(why);
   }, [setHandsFree]);
 
+  // ── Waiting out a pause ───────────────────────────────────────────────────
+  // The recogniser calls a sentence finished at the first breath. A child
+  // reciting a verse, or thinking mid-answer, breathes a lot — and each
+  // breath used to send half an answer. So a finished phrase is held for a
+  // moment: if more comes, it is added; if not, the whole thing is sent. A
+  // one- or two-word answer ("fifteen") is held only briefly.
+  const pending = useRef("");
+  const grace = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const busyRef = useRef(false);
+  const flush = () => {
+    if (grace.current) { clearTimeout(grace.current); grace.current = null; }
+    const text = pending.current.trim();
+    pending.current = "";
+    setHeard("");
+    if (!text) return;
+    busyRef.current = true;                 // before the recogniser's onend arrives
+    ears.stop();
+    void send(text, true);
+  };
+
   const ears = useListening(
     (text, final) => {
-      setHeard(text);
-      if (final && text) { setHeard(""); run.current.silences = 0; void send(text, true); }
+      if (text && grace.current) { clearTimeout(grace.current); grace.current = null; }
+      setHeard(`${pending.current} ${text}`.trim());
+      if (final && text) {
+        run.current.silences = 0;
+        pending.current = `${pending.current} ${text}`.trim();
+        const words = pending.current.split(/\s+/).length;
+        grace.current = setTimeout(flush, words <= 2 ? 700 : 1600);
+      }
     },
     (heardSomething, blocked) => {
+      // Mid-pause: the recogniser stopped at the breath; open it again so the
+      // rest of the sentence is caught while the phrase is being held.
+      if (pending.current && !busyRef.current) { setTimeout(() => { if (pending.current && !busyRef.current) ears.start(); }, 120); return; }
+      if (busyRef.current || awaitingVoice.current) return;   // Buddy's turn, not a silence
       if (!handsFreeRef.current) return;
       if (blocked) { pause("Tap the green button to talk — this device needs a tap each time."); return; }
       if (heardSomething) return;
@@ -921,6 +953,8 @@ function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, acti
   function stopTalking() {
     setHandsFree(false);
     awaitingVoice.current = false;
+    // Whatever was said before the tap is the answer; nothing is thrown away.
+    if (pending.current) { flush(); return; }
     ears.stop();
   }
 
@@ -954,6 +988,7 @@ function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, acti
     // Typing or a quick button ends hands-free; the next mic tap starts it again.
     if (!byVoice) setHandsFree(false);
     else run.current.turns += 1;
+    busyRef.current = true;
     setInput("");
     const next = [...messages, { role: "user" as const, content: q }];
     setMessages(next);
@@ -968,6 +1003,7 @@ function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, acti
     } catch {
       setMessages((m) => [...m, { role: "assistant", content: "Hmm, I got a little mixed up. Ask me again?" }]);
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
@@ -980,7 +1016,15 @@ function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, acti
   useEffect(() => { sendRef.current = send; });
   useEffect(() => {
     if (!starter || started.current) return;
-    const t = setTimeout(() => { started.current = true; void sendRef.current(starter); }, 350);
+    const t = setTimeout(() => {
+      started.current = true;
+      // An activity is a conversation from its first line: once Buddy has
+      // said his opening, the microphone opens for the child's turn, the same
+      // as everywhere else. It used to wait for a tap here and nowhere else.
+      const talk = keepTalkingRef.current && hasRecognition();
+      if (talk) { setHandsFree(true); run.current = { turns: 0, startedAt: Date.now(), silences: 0 }; }
+      void sendRef.current(starter, talk);
+    }, 350);
     return () => clearTimeout(t);
   }, [starter]);
 
