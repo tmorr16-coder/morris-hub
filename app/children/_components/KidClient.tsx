@@ -48,11 +48,11 @@ interface Activity { emoji: string; label: string; prompt: string; lead: string;
 function activitiesFor(hasWords: boolean): Activity[] {
   return [
     ...(hasWords ? [
-      { emoji: "📖", label: "Silly story", mode: "story", prompt: "Tell me a silly story with my spelling words.", lead: "Story time!", colour: KID.purple, dark: KID.purpleDark },
+      { emoji: "📖", label: "Silly story", mode: "story" as BuddyMode, prompt: "Tell me a silly story with my spelling words.", lead: "Story time!", colour: KID.purple, dark: KID.purpleDark },
     ] : []),
-    { emoji: "➕", label: "Math game", mode: "math", prompt: "Let's play a math game. Give me one problem at a time.", lead: "Math game!", colour: KID.teal, dark: KID.tealDark },
-    { emoji: "🙏", label: "My verse", mode: "verse", prompt: "Help me learn my memory verse, a little bit at a time.", lead: "Let's learn your verse!", colour: KID.pink, dark: KID.pinkDark },
-    { emoji: "🦁", label: "Animal facts", mode: "facts", prompt: "Tell me one amazing animal fact, then ask me a question about it.", lead: "Animal facts!", colour: KID.green, dark: KID.greenDark },
+    { emoji: "➕", label: "Math game", mode: "math" as BuddyMode, prompt: "Let's play a math game. Give me one problem at a time.", lead: "Math game!", colour: KID.teal, dark: KID.tealDark },
+    { emoji: "🙏", label: "My verse", mode: "verse" as BuddyMode, prompt: "Help me learn my memory verse, a little bit at a time.", lead: "Let's learn your verse!", colour: KID.pink, dark: KID.pinkDark },
+    { emoji: "🦁", label: "Animal facts", mode: "facts" as BuddyMode, prompt: "Tell me one amazing animal fact, then ask me a question about it.", lead: "Animal facts!", colour: KID.green, dark: KID.greenDark },
   ];
 }
 
@@ -909,16 +909,12 @@ function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, acti
   const pending = useRef("");
   const grace = useRef<ReturnType<typeof setTimeout> | null>(null);
   const busyRef = useRef(false);
-  const flush = () => {
-    if (grace.current) { clearTimeout(grace.current); grace.current = null; }
-    const text = pending.current.trim();
-    pending.current = "";
-    setHeard("");
-    if (!text) return;
-    busyRef.current = true;                 // before the recogniser's onend arrives
-    ears.stop();
-    void send(text, true);
-  };
+  // Defined below, once the recogniser and send() exist; reached through a ref
+  // because the recogniser's own callbacks need it.
+  const flushRef = useRef<() => void>(() => undefined);
+  const sendRef = useRef<(text: string, byVoice?: boolean) => Promise<void>>(async () => undefined);
+  const listenRef = useRef<() => void>(() => undefined);
+  const flush = () => flushRef.current();
 
   const ears = useListening(
     (text, final) => {
@@ -934,7 +930,7 @@ function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, acti
     (heardSomething, blocked) => {
       // Mid-pause: the recogniser stopped at the breath; open it again so the
       // rest of the sentence is caught while the phrase is being held.
-      if (pending.current && !busyRef.current) { setTimeout(() => { if (pending.current && !busyRef.current) ears.start(); }, 120); return; }
+      if (pending.current && !busyRef.current) { setTimeout(() => { if (pending.current && !busyRef.current) listenRef.current(); }, 120); return; }
       if (busyRef.current || awaitingVoice.current) return;   // Buddy's turn, not a silence
       if (!handsFreeRef.current) return;
       if (blocked) { pause("Tap the green button to talk — this device needs a tap each time."); return; }
@@ -948,6 +944,20 @@ function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, acti
       }
     },
   );
+
+  useEffect(() => {
+    listenRef.current = ears.start;
+    flushRef.current = () => {
+      if (grace.current) { clearTimeout(grace.current); grace.current = null; }
+      const text = pending.current.trim();
+      pending.current = "";
+      setHeard("");
+      if (!text) return;
+      busyRef.current = true;                 // before the recogniser's onend arrives
+      ears.stop();
+      void sendRef.current(text, true);
+    };
+  });
 
   function startTalking() {
     stopSpeaking();
@@ -1020,7 +1030,6 @@ function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, acti
   // chosen. It is sent once, a beat after the screen appears, as if the child
   // had said it.
   const started = useRef(false);
-  const sendRef = useRef(send);
   useEffect(() => { sendRef.current = send; });
   useEffect(() => {
     if (!starter || started.current) return;
