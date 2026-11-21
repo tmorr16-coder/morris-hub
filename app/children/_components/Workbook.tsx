@@ -53,7 +53,7 @@ function chime(good: boolean) {
  * line; once a pencil has been seen, fingers and the resting palm are ignored.
  */
 function usePad(onInk: () => void) {
-  const ref = useRef<HTMLCanvasElement>(null);
+  const ref = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
   const last = useRef<{ x: number; y: number } | null>(null);
   const penSeen = useRef(false);
@@ -73,7 +73,25 @@ function usePad(onInk: () => void) {
     ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = INK;
     hasInk.current = false;
   }, []);
-  useEffect(() => { size(); }, [size]);
+  // Measure the box when it appears and whenever its size changes. It used to
+  // be measured once, when the page loaded — before the box was on screen —
+  // so the first strokes went onto a 300×150 surface stretched to fit, and
+  // landed away from the pencil until Erase measured it properly.
+  const [node, setNode] = useState<HTMLCanvasElement | null>(null);
+  const attach = useCallback((el: HTMLCanvasElement | null) => { ref.current = el; setNode(el); }, []);
+  useEffect(() => {
+    if (!node) return;
+    size();
+    let w = node.clientWidth, h = node.clientHeight;
+    const ro = new ResizeObserver(() => {
+      // Only a real change of size: re-measuring wipes the ink.
+      if (drawing.current || (node.clientWidth === w && node.clientHeight === h)) return;
+      w = node.clientWidth; h = node.clientHeight;
+      size();
+    });
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, [node, size]);
 
   const at = (e: React.PointerEvent) => { const r = ref.current!.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
   const down = (e: React.PointerEvent) => {
@@ -109,7 +127,7 @@ function usePad(onInk: () => void) {
     ctx.drawImage(c, 0, 0, out.width, out.height);
     return out.toDataURL("image/png");
   }, []);
-  return { ref, down, move, up, clear, snapshot, hasInk, drawing, strokes };
+  return { ref, attach, down, move, up, clear, snapshot, hasInk, drawing, strokes };
 }
 
 export default function Workbook({ childId, first, mode = "mixed", speak, onBack, onFinish }: {
@@ -415,7 +433,7 @@ export default function Workbook({ childId, first, mode = "mixed", speak, onBack
           </div>
         )}
         <canvas
-          ref={pad.ref}
+          ref={pad.attach}
           onPointerDown={pad.down} onPointerMove={pad.move} onPointerUp={pad.up} onPointerCancel={pad.up}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", touchAction: "none", cursor: "crosshair" }}
         />
