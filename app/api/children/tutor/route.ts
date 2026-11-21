@@ -106,6 +106,7 @@ export function withoutGiveaways(reply: string): string {
     }
   }
   return out
+    .replace(/\*\*|__|`/g, "")              // the screen shows plain text; stars would be read as stars
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\s+([.!?,])/g, "$1")
     .replace(/([?!.])[!.,]+/g, "$1")          // "?!" and ".." left where the answer was
