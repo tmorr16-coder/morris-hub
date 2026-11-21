@@ -940,7 +940,7 @@ function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, acti
         pause(`Buddy stopped listening because it got quiet. Tap to keep talking, ${first}!`);
       } else {
         // One quiet turn: try once more.
-        setTimeout(() => { if (handsFreeRef.current) ears.start(); }, 600);
+        setTimeout(() => { if (handsFreeRef.current) listenRef.current(); }, 600);
       }
     },
   );
