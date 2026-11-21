@@ -24,6 +24,7 @@ import KidPinPad from "./KidPinPad";
 
 export const metadata: Metadata = {
   title: "My Learning",
+  manifest: "/kid/manifest",
   robots: { index: false, follow: false },
   appleWebApp: { capable: true, title: "Learn", statusBarStyle: "default" },
 };

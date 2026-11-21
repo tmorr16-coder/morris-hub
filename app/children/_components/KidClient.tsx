@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import Link from "next/link";
 import { pickBestVoice } from "@/lib/tts-voices";
 import type { CloudVoice } from "@/lib/buddy-voice";
+import Workbook from "./Workbook";
 import type { ChildTask } from "../_lib/learning";
 import { completeTask, markWordPracticed } from "../_lib/learning-actions";
 import { Bubble, Confetti, KID, KID_CSS, LevelBar, Mascot, PathNode, PathTrail, SectionTitle, StepDots, Tile, levelFor, type Mood } from "./KidUi";
@@ -38,7 +39,7 @@ interface Props {
   streak?: number;
 }
 
-type View = { kind: "home" } | { kind: "task"; task: ChildTask } | { kind: "practice" } | { kind: "tutor"; starter?: string };
+type View = { kind: "home" } | { kind: "task"; task: ChildTask } | { kind: "practice" } | { kind: "workbook" } | { kind: "tutor"; starter?: string };
 
 /** Things to do with Buddy. One tap starts each; nothing to type or read first. */
 interface Activity { emoji: string; label: string; prompt: string; lead: string; colour: string; dark: string }
@@ -598,6 +599,11 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
           <Bubble onTap={() => speak(greeting, 1)}>{greeting}</Bubble>
         </div>
 
+        {/* The one obvious thing to do: today's pages. */}
+        <button type="button" className="kid-press" onClick={() => setView({ kind: "workbook" })} style={{ ...bigBtn("#2ACF5F"), marginTop: 18, fontSize: 26, padding: "22px 20px" }}>
+          ✏️ {doneToday.some((t) => t.title === "Buddy workbook") ? "Do more pages" : "Start today’s pages"}
+        </button>
+
         {stones.length > 0 && (
           <>
             <SectionTitle>Today&rsquo;s path</SectionTitle>
@@ -648,6 +654,22 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
   }
 
   // ── Practising this week's words, any time, no job needed ───────────────
+  // ── The workbook: today's pages, written with the pencil ────────────────
+  if (view.kind === "workbook") {
+    return (
+      <Shell burst={burst} speaking={speaking} loading={loading} onStop={stop}>
+        <Workbook childId={childId} first={first} speak={speak} onBack={() => { stop(); setView({ kind: "home" }); }}
+          onFinish={(earned, right, total) => {
+            setStars((st) => ({ total: st.total + earned, week: st.week + earned }));
+            if (doneToday.length === 0) setStreak((n) => n + 1);
+            setTasks((ts) => [...ts, { id: `wb-${Date.now()}`, kind: "custom", exerciseId: null, title: "Buddy workbook", instructions: null, payload: {}, assignedOn: new Date().toISOString().slice(0, 10), dueOn: null, completedAt: new Date().toISOString(), stars: earned, childNote: null }]);
+            celebrate(`${right} of ${total} right the first time! ${earned} star${earned === 1 ? "" : "s"}!`);
+            setView({ kind: "home" });
+          }} />
+      </Shell>
+    );
+  }
+
   if (view.kind === "practice") {
     return (
       <Shell burst={burst} speaking={speaking} loading={loading} onStop={stop}>

@@ -11,6 +11,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 import { childForGuardian, guardianUserIds } from "./children";
 import { childScreenAccess } from "./kid-device";
+import { buildWorkbook, nextLevel, starsFor, MAX_LEVEL, MATH_LEVELS, type WorkItem, type WorkResult } from "./workbook";
 import { mergeExtractions, type DocumentExtraction } from "./learning";
 import { materialise, createDocumentFor, rollOverWeek, undoRollOver, currentWeekDocument, type RollOver } from "./learning-core";
 
@@ -480,4 +481,59 @@ export async function setPinnedChild(childId: string, pinned: boolean): Promise<
   revalidatePath("/home");
   revalidatePath(`/children/${childId}`);
   return {};
+}
+
+// ── Buddy's workbook ─────────────────────────────────────────────────────────
+
+/** Today's pages for the child's screen, at the level the last set earned. */
+export async function startWorkbook(childId: string): Promise<{ error?: string; level?: number; items?: WorkItem[] }> {
+  const access = await childScreenAccess(childId);
+  if (!access) return { error: "Not found" };
+  const svc = db();
+  const [{ data: last }, { data: week }] = await Promise.all([
+    svc.schema("hub").from("child_tasks").select("payload").eq("child_id", childId)
+      .not("payload->workbook", "is", null).order("created_at", { ascending: false }).limit(1),
+    svc.schema("hub").from("child_spelling_weeks").select("words, sight_words").eq("child_id", childId)
+      .order("week_start", { ascending: false }).limit(1),
+  ]);
+  const prev = (last?.[0]?.payload as { workbook?: { nextLevel?: number } } | undefined)?.workbook;
+  const level = Math.max(1, Math.min(MAX_LEVEL, Number(prev?.nextLevel) || 2));
+  const now = new Date();
+  // Same pages if reopened within the hour; a fresh set after that.
+  const seed = Number(`${now.getUTCFullYear()}${now.getUTCMonth() + 1}${now.getUTCDate()}${now.getUTCHours()}`) ^ childId.charCodeAt(0);
+  const items = buildWorkbook({
+    words: (week?.[0]?.words as string[] | undefined) ?? [],
+    sightWords: (week?.[0]?.sight_words as string[] | undefined) ?? [],
+    level, seed,
+  });
+  return { level, items };
+}
+
+/** A finished set: kept as a completed job, so the stars count and the parents can see how it went. */
+export async function recordWorkbook(childId: string, input: { level: number; results: WorkResult[]; mathFirstTry: number; mathTotal: number }): Promise<{ error?: string; stars?: number; nextLevel?: number }> {
+  const access = await childScreenAccess(childId);
+  if (!access) return { error: "Not found" };
+  const results = (input.results ?? []).slice(0, 40).map((r) => ({ id: String(r.id).slice(0, 8), label: String(r.label).slice(0, 24), firstTry: !!r.firstTry, tries: Math.max(1, Math.min(9, Number(r.tries) || 1)) }));
+  if (results.length === 0) return { error: "Nothing to record" };
+  const first = results.filter((r) => r.firstTry).length;
+  const stars = starsFor(first, results.length);
+  const level = Math.max(1, Math.min(MAX_LEVEL, Number(input.level) || 1));
+  const next = nextLevel(level, Math.max(0, Number(input.mathFirstTry) || 0), Math.max(0, Number(input.mathTotal) || 0));
+  const missed = results.filter((r) => !r.firstTry).map((r) => r.label);
+  const { error } = await db().schema("hub").from("child_tasks").insert({
+    child_id: childId,
+    kind: "custom",
+    title: "Buddy workbook",
+    instructions: null,
+    payload: { workbook: { level, nextLevel: next, results } },
+    assigned_by: access.actorUserId,
+    completed_at: new Date().toISOString(),
+    stars,
+    child_note: `${first} of ${results.length} right first try · math: ${MATH_LEVELS[level - 1]}${missed.length ? ` · to practise: ${missed.join(", ")}` : ""}`,
+  });
+  if (error) return { error: error.message };
+  revalidatePath(`/children/${childId}`);
+  revalidatePath(`/children/${childId}/kid`);
+  revalidatePath("/kid");
+  return { stars, nextLevel: next };
 }
