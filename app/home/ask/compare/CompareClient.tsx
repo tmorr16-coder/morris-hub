@@ -582,13 +582,18 @@ export default function CompareClient({ connected, pricing, newest = [] }: { con
     if (JSON.stringify(list).length > MAX_BYTES) list = shedOldImages(list);
     while (list.length > 1 && JSON.stringify(list).length > MAX_BYTES) list = list.slice(0, -1);
     setThreads(list);
+    const localSnapshot = list.map((t) => ({
+      id: t.id,
+      title: t.title,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+    }));
     for (;;) {
-      try { localStorage.setItem(THREADS_KEY, JSON.stringify(list)); break; } catch {
-        // Last resort for a single thread too big to store (a large image on the
-        // open conversation): save it without its image payloads rather than
-        // discarding the conversation entirely.
+      try { localStorage.setItem(THREADS_KEY, JSON.stringify(localSnapshot)); break; } catch {
+        // Last resort when storage is constrained: keep only minimal metadata,
+        // never full conversation payloads, to avoid cleartext sensitive storage.
         if (list.length <= 1) {
-          const stripped = list.map((t) => ({ ...t, attachments: (t.attachments ?? []).filter((a) => !isHeavy(a)) }));
+          const stripped = localSnapshot.slice(0, 1);
           try { localStorage.setItem(THREADS_KEY, JSON.stringify(stripped)); }
           catch { try { localStorage.removeItem(THREADS_KEY); } catch { /* ignore */ } }
           break;
