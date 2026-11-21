@@ -295,3 +295,50 @@ export function heardAsNumbers(text: string, always: boolean): string {
     return String(HEARD_NUMBERS[bare]) + w.replace(/^[A-Za-z]+/, "");
   }).join(" ");
 }
+
+// ── Pages a parent assigns (the Kumon Connect part) ─────────────────────────
+
+/** What a parent chose: one math skill and how many, or a list of words to write. */
+export type PagesSpec =
+  | { kind: "math"; skill: number; count: number }
+  | { kind: "spelling"; words: string[] };
+
+export const PAGE_COUNTS = [5, 10, 15, 20] as const;
+
+export function pagesTitle(spec: PagesSpec): string {
+  return spec.kind === "math"
+    ? `Math pages: ${MATH_SKILLS[Math.max(1, Math.min(MAX_LEVEL, spec.skill)) - 1].title} (${spec.count})`
+    : `Spelling pages (${spec.words.length} words)`;
+}
+
+/** Stored JSON back into a spec, or null if it is not one. */
+export function readPagesSpec(v: unknown): PagesSpec | null {
+  const p = v as { kind?: string; skill?: unknown; count?: unknown; words?: unknown } | null;
+  if (!p || typeof p !== "object") return null;
+  if (p.kind === "math") {
+    const skill = Math.round(Number(p.skill)), count = Math.round(Number(p.count));
+    return skill >= 1 && skill <= MAX_LEVEL && count >= 1 && count <= 30 ? { kind: "math", skill, count } : null;
+  }
+  if (p.kind === "spelling" && Array.isArray(p.words)) {
+    const words = [...new Set(p.words.map((w) => String(w).trim().toLowerCase()).filter((w) => /^[a-z]{2,12}$/.test(w)))].slice(0, 20);
+    return words.length ? { kind: "spelling", words } : null;
+  }
+  return null;
+}
+
+/** The assigned pages themselves: exactly the skill and number asked for — no review mixed in. */
+export function buildAssigned(spec: PagesSpec, seed: number): WorkItem[] {
+  const r = rng(seed);
+  if (spec.kind === "spelling") return spec.words.map((w, i): WorkItem => ({ id: `s${i}`, type: "spell", word: w }));
+  const out: WorkItem[] = [];
+  const seen = new Set<string>();
+  let guard = 0;
+  while (out.length < spec.count && guard++ < 400) {
+    const f = MATH_SKILLS[spec.skill - 1].make(r);
+    // A small skill (adding 1) has few different problems; allow repeats once they run out.
+    if (seen.has(f.display) && guard < 200) continue;
+    seen.add(f.display);
+    out.push({ id: `m${out.length}`, type: "math", skill: spec.skill, ...f });
+  }
+  return out;
+}

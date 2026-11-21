@@ -25,6 +25,7 @@
 // a dismissed exercise, a whole scanned document with everything it created.
 
 import KidIpadPanel from "./KidIpadPanel";
+import { MATH_SKILLS, PAGE_COUNTS } from "../_lib/workbook";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -39,7 +40,7 @@ import { WeekProgress, WeekRows, type WeekItem } from "./WeekBoard";
 import { useSectionOrder, useLocalValue, writeLocal } from "../_lib/ui-state";
 import {
   logPractice, unlogPractice, setExerciseStatus, markWordPracticed, childDocumentUrls,
-  deleteChildDocument, documentImpact, assignTask, deleteTask, reopenTask, rebuildFromDocument, resetWeekPractice, startNewWeek, undoNewWeek,
+  deleteChildDocument, documentImpact, assignTask, deleteTask, reopenTask, rebuildFromDocument, resetWeekPractice, startNewWeek, undoNewWeek, assignPages,
   setPinnedChild, setExercisesStatus,
 } from "../_lib/learning-actions";
 import { planTonight, subjectOf, stale, SUBJECT_ORDER, type Subject } from "../_lib/practice";
@@ -168,6 +169,10 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
   const [openExercise, setOpenExercise] = useState<string | null>(null);
   const [sent, setSent] = useState<Set<string>>(new Set());
   const [customTask, setCustomTask] = useState("");
+  // Assigning pages: which kind, which skill, how many.
+  const [pagesKind, setPagesKind] = useState<"math" | "spelling">("math");
+  const [pagesSkill, setPagesSkill] = useState(2);
+  const [pagesCount, setPagesCount] = useState<number>(10);
   const [notice, setNotice] = useState<{ text: string; undo?: () => void; ms: number; at: number } | null>(null);
   const [viewer, setViewer] = useState<{ title: string; urls: string[]; page?: number } | null>(null);
   // "current", or the Monday of a past week being read back.
@@ -301,6 +306,19 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       }
     });
   }
+  /** Set specific pages for the pencil: one math skill and how many, or this week's words. */
+  function sendPages() {
+    const words = week ? [...week.words, ...week.sightWords] : [];
+    const spec = pagesKind === "math" ? { kind: "math" as const, skill: pagesSkill, count: pagesCount } : { kind: "spelling" as const, words };
+    if (spec.kind === "spelling" && words.length === 0) { say("There are no spelling words for this week yet."); return; }
+    start(async () => {
+      const r = await assignPages(data.childId, spec);
+      if (r.error || !r.id) { say(`Couldn't assign: ${r.error ?? "try again"}`); return; }
+      setTasks((t) => [{ id: r.id!, kind: "custom", exerciseId: null, title: r.title ?? "Pages", instructions: null, payload: { pages: spec }, assignedOn: new Date().toISOString().slice(0, 10), dueOn: null, completedAt: null, stars: 0, childNote: null }, ...t]);
+      say(`Assigned “${r.title}” to ${kid}.`);
+    });
+  }
+
   function removeTask(t: ChildTask) {
     setTasks((prev) => prev.filter((x) => x.id !== t.id));
     start(async () => { await deleteTask(data.childId, t.id); });
@@ -877,6 +895,39 @@ export default function ElementaryWorkspace({ data, viewerUserId }: { data: Chil
       search: handSent.map((t) => hit(`hs-${t.id}`, t.title, t.completedAt ? "Done" : `On ${kid}'s screen`, "sent by hand job task")),
       body: (
         <>
+          {/* Assign pages, the way a Kumon instructor sets the next packet: pick
+              the skill and how many; he does them with the pencil; the marks
+              come back on the job. */}
+          <div className="ios-list" style={{ margin: "0 var(--ios-gutter) 12px", padding: "12px 16px 14px" }}>
+            <div className="ios-subhead" style={{ fontWeight: 700, marginBottom: 4 }}>Assign pencil pages</div>
+            <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: "0 0 10px", lineHeight: 1.45 }}>
+              {kid} writes each answer with the pencil and it marks itself. A math set opens with Buddy&rsquo;s short lesson. When it is done you will see the score and what to practise here.
+            </p>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <Chip small selected={pagesKind === "math"} onClick={() => setPagesKind("math")}>Math</Chip>
+              <Chip small selected={pagesKind === "spelling"} onClick={() => setPagesKind("spelling")}>This week&rsquo;s words</Chip>
+            </div>
+            {pagesKind === "math" ? (
+              <div style={{ display: "grid", gap: 10 }}>
+                <select value={pagesSkill} onChange={(e) => setPagesSkill(Number(e.target.value))} aria-label="Math skill"
+                  style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid var(--ios-separator)", background: "var(--ios-cell)", color: "var(--ios-label)", fontSize: 17 }}>
+                  {MATH_SKILLS.map((k, i) => <option key={k.title} value={i + 1}>{i + 1}. {k.title}</option>)}
+                </select>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <span className="ios-footnote" style={{ color: "var(--ios-label-2)" }}>Problems</span>
+                  {PAGE_COUNTS.map((n) => <Chip key={n} small selected={pagesCount === n} onClick={() => setPagesCount(n)}>{n}</Chip>)}
+                </div>
+              </div>
+            ) : (
+              <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: 0 }}>
+                {week ? `${week.words.length + week.sightWords.length} words: he hears each one and writes it.` : "No spelling words for this week yet."}
+              </p>
+            )}
+            <button type="button" className="ios-btn ios-btn--primary" disabled={pending} onClick={sendPages} style={{ marginTop: 12, opacity: pending ? 0.5 : 1 }}>
+              {pending ? "Assigning…" : `Assign to ${kid}`}
+            </button>
+          </div>
+
           <div className="ios-list" style={{ margin: "0 var(--ios-gutter)", padding: "12px 16px 14px" }}>
             <p className="ios-footnote" style={{ color: "var(--ios-label-2)", margin: "0 0 10px", lineHeight: 1.45 }}>
               A job in your own words. It appears on {kid}&rsquo;s screen as a card: he taps it, Buddy reads it to him, and he gets a star when he marks it done. It shows up in the week&rsquo;s checklist under <em>Sent by hand</em>.

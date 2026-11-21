@@ -130,14 +130,25 @@ function usePad(onInk: () => void) {
   return { ref, attach, down, move, up, clear, snapshot, hasInk, drawing, strokes };
 }
 
-export default function Workbook({ childId, first, mode = "mixed", speak, onBack, onFinish }: {
+export default function Workbook({ childId, first, mode = "mixed", taskId, speak: speakOut, onBack, onFinish }: {
   childId: string; first: string;
+  /** Pages a parent assigned: the set comes from that job, and finishing it finishes the job. */
+  taskId?: string;
   /** "math" is a whole sitting of math; "mixed" is today's spelling, sight words and math. */
   mode?: "mixed" | "math";
   speak: (t: string, rate?: number) => void;
   onBack: () => void;
   onFinish: (stars: number, firstTry: number, total: number) => void;
 }) {
+  // What Buddy last said stays written on the page, so nothing depends on
+  // having caught it by ear. A spelling word is the one thing that must be
+  // heard and not seen, so those lines are written with the word left out.
+  const [caption, setCaption] = useState("");
+  const [readBack, setReadBack] = useState<string | null>(null);
+  const tell = useCallback((text: string, rate?: number, written?: string) => {
+    setCaption(written ?? text);
+    speakOut(text, rate);
+  }, [speakOut]);
   const [phase, setPhase] = useState<Phase>("loading");
   const [queue, setQueue] = useState<WorkItem[]>([]);
   const [pos, setPos] = useState(0);
@@ -154,10 +165,10 @@ export default function Workbook({ childId, first, mode = "mixed", speak, onBack
   const item = queue[pos] ?? null;
 
   const say = useCallback((it: WorkItem) => {
-    if (it.type === "spell") speak(`Write the word: ${it.word}.`, 0.9);
-    else if (it.type === "copy") speak(`Write this word: ${it.word}.`, 0.9);
-    else speak(it.say, 0.95);
-  }, [speak]);
+    if (it.type === "spell") tell(`Write the word: ${it.word}.`, 0.9, "Write the word you hear. Tap 🔊 to hear it again.");
+    else if (it.type === "copy") tell(`Write this word: ${it.word}.`, 0.9);
+    else tell(it.say, 0.95);
+  }, [tell]);
 
   // The pencil lifted: wait a breath, then mark it. A new stroke resets the wait.
   const pad = usePad(() => {
@@ -170,7 +181,7 @@ export default function Workbook({ childId, first, mode = "mixed", speak, onBack
 
   useEffect(() => {
     let alive = true;
-    startWorkbook(childId, mode).then((r) => {
+    startWorkbook(childId, mode, taskId).then((r) => {
       if (!alive) return;
       if (r.error || !r.items?.length) { setPhase("error"); return; }
       setQueue(r.items); setTotal(r.items.length); setLevel(r.level ?? 1); setPhase("writing");
@@ -205,16 +216,16 @@ export default function Workbook({ childId, first, mode = "mixed", speak, onBack
     const avoid = items.filter((it) => it.type === "math").map((it) => (it.type === "math" ? it.display : ""));
     // step −1 is the idea; 0…n−1 are the worked steps; n shows the finished line.
     setLesson({ skill, demo: demoFor(skill, Date.now() + lessons.current * 7919, avoid), step: -1 });
-    speak(`${k.goal}. ${k.teach.join(" ")}`, 0.9);
+    tell(`${k.goal}. ${k.teach.join(" ")}`, 0.9);
   }
   function nextLessonStep() {
     if (!lesson) return;
     const step = lesson.step + 1;
     if (step > lesson.demo.steps.length) { closeLesson(); return; }
     setLesson({ ...lesson, step });
-    if (step === 0) speak(`Watch me. ${lesson.demo.steps[0]}`, 0.9);
-    else if (step < lesson.demo.steps.length) speak(lesson.demo.steps[step], 0.9);
-    else speak("Now let's do one together.", 0.95);
+    if (step === 0) tell(`Watch me. ${lesson.demo.steps[0]}`, 0.9);
+    else if (step < lesson.demo.steps.length) tell(lesson.demo.steps[step], 0.9);
+    else tell("Now let's do one together.", 0.95);
   }
   function closeLesson() {
     if (!lesson) return;
@@ -243,7 +254,7 @@ export default function Workbook({ childId, first, mode = "mixed", speak, onBack
     if (missed && !item.id.startsWith("g") && !corrected.current.has(item.id)) { corrected.current.add(item.id); q = [...queue, item]; setQueue(q); }
     const next = pos + 1;
     if (next >= q.length) { void finish(); return; }
-    setPos(next); setTries(0); setNote(null); setHint(false); setTogether(false); pad.clear(); setPhase("writing");
+    setPos(next); setTries(0); setNote(null); setHint(false); setTogether(false); setReadBack(null); pad.clear(); setPhase("writing");
     say(q[next]);
   }
 
@@ -273,11 +284,12 @@ export default function Workbook({ childId, first, mode = "mixed", speak, onBack
     // the way to "cake", was read too soon: leave the ink and keep waiting.
     // (Tapping Done says "this is my answer", so then it is marked as written.)
     const want = answerOf(item);
+    setReadBack(read || null);
     if (!asked && read !== "" && read !== want && want.startsWith(read)) { setPhase(before); return; }
 
     if (read === "") {
       setNote("I couldn't read that. Write it a little bigger!");
-      speak("I couldn't read that. Try a little bigger.", 1);
+      tell("I couldn't read that. Try a little bigger.", 1);
       setPhase(before);
       setTimeout(() => pad.clear(), SHOW_MISS_MS);
       return;
@@ -298,18 +310,19 @@ export default function Workbook({ childId, first, mode = "mixed", speak, onBack
     if (n === 1) {
       setNote("Not yet. Try one more time!");
       setPhase("retry");
-      if (item.type !== "math") speak(`Not yet. Listen again: ${item.word}.`, 0.85);
+      if (item.type !== "math") tell(`Not yet. Listen again: ${item.word}.`, 0.85, item.type === "spell" ? "Not yet. Listen again." : undefined);
+      else setCaption("Not yet. Try one more time!");
       setTimeout(() => pad.clear(), SHOW_MISS_MS);
     } else if (n === 2) {
       setHint(true);
       setNote(item.type === "math" ? (item.hint.kind === "dots" ? "Here's a hint. Count the dots!" : item.hint.text) : "Here's a hint. Listen to each sound.");
       setPhase("retry");
-      speak(item.type === "math" ? (item.hint.kind === "dots" ? "Here's a hint. Count the dots." : `Here's a hint. ${item.hint.text}`) : `Here's a hint. It starts with ${item.word[0]}. ${item.word}.`, 0.85);
+      tell(item.type === "math" ? (item.hint.kind === "dots" ? "Here's a hint. Count the dots." : `Here's a hint. ${item.hint.text}`) : `Here's a hint. It starts with ${item.word[0]}. ${item.word}.`, 0.85, item.type === "spell" ? `Here's a hint. It starts with ${item.word[0]}.` : undefined);
       setTimeout(() => pad.clear(), SHOW_MISS_MS);
     } else {
       record(item, false, n);
       setNote("Here it is. Trace over it!");
-      speak(item.type === "math" ? `It's ${item.answer}. Trace it.` : `Here is ${item.word}. Trace it.`, 0.9);
+      tell(item.type === "math" ? `It's ${item.answer}. Trace it.` : `Here is ${item.word}. Trace it.`, 0.9);
       setTimeout(() => { pad.clear(); setPhase("trace"); }, SHOW_MISS_MS);
     }
   }
@@ -326,7 +339,7 @@ export default function Workbook({ childId, first, mode = "mixed", speak, onBack
     const all = [...results.current.values()];
     const firstTry = all.filter((r) => r.firstTry).length;
     const math = all.filter((r) => /\d/.test(r.label));
-    const r = await recordWorkbook(childId, { level, results: all, mathFirstTry: math.filter((m) => m.firstTry).length, mathTotal: math.length });
+    const r = await recordWorkbook(childId, { level, results: all, mathFirstTry: math.filter((m) => m.firstTry).length, mathTotal: math.length, taskId });
     onFinish(r.stars ?? 1, firstTry, all.length);
   }
 
@@ -344,7 +357,7 @@ export default function Workbook({ childId, first, mode = "mixed", speak, onBack
     const { demo, step } = lesson;
     const idea = step < 0;
     const finished = step >= demo.steps.length;
-    const sayAgain = () => speak(idea ? `${k.goal}. ${k.teach.join(" ")}` : finished ? demo.steps.join(" ") : demo.steps[step], 0.9);
+    const sayAgain = () => tell(idea ? `${k.goal}. ${k.teach.join(" ")}` : finished ? demo.steps.join(" ") : demo.steps[step], 0.9);
     return (
       <div style={{ textAlign: "center" }}>
         <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 4 }}>
@@ -441,7 +454,14 @@ export default function Workbook({ childId, first, mode = "mixed", speak, onBack
         {phase === "checking" && <div style={{ position: "absolute", right: 14, top: 10, fontSize: 30, pointerEvents: "none" }}>👀</div>}
       </div>
 
-      {note && phase !== "right" && <div style={{ fontSize: 20, fontWeight: 700, color: "#C9700A", marginTop: 10, textAlign: "center" }}>{note}</div>}
+      {/* Always on the page: what Buddy said, and what he read from the writing. */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 12, padding: "12px 14px", borderRadius: 16, background: "var(--ios-cell)", border: "1px solid var(--ios-separator)", minHeight: 52 }}>
+        <span aria-hidden style={{ fontSize: 24, lineHeight: 1.2 }}>🦉</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.35 }}>{caption || "…"}</div>
+          {readBack && phase !== "writing" && <div style={{ fontSize: 17, fontWeight: 600, color: "var(--ios-label-2)", marginTop: 4 }}>I read: <span style={{ fontWeight: 800, letterSpacing: "0.04em" }}>{readBack}</span></div>}
+        </div>
+      </div>
 
       {phase === "selfcheck" ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>

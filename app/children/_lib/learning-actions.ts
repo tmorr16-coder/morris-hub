@@ -11,7 +11,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/supabase/auth-utils";
 import { childForGuardian, guardianUserIds } from "./children";
 import { childScreenAccess } from "./kid-device";
-import { buildWorkbook, nextLevel, starsFor, MAX_LEVEL, MATH_LEVELS, type WorkItem, type WorkResult } from "./workbook";
+import { buildWorkbook, buildAssigned, readPagesSpec, pagesTitle, nextLevel, starsFor, MAX_LEVEL, MATH_LEVELS, type PagesSpec, type WorkItem, type WorkResult } from "./workbook";
 import { mergeExtractions, type DocumentExtraction } from "./learning";
 import { materialise, createDocumentFor, rollOverWeek, undoRollOver, currentWeekDocument, type RollOver } from "./learning-core";
 
@@ -486,10 +486,20 @@ export async function setPinnedChild(childId: string, pinned: boolean): Promise<
 // ── Buddy's workbook ─────────────────────────────────────────────────────────
 
 /** Today's pages for the child's screen, at the level the last set earned. */
-export async function startWorkbook(childId: string, mode: "mixed" | "math" = "mixed"): Promise<{ error?: string; level?: number; items?: WorkItem[]; newSkill?: boolean }> {
+export async function startWorkbook(childId: string, mode: "mixed" | "math" = "mixed", taskId?: string): Promise<{ error?: string; level?: number; items?: WorkItem[]; newSkill?: boolean }> {
   const access = await childScreenAccess(childId);
   if (!access) return { error: "Not found" };
   const svc = db();
+  // Pages a parent assigned: exactly what was asked for.
+  if (taskId) {
+    if (!/^[0-9a-f-]{36}$/i.test(taskId)) return { error: "Not found" };
+    const { data: task } = await svc.schema("hub").from("child_tasks").select("payload").eq("id", taskId).eq("child_id", childId).maybeSingle();
+    const spec = readPagesSpec((task?.payload as { pages?: unknown } | undefined)?.pages);
+    if (!spec) return { error: "Not found" };
+    const seed = parseInt(taskId.replace(/-/g, "").slice(0, 7), 16);
+    // A math assignment opens with its lesson: the parent chose the skill, so it may be new to the child.
+    return { level: spec.kind === "math" ? spec.skill : 1, items: buildAssigned(spec, seed), newSkill: spec.kind === "math" };
+  }
   const [{ data: last }, { data: week }] = await Promise.all([
     svc.schema("hub").from("child_tasks").select("payload").eq("child_id", childId)
       .not("payload->workbook", "is", null).order("created_at", { ascending: false }).limit(1),
@@ -511,7 +521,7 @@ export async function startWorkbook(childId: string, mode: "mixed" | "math" = "m
 }
 
 /** A finished set: kept as a completed job, so the stars count and the parents can see how it went. */
-export async function recordWorkbook(childId: string, input: { level: number; results: WorkResult[]; mathFirstTry: number; mathTotal: number }): Promise<{ error?: string; stars?: number; nextLevel?: number }> {
+export async function recordWorkbook(childId: string, input: { level: number; results: WorkResult[]; mathFirstTry: number; mathTotal: number; taskId?: string }): Promise<{ error?: string; stars?: number; nextLevel?: number }> {
   const access = await childScreenAccess(childId);
   if (!access) return { error: "Not found" };
   const results = (input.results ?? []).slice(0, 40).map((r) => ({ id: String(r.id).slice(0, 8), label: String(r.label).slice(0, 24), firstTry: !!r.firstTry, tries: Math.max(1, Math.min(9, Number(r.tries) || 1)) }));
@@ -521,6 +531,26 @@ export async function recordWorkbook(childId: string, input: { level: number; re
   const level = Math.max(1, Math.min(MAX_LEVEL, Number(input.level) || 1));
   const next = nextLevel(level, Math.max(0, Number(input.mathFirstTry) || 0), Math.max(0, Number(input.mathTotal) || 0));
   const missed = results.filter((r) => !r.firstTry).map((r) => r.label);
+  // Assigned pages: finish the job the parent set, with the marks on it. The
+  // results sit under their own key so they do not move the child's place on
+  // the ladder, which the daily pages decide.
+  if (input.taskId) {
+    if (!/^[0-9a-f-]{36}$/i.test(input.taskId)) return { error: "Not found" };
+    const svc = db();
+    const { data: task } = await svc.schema("hub").from("child_tasks").select("payload").eq("id", input.taskId).eq("child_id", childId).maybeSingle();
+    if (!task || !readPagesSpec((task.payload as { pages?: unknown }).pages)) return { error: "Not found" };
+    const { error: upErr } = await svc.schema("hub").from("child_tasks").update({
+      completed_at: new Date().toISOString(),
+      stars,
+      payload: { ...(task.payload as Record<string, unknown>), pagesResult: { results, finishedAt: new Date().toISOString() } },
+      child_note: `${first} of ${results.length} right first try${missed.length ? ` · to practise: ${missed.join(", ")}` : " · all correct"}`,
+    }).eq("id", input.taskId).eq("child_id", childId);
+    if (upErr) return { error: upErr.message };
+    revalidatePath(`/children/${childId}`);
+    revalidatePath(`/children/${childId}/kid`);
+    revalidatePath("/kid");
+    return { stars };
+  }
   const { error } = await db().schema("hub").from("child_tasks").insert({
     child_id: childId,
     kind: "custom",
@@ -537,4 +567,27 @@ export async function recordWorkbook(childId: string, input: { level: number; re
   revalidatePath(`/children/${childId}/kid`);
   revalidatePath("/kid");
   return { stars, nextLevel: next };
+}
+
+/** A parent sets specific pages: one math skill and how many problems, or a list of words to write. */
+export async function assignPages(childId: string, spec: PagesSpec, dueOn?: string | null): Promise<{ error?: string; id?: string; title?: string }> {
+  const g = await requireGuardian(childId);
+  if ("error" in g) return { error: g.error };
+  const clean = readPagesSpec(spec);
+  if (!clean) return { error: "Choose a skill and a number of problems, or some words." };
+  const title = pagesTitle(clean);
+  const { data, error } = await db().schema("hub").from("child_tasks").insert({
+    child_id: childId,
+    kind: "custom",
+    title,
+    instructions: null,
+    payload: { pages: clean },
+    assigned_by: g.userId,
+    due_on: dueOn && /^\d{4}-\d{2}-\d{2}$/.test(dueOn) ? dueOn : null,
+  }).select("id").single();
+  if (error) return { error: error.message };
+  revalidatePath(`/children/${childId}`);
+  revalidatePath(`/children/${childId}/kid`);
+  revalidatePath("/kid");
+  return { id: data.id, title };
 }

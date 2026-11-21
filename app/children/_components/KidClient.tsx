@@ -40,7 +40,7 @@ interface Props {
   streak?: number;
 }
 
-type View = { kind: "home" } | { kind: "task"; task: ChildTask } | { kind: "practice" } | { kind: "workbook"; mode?: "mixed" | "math" } | { kind: "tutor"; starter?: string; mode?: BuddyMode };
+type View = { kind: "home" } | { kind: "task"; task: ChildTask } | { kind: "practice" } | { kind: "workbook"; mode?: "mixed" | "math"; taskId?: string } | { kind: "tutor"; starter?: string; mode?: BuddyMode };
 
 /** Things to do with Buddy. One tap starts each; nothing to type or read first. */
 /** What Buddy and the child are doing right now. Sent with every message so the right rules apply. */
@@ -623,7 +623,11 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
                     state={done ? "done" : t.id === open[0]?.id ? "next" : "todo"}
                     stars={t.stars}
                     offset={weave[i % 4]}
-                    onTap={done ? undefined : () => { setView({ kind: "task", task: t }); speak(t.title); }}
+                    onTap={done ? undefined : () => {
+                      // Assigned pages open straight into the pencil pages; anything else opens its card.
+                      if (t.payload.pages) { setView({ kind: "workbook", taskId: t.id }); return; }
+                      setView({ kind: "task", task: t }); speak(t.title);
+                    }}
                   />
                 </div>
               ))}
@@ -664,11 +668,14 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
   if (view.kind === "workbook") {
     return (
       <Shell burst={burst} speaking={speaking} loading={loading} onStop={stop}>
-        <Workbook key={view.mode ?? "mixed"} mode={view.mode ?? "mixed"} childId={childId} first={first} speak={speak} onBack={() => { stop(); setView({ kind: "home" }); }}
+        <Workbook key={view.taskId ?? view.mode ?? "mixed"} mode={view.mode ?? "mixed"} taskId={view.taskId} childId={childId} first={first} speak={speak} onBack={() => { stop(); setView({ kind: "home" }); }}
           onFinish={(earned, right, total) => {
             setStars((st) => ({ total: st.total + earned, week: st.week + earned }));
             if (doneToday.length === 0) setStreak((n) => n + 1);
-            setTasks((ts) => [...ts, { id: `wb-${Date.now()}`, kind: "custom", exerciseId: null, title: "Buddy workbook", instructions: null, payload: {}, assignedOn: new Date().toISOString().slice(0, 10), dueOn: null, completedAt: new Date().toISOString(), stars: earned, childNote: null }]);
+            const assigned = view.taskId;
+            setTasks((ts) => assigned
+              ? ts.map((t) => (t.id === assigned ? { ...t, completedAt: new Date().toISOString(), stars: earned } : t))
+              : [...ts, { id: `wb-${Date.now()}`, kind: "custom", exerciseId: null, title: "Buddy workbook", instructions: null, payload: {}, assignedOn: new Date().toISOString().slice(0, 10), dueOn: null, completedAt: new Date().toISOString(), stars: earned, childNote: null }]);
             celebrate(`${right} of ${total} right the first time! ${earned} star${earned === 1 ? "" : "s"}!`);
             setView({ kind: "home" });
           }} />

@@ -178,7 +178,7 @@ export interface ChildTask {
   exerciseId: string | null;
   title: string;
   instructions: string | null;
-  payload: { words?: string[]; steps?: string | null; minutes?: number | null };
+  payload: { words?: string[]; steps?: string | null; minutes?: number | null; /** Pages a parent assigned, done with the pencil. */ pages?: { kind: "math"; skill: number; count: number } | { kind: "spelling"; words: string[] } };
   assignedOn: string;
   dueOn: string | null;
   completedAt: string | null;
