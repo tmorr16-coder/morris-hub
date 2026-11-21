@@ -109,6 +109,8 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
           parsed.fitnessGoals = parsed.fitnessGoal ? [parsed.fitnessGoal] : [];
           delete parsed.fitnessGoal;
         }
+        // Do not hydrate identity fields from cleartext local storage.
+        delete parsed.name;
         setProfile({ ...DEFAULT_PROFILE, ...parsed });
       }
     } catch { /* ignore */ }
@@ -188,7 +190,10 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
 
   function save() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+      // Avoid storing OAuth-derived identity data in cleartext local storage.
+      const profileToStore = { ...profile };
+      delete profileToStore.name;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(profileToStore));
     } catch { /* ignore */ }
     const targetLbs = parseFloat(profile.targetWeightLbs);
     const calGoal   = parseFloat(profile.calorieGoal);
