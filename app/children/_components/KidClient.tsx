@@ -39,18 +39,20 @@ interface Props {
   streak?: number;
 }
 
-type View = { kind: "home" } | { kind: "task"; task: ChildTask } | { kind: "practice" } | { kind: "workbook" } | { kind: "tutor"; starter?: string };
+type View = { kind: "home" } | { kind: "task"; task: ChildTask } | { kind: "practice" } | { kind: "workbook" } | { kind: "tutor"; starter?: string; mode?: BuddyMode };
 
 /** Things to do with Buddy. One tap starts each; nothing to type or read first. */
-interface Activity { emoji: string; label: string; prompt: string; lead: string; colour: string; dark: string }
+/** What Buddy and the child are doing right now. Sent with every message so the right rules apply. */
+type BuddyMode = "open" | "math" | "verse" | "story" | "facts" | "job";
+interface Activity { emoji: string; label: string; prompt: string; lead: string; colour: string; dark: string; mode: BuddyMode }
 function activitiesFor(hasWords: boolean): Activity[] {
   return [
     ...(hasWords ? [
-      { emoji: "📖", label: "Silly story", prompt: "Tell me a silly story with my spelling words.", lead: "Story time!", colour: KID.purple, dark: KID.purpleDark },
+      { emoji: "📖", label: "Silly story", mode: "story", prompt: "Tell me a silly story with my spelling words.", lead: "Story time!", colour: KID.purple, dark: KID.purpleDark },
     ] : []),
-    { emoji: "➕", label: "Math game", prompt: "Let's play a math game. Give me one problem at a time.", lead: "Math game!", colour: KID.teal, dark: KID.tealDark },
-    { emoji: "🙏", label: "My verse", prompt: "Help me learn my memory verse, a little bit at a time.", lead: "Let's learn your verse!", colour: KID.pink, dark: KID.pinkDark },
-    { emoji: "🦁", label: "Animal facts", prompt: "Tell me one amazing animal fact, then ask me a question about it.", lead: "Animal facts!", colour: KID.green, dark: KID.greenDark },
+    { emoji: "➕", label: "Math game", mode: "math", prompt: "Let's play a math game. Give me one problem at a time.", lead: "Math game!", colour: KID.teal, dark: KID.tealDark },
+    { emoji: "🙏", label: "My verse", mode: "verse", prompt: "Help me learn my memory verse, a little bit at a time.", lead: "Let's learn your verse!", colour: KID.pink, dark: KID.pinkDark },
+    { emoji: "🦁", label: "Animal facts", mode: "facts", prompt: "Tell me one amazing animal fact, then ask me a question about it.", lead: "Animal facts!", colour: KID.green, dark: KID.greenDark },
   ];
 }
 
@@ -496,7 +498,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
   // The few words spoken here are inside the tap, which is what lets Buddy's
   // answer be heard on an iPad when it arrives a second later.
   function startActivity(a: Activity) {
-    setView({ kind: "tutor", starter: a.prompt });
+    setView({ kind: "tutor", starter: a.prompt, mode: a.mode });
     speak(a.lead, 1);
   }
 
@@ -707,7 +709,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
           {/* Stuck is the moment help is wanted. Going Back, finding the owl and
               starting over is three taps and a lost train of thought. */}
           <button type="button" className="kid-press" style={{ ...bigBtn(KID.orange, KID.orangeDark), fontSize: 19 }}
-            onClick={() => { setView({ kind: "tutor", starter: `I need help with this job: ${t.title}.${text ? ` It says: ${text.slice(0, 300)}` : ""}` }); speak("Okay, let's figure it out together!", 1); }}>
+            onClick={() => { setView({ kind: "tutor", mode: "job", starter: `I need help with this job: ${t.title}.${text ? ` It says: ${text.slice(0, 300)}` : ""}` }); speak("Okay, let's figure it out together!", 1); }}>
             🦉 Help me, Buddy
           </button>
         </div>
@@ -720,7 +722,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
   return (
     <Shell burst={burst} speaking={speaking} loading={loading} onStop={stop}>
       <BackButton onClick={() => setView({ kind: "home" })} />
-      <Tutor key={view.starter ?? "open"} childId={childId} first={first} gradeLabel={gradeLabel} speak={speak} speaking={speaking} stopSpeaking={stop} activities={activities} starter={view.starter} />
+      <Tutor key={view.starter ?? "open"} childId={childId} first={first} gradeLabel={gradeLabel} speak={speak} speaking={speaking} stopSpeaking={stop} activities={activities} starter={view.starter} startMode={view.mode ?? "open"} />
       <Footer childId={childId} kidMode={kidMode} />
     </Shell>
   );
@@ -857,7 +859,13 @@ const KEEP_TALKING_TURNS = 20;
 const KEEP_TALKING_MINUTES = 15;
 const KEEP_TALKING_SILENCES = 2;
 
-function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, activities, starter }: { childId: string; first: string; gradeLabel: string | null; speak: (t: string, rate?: number) => void; speaking: boolean; stopSpeaking: () => void; activities: Activity[]; starter?: string }) {
+function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, activities, starter, startMode = "open" }: { childId: string; first: string; gradeLabel: string | null; speak: (t: string, rate?: number) => void; speaking: boolean; stopSpeaking: () => void; activities: Activity[]; starter?: string; startMode?: BuddyMode }) {
+  // The activity in play. A tile sets it; it stays until another tile is
+  // tapped, so "fifteen" in a math game and "fifteen" in a verse are judged
+  // by different rules. A ref as well, because send() runs from callbacks.
+  const [mode, setModeState] = useState<BuddyMode>(startMode);
+  const modeRef = useRef<BuddyMode>(startMode);
+  const setMode = (m: BuddyMode) => { modeRef.current = m; setModeState(m); };
   // randomUUID needs a secure context; getRandomValues does not, so the
   // fallback is just as unguessable rather than a Math.random string.
   const [sessionId] = useState(() => (typeof crypto.randomUUID === "function"
@@ -994,7 +1002,7 @@ function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, acti
     setMessages(next);
     setBusy(true);
     try {
-      const res = await fetch("/api/children/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ childId, sessionId, messages: next.slice(-20).map((m) => ({ role: m.role, content: m.content })) }) });
+      const res = await fetch("/api/children/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ childId, sessionId, mode: modeRef.current, messages: next.slice(-20).map((m) => ({ role: m.role, content: m.content })) }) });
       const data = await res.json();
       const reply = res.ok ? String(data.reply) : "Hmm, I got a little mixed up. Ask me again?";
       setMessages((m) => [...m, { role: "assistant", content: reply, revealed: false }]);
@@ -1075,13 +1083,13 @@ function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, acti
           that the same choices shrink to a row, so the talk has the room. */}
       {fresh ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginTop: 18 }}>
-          {activities.map((a) => <Tile key={a.label} emoji={a.emoji} label={a.label} colour={a.colour} dark={a.dark} onTap={() => { speak(a.lead, 1); void send(a.prompt); }} />)}
+          {activities.map((a) => <Tile key={a.label} emoji={a.emoji} label={a.label} colour={a.colour} dark={a.dark} onTap={() => { setMode(a.mode); speak(a.lead, 1); void send(a.prompt); }} />)}
         </div>
       ) : (
         <div style={{ display: "flex", gap: 8, marginTop: 16, overflowX: "auto", paddingBottom: 4 }}>
           {activities.map((a) => (
-            <button key={a.label} type="button" className="kid-press" disabled={busy} onClick={() => send(a.prompt)}
-              style={{ flexShrink: 0, background: a.colour, color: "#fff", border: "none", borderRadius: 999, padding: "10px 16px", fontSize: 16, fontWeight: 800, cursor: "pointer", opacity: busy ? 0.6 : 1 }}>
+            <button key={a.label} type="button" className="kid-press" disabled={busy} onClick={() => { setMode(a.mode); void send(a.prompt); }}
+              style={{ flexShrink: 0, background: a.colour, color: "#fff", border: mode === a.mode ? "3px solid var(--ios-label)" : "3px solid transparent", borderRadius: 999, padding: "8px 14px", fontSize: 16, fontWeight: 800, cursor: "pointer", opacity: busy ? 0.6 : 1 }}>
               {a.emoji} {a.label}
             </button>
           ))}
