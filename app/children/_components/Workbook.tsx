@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { startWorkbook, recordWorkbook } from "../_lib/learning-actions";
-import { answerOf, labelOf, matches, MATH_SKILLS, type WorkItem, type WorkResult } from "../_lib/workbook";
+import { answerOf, labelOf, matches, demoFor, guidedFor, MATH_SKILLS, type Demo, type WorkItem, type WorkResult } from "../_lib/workbook";
 
 type Phase = "loading" | "writing" | "checking" | "right" | "retry" | "trace" | "selfcheck" | "done" | "error";
 
@@ -158,7 +158,7 @@ export default function Workbook({ childId, first, mode = "mixed", speak, onBack
       setQueue(r.items); setTotal(r.items.length); setLevel(r.level ?? 1); setPhase("writing");
       // A new rung of the ladder opens with its lesson; otherwise straight to work.
       const hasMath = r.items.some((it) => it.type === "math");
-      if (r.newSkill && hasMath) { firstItem.current = r.items[0]; openLesson(r.level ?? 1); }
+      if (r.newSkill && hasMath) { firstItem.current = r.items[0]; openLesson(r.level ?? 1, r.items); }
       else say(r.items[0]);
     });
     return () => { alive = false; if (timer.current) clearTimeout(timer.current); };
@@ -169,23 +169,52 @@ export default function Workbook({ childId, first, mode = "mixed", speak, onBack
   // Buddy teaches before he asks: the goal in the child's words, the idea in
   // two or three spoken lines, and one worked example. It opens by itself the
   // first time a skill comes up, and "Teach me" brings it back on any math page.
-  const [lesson, setLesson] = useState<number | null>(null);
+  //
+  // Three parts, the way a teacher does it: the idea; "watch me" on a worked
+  // example with its own numbers, a step at a time; then one to do together
+  // with the hint already showing — before he is on his own again. The
+  // example is made fresh each time and is never a problem from his pages,
+  // so a lesson cannot hand him an answer.
+  const [lesson, setLesson] = useState<{ skill: number; demo: Demo; step: number } | null>(null);
   const firstItem = useRef<WorkItem | null>(null);
-  function openLesson(skill: number) {
+  const lessons = useRef(0);
+  const [together, setTogether] = useState(false);
+  function openLesson(skill: number, items: WorkItem[] = queue) {
     if (timer.current) clearTimeout(timer.current);
     const k = MATH_SKILLS[skill - 1];
     if (!k) return;
-    setLesson(skill);
+    lessons.current += 1;
+    const avoid = items.filter((it) => it.type === "math").map((it) => (it.type === "math" ? it.display : ""));
+    // step −1 is the idea; 0…n−1 are the worked steps; n shows the finished line.
+    setLesson({ skill, demo: demoFor(skill, Date.now() + lessons.current * 7919, avoid), step: -1 });
     speak(`${k.goal}. ${k.teach.join(" ")}`, 0.9);
   }
+  function nextLessonStep() {
+    if (!lesson) return;
+    const step = lesson.step + 1;
+    if (step > lesson.demo.steps.length) { closeLesson(); return; }
+    setLesson({ ...lesson, step });
+    if (step === 0) speak(`Watch me. ${lesson.demo.steps[0]}`, 0.9);
+    else if (step < lesson.demo.steps.length) speak(lesson.demo.steps[step], 0.9);
+    else speak("Now let's do one together.", 0.95);
+  }
   function closeLesson() {
+    if (!lesson) return;
+    const skill = lesson.skill;
     setLesson(null);
-    const it = firstItem.current ?? item;
     firstItem.current = null;
-    if (it) say(it);
+    // One to do together, slotted in before the page he was on. It carries its
+    // hint from the start and does not count toward the score.
+    const guided = guidedFor(skill, Date.now() % 100000, queue.filter((it) => it.type === "math").map((it) => (it.type === "math" ? it.display : "")));
+    const q = [...queue.slice(0, pos), guided, ...queue.slice(pos)];
+    setQueue(q); setTotal((t) => t + 1);
+    setTries(0); setNote(null); pad.clear(); setPhase("writing");
+    setHint(true); setTogether(true);
+    say(guided);
   }
 
   function record(it: WorkItem, firstTry: boolean, n: number) {
+    if (it.id.startsWith("g")) return;      // the one done together is practice, not a mark
     if (!results.current.has(it.id)) results.current.set(it.id, { id: it.id, label: labelOf(it), firstTry, tries: n });
   }
 
@@ -193,10 +222,10 @@ export default function Workbook({ childId, first, mode = "mixed", speak, onBack
     if (!item) return;
     let q = queue;
     // Corrections: a missed page comes back once, at the end.
-    if (missed && !corrected.current.has(item.id)) { corrected.current.add(item.id); q = [...queue, item]; setQueue(q); }
+    if (missed && !item.id.startsWith("g") && !corrected.current.has(item.id)) { corrected.current.add(item.id); q = [...queue, item]; setQueue(q); }
     const next = pos + 1;
     if (next >= q.length) { void finish(); return; }
-    setPos(next); setTries(0); setNote(null); setHint(false); pad.clear(); setPhase("writing");
+    setPos(next); setTries(0); setNote(null); setHint(false); setTogether(false); pad.clear(); setPhase("writing");
     say(q[next]);
   }
 
@@ -293,22 +322,47 @@ export default function Workbook({ childId, first, mode = "mixed", speak, onBack
   if (phase === "done" || !item) return <div style={{ fontSize: 26, fontWeight: 800, textAlign: "center", marginTop: 80 }}>All done, {first}! ⭐</div>;
 
   if (lesson != null) {
-    const k = MATH_SKILLS[lesson - 1];
+    const k = MATH_SKILLS[lesson.skill - 1];
+    const { demo, step } = lesson;
+    const idea = step < 0;
+    const finished = step >= demo.steps.length;
+    const sayAgain = () => speak(idea ? `${k.goal}. ${k.teach.join(" ")}` : finished ? demo.steps.join(" ") : demo.steps[step], 0.9);
     return (
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ios-label-3)", marginTop: 6 }}>Buddy&rsquo;s lesson</div>
-        <div style={{ fontSize: 34, fontWeight: 800, margin: "6px 0 16px" }}>🎯 {k.goal}</div>
-        <div style={{ background: "#fff", color: "#1c1c1e", borderRadius: 22, border: "4px solid var(--ios-separator)", padding: "20px 16px" }}>
-          {k.example.dots && <Counters {...k.example.dots} />}
-          <div style={{ fontSize: 48, fontWeight: 800, fontVariantNumeric: "tabular-nums", marginTop: k.example.dots ? 10 : 0 }}>{k.example.display}</div>
+        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 4 }}>
+          {["The idea", "Watch me", "Together"].map((label, i) => {
+            const on = i === 0 ? idea : i === 1 ? !idea : false;
+            return <span key={label} style={{ fontSize: 14, fontWeight: 800, padding: "6px 12px", borderRadius: 999, background: on ? "var(--ios-tint)" : "var(--ios-fill)", color: on ? "#fff" : "var(--ios-label-3)" }}>{i + 1}. {label}</span>;
+          })}
         </div>
-        <div style={{ display: "grid", gap: 8, margin: "16px 0", textAlign: "left" }}>
-          {k.teach.map((line, i) => <div key={i} style={{ fontSize: 21, fontWeight: 600, lineHeight: 1.35 }}>{i + 1}. {line}</div>)}
+        <div style={{ fontSize: 32, fontWeight: 800, margin: "12px 0 14px" }}>🎯 {k.goal}</div>
+
+        {idea ? (
+          <div style={{ display: "grid", gap: 10, textAlign: "left", background: "var(--ios-cell)", borderRadius: 22, border: "1px solid var(--ios-separator)", padding: "18px 18px" }}>
+            {k.teach.map((line, i) => <div key={i} style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.35 }}>{line}</div>)}
+          </div>
+        ) : (
+          <>
+            <div style={{ background: "#fff", color: "#1c1c1e", borderRadius: 22, border: "4px solid var(--ios-separator)", padding: "18px 14px" }}>
+              {demo.dots && <Counters {...demo.dots} />}
+              {/* The answer is on the page only once the last step has been walked through. */}
+              <div style={{ fontSize: (finished ? demo.result : demo.problem).length > 22 ? 26 : 46, fontWeight: 800, fontVariantNumeric: "tabular-nums", lineHeight: 1.25 }}>{finished ? demo.result : demo.problem}</div>
+            </div>
+            <div style={{ display: "grid", gap: 8, margin: "14px 0 0", textAlign: "left" }}>
+              {demo.steps.slice(0, Math.min(step + 1, demo.steps.length)).map((line, i) => (
+                <div key={i} style={{ fontSize: 21, fontWeight: i === step ? 800 : 600, lineHeight: 1.35, color: i === step || finished ? "var(--ios-label)" : "var(--ios-label-2)" }}>{i + 1}. {line}</div>
+              ))}
+            </div>
+          </>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 12, marginTop: 18 }}>
+          <button type="button" onClick={sayAgain} style={{ padding: "16px 22px", borderRadius: 18, border: "none", background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 22, fontWeight: 800 }}>🔊 Again</button>
+          <button type="button" onClick={nextLessonStep} style={{ padding: 16, borderRadius: 18, border: "none", background: "#2ACF5F", color: "#fff", fontSize: 22, fontWeight: 800, boxShadow: "0 5px 0 rgba(0,0,0,0.18)" }}>
+            {idea ? "Show me one →" : finished ? "Let\u2019s try one together →" : step === demo.steps.length - 1 ? "So the answer is… →" : "Next step →"}
+          </button>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 12 }}>
-          <button type="button" onClick={() => speak(`${k.goal}. ${k.teach.join(" ")}`, 0.9)} style={{ padding: "16px 22px", borderRadius: 18, border: "none", background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 22, fontWeight: 800 }}>🔊 Again</button>
-          <button type="button" onClick={closeLesson} style={{ padding: 16, borderRadius: 18, border: "none", background: "#2ACF5F", color: "#fff", fontSize: 22, fontWeight: 800, boxShadow: "0 5px 0 rgba(0,0,0,0.18)" }}>My turn! →</button>
-        </div>
+        <button type="button" onClick={() => { setLesson(null); const it = firstItem.current ?? item; firstItem.current = null; if (it) say(it); }} style={{ marginTop: 14, background: "none", border: "none", fontSize: 16, fontWeight: 700, color: "var(--ios-label-3)" }}>Skip the lesson</button>
       </div>
     );
   }
@@ -330,6 +384,7 @@ export default function Workbook({ childId, first, mode = "mixed", speak, onBack
         </div>
       </div>
       {isCorrection && <div style={{ fontSize: 16, fontWeight: 700, color: "#FF9F0A", marginTop: 8 }}>One more look at this one</div>}
+      {together && <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ios-tint)", marginTop: 8 }}>🦉 Let&rsquo;s do this one together</div>}
 
       {/* The question */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, margin: "22px 0 14px", minHeight: 84 }}>

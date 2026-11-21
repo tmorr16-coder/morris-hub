@@ -32,6 +32,26 @@ function allow(userId: string, limit = 40, windowMs = 10 * 60 * 1000): boolean {
 }
 
 /**
+ * In the math game Buddy may not state a finished sum the child has not
+ * earned. "1 + 1 = 2. Now try 2 + 1" teaches nothing and gives one away.
+ * A finished sum is allowed only when its result is the number the child
+ * just said (Buddy is agreeing), or after two misses in a row (Buddy is
+ * explaining). Anything else has its result taken out.
+ */
+export function withoutToldSums(isMath: boolean, messages: { role: string; content: string }[], reply: string): string {
+  if (!isMath) return reply;
+  const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+  const said = new Set((lastUser.match(/\d+/g) ?? []).map(Number));
+  const recentBuddy = messages.filter((m) => m.role === "assistant").slice(-2);
+  const twoMisses = recentBuddy.length === 2 && recentBuddy.every((m) => /not yet|almost|try again|hint|close/i.test(m.content));
+  if (twoMisses) return reply;
+  const out = reply.replace(/(\d+)\s*(\+|-|−|plus|minus|take away)\s*(\d+)\s*(=|is|equals|makes)\s*(\d+)/gi, (whole, a: string, op: string, b: string, _eq: string, r: string) => {
+    return said.has(Number(r)) ? whole : `${a} ${/\+|plus/i.test(op) ? "+" : "−"} ${b}`;
+  });
+  return out;
+}
+
+/**
  * The activity the child chose, as the rules for it. The screen sends this
  * with every message, so the rules follow a switch from math to the verse
  * instead of Buddy having to guess from the last thing said. Fixed text,
@@ -163,7 +183,7 @@ ${CONTEXT_RULE}`;
       system,
       messages: withAppContext(messages, [modeNote, context, sessionNote].filter(Boolean).join("\n")),
     });
-    const reply = withoutGiveaways(res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join(" ").trim() || "Let's try that again!");
+    const reply = withoutToldSums(mode === "math", messages, withoutGiveaways(res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join(" ").trim() || "Let's try that again!"));
     // Keep the exchange for the parents. A failure here (the table not yet
     // migrated) must not cost the child the reply.
     // Awaited on purpose: a serverless function can be frozen the moment the

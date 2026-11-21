@@ -213,3 +213,85 @@ export function starsFor(firstTry: number, total: number): number {
   const rate = firstTry / total;
   return rate >= 0.9 ? 3 : rate >= 0.6 ? 2 : 1;
 }
+
+// ── The lesson: a worked example, made fresh each time ──────────────────────
+
+export interface Demo {
+  /** The problem as asked, with no answer in it. */
+  problem: string;
+  /** How to think it through, one short step at a time. Shown and spoken in turn. */
+  steps: string[];
+  /** The finished line, shown only after the last step. */
+  result: string;
+  dots?: { a: number; b: number; op: "+" | "-" };
+}
+
+const countOn = (from: number, n: number) => Array.from({ length: n }, (_, i) => from + i + 1).join(", ");
+const countBack = (from: number, n: number) => Array.from({ length: n }, (_, i) => from - i - 1).join(", ");
+
+/**
+ * A worked example for a skill, with its own numbers. The lesson used to show
+ * one fixed sum per skill, so "Teach me" taught the same 5 + 3 every time —
+ * and could be the very problem on the page. A different seed gives different
+ * numbers; `avoid` keeps it off any problem the child is about to be asked.
+ */
+export function demoFor(skill: number, seed: number, avoid: string[] = []): Demo {
+  const r = rng(seed);
+  const M = "\u2212";
+  const build = (): Demo => {
+    switch (Math.max(1, Math.min(MAX_LEVEL, skill))) {
+      case 1: { const a = int(r, 2, 8); return { problem: `${a} + 1 =`, steps: [`Start at ${a}.`, `Adding 1 is the very next number.`, `After ${a} comes ${a + 1}.`], result: `${a} + 1 = ${a + 1}`, dots: { a, b: 1, op: "+" } }; }
+      case 2: { const big = int(r, 4, 7), small = int(r, 2, Math.min(3, 10 - big)); return { problem: `${small} + ${big} =`, steps: [`Find the bigger number. It is ${big}.`, `Start at ${big} and count on ${small}: ${countOn(big, small)}.`, `The last number you said is the answer: ${big + small}.`], result: `${small} + ${big} = ${big + small}`, dots: { a: big, b: small, op: "+" } }; }
+      case 3: { const a = int(r, 2, 8); return { problem: `${a} + ${BOX} = 10`, steps: [`Here are ${a}. We want 10.`, `Count up from ${a} to 10: ${countOn(a, 10 - a)}.`, `That was ${10 - a} more. ${a} and ${10 - a} are friends of 10.`], result: `${a} + ${10 - a} = 10`, dots: { a, b: 10 - a, op: "+" } }; }
+      case 4: { const a = int(r, 3, 9); return { problem: `${a} + ${a} =`, steps: [`A double is the same number two times.`, `Here are ${a}, and ${a} more.`, `${a} and ${a} make ${a * 2}. Doubles are good to know by heart.`], result: `${a} + ${a} = ${a * 2}`, dots: { a, b: a, op: "+" } }; }
+      case 5: { const a = int(r, 7, 9), b = int(r, 11 - a + 1, 8), need = 10 - a; return { problem: `${a} + ${b} =`, steps: [`${a} is close to 10. It needs ${need} more.`, `Break ${b} into ${need} and ${b - need}.`, `${a} and ${need} make 10. Then 10 and ${b - need} is ${a + b}.`], result: `${a} + ${b} = ${a + b}`, dots: { a, b, op: "+" } }; }
+      case 6: { const a = int(r, 6, 10), b = int(r, 2, 3); return { problem: `${a} ${M} ${b} =`, steps: [`Start at ${a}.`, `Count back ${b}: ${countBack(a, b)}.`, `The last number you said is what is left: ${a - b}.`], result: `${a} ${M} ${b} = ${a - b}`, dots: { a, b, op: "-" } }; }
+      case 7: { const total = int(r, 7, 12), b = int(r, 3, total - 3); return { problem: `${BOX} + ${b} = ${total}`, steps: [`The box is hiding a number.`, `Start at ${b} and count up to ${total}: ${countOn(b, total - b)}.`, `That was ${total - b} jumps, so the box is ${total - b}.`], result: `${total - b} + ${b} = ${total}` }; }
+      case 8: { const a = int(r, 12, 16), toTen = a - 10, b = int(r, toTen + 1, 9); return { problem: `${a} ${M} ${b} =`, steps: [`First go back to 10. That takes away ${toTen}.`, `${b} is ${toTen} and ${b - toTen}, so take away ${b - toTen} more.`, `10 take away ${b - toTen} is ${a - b}.`], result: `${a} ${M} ${b} = ${a - b}`, dots: { a, b, op: "-" } }; }
+      case 9: { const a = int(r, 9, 15), ans = int(r, 3, a - 3); return { problem: `${a} ${M} ${BOX} = ${a - ans}`, steps: [`Adding and taking away are a family.`, `Ask it the adding way: ${a - ans} plus what makes ${a}?`, `${a - ans} plus ${ans} is ${a}. So the box is ${ans}.`], result: `${a} ${M} ${ans} = ${a - ans}` }; }
+      case 10: { const a = int(r, 2, 8), c = int(r, 2, 7); return { problem: `${a} + ${c} + ${10 - a} =`, steps: [`Look for two numbers that make 10.`, `${a} and ${10 - a} make 10.`, `Now it is easy: 10 and ${c} is ${10 + c}.`], result: `${a} + ${c} + ${10 - a} = ${10 + c}` }; }
+      case 11: { const a = int(r, 2, 5), b = int(r, 1, 4); return { problem: `${a * 10} + ${b * 10} =`, steps: [`${a * 10} is ${a} tens. ${b * 10} is ${b} tens.`, `${a} tens and ${b} tens is ${a + b} tens.`, `${a + b} tens is ${(a + b) * 10}.`], result: `${a * 10} + ${b * 10} = ${(a + b) * 10}` }; }
+      case 12: { const t = int(r, 2, 7), o = int(r, 1, 5), b = int(r, 2, 9 - o); return { problem: `${t * 10 + o} + ${b} =`, steps: [`${t * 10 + o} is ${t} tens and ${o} ones.`, `Leave the tens alone. Add the ones: ${o} and ${b} is ${o + b}.`, `${t} tens and ${o + b} ones is ${t * 10 + o + b}.`], result: `${t * 10 + o} + ${b} = ${t * 10 + o + b}` }; }
+      case 13: { const t1 = int(r, 1, 4), o1 = int(r, 1, 5), t2 = int(r, 1, 4), o2 = int(r, 1, 9 - o1); const x = t1 * 10 + o1, y = t2 * 10 + o2; return { problem: `${x} + ${y} =`, steps: [`Add the tens: ${t1 * 10} and ${t2 * 10} is ${(t1 + t2) * 10}.`, `Add the ones: ${o1} and ${o2} is ${o1 + o2}.`, `Put them together: ${(t1 + t2) * 10} and ${o1 + o2} is ${x + y}.`], result: `${x} + ${y} = ${x + y}` }; }
+      case 14: { const t1 = int(r, 3, 8), o1 = int(r, 4, 9), t2 = int(r, 1, t1 - 1), o2 = int(r, 1, o1 - 1); const x = t1 * 10 + o1, y = t2 * 10 + o2; return { problem: `${x} ${M} ${y} =`, steps: [`Take away the tens: ${t1 * 10} take away ${t2 * 10} is ${(t1 - t2) * 10}.`, `Take away the ones: ${o1} take away ${o2} is ${o1 - o2}.`, `Put them together: ${x - y}.`], result: `${x} ${M} ${y} = ${x - y}` }; }
+      case 15: { const a = int(r, 3, 7), b = int(r, 2, 6), c = int(r, 2, a + b - 2); return { problem: `${a} + ${b} = ${BOX} + ${c}`, steps: [`The equals sign means both sides are the same amount.`, `Work out the left side: ${a} plus ${b} is ${a + b}.`, `The right side must be ${a + b} too. What plus ${c} makes ${a + b}? ${a + b - c}.`], result: `${a} + ${b} = ${a + b - c} + ${c}` }; }
+      default: { const who = ["Leo", "Ava", "Max", "Ivy"][int(r, 0, 3)], thing = ["marbles", "books", "blocks", "shells"][int(r, 0, 3)];
+        if (r() < 0.5) { const a = int(r, 4, 9), b = int(r, 2, 6); return { problem: `${who} has ${a} ${thing} and gets ${b} more.`, steps: [`Listen for the clue word. "More" means add.`, `Write it as a sum: ${a} plus ${b}.`, `${a} plus ${b} is ${a + b}. ${who} has ${a + b} ${thing}.`], result: `${a} + ${b} = ${a + b}`, dots: { a, b, op: "+" } }; }
+        const a = int(r, 8, 14), b = int(r, 2, 6); return { problem: `${who} has ${a} ${thing} and gives away ${b}.`, steps: [`Listen for the clue. "Gives away" means take away.`, `Write it: ${a} take away ${b}.`, `${a} take away ${b} is ${a - b}. ${who} has ${a - b} left.`], result: `${a} ${M} ${b} = ${a - b}`, dots: { a, b, op: "-" } }; }
+    }
+  };
+  let d = build();
+  for (let i = 0; i < 12 && avoid.some((p) => p.replace(/\s/g, "") === d.problem.replace(/\s/g, "")); i++) d = build();
+  return d;
+}
+
+/** One problem to do together after the lesson: the skill's own kind, not one already in the set. */
+export function guidedFor(skill: number, seed: number, avoid: string[] = []): Extract<WorkItem, { type: "math" }> {
+  const r = rng(seed);
+  const at = Math.max(1, Math.min(MAX_LEVEL, skill));
+  let f = MATH_SKILLS[at - 1].make(r);
+  for (let i = 0; i < 20 && avoid.includes(f.display); i++) f = MATH_SKILLS[at - 1].make(r);
+  return { id: `g${seed}`, type: "math", skill: at, ...f };
+}
+
+/**
+ * What the microphone heard, as the number it meant. Speech-to-text writes
+ * "ate" for eight and "to" for two; in a math answer those are numbers.
+ * `always` is for the math game; elsewhere only a one-word reply is changed.
+ */
+const HEARD_NUMBERS: Record<string, number> = {
+  zero: 0, oh: 0, one: 1, won: 1, two: 2, to: 2, too: 2, three: 3, tree: 3, free: 3, four: 4, for: 4, fore: 4, five: 5, six: 6, sex: 6, sicks: 6,
+  seven: 7, eight: 8, ate: 8, nine: 9, nein: 9, ten: 10, tin: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20,
+};
+export function heardAsNumbers(text: string, always: boolean): string {
+  const words = text.trim().split(/\s+/);
+  if (!always && words.length > 1) return text;
+  const strict = new Set(["to", "too", "for", "fore", "oh", "won", "tree", "free", "sex", "sicks", "nein", "tin", "ate"]);
+  return words.map((w) => {
+    const bare = w.toLowerCase().replace(/[^a-z]/g, "");
+    if (!(bare in HEARD_NUMBERS)) return w;
+    // In a sentence, only turn a sound-alike into a number when it stands alone as the answer.
+    if (words.length > 3 && strict.has(bare)) return w;
+    return String(HEARD_NUMBERS[bare]) + w.replace(/^[A-Za-z]+/, "");
+  }).join(" ");
+}

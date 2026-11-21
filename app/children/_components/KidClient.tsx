@@ -14,6 +14,7 @@ import Link from "next/link";
 import { pickBestVoice } from "@/lib/tts-voices";
 import type { CloudVoice } from "@/lib/buddy-voice";
 import Workbook from "./Workbook";
+import { heardAsNumbers } from "../_lib/workbook";
 import type { ChildTask } from "../_lib/learning";
 import { completeTask, markWordPracticed } from "../_lib/learning-actions";
 import { Bubble, Confetti, KID, KID_CSS, LevelBar, Mascot, PathNode, PathTrail, SectionTitle, StepDots, Tile, levelFor, type Mood } from "./KidUi";
@@ -953,7 +954,7 @@ function Tutor({ childId, first, gradeLabel, speak, speaking, stopSpeaking, acti
     listenRef.current = ears.start;
     flushRef.current = () => {
       if (grace.current) { clearTimeout(grace.current); grace.current = null; }
-      const text = pending.current.trim();
+      const text = heardAsNumbers(pending.current.trim(), modeRef.current === "math");
       pending.current = "";
       setHeard("");
       if (!text) return;
