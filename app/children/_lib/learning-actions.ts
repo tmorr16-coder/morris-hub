@@ -486,7 +486,7 @@ export async function setPinnedChild(childId: string, pinned: boolean): Promise<
 // ── Buddy's workbook ─────────────────────────────────────────────────────────
 
 /** Today's pages for the child's screen, at the level the last set earned. */
-export async function startWorkbook(childId: string): Promise<{ error?: string; level?: number; items?: WorkItem[] }> {
+export async function startWorkbook(childId: string, mode: "mixed" | "math" = "mixed"): Promise<{ error?: string; level?: number; items?: WorkItem[]; newSkill?: boolean }> {
   const access = await childScreenAccess(childId);
   if (!access) return { error: "Not found" };
   const svc = db();
@@ -496,7 +496,7 @@ export async function startWorkbook(childId: string): Promise<{ error?: string; 
     svc.schema("hub").from("child_spelling_weeks").select("words, sight_words").eq("child_id", childId)
       .order("week_start", { ascending: false }).limit(1),
   ]);
-  const prev = (last?.[0]?.payload as { workbook?: { nextLevel?: number } } | undefined)?.workbook;
+  const prev = (last?.[0]?.payload as { workbook?: { level?: number; nextLevel?: number } } | undefined)?.workbook;
   const level = Math.max(1, Math.min(MAX_LEVEL, Number(prev?.nextLevel) || 2));
   const now = new Date();
   // Same pages if reopened within the hour; a fresh set after that.
@@ -504,9 +504,10 @@ export async function startWorkbook(childId: string): Promise<{ error?: string; 
   const items = buildWorkbook({
     words: (week?.[0]?.words as string[] | undefined) ?? [],
     sightWords: (week?.[0]?.sight_words as string[] | undefined) ?? [],
-    level, seed,
+    level, seed: mode === "math" ? seed + 7 : seed, mode: mode === "math" ? "math" : "mixed",
   });
-  return { level, items };
+  // A rung not practised before starts with its lesson.
+  return { level, items, newSkill: !prev || prev.nextLevel !== prev.level };
 }
 
 /** A finished set: kept as a completed job, so the stars count and the parents can see how it went. */

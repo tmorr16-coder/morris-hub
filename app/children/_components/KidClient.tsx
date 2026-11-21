@@ -39,7 +39,7 @@ interface Props {
   streak?: number;
 }
 
-type View = { kind: "home" } | { kind: "task"; task: ChildTask } | { kind: "practice" } | { kind: "workbook" } | { kind: "tutor"; starter?: string; mode?: BuddyMode };
+type View = { kind: "home" } | { kind: "task"; task: ChildTask } | { kind: "practice" } | { kind: "workbook"; mode?: "mixed" | "math" } | { kind: "tutor"; starter?: string; mode?: BuddyMode };
 
 /** Things to do with Buddy. One tap starts each; nothing to type or read first. */
 /** What Buddy and the child are doing right now. Sent with every message so the right rules apply. */
@@ -604,6 +604,10 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
         <button type="button" className="kid-press" onClick={() => setView({ kind: "workbook" })} style={{ ...bigBtn("#2ACF5F"), marginTop: 18, fontSize: 26, padding: "22px 20px" }}>
           ✏️ {doneToday.some((t) => t.title === "Buddy workbook") ? "Do more pages" : "Start today’s pages"}
         </button>
+        {/* A whole sitting of math: Buddy teaches the skill, then ten to try. */}
+        <button type="button" className="kid-press" onClick={() => setView({ kind: "workbook", mode: "math" })} style={{ ...bigBtn(KID.teal, KID.tealDark), marginTop: 14, fontSize: 21 }}>
+          ➕ Math pages
+        </button>
 
         {stones.length > 0 && (
           <>
@@ -659,7 +663,7 @@ export default function KidClient({ childId, name, gradeLabel, tasks: initialTas
   if (view.kind === "workbook") {
     return (
       <Shell burst={burst} speaking={speaking} loading={loading} onStop={stop}>
-        <Workbook childId={childId} first={first} speak={speak} onBack={() => { stop(); setView({ kind: "home" }); }}
+        <Workbook key={view.mode ?? "mixed"} mode={view.mode ?? "mixed"} childId={childId} first={first} speak={speak} onBack={() => { stop(); setView({ kind: "home" }); }}
           onFinish={(earned, right, total) => {
             setStars((st) => ({ total: st.total + earned, week: st.week + earned }));
             if (doneToday.length === 0) setStreak((n) => n + 1);

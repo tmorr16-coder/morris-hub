@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { startWorkbook, recordWorkbook } from "../_lib/learning-actions";
-import { answerOf, labelOf, matches, MATH_LEVELS, type WorkItem, type WorkResult } from "../_lib/workbook";
+import { answerOf, labelOf, matches, MATH_SKILLS, type WorkItem, type WorkResult } from "../_lib/workbook";
 
 type Phase = "loading" | "writing" | "checking" | "right" | "retry" | "trace" | "selfcheck" | "done" | "error";
 
@@ -112,8 +112,10 @@ function usePad(onInk: () => void) {
   return { ref, down, move, up, clear, snapshot, hasInk, drawing, strokes };
 }
 
-export default function Workbook({ childId, first, speak, onBack, onFinish }: {
+export default function Workbook({ childId, first, mode = "mixed", speak, onBack, onFinish }: {
   childId: string; first: string;
+  /** "math" is a whole sitting of math; "mixed" is today's spelling, sight words and math. */
+  mode?: "mixed" | "math";
   speak: (t: string, rate?: number) => void;
   onBack: () => void;
   onFinish: (stars: number, firstTry: number, total: number) => void;
@@ -136,7 +138,7 @@ export default function Workbook({ childId, first, speak, onBack, onFinish }: {
   const say = useCallback((it: WorkItem) => {
     if (it.type === "spell") speak(`Write the word: ${it.word}.`, 0.9);
     else if (it.type === "copy") speak(`Write this word: ${it.word}.`, 0.9);
-    else speak(`${it.a} ${it.op === "+" ? "plus" : "take away"} ${it.b}`, 0.95);
+    else speak(it.say, 0.95);
   }, [speak]);
 
   // The pencil lifted: wait a breath, then mark it. A new stroke resets the wait.
@@ -150,15 +152,38 @@ export default function Workbook({ childId, first, speak, onBack, onFinish }: {
 
   useEffect(() => {
     let alive = true;
-    startWorkbook(childId).then((r) => {
+    startWorkbook(childId, mode).then((r) => {
       if (!alive) return;
       if (r.error || !r.items?.length) { setPhase("error"); return; }
       setQueue(r.items); setTotal(r.items.length); setLevel(r.level ?? 1); setPhase("writing");
-      say(r.items[0]);
+      // A new rung of the ladder opens with its lesson; otherwise straight to work.
+      const hasMath = r.items.some((it) => it.type === "math");
+      if (r.newSkill && hasMath) { firstItem.current = r.items[0]; openLesson(r.level ?? 1); }
+      else say(r.items[0]);
     });
     return () => { alive = false; if (timer.current) clearTimeout(timer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on open
   }, [childId]);
+
+  // ── The lesson ────────────────────────────────────────────────────────────
+  // Buddy teaches before he asks: the goal in the child's words, the idea in
+  // two or three spoken lines, and one worked example. It opens by itself the
+  // first time a skill comes up, and "Teach me" brings it back on any math page.
+  const [lesson, setLesson] = useState<number | null>(null);
+  const firstItem = useRef<WorkItem | null>(null);
+  function openLesson(skill: number) {
+    if (timer.current) clearTimeout(timer.current);
+    const k = MATH_SKILLS[skill - 1];
+    if (!k) return;
+    setLesson(skill);
+    speak(`${k.goal}. ${k.teach.join(" ")}`, 0.9);
+  }
+  function closeLesson() {
+    setLesson(null);
+    const it = firstItem.current ?? item;
+    firstItem.current = null;
+    if (it) say(it);
+  }
 
   function record(it: WorkItem, firstTry: boolean, n: number) {
     if (!results.current.has(it.id)) results.current.set(it.id, { id: it.id, label: labelOf(it), firstTry, tries: n });
@@ -230,9 +255,9 @@ export default function Workbook({ childId, first, speak, onBack, onFinish }: {
       setTimeout(() => pad.clear(), SHOW_MISS_MS);
     } else if (n === 2) {
       setHint(true);
-      setNote(item.type === "math" ? "Here's a hint. Count the dots!" : "Here's a hint. Listen to each sound.");
+      setNote(item.type === "math" ? (item.hint.kind === "dots" ? "Here's a hint. Count the dots!" : item.hint.text) : "Here's a hint. Listen to each sound.");
       setPhase("retry");
-      speak(item.type === "math" ? "Here's a hint. Count the dots." : `Here's a hint. It starts with ${item.word[0]}. ${item.word}.`, 0.85);
+      speak(item.type === "math" ? (item.hint.kind === "dots" ? "Here's a hint. Count the dots." : `Here's a hint. ${item.hint.text}`) : `Here's a hint. It starts with ${item.word[0]}. ${item.word}.`, 0.85);
       setTimeout(() => pad.clear(), SHOW_MISS_MS);
     } else {
       record(item, false, n);
@@ -267,6 +292,27 @@ export default function Workbook({ childId, first, speak, onBack, onFinish }: {
   );
   if (phase === "done" || !item) return <div style={{ fontSize: 26, fontWeight: 800, textAlign: "center", marginTop: 80 }}>All done, {first}! ⭐</div>;
 
+  if (lesson != null) {
+    const k = MATH_SKILLS[lesson - 1];
+    return (
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: "var(--ios-label-3)", marginTop: 6 }}>Buddy&rsquo;s lesson</div>
+        <div style={{ fontSize: 34, fontWeight: 800, margin: "6px 0 16px" }}>🎯 {k.goal}</div>
+        <div style={{ background: "#fff", color: "#1c1c1e", borderRadius: 22, border: "4px solid var(--ios-separator)", padding: "20px 16px" }}>
+          {k.example.dots && <Counters {...k.example.dots} />}
+          <div style={{ fontSize: 48, fontWeight: 800, fontVariantNumeric: "tabular-nums", marginTop: k.example.dots ? 10 : 0 }}>{k.example.display}</div>
+        </div>
+        <div style={{ display: "grid", gap: 8, margin: "16px 0", textAlign: "left" }}>
+          {k.teach.map((line, i) => <div key={i} style={{ fontSize: 21, fontWeight: 600, lineHeight: 1.35 }}>{i + 1}. {line}</div>)}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 12 }}>
+          <button type="button" onClick={() => speak(`${k.goal}. ${k.teach.join(" ")}`, 0.9)} style={{ padding: "16px 22px", borderRadius: 18, border: "none", background: "var(--ios-fill)", color: "var(--ios-label)", fontSize: 22, fontWeight: 800 }}>🔊 Again</button>
+          <button type="button" onClick={closeLesson} style={{ padding: 16, borderRadius: 18, border: "none", background: "#2ACF5F", color: "#fff", fontSize: 22, fontWeight: 800, boxShadow: "0 5px 0 rgba(0,0,0,0.18)" }}>My turn! →</button>
+        </div>
+      </div>
+    );
+  }
+
   const done = Math.min(pos, total);
   const isCorrection = pos >= total;
   const showAnswer = phase === "trace" || phase === "selfcheck";
@@ -287,7 +333,7 @@ export default function Workbook({ childId, first, speak, onBack, onFinish }: {
 
       {/* The question */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, margin: "22px 0 14px", minHeight: 84 }}>
-        {item.type === "math" && <div style={{ fontSize: 64, fontWeight: 800, letterSpacing: "0.02em", fontVariantNumeric: "tabular-nums" }}>{item.a} {item.op === "-" ? "−" : "+"} {item.b} =</div>}
+        {item.type === "math" && <div style={{ fontSize: item.display.length > 22 ? 28 : item.display.length > 12 ? 46 : 64, fontWeight: 800, letterSpacing: "0.02em", fontVariantNumeric: "tabular-nums", textAlign: "center", lineHeight: 1.25 }}>{item.display}</div>}
         {item.type === "copy" && <div style={{ fontSize: 60, fontWeight: 700, letterSpacing: "0.08em" }}>{item.word}</div>}
         {item.type === "spell" && <div style={{ fontSize: 26, fontWeight: 800, color: "var(--ios-label-2)" }}>Write the word you hear</div>}
         <button type="button" onClick={() => say(item)} aria-label="Hear it again" style={{ background: "var(--ios-tint)", color: "#fff", border: "none", borderRadius: 999, width: 60, height: 60, fontSize: 26, flexShrink: 0, boxShadow: "0 4px 0 rgba(0,0,0,0.18)" }}>🔊</button>
@@ -296,15 +342,7 @@ export default function Workbook({ childId, first, speak, onBack, onFinish }: {
       {/* The hint, after two misses: something to work it out with, not the answer. */}
       {hint && phase !== "trace" && phase !== "right" && (
         item.type === "math" ? (
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 18, marginBottom: 12, flexWrap: "wrap" }}>
-            {item.op === "+" ? (
-              <>
-                <Dots n={item.a} colour="#3B82F6" />
-                <span style={{ fontSize: 30, fontWeight: 800 }}>+</span>
-                <Dots n={item.b} colour="#F59E0B" />
-              </>
-            ) : <Dots n={item.a} colour="#3B82F6" crossed={item.b} />}
-          </div>
+          item.hint.kind === "dots" ? <Counters {...item.hint} /> : null
         ) : (
           <div style={{ textAlign: "center", fontSize: 44, fontWeight: 800, letterSpacing: "0.3em", marginBottom: 12, color: "var(--ios-label-2)" }}>
             {item.word[0]}{"_".repeat(item.word.length - 1)}
@@ -345,7 +383,12 @@ export default function Workbook({ childId, first, speak, onBack, onFinish }: {
           </button>
         </div>
       )}
-      <div style={{ fontSize: 13, color: "var(--ios-label-3)", textAlign: "center", marginTop: 12 }}>Math: {MATH_LEVELS[level - 1]}</div>
+      {item.type === "math" && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 14, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "var(--ios-label-2)" }}>🎯 {MATH_SKILLS[item.skill - 1]?.goal}</span>
+          <button type="button" onClick={() => openLesson(item.skill)} style={{ background: "var(--ios-fill)", border: "none", borderRadius: 999, padding: "10px 16px", fontSize: 17, fontWeight: 800, color: "var(--ios-label)" }}>🦉 Teach me</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -360,6 +403,21 @@ function Dots({ n, colour, crossed = 0 }: { n: number; colour: string; crossed?:
           {i >= n - crossed && <span style={{ position: "absolute", left: -3, right: -3, top: 7, borderTop: `3px solid ${colour}`, transform: "rotate(-45deg)" }} />}
         </span>
       ))}
+    </div>
+  );
+}
+
+/** Two groups to count for adding; one group with some struck out for taking away. */
+function Counters({ a, b, op }: { a: number; b: number; op: "+" | "-" }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 18, marginBottom: 12, flexWrap: "wrap" }}>
+      {op === "+" ? (
+        <>
+          <Dots n={a} colour="#3B82F6" />
+          <span style={{ fontSize: 30, fontWeight: 800 }}>+</span>
+          <Dots n={b} colour="#F59E0B" />
+        </>
+      ) : <Dots n={a} colour="#3B82F6" crossed={b} />}
     </div>
   );
 }
